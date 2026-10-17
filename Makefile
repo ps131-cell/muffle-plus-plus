@@ -5,8 +5,9 @@ TORCH   ?= cpu          # Linux only: cpu | cu126 | cu128 (Mac always uses the d
 GPU     ?=              # e.g. GPU=0 to run the FL simulator on a GPU
 CLIENTS ?= 3
 ROUNDS  ?= 10
+FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_model.pt
 
-.PHONY: setup test lint synth local fl demo clean-nb docker
+.PHONY: setup test lint synth local fl compare demo clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -32,6 +33,11 @@ local: synth
 fl: synth
 	$(BIN)/python jobs/fedavg_job.py --data data/synthetic --n-clients $(strip $(CLIENTS)) \
 		--rounds $(strip $(ROUNDS)) $(if $(strip $(GPU)),--gpu $(strip $(GPU)),)
+
+# after `make fl`: per-site C-index table, centralized vs local-only vs the final FedAvg model
+compare: synth
+	$(BIN)/python -m muffle.train_local --data data/synthetic --config configs/default.yaml \
+		--n-clients $(strip $(CLIENTS)) --fl-ckpt $(FL_CKPT)
 
 demo:
 	$(BIN)/streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic

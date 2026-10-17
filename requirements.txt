@@ -9,5 +9,6 @@ scikit-survival>=0.23  # time-dependent AUC, Brier score
 matplotlib>=3.8
 tqdm
 openai>=1.40           # Nebius Token Factory is OpenAI-compatible (Nemotron)
+python-dotenv>=1.0     # loads NEBIUS_API_KEY etc. from .env
 tavily-python>=0.5     # optional literature search for the report
 streamlit>=1.38        # demo app

@@ -2,6 +2,18 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-17 — Score FedAvg with the final global model, over several seeds
+- **What:** `make compare` scores `FL_global_model.pt` (the last round) on the same per-site
+  validation splits as the baselines. Don't report `best_FL_global_model.pt`: NVFlare picks it
+  with those same validation C-indexes, so it is optimistic.
+- **Why:** per-site validation sets are small (26–94 patients), so a single run's per-site gaps
+  of ~0.01 are noise (bootstrap 95% CIs ±0.04–0.10). Over 5 synthetic cohorts the mean C-index
+  was local-only 0.737 < FedAvg 0.744 < centralized 0.749, but the per-site order held in only
+  1–2 of 5 seeds.
+- **Consequence:** report results as mean ± sd over seeds (or on a larger pooled test set). On
+  synthetic data local-only is already close to centralized, so the "FL ≫ local-only" story
+  needs smaller / more heterogeneous sites or real TCGA sites.
+
 ## 2026-10-16 — Target the Nebius × NVIDIA Global AI Hackathon (Devpost), track "Best Apps and Agents"
 - **What:** add a Nemotron (Token Factory) patient report + Tavily literature lookup; run FL
   training as a Nebius Serverless Job; MIT license; repo public before submission.

@@ -14,6 +14,10 @@ import argparse
 import json
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()  # repo-root .env (git-ignored); real environment variables take precedence
+
 TOKEN_FACTORY_URL = os.getenv("TOKEN_FACTORY_BASE_URL", "https://api.tokenfactory.nebius.com/v1")
 DEFAULT_MODEL = os.getenv("NEMOTRON_MODEL", "nvidia/Nemotron-3-Nano")  # check --list-models
 
@@ -55,7 +59,7 @@ def offline_summary(facts: dict) -> str:
              f"{facts['cancer_type']} cohort.",
              "Drivers: " + ", ".join(f"{m} ({v:+.2f})" for m, v in drivers),
              "Caveats: offline template — set NEBIUS_API_KEY for the Nemotron-written report."]
-    return "\n".join(lines)
+    return "\n\n".join(lines)  # blank lines so st.markdown keeps them as separate paragraphs
 
 
 def summarize(facts: dict, refs: list[dict] | None = None, model: str = DEFAULT_MODEL) -> str:

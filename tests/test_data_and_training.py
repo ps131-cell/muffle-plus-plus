@@ -8,6 +8,7 @@ from muffle.data.partition import partition_cohort
 from muffle.engine import evaluate, train_epochs
 from muffle.metrics import concordance_index
 from muffle.models import MuffleNet
+from muffle.train_local import load_checkpoint, results_table
 
 
 def test_synthetic_signal_is_learnable(cohort):
@@ -40,6 +41,17 @@ def test_training_beats_random(cohort, small_cfg):
     train_epochs(model, DataLoader(tr, batch_size=64, shuffle=True), epochs=30, lr=3e-3)
     after = evaluate(model, va)["c_index"]
     assert after > 0.65 and after > before
+
+
+def test_load_checkpoint_accepts_nvflare_global_model(small_cfg, tmp_path):
+    # NVFlare's PTFileModelPersistor saves {"model": state_dict, "train_conf": ...}, no "config"
+    model = MuffleNet.from_config(small_cfg)
+    path = tmp_path / "FL_global_model.pt"
+    torch.save({"model": model.state_dict(), "train_conf": {"train": {"model": "MuffleNet"}}}, path)
+    loaded = load_checkpoint(path, small_cfg)
+    assert all(torch.equal(v, loaded.state_dict()[k]) for k, v in model.state_dict().items())
+    table = results_table({"centralized": {"site-1": 0.71}, "fedavg": {"site-1": 0.7}})
+    assert "| site-1 | 0.710 | 0.700 |" in table
 
 
 def test_fedprox_term_runs(cohort, small_cfg):
