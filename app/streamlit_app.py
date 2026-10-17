@@ -16,20 +16,22 @@ import torch
 
 from muffle.config import load_config
 from muffle.data.dataset import MultiOmicDataset
+from muffle.engine import evaluate
 from muffle.explain import modality_contributions, risk_percentile, top_features
-from muffle.metrics import concordance_index
 from muffle.models import MuffleNet
 from muffle.report.nemotron import build_facts, literature, summarize
+from muffle.train_local import site_files
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", default="outputs/centralized.pt")
 p.add_argument("--data", default="data/synthetic")
 p.add_argument("--cancer", default="breast")
+p.add_argument("--n-clients", type=int, default=3)
 args, _ = p.parse_known_args()
 
 
 @st.cache_resource
-def load(ckpt: str, data: str):
+def load(ckpt: str, data: str, n_clients: int):
     blob = torch.load(ckpt, map_location="cpu", weights_only=False)
     cfg = blob.get("config") if isinstance(blob, dict) else None
     cfg = cfg or load_config()
@@ -40,19 +42,28 @@ def load(ckpt: str, data: str):
     ds = MultiOmicDataset(Path(data) / "cohort.npz", cfg["modalities"])
     with torch.no_grad():
         risks = model(ds.x, ds.mask).numpy()
-    return model, ds, risks
+    # Held-out C-index: the per-site validation splits `make compare` scores (never trained on).
+    heldout = {}
+    for f in site_files(Path(data), n_clients):
+        _, val = MultiOmicDataset(f, cfg["modalities"]).split(
+            cfg["train"]["val_fraction"], cfg["train"]["seed"])
+        heldout[f.stem] = evaluate(model, val)["c_index"]
+    return model, ds, risks, heldout
 
 
 st.set_page_config(page_title="MuFFLe++", layout="wide")
 st.title("MuFFLe++ — federated multi-omic prognosis")
 st.caption("Research prototype. Not for clinical use.")
 
-model, ds, risks = load(args.ckpt, args.data)
-c = concordance_index(ds.time, ds.event, risks)
+model, ds, risks, heldout = load(args.ckpt, args.data, args.n_clients)
+c = float(np.mean(list(heldout.values())))
 col1, col2, col3 = st.columns(3)
 col1.metric("Patients", len(ds))
-col2.metric("C-index (cohort)", f"{c:.3f}")
+col2.metric("C-index (held-out)", f"{c:.3f}",
+            help="Mean over the per-site validation splits that `make compare` reports.")
 col3.metric("Modalities", ", ".join(model.names))
+st.caption("Held-out C-index per site: "
+           + " · ".join(f"{s} {v:.3f}" for s, v in heldout.items()))
 
 st.subheader("Risk groups")
 groups = pd.qcut(risks, 3, labels=["low", "medium", "high"])
