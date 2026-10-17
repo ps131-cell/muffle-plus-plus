@@ -1,7 +1,8 @@
 # --- data & outputs: NEVER commit ---
-data/
-outputs/
-workspaces/
+# Anchored to the repo root: an unanchored "data/" also ignored the code package src/muffle/data/
+/data/
+/outputs/
+/workspaces/
 *.pt
 *.pth
 *.ckpt
