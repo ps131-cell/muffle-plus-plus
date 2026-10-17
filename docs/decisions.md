@@ -2,6 +2,18 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-17 — Nebius: Token Factory only, on the free hackathon credits
+- **What:** our Nebius usage is the Nemotron report via Token Factory, paid for with the free
+  hackathon credits (event code on the Devpost page) and nothing else. FL training stays in the
+  NVFlare simulator on the Mac; the AI Cloud Serverless Job (GPU) is dropped. Host the demo on a
+  free tier (Streamlit Community Cloud), not a Nebius Serverless Endpoint.
+- **Why:** the team doesn't want to pay for Nebius. Token Factory alone meets "runs on Nebius"
+  and "uses an NVIDIA open model"; the GPU job was the costly part and our cohorts train fine on
+  a laptop.
+- **Consequence:** issues #4 and #8 updated. `docs/NEBIUS.md`, the Dockerfile and `--gpu` stay
+  for later if credits allow. Keep report calls short and watch the credit balance, especially
+  once judges use the hosted demo (#13).
+
 ## 2026-10-17 — Score FedAvg with the final global model, over several seeds
 - **What:** `make compare` scores `FL_global_model.pt` (the last round) on the same per-site
   validation splits as the baselines. Don't report `best_FL_global_model.pt`: NVFlare picks it

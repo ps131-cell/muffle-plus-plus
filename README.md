@@ -35,7 +35,8 @@ make demo       # Streamlit app: risk groups + Nemotron-written patient report
 - **NVIDIA FLARE** — federated training (`jobs/fedavg_job.py`, `src/muffle/fl/client.py`).
 - **NVIDIA Nemotron via Nebius Token Factory** — patient report generation
   (`src/muffle/report/nemotron.py`); only derived numbers are sent, never raw omics.
-- **Nebius AI Cloud** — FL training runs as a Serverless Job on GPU (see `docs/NEBIUS.md`).
+- **Nebius AI Cloud** — optional: FL training can run as a Serverless Job on GPU
+  (`docs/NEBIUS.md`); the submission runs FL in the NVFlare simulator.
 - **Tavily** — literature lookup for the top prognostic features.
 
 Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
@@ -59,7 +60,7 @@ Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON
 - [x] Repo, CI, synthetic data, model, FedAvg simulation, Nemotron report, demo app
 - [ ] TCGA-BRCA download + harmonization (`scripts/prepare_tcga.py`)
 - [ ] Baselines vs FL on real data; leave-one-site-out validation
-- [ ] FL training as a Nebius Serverless Job
+- [ ] ~~FL training as a Nebius Serverless Job~~ (cut: Token Factory only, on free credits)
 - [ ] Host the demo; record the video; submit by Oct 30, 10 am PT
 - [ ] Stretch: FedProx, BLCA, proteomics, DP / secure aggregation
 
