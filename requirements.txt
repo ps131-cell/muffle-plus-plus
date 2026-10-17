@@ -1,0 +1,13 @@
+# torch is installed separately by `make setup` so the CPU/CUDA build can be chosen.
+nvflare[PT]>=2.8,<3.0
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+pyyaml>=6.0
+lifelines>=0.28        # Kaplan-Meier plots, cross-checking C-index
+scikit-survival>=0.23  # time-dependent AUC, Brier score
+matplotlib>=3.8
+tqdm
+openai>=1.40           # Nebius Token Factory is OpenAI-compatible (Nemotron)
+tavily-python>=0.5     # optional literature search for the report
+streamlit>=1.38        # demo app

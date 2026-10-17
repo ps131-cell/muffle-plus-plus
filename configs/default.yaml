@@ -1,0 +1,27 @@
+# Feature sizes per modality (after per-modality feature selection).
+# Order matters: it defines the column order of the availability mask.
+modalities:
+  genomic: 200       # binary mutation / CNV gene-level calls
+  rna: 1000          # top-variance genes, log1p + z-score
+  methylation: 500   # top-variance CpGs, M-values
+  protein: 100       # CPTAC proteins, log2 + z-score
+  clinical: 8        # age, stage, grade, one-hot histology, ...
+
+model:
+  hidden: 256
+  latent: 64
+  head_hidden: 64
+  dropout: 0.2
+  modality_dropout: 0.15   # randomly hide an available modality during training
+
+train:
+  batch_size: 64     # Cox loss needs events in each batch; don't go much smaller
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  epochs: 40         # centralized / local-only baselines
+  local_epochs: 2    # per FL round
+  val_fraction: 0.2
+  seed: 0
+
+fl:
+  prox_mu: 0.0       # >0 turns FedAvg local training into FedProx

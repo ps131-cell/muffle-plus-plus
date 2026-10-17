@@ -1,0 +1,66 @@
+# MuFFLe++ — Federated Multi-Omic Cancer Prognosis
+
+Hospitals can't pool patients' genomic data, so prognosis models stay small and site-specific.
+MuFFLe++ trains one survival model **across hospitals without moving any patient data**: each
+site trains locally on its own omics + clinical records and only model weights are aggregated
+with **NVIDIA FLARE** (FedAvg / FedProx). An **NVIDIA Nemotron** model on **Nebius Token
+Factory** then turns each prediction into a clinician-readable report, with literature found
+via **Tavily**.
+
+```
+ Hospital A ─┐  encoders: genomic · RNA · methylation · protein · clinical
+ Hospital B ─┼▶ masked late fusion ─▶ DeepSurv (Cox) head ─▶ risk
+ Hospital C ─┘  weights only ─▶ NVFlare server (FedAvg) ─▶ global model
+                                              │
+                    patient risk + drivers ───┴─▶ Nemotron (Token Factory) ─▶ report
+```
+
+Sites missing a data type still participate: that encoder is masked out (MuFFLe-style), and the
+model is trained with modality dropout so it stays calibrated when layers are missing.
+
+## Quick start (macOS or Linux, Python 3.10–3.13)
+
+```bash
+git clone https://github.com/<OWNER>/muffle-plus-plus.git && cd muffle-plus-plus
+make setup      # .venv + PyTorch + NVFlare + deps
+make test       # unit tests
+make local      # synthetic data -> centralized + local-only baselines, saves outputs/centralized.pt
+make fl         # FedAvg across 3 simulated hospitals (NVFlare simulator)
+cp .env.example .env   # add NEBIUS_API_KEY (Token Factory) and optionally TAVILY_API_KEY
+make demo       # Streamlit app: risk groups + Nemotron-written patient report
+```
+
+## Hackathon: how NVIDIA and Nebius are used
+- **NVIDIA FLARE** — federated training (`jobs/fedavg_job.py`, `src/muffle/fl/client.py`).
+- **NVIDIA Nemotron via Nebius Token Factory** — patient report generation
+  (`src/muffle/report/nemotron.py`); only derived numbers are sent, never raw omics.
+- **Nebius AI Cloud** — FL training runs as a Serverless Job on GPU (see `docs/NEBIUS.md`).
+- **Tavily** — literature lookup for the top prognostic features.
+
+Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
+
+## Layout
+
+| Path | What lives there |
+|---|---|
+| `src/muffle/data/` | synthetic generator, preprocessing, hospital partitioning, `Dataset` |
+| `src/muffle/models/` | per-modality encoders, masked fusion, Cox head |
+| `src/muffle/losses.py`, `metrics.py`, `engine.py` | Cox loss, C-index, train/eval loops |
+| `src/muffle/fl/client.py` | NVFlare Client API script that runs at each site |
+| `src/muffle/explain.py`, `report/` | per-patient drivers + Nemotron report |
+| `jobs/fedavg_job.py` | FedAvgRecipe job, run in the NVFlare simulator |
+| `app/streamlit_app.py` | demo UI |
+| `scripts/` | data prep (synthetic now, TCGA next) |
+| `docs/` | plan PDFs, hackathon checklist, decisions log, Nebius notes |
+| `data/`, `outputs/`, `workspaces/` | **git-ignored** — never commit patient data or checkpoints |
+
+## Roadmap
+- [x] Repo, CI, synthetic data, model, FedAvg simulation, Nemotron report, demo app
+- [ ] TCGA-BRCA download + harmonization (`scripts/prepare_tcga.py`)
+- [ ] Baselines vs FL on real data; leave-one-site-out validation
+- [ ] FL training as a Nebius Serverless Job
+- [ ] Host the demo; record the video; submit by Oct 30, 10 am PT
+- [ ] Stretch: FedProx, BLCA, proteomics, DP / secure aggregation
+
+## License
+MIT — see [LICENSE](LICENSE).

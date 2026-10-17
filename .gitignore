@@ -1,0 +1,40 @@
+# --- data & outputs: NEVER commit ---
+data/
+outputs/
+workspaces/
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.parquet
+*.csv
+*.tsv
+*.maf
+*.maf.gz
+*.idat
+mlruns/
+wandb/
+
+# --- secrets ---
+.env
+*.pem
+*.key
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+build/
+dist/
+
+# --- editors / OS ---
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+# Replace OWNER_A / OWNER_B with your GitHub usernames.
+# The listed owner is auto-requested as reviewer on PRs touching these paths.
+*                    @OWNER_A @OWNER_B
+/src/muffle/data/    @OWNER_A
+/scripts/            @OWNER_A
+/src/muffle/models/  @OWNER_B
+/src/muffle/losses.py   @OWNER_B
+/src/muffle/metrics.py  @OWNER_B
