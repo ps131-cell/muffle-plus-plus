@@ -2,6 +2,9 @@
 
 Researched 2026-10-16 from docs.nebius.com. Check the docs if a flag has changed.
 
+**Optional — not in the submission plan.** Since 2026-10-17 our only Nebius usage is Token
+Factory on the free hackathon credits (see `docs/decisions.md`). Keep this for later.
+
 ## One-time
 1. Install the CLI and create a profile (opens a browser login):
    `curl -sSL https://artifacts.nebius.cloud/cli/install.sh | bash` then `nebius profile create --profile muffle --endpoint api.nebius.cloud --federation-endpoint auth.nebius.com --parent-id <PROJECT_ID>` (browser login)

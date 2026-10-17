@@ -13,12 +13,12 @@ Re-check the Devpost page before submitting — rules can be updated.
 
 | Requirement | Our answer | Status |
 |---|---|---|
-| Runs on Nebius Token Factory **or** AI Cloud (Serverless Jobs / Endpoints / DevPods) | Nemotron report calls Token Factory at runtime; FL training runs as a Nebius Serverless Job | [ ] |
+| Runs on Nebius Token Factory **or** AI Cloud (Serverless Jobs / Endpoints / DevPods) | Nemotron report calls Token Factory at runtime, on the free hackathon credits (FL stays in the NVFlare simulator; Serverless Job cut — see decisions 2026-10-17) | [ ] |
 | Uses ≥1 NVIDIA open-source model (e.g. Nemotron) | `src/muffle/report/nemotron.py` writes the prognosis report with Nemotron | [ ] |
 | Fits a track | **Best Apps and Agents** (an app people would use, powered by Nemotron on Token Factory) | [ ] |
 | Public repo, OSI license visible in the About section | MIT `LICENSE`; make the repo public before submitting | [ ] |
 | README: setup/run + how NVIDIA models, Token Factory, other Nebius tools are used | README "Hackathon" section | [ ] |
-| Working demo URL, free to test through Dec 15 | Streamlit app hosted (Streamlit Community Cloud or a Nebius Serverless Endpoint) | [ ] |
+| Working demo URL, free to test through Dec 15 | Streamlit app hosted on a free tier (Streamlit Community Cloud) | [ ] |
 | Public YouTube video ≤ 3 min, no copyrighted music | Script below | [ ] |
 | Text description + feedback on Token Factory / AI Cloud / NVIDIA tools | Draft in `docs/submission.md` | [ ] |
 | Third-party data used under its terms | TCGA open tier; CHIMERA is CC BY-NC-SA (non-commercial OK) | [ ] |
@@ -32,12 +32,13 @@ Credits: event code on the Devpost page (Token Factory) + Nebius Builders Progra
 |---|---|---|
 | Oct 16–18 | TCGA-BRCA download + `prepare_tcga.py` (RNA, CNV, methylation, clinical, OS) | Env on Mac, CI green, Nebius account + credits, Token Factory key, list Nemotron ids |
 | Oct 19–21 | Single-modality baselines; split sites by tissue-source-site | FL sim on real data; FedAvg vs local-only vs centralized table |
-| Oct 22–24 | Multi-modal fusion, modality gaps, leave-one-site-out | Run FL as Nebius Serverless Job on GPU; Nemotron report + Tavily |
+| Oct 22–24 | Multi-modal fusion, modality gaps, leave-one-site-out | ~~Run FL as Nebius Serverless Job on GPU~~ (cut); Nemotron report + Tavily |
 | Oct 25–27 | Calibration/fairness quick checks; pick final model | Streamlit polish, host demo, README hackathon section |
 | Oct 28–29 | Freeze results, figures | Record + upload video, write description + feedback, make repo public |
 | Oct 30 | — | **Submit before 10 am PT** |
 
 Scope cuts if behind (in order): proteomics, DP/secure aggregation, BLCA second cancer, FedProx.
+Already cut (2026-10-17): FL as a Nebius Serverless Job — Nebius usage is Token Factory only, on free credits.
 
 ## 3-minute video outline
 1. 0:00 Problem: hospitals can't pool genomic data; prognosis models stay small.
