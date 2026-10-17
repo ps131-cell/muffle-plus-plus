@@ -21,11 +21,12 @@ model is trained with modality dropout so it stays calibrated when layers are mi
 ## Quick start (macOS or Linux, Python 3.10–3.13)
 
 ```bash
-git clone https://github.com/<OWNER>/muffle-plus-plus.git && cd muffle-plus-plus
-make setup      # .venv + PyTorch + NVFlare + deps
+git clone https://github.com/ps131-cell/muffle-plus-plus.git && cd muffle-plus-plus
+make setup      # .venv + PyTorch + NVFlare + deps (make setup PY=python3.12 if python3 is too old)
 make test       # unit tests
 make local      # synthetic data -> centralized + local-only baselines, saves outputs/centralized.pt
 make fl         # FedAvg across 3 simulated hospitals (NVFlare simulator)
+make compare    # per-site C-index table: centralized vs local-only vs the final FedAvg model
 cp .env.example .env   # add NEBIUS_API_KEY (Token Factory) and optionally TAVILY_API_KEY
 make demo       # Streamlit app: risk groups + Nemotron-written patient report
 ```

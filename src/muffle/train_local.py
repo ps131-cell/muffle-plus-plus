@@ -4,6 +4,7 @@
   local-only:   each site trains alone (lower bound FL should beat)
 
 python -m muffle.train_local --data data/synthetic --mode both
+python -m muffle.train_local ... --fl-ckpt <FL_global_model.pt>   # add FedAvg, same val splits
 """
 
 from __future__ import annotations
@@ -42,6 +43,23 @@ def fit(train_ds, val_ds, cfg, device):
     return model, evaluate(model, val_ds, device)
 
 
+def load_checkpoint(path: Path, cfg: dict) -> MuffleNet:
+    """Load outputs/centralized.pt or an NVFlare global model; both store {"model": state_dict}."""
+    blob = torch.load(path, map_location="cpu", weights_only=False)
+    model = MuffleNet.from_config(blob.get("config") or cfg)
+    model.load_state_dict({k: torch.as_tensor(v) for k, v in blob["model"].items()})
+    return model
+
+
+def results_table(results: dict[str, dict[str, float]]) -> str:
+    """Markdown table: one row per site, one column per training mode."""
+    sites = list(next(iter(results.values())))
+    lines = ["| site | " + " | ".join(results) + " |", "|---" * (len(results) + 1) + "|"]
+    lines += [f"| {s} | " + " | ".join(f"{r[s]:.3f}" for r in results.values()) + " |"
+              for s in sites]
+    return "\n".join(lines)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--data", type=Path, default=Path("data/synthetic"))
@@ -50,6 +68,8 @@ def main(argv=None):
     p.add_argument("--mode", choices=["centralized", "local", "both"], default="both")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--save", type=Path, default=Path("outputs/centralized.pt"))
+    p.add_argument("--fl-ckpt", type=Path, default=None,
+                   help="NVFlare global model to score on the same per-site validation splits")
     args = p.parse_args(argv)
     cfg = load_config(args.config)
 
@@ -69,7 +89,12 @@ def main(argv=None):
     if args.mode in ("local", "both"):
         results["local_only"] = {name: fit(tr, va, cfg, args.device)[1]["c_index"]
                                  for name, tr, va in splits}
+    if args.fl_ckpt:
+        model = load_checkpoint(args.fl_ckpt, cfg)
+        results["fedavg"] = {name: evaluate(model, va, args.device)["c_index"]
+                             for name, _, va in splits}
     print(json.dumps(results, indent=2))
+    print(results_table(results))
     return results
 
 

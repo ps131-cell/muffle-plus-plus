@@ -11,9 +11,11 @@ GitHub account. Ask me before anything irreversible, and never print or commit A
    what's missing: Xcode Command Line Tools via `xcode-select --install`, Homebrew from brew.sh,
    then `brew install gh python@3.12`. Tell me when I need to approve something or enter my Mac
    password.
-2. This folder is the project and already has one git commit on main (`git log` to check; if git
-   complains about the repo, run `git status` and repair it rather than deleting .git). Read
-   CLAUDE.md, README.md, SETUP.md, docs/HACKATHON.md and docs/decisions.md.
+2. Bootstrap is done: this folder is a clone of https://github.com/ps131-cell/muffle-plus-plus
+   (private until submission) with `origin` set. Run `git checkout main && git pull` and check
+   `git status` is clean; if the folder is missing, `gh repo clone ps131-cell/muffle-plus-plus
+   ~/PycharmProjects/muffle-plus-plus`. If git complains about the repo, repair it rather than
+   deleting .git. Read CLAUDE.md, README.md, SETUP.md, docs/HACKATHON.md and docs/decisions.md.
 3. GitHub: run `gh auth login` (GitHub.com, HTTPS, log in with a web browser) and walk me through
    the browser step. Set git user.name/user.email from my GitHub account. Then
    `gh repo create muffle-plus-plus --private --source=. --remote=origin --push`. It stays
