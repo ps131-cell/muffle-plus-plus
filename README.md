@@ -64,13 +64,14 @@ site-stratified C-index, mean ± sd over 5 seeds (`make experiment-tcga`):
 
 | model | C-index |
 |---|---|
-| **FedAvg** (NVFlare, 3 hospitals, no data shared) | **0.652 ± 0.022** |
-| Centralized (all training data pooled) | 0.645 ± 0.014 |
-| Local-only (one hospital's own model) | 0.629 ± 0.020 |
+| **FedAvg** (NVFlare across the other two hospitals, no data shared) | **0.668 ± 0.010** |
+| Centralized (their training data pooled) | 0.692 ± 0.026 |
+| Local-only (one other hospital's own model) | 0.649 ± 0.032 |
 | Clinical data only (stage, age, T/N/M), centralized | 0.702 ± 0.004 |
 
-Federated training matches pooling the data and beats training alone. The omic layers don't
-add signal over clinical stage yet on this endpoint; see `docs/decisions.md` (2026-10-18).
+Federated training beats any single hospital's model and comes within ~0.02 of pooling the
+data, without moving any patient data. The fused multi-omic model is close to, but not yet
+better than, clinical stage and age alone on this endpoint (#25; `docs/decisions.md`).
 
 ## Layout
 

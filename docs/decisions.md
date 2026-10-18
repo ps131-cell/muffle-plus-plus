@@ -2,6 +2,20 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Never drop clinical in modality dropout; FedAvg gets 20 rounds on TCGA
+- **What:** `model.always_keep: [clinical]` exempts clinical (every patient has it) from
+  modality dropout; `fl.rounds: 20` for TCGA (default stays epochs / local_epochs). Datasets
+  can now use the top-k features of a layer by asking for fewer in the config.
+- **Why (LOSO, tuning seeds only):** dropping clinical 80% of the time taught the model to
+  lean on the weak omic layers; keeping it lifted the fused model 0.658 → 0.684 (clinical-only
+  0.701). Fewer omic features barely helped (top 32/32/16: 0.667). FedAvg at 10 rounds lagged
+  centralized (0.670 vs 0.680); 20 rounds reached 0.691. Keeping each client's Adam state
+  across rounds did not help and was not kept.
+- **Result (LOSO, reported seeds 0–4):** FedAvg 0.668 ± 0.010, centralized 0.692 ± 0.026,
+  local-only 0.649 ± 0.032, clinical-only 0.702 ± 0.004. Validation splits: 0.708 / 0.712 /
+  0.665 / 0.737. FedAvg beats local-only with the smallest spread; fusion is within ~0.01
+  (centralized) of clinical-only but not above it — still #25.
+
 ## 2026-10-18 — Real-data protocol for TCGA-BRCA, and what it showed
 - **Protocol:** 3 FL clients built from whole tissue source sites (`data.partition: site`,
   balanced by patients: 355/355/354 patients, 68/56/24 deaths), real modality gaps only.
