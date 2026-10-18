@@ -1,4 +1,4 @@
-"""MuFFLe++ demo: federated prognosis + Nemotron-written report.
+"""MuFFLe++ demo: federated prognosis + a Nemotron case agent that writes the report.
 
 streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
 (an FL global model checkpoint from the NVFlare workspace works too)
@@ -7,6 +7,8 @@ streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/
 from __future__ import annotations
 
 import argparse
+import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -17,9 +19,10 @@ import torch
 from muffle.config import load_config
 from muffle.data.dataset import MultiOmicDataset
 from muffle.engine import evaluate
-from muffle.explain import modality_contributions, risk_percentile, top_features
+from muffle.explain import modality_contributions, risk_percentile
 from muffle.models import MuffleNet
-from muffle.report.nemotron import build_facts, literature, summarize
+from muffle.report.case_tools import CaseTools
+from muffle.report.nemotron import run_case_agent, tavily_search
 from muffle.train_local import site_files
 
 p = argparse.ArgumentParser()
@@ -40,6 +43,10 @@ def load(ckpt: str, data: str, n_clients: int):
     model.load_state_dict({k: torch.as_tensor(v) for k, v in state.items()})
     model.eval()
     ds = MultiOmicDataset(Path(data) / "cohort.npz", cfg["modalities"])
+    # optional gene/feature names (names_<modality>); synthetic data has none
+    with np.load(Path(data) / "cohort.npz") as f:
+        names = {m: [str(n) for n in f[f"names_{m}"]] for m in cfg["modalities"]
+                 if f"names_{m}" in f.files}
     with torch.no_grad():
         risks = model(ds.x, ds.mask).numpy()
     # Held-out C-index: the per-site validation splits `make compare` scores (never trained on).
@@ -48,14 +55,14 @@ def load(ckpt: str, data: str, n_clients: int):
         _, val = MultiOmicDataset(f, cfg["modalities"]).split(
             cfg["train"]["val_fraction"], cfg["train"]["seed"])
         heldout[f.stem] = evaluate(model, val)["c_index"]
-    return model, ds, risks, heldout
+    return model, ds, risks, heldout, names
 
 
 st.set_page_config(page_title="MuFFLe++", layout="wide")
 st.title("MuFFLe++ — federated multi-omic prognosis")
 st.caption("Research prototype. Not for clinical use.")
 
-model, ds, risks, heldout = load(args.ckpt, args.data, args.n_clients)
+model, ds, risks, heldout, names = load(args.ckpt, args.data, args.n_clients)
 c = float(np.mean(list(heldout.values())))
 col1, col2, col3 = st.columns(3)
 col1.metric("Patients", len(ds))
@@ -87,14 +94,30 @@ i = st.number_input("Patient index", 0, len(ds) - 1, int(np.argmax(risks)))
 x = {m: v[i : i + 1] for m, v in ds.x.items()}
 mask = ds.mask[i : i + 1]
 base, contrib = modality_contributions(model, x, mask)
-strongest = max(contrib, key=lambda m: abs(contrib[m])) if contrib else model.names[0]
-feats = top_features(model, x, mask, strongest, None)
 pct = risk_percentile(base, risks)
 avail = [m for j, m in enumerate(model.names) if mask[0, j] > 0]
 st.write(f"Available data: {', '.join(avail)} · risk percentile **{pct:.0f}**")
 st.bar_chart(pd.Series(contrib, name="Δ log-risk when removed"))
 
 if st.button("Write report with Nemotron"):
-    facts = build_facts(args.cancer, base, pct, contrib, feats, c)
-    with st.spinner("Nemotron is writing…"):
-        st.markdown(summarize(facts, literature(feats, args.cancer)))
+    tools = CaseTools(model, x, mask, risks, args.cancer, names, c,
+                      search=tavily_search if os.getenv("TAVILY_API_KEY") else None)
+    with st.spinner("Nemotron is working on the case…"):
+        report = run_case_agent(tools)
+    left, right = st.columns([3, 2])
+    left.markdown(report.text)
+    right.markdown("**Tool calls**")
+    right.caption({
+        "agent": f"Nemotron (`{report.model}`) chose these calls · {report.tokens} tokens",
+        "fixed plan": "Tool calling unavailable: tools ran in a fixed order, Nemotron wrote "
+                      "one summary",
+        "offline": "Offline: tools ran in a fixed order and the template wrote the report. "
+                   "Set NEBIUS_API_KEY for the Nemotron agent.",
+    }[report.mode])
+    for note in report.notes:
+        right.caption(note)
+    for n, call in enumerate(report.trace, 1):
+        shown = ", ".join(f"{k}={json.dumps(v)}" for k, v in call.arguments.items())
+        flag = " ⚠️" if "error" in call.result else ""
+        with right.expander(f"{n}. {call.name}({shown}){flag}"):
+            st.json(call.result)

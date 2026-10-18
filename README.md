@@ -33,11 +33,25 @@ make demo       # Streamlit app: risk groups + Nemotron-written patient report
 
 ## Hackathon: how NVIDIA and Nebius are used
 - **NVIDIA FLARE** — federated training (`jobs/fedavg_job.py`, `src/muffle/fl/client.py`).
-- **NVIDIA Nemotron via Nebius Token Factory** — patient report generation
-  (`src/muffle/report/nemotron.py`); only derived numbers are sent, never raw omics.
+- **NVIDIA Nemotron via Nebius Token Factory** — a tool-calling **case agent**
+  (`src/muffle/report/nemotron.py`). For the selected patient, Nemotron decides which of our
+  tools to call (OpenAI-compatible tool calling), then writes the tumor-board note (Summary,
+  Drivers, Caveats, Literature) citing only tool outputs. The tools run locally
+  (`src/muffle/report/case_tools.py`):
+  - `predict_risk`: log-risk, cohort percentile and risk group from the federated model
+  - `modality_contributions`: how much each data layer moves the risk (`muffle.explain`)
+  - `top_features`: top genes/features of a layer by gradient × input
+  - `search_literature`: Tavily search for papers or clinical trials on those genes (only
+    offered when real gene names and `TAVILY_API_KEY` are available)
+
+  The demo shows the tool-call trace next to the report. Each report is capped at 4 tool
+  rounds and 900 tokens per completion (free hackathon credits). Only derived numbers and
+  gene names are sent, never raw omics. Without `NEBIUS_API_KEY` the same tools run in a
+  fixed order and an offline template writes the report. Try one case from the terminal:
+  `.venv/bin/python -m muffle.report.nemotron --agent --patient 0`.
 - **Nebius AI Cloud** — optional: FL training can run as a Serverless Job on GPU
   (`docs/NEBIUS.md`); the submission runs FL in the NVFlare simulator.
-- **Tavily** — literature lookup for the top prognostic features.
+- **Tavily** — the agent's literature and clinical-trial search on the top prognostic genes.
 
 Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
 
@@ -49,7 +63,7 @@ Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON
 | `src/muffle/models/` | per-modality encoders, masked fusion, Cox head |
 | `src/muffle/losses.py`, `metrics.py`, `engine.py` | Cox loss, C-index, train/eval loops |
 | `src/muffle/fl/client.py` | NVFlare Client API script that runs at each site |
-| `src/muffle/explain.py`, `report/` | per-patient drivers + Nemotron report |
+| `src/muffle/explain.py`, `report/` | per-patient drivers + Nemotron case agent and its tools |
 | `jobs/fedavg_job.py` | FedAvgRecipe job, run in the NVFlare simulator |
 | `app/streamlit_app.py` | demo UI |
 | `scripts/` | data prep (synthetic now, TCGA next) |
