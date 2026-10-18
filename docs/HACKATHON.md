@@ -40,9 +40,10 @@ Credits: event code on the Devpost page (Token Factory) + Nebius Builders Progra
 Scope cuts if behind (in order): proteomics, DP/secure aggregation, BLCA second cancer, FedProx.
 Already cut (2026-10-17): FL as a Nebius Serverless Job — Nebius usage is Token Factory only, on free credits.
 
-## 3-minute video outline
-1. 0:00 Problem: hospitals can't pool genomic data; prognosis models stay small.
-2. 0:30 Architecture diagram: sites → encoders → masked fusion → NVFlare FedAvg on Nebius.
-3. 1:15 Results: FL ≈ centralized ≫ local-only; works with missing modalities.
-4. 2:00 Demo: pick a patient → risk group → Nemotron-written report with literature.
-5. 2:45 What's next.
+## 3-minute video outline (agreed 2026-10-18, see decisions.md)
+1. 0:00 (~20 s) Problem: hospitals can't pool patients' genomic data; models stay small.
+2. 0:20 (~80 s) Demo first: one held-out patient → the Nemotron case agent's tool calls
+   (risk, which data layers drove it, top genes, literature) → its tumor-board summary.
+3. 1:40 (~50 s) Results: FedAvg beats every hospital training alone without moving data;
+   honest clinical baseline (omics don't beat stage and age on overall survival yet).
+4. 2:30 (~20 s) Stack: NVIDIA FLARE, Nemotron on Nebius Token Factory, Tavily.
