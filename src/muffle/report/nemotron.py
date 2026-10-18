@@ -9,7 +9,9 @@ tokens are capped per report, and every call counts against a hard $25.50 spendi
 gene names are sent, never raw omics.
 
 Without NEBIUS_API_KEY the same tools run in a fixed order and the offline template is returned,
-so tests and the demo work with no network.
+so tests and the demo work with no network. A failed live call (no credit, bad key, rate limit,
+timeout) falls back to that same offline report with the reason in ``notes``, so the demo never
+shows a traceback.
 
 Env vars: NEBIUS_API_KEY (required for live calls), NEMOTRON_MODEL, TAVILY_API_KEY (optional).
 List available model ids with:  python -m muffle.report.nemotron --list-models
@@ -112,13 +114,12 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
             resp = client.chat.completions.create(
                 model=model, messages=messages, tools=specs,
                 tool_choice="none" if last else "auto", temperature=0.2, max_tokens=max_tokens)
-        except BudgetExceeded as e:
-            return _offline_report(tools, str(e), tokens)
         except Exception as e:
-            if rnd > 1 or getattr(e, "status_code", None) != 400:
-                raise
-            # endpoint/model rejected tool calling: run the tools ourselves, one summary call
-            return _fixed_plan_report(tools, client, model, f"tool calling rejected ({e})"[:300])
+            if rnd == 1 and getattr(e, "status_code", None) == 400:
+                # endpoint/model rejected tool calling: run the tools ourselves, one summary call
+                return _fixed_plan_report(tools, client, model,
+                                          f"tool calling rejected ({e})"[:300])
+            return _offline_report(tools, unavailable(e), tokens)
         tokens += getattr(getattr(resp, "usage", None), "total_tokens", 0) or 0
         choice = resp.choices[0]
         calls = (choice.message.tool_calls or [])[:MAX_CALLS_PER_ROUND]
@@ -166,8 +167,26 @@ def _offline_report(tools: CaseTools, why: str | None = None, tokens: int = 0) -
 def _fixed_plan_report(tools: CaseTools, client, model: str, why: str) -> CaseReport:
     trace = fixed_plan(tools)
     refs = next((c.result.get("results") for c in trace if c.name == "search_literature"), None)
-    text = summarize(_facts(tools, trace), refs, model, client)
+    try:
+        text = summarize(_facts(tools, trace), refs, model, client)
+    except Exception as e:
+        return _offline_report(tools, unavailable(e))
     return CaseReport(text, trace, "fixed plan", model, notes=[why])
+
+
+HTTP_REASONS = {401: "invalid API key", 402: "out of credit", 403: "access denied",
+                429: "rate limited"}
+
+
+def unavailable(e: Exception) -> str:
+    """Short reason for a failed Token Factory call: status code or error type only, never the
+    request (which carries the key in its headers)."""
+    if isinstance(e, BudgetExceeded):
+        return str(e)
+    status = getattr(e, "status_code", None)
+    what = (f"HTTP {status}" + (f", {HTTP_REASONS[status]}" if status in HTTP_REASONS else "")
+            if status else type(e).__name__)
+    return f"Token Factory unavailable ({what})"
 
 
 def _facts(tools: CaseTools, trace: list[ToolCall]) -> dict:
@@ -231,7 +250,9 @@ def offline_summary(facts: dict,
 
 def summarize(facts: dict, refs: list[dict] | None = None, model: str = DEFAULT_MODEL,
               client=None) -> str:
-    """Single-call summary of precomputed facts (no tools); the agent's fallback."""
+    """Single-call summary of precomputed facts (no tools); the agent's fallback. API errors
+    (including ``BudgetExceeded``) propagate; ``run_case_agent`` turns them into the offline
+    report."""
     if client is None:
         if not os.getenv("NEBIUS_API_KEY"):
             return offline_summary(facts)
@@ -239,15 +260,12 @@ def summarize(facts: dict, refs: list[dict] | None = None, model: str = DEFAULT_
     user = "Model output (JSON):\n" + json.dumps(facts, indent=2)
     if refs:
         user += "\n\nCandidate literature (cite only these, by URL):\n" + json.dumps(refs, indent=2)
-    try:
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-            temperature=0.2,
-            max_tokens=700,
-        )
-    except BudgetExceeded as e:
-        return offline_summary(facts, str(e))
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
+        temperature=0.2,
+        max_tokens=700,
+    )
     return _strip_think(resp.choices[0].message.content or "")
 
 

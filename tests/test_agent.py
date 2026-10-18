@@ -160,3 +160,35 @@ def test_zero_score_features_are_dropped_and_not_searched():
     assert r["features"] == [] and "name no features" in r["note"]
     trace = nemotron.fixed_plan(tools)
     assert [c.name for c in trace] == ["predict_risk", "modality_contributions", "top_features"]
+
+
+class ApiError(Exception):
+    def __init__(self, status_code=None):
+        super().__init__("Error code: %s - {'detail': '...'}" % status_code)
+        self.status_code = status_code
+
+
+def fail(error):
+    def step(kw):
+        raise error
+    return step
+
+
+def test_api_errors_fall_back_offline():
+    report = run_case_agent(make_tools(), client=FakeClient(fail(ApiError(402))))
+    assert report.mode == "offline" and report.notes == [
+        "Token Factory unavailable (HTTP 402, out of credit)"]
+    assert "out of credit" in report.text and "percentile" in report.text
+
+
+def test_error_mid_run_keeps_tokens_and_goes_offline():
+    client = FakeClient(reply(calls=[("predict_risk", {})], tokens=120), fail(TimeoutError()))
+    report = run_case_agent(make_tools(), client=client)
+    assert report.mode == "offline" and report.tokens == 120
+    assert report.notes == ["Token Factory unavailable (TimeoutError)"]
+
+
+def test_failed_summary_after_rejected_tools_goes_offline():
+    client = FakeClient(fail(ApiError(400)), fail(ApiError(503)))
+    report = run_case_agent(make_tools(), client=client)
+    assert report.mode == "offline" and "HTTP 503" in report.notes[0]
