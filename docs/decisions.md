@@ -2,6 +2,20 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-17 — Keep the current project; make Nemotron a tool-calling case agent
+- **What:** we reviewed a broader spec (`MUFFLE_SPEC`: longitudinal visits, imaging/pathology
+  foundation models, Flower + DP/SecAgg, treatment rules) and kept the current NVFlare / BRCA /
+  synthetic-then-TCGA project. One idea adopted: turn the Nemotron report into a case agent that
+  calls our model as tools (risk, modality contributions, top genes) and Tavily, then writes the
+  tumor-board summary (#21, built in #23).
+- **Why:** the full spec is a multi-week build that needs GPUs and gated, often non-commercial
+  models; Flower would replace NVFlare (NVIDIA's own FL SDK); paid Nebius compute is out
+  (decision above). The one real risk it raised is a "superficial use" of Nemotron at stage-one
+  judging; an agent that plans tool calls answers that cheaply on the free credits.
+- **Consequence:** #21 is built offline against a fake client and tested live once the key
+  arrives (~Oct 19). Still unverified on Devpost: model-size guidance (Nano/Super vs Ultra), a
+  feedback award, and award-stacking rules.
+
 ## 2026-10-17 — TCGA-BRCA cohort: Xena GDC hub, CNV as "genomic", RPPA as "protein", OS
 - **What:** `scripts/prepare_tcga.py` (logic in `muffle.data.tcga`) builds
   `data/tcga_brca/cohort.npz` from open-tier files on the UCSC Xena GDC hub, one 01A primary
