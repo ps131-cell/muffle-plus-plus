@@ -21,30 +21,41 @@ Re-check the Devpost page before submitting — rules can be updated.
 | Working demo URL, free to test through Dec 15 | Streamlit app hosted on a free tier (Streamlit Community Cloud) | [ ] |
 | Public YouTube video ≤ 3 min, no copyrighted music | Script below | [ ] |
 | Text description + feedback on Token Factory / AI Cloud / NVIDIA tools | Draft in `docs/submission.md` | [ ] |
-| Third-party data used under its terms | TCGA open tier; CHIMERA is CC BY-NC-SA (non-commercial OK) | [ ] |
+| Third-party data used under its terms | TCGA open tier; GDC masked somatic mutations (open); CIViC (CC0); MSK-CHORD (CC BY-NC-ND 4.0) used locally with only aggregate results published, never shown in the demo or video (`docs/registry.md`) | [ ] |
 
 Bonus: **Best Use of Tavily** ($3k) — the report's literature lookup uses Tavily.
 Credits: event code on the Devpost page (Token Factory) + Nebius Builders Program.
 
-## 14-day plan (Oct 16 → Oct 30)
+## Plan (Oct 16 → Oct 30)
 
-| Days | Data / modeling | FL / platform / product |
+Done Oct 16–18: TCGA-BRCA cohort, hospital split, FedAvg vs local-only vs pooled with
+leave-one-site-out, clinical-anchored residual model, calibration and fairness checks, live
+Nemotron case agent with Tavily and a spending cap, demo redesign. Since Oct 18 the project is
+milestone 1 of the cancer intelligence platform (`docs/VISION.md`, decisions 2026-10-18):
+
+| Days | Platform work (milestone 1) | Product / submission |
 |---|---|---|
-| Oct 16–18 | TCGA-BRCA download + `prepare_tcga.py` (RNA, CNV, methylation, clinical, OS) | Env on Mac, CI green, Nebius account + credits, Token Factory key, list Nemotron ids |
-| Oct 19–21 | Single-modality baselines; split sites by tissue-source-site | FL sim on real data; FedAvg vs local-only vs centralized table |
-| Oct 22–24 | Multi-modal fusion, modality gaps, leave-one-site-out | ~~Run FL as Nebius Serverless Job on GPU~~ (cut); Nemotron report + Tavily |
-| Oct 25–27 | Calibration/fairness quick checks; pick final model | Streamlit polish, host demo, README hackathon section |
-| Oct 28–29 | Freeze results, figures | Record + upload video, write description + feedback, make repo public |
+| Oct 18–19 | Vision in the docs; observed / inferred / hypothesis labels in the case note | — |
+| Oct 19–21 | Observed driver mutations from GDC open MAFs; CIViC evidence tool for clinician review | `docs/registry.md` (datasets + models, license, access tier) |
+| Oct 21–24 | MSK-CHORD timelines (local only) → risk of progression or death in the next 12 months, re-predicted at each new event, measured against baselines as the record grows | — |
+| Oct 24–26 | Synthetic timeline patient (labeled) in the demo: the profile updates with each result and records what changed and why | Host the demo (Streamlit Community Cloud) |
+| Oct 27 | Final numbers into README and decisions | Description + feedback draft |
+| Oct 28 | **Freeze** | Record + upload video, make the repo public, protect `main` |
 | Oct 30 | — | **Submit before 10 am PT** |
 
-Scope cuts if behind (in order): proteomics, DP/secure aggregation, BLCA second cancer, FedProx.
+Scope cuts if behind (in order): the synthetic patient's richness (fewer event types), CIViC
+beyond the top drivers, registry depth, FedProx / DP / BLCA (not planned).
 Already cut (2026-10-17): FL as a Nebius Serverless Job — Nebius usage is Token Factory only, on free credits.
 
-## 3-minute video outline (agreed 2026-10-18, see decisions.md)
-1. 0:00 (~20 s) Problem: hospitals can't pool patients' genomic data; models stay small.
-2. 0:20 (~80 s) Demo first: one held-out patient → the Nemotron case agent's tool calls
-   (risk, which data layers drove it, top genes, literature) → its tumor-board summary.
-3. 1:40 (~50 s) Results: FedAvg matches pooled training and beats hospitals training alone,
-   without moving data; honest clinical baseline (omics don't beat stage and age on overall
-   survival yet).
-4. 2:30 (~20 s) Stack: NVIDIA FLARE, Nemotron on Nebius Token Factory, Tavily.
+## 3-minute video outline (platform framing, decisions 2026-10-18)
+1. 0:00 (~20 s) Problem: a cancer changes over time, and the evidence about one patient is
+   scattered across tests, visits and hospitals that can't pool data.
+2. 0:20 (~80 s) Demo first: a **synthetic** (labeled) patient timeline; as new results arrive
+   the profile updates, separating observed findings (stage, sequenced drivers), model
+   inferences (risk now vs before, which data layers drove it) and hypotheses (literature,
+   CIViC evidence for clinician review), and the Nemotron case agent says what changed and why.
+3. 1:40 (~50 s) Results: risk estimates on real MSK-CHORD timelines as records grow (aggregate);
+   FedAvg across hospitals beats any hospital alone without moving data; honest clinical
+   baseline.
+4. 2:30 (~20 s) Stack and roadmap: NVIDIA FLARE, Nemotron on Nebius Token Factory, Tavily,
+   CIViC; next, pathology and radiology encoders and real contributing institutions.

@@ -2,6 +2,25 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — MuFFLe++ becomes milestone 1 of a cancer intelligence platform
+- **What:** the project is reframed around the team's vision (`docs/VISION.md`): a multimodal,
+  longitudinal cancer intelligence platform for one cancer. The submission presents MuFFLe++ as
+  its **first milestone** for **breast cancer**, not as a federated-learning project; federation
+  stays as one measured result (it replaces the "lead with federation" pitch bullet below).
+- **Build before the Oct 28 freeze:** (1) every statement in the case note labeled observed /
+  model inference / hypothesis; (2) observed driver mutations from GDC open-access masked MAFs
+  plus CIViC (CC0) evidence for clinician review; (3) real longitudinal data: **MSK-CHORD**
+  timelines, task = risk of progression or death in the next 12 months re-predicted at each new
+  event, compared with baselines as the record grows; (4) a synthetic, labeled timeline patient
+  in the demo; (5) `docs/registry.md`.
+- **MSK-CHORD terms (CC BY-NC-ND 4.0):** local use only; publish code and aggregate results
+  with attribution; never commit, host, show or send to an LLM any individual MSK-CHORD patient.
+  The demo's timeline patient is synthetic, built from MSK-CHORD's structure, and labeled.
+- **Why:** the team wants the project to move toward the vision; these pieces show its core
+  ideas (evidence types, timelines, treatment evidence, federation) on real data within the
+  deadline. Pathology/radiology encoders, evolutionary hypotheses and real institutions stay on
+  the roadmap. TCGA's lymphoma cohort (~48 patients) is too small, so breast cancer stays.
+
 ## 2026-10-18 — Hosted demo runs from a 0.9 MB bundle of 40 held-out cases
 - **What:** `make demo-bundle` writes `outputs/demo_bundle.pt`: the FedAvg-residual weights,
   the model inputs of 40 held-out patients (the 8 with saved notes plus a spread over the risk
