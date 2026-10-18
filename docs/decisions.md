@@ -2,6 +2,33 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Demo redesign; layer contributions measured against a typical patient
+- **What:** the demo has three tabs.
+  - **Case review:** the 213 held-out patients only (each hospital's validation split, which
+    the federated model never trained on). It shows the risk percentile and group, where the
+    patient sits among all patients, what drives the risk, a what-if that hides data layers,
+    and the case agent's note with its live steps, grounding result, tool trace and a Markdown
+    download.
+  - **Federation:** the hospitals, the leave-one-hospital-out results (from
+    `app/results_tcga_brca.json`, made by `make demo-results`), and Kaplan–Meier curves of the
+    held-out risk groups up to 5 years.
+  - **How it works:** the method, privacy and limits.
+
+  Live notes are capped at `DEMO_LIVE_NOTES_PER_SESSION` (5). Eight featured patients have
+  saved notes from the live agent (`make demo-notes`, all with no grounding issues), shown
+  without a key or once the cap is reached. `muffle.demo` builds everything the app shows, so
+  the hosted demo can later load it from a bundle instead of the data.
+- **Contributions:** a layer's contribution is now its masked effect minus that layer's
+  average masked effect over the cohort, so it reads "compared with a typical patient".
+  Masking alone shifted every patient by a near-constant per layer (−0.08 to −0.18). That's why
+  17% of high-risk patients showed every layer "lowering" risk; with the offset none do, and
+  each layer's contributions average zero.
+- **Agent details:** tools report whole percentiles ("75th", not "75.5th"). Publication search
+  is limited to scholarly and clinical domains: a YouTube video and an antibody vendor page
+  had slipped into a note. An all-letter gene symbol must match exactly ("Camp RL" the author
+  and cAMP aren't CAMP). Ultra's token limit is 4,096, after a long literature list ran past
+  3,000 once and the note fell back to Super.
+
 ## 2026-10-18 — Tavily literature search is live; results must name the gene and a cancer
 - **What:** `TAVILY_API_KEY` is set (Tavily dev key, free tier). `tavily_search` runs one query
   per gene (at most 3 per call, so at most 3 credits) and keeps a result only if its title or

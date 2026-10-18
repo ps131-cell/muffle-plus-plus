@@ -45,8 +45,10 @@ class CaseTools:
     def __init__(self, model: MuffleNet, x: dict[str, torch.Tensor], mask: torch.Tensor,
                  cohort_risks: np.ndarray, cancer: str,
                  feature_names: dict[str, list[str]] | None = None,
-                 c_index: float | None = None, search: Search | None = None):
+                 c_index: float | None = None, search: Search | None = None,
+                 offsets: dict[str, float] | None = None):
         self.model, self.x, self.mask = model.eval(), x, mask
+        self.offsets = offsets  # explain.cohort_offsets: contributions vs a typical patient
         self.cohort = np.asarray(cohort_risks, dtype=float)
         self.cancer, self.c_index = cancer, c_index
         self.names = feature_names or {}
@@ -82,8 +84,8 @@ class CaseTools:
         specs = [
             _fn("predict_risk", "Predicted log-risk for this patient, its percentile in the "
                 "cohort, and the risk group (cohort tertiles)."),
-            _fn("modality_contributions", "How much each available data layer adds to the "
-                "predicted log-risk (log-risk with the layer minus log-risk with it masked out)."),
+            _fn("modality_contributions", "How much each available data layer raises or lowers "
+                "this patient's predicted log-risk compared with a typical patient in the cohort."),
             _fn("top_features", "Top features of one data layer by gradient x input attribution "
                 "(positive pushes risk up).",
                 {"modality": {"type": "string", "enum": self.available},
@@ -119,12 +121,10 @@ class CaseTools:
     def predict_risk(self) -> dict:
         with torch.no_grad():
             risk = self.model(self.x, self.mask).item()
-        lo, hi = np.quantile(self.cohort, [1 / 3, 2 / 3])
-        group = "low" if risk <= lo else "medium" if risk <= hi else "high"
         return {
             "log_risk": round(risk, 3),
-            "cohort_percentile": round(explain.risk_percentile(risk, self.cohort), 1),
-            "risk_group": group,
+            "cohort_percentile": int(explain.risk_percentile(risk, self.cohort)),
+            "risk_group": explain.risk_group(risk, self.cohort),
             "cohort_size": len(self.cohort),
             "cohort_median_log_risk": round(float(np.median(self.cohort)), 3),
             "note": "Judge the patient's standing by cohort_percentile and risk_group, not by the "
@@ -134,8 +134,10 @@ class CaseTools:
         }
 
     def modality_contributions(self) -> dict:
-        _, contrib = explain.modality_contributions(self.model, self.x, self.mask)
+        _, contrib = explain.modality_contributions(self.model, self.x, self.mask, self.offsets)
         out = {"log_risk_added_by_layer": {m: round(v, 3) for m, v in contrib.items()},
+               "compared_with": "a typical patient in the cohort" if self.offsets
+                                else "the same patient without that layer",
                "available_data_layers": self.available, "missing_data_layers": self.missing,
                "note": "positive = this layer raises the patient's predicted risk; negative = "
                        "it lowers it"}

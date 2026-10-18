@@ -1,8 +1,12 @@
-"""MuFFLe++ demo: federated prognosis + a Nemotron case agent that writes the report.
+"""MuFFLe++ demo: a federated tumor-board assistant.
 
-streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
 streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
-(a raw NVFlare FL_global_model.pt also works with --config <the yaml it was trained with>)
+streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
+
+Three tabs: Case review (one held-out patient: risk, what drives it, a what-if for missing data
+layers, and the Nemotron case agent's note), Federation (the hospitals and the results), How it
+works. Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes
+(app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the cap is reached.
 """
 
 from __future__ import annotations
@@ -10,110 +14,295 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import date
 from pathlib import Path
 
-import numpy as np
+import charts
 import pandas as pd
 import streamlit as st
 import torch
 
-from muffle.data.dataset import MultiOmicDataset, feature_names
+from muffle.demo import build_demo, km_by_group, ordinal
 from muffle.explain import modality_contributions, risk_percentile
-from muffle.report.case_tools import CaseTools
 from muffle.report.grounding import describe
-from muffle.report.nemotron import run_case_agent, tavily_search
-from muffle.train_local import heldout_c_index, load_model
+from muffle.report.nemotron import (
+    DEFAULT_MODEL,
+    WRITER_MODEL,
+    CaseReport,
+    model_name,
+    run_case_agent,
+    tavily_search,
+)
+
+APP = Path(__file__).parent
+REPO = "https://github.com/ps131-cell/muffle-plus-plus"
+LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
+               "methylation": "Methylation", "protein": "Protein"}
 
 p = argparse.ArgumentParser()
-p.add_argument("--ckpt", default="outputs/centralized.pt")
-p.add_argument("--data", default="data/synthetic")
+p.add_argument("--ckpt", default="outputs/tcga_fedavg.pt")
+p.add_argument("--data", default="data/tcga_brca")
 p.add_argument("--cancer", default="breast")
 p.add_argument("--n-clients", type=int, default=3)
 p.add_argument("--config", default=None, help="only for checkpoints without a stored config")
+p.add_argument("--notes", default=str(APP / "saved_notes.json"))
 args, _ = p.parse_known_args()
 
 
-@st.cache_resource
-def load(ckpt: str, data: str, n_clients: int, config: str | None):
-    model, cfg = load_model(Path(ckpt), config)
-    ds = MultiOmicDataset(Path(data) / "cohort.npz", cfg["modalities"])
-    # gene/feature names (names_<modality>) for TCGA; synthetic data has none
-    names = feature_names(Path(data) / "cohort.npz", cfg["modalities"])
-    with torch.no_grad():
-        risks = model(ds.x, ds.mask).numpy()
-    return model, ds, risks, heldout_c_index(model, Path(data), n_clients, cfg), names
+@st.cache_resource(show_spinner="Scoring the hospitals' patients…")
+def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, notes: str):
+    demo = build_demo(ckpt, data, n_clients, config, cancer)
+    if Path(notes).exists():
+        demo.notes = {int(k): v for k, v in json.loads(Path(notes).read_text()).items()}
+    return demo
 
 
-st.set_page_config(page_title="MuFFLe++", layout="wide")
-st.title("MuFFLe++ — federated multi-omic prognosis")
-st.caption("Research prototype. Not for clinical use.")
+@st.cache_data
+def results() -> dict | None:
+    path = APP / "results_tcga_brca.json"
+    return json.loads(path.read_text()) if path.exists() else None
 
-model, ds, risks, heldout, names = load(args.ckpt, args.data, args.n_clients, args.config)
-c = float(np.mean(list(heldout.values())))
-col1, col2, col3 = st.columns(3)
-col1.metric("Patients", len(ds))
-col2.metric("C-index (held-out)", f"{c:.3f}",
-            help="Mean over the per-site validation splits that `make compare` reports.")
-col3.metric("Modalities", ", ".join(model.names))
-st.caption("Held-out C-index per site: "
-           + " · ".join(f"{s} {v:.3f}" for s, v in heldout.items()))
 
-st.subheader("Risk groups")
-groups = pd.qcut(risks, 3, labels=["low", "medium", "high"])
-months = np.linspace(0, float(np.quantile(ds.time, 0.9)), 40)
-km = {}
-for g in ["low", "medium", "high"]:
-    t, e = ds.time.numpy()[groups == g], ds.event.numpy()[groups == g]
-    surv, s = [], 1.0
-    for i, m in enumerate(months):
-        prev = months[i - 1] if i else 0
-        at_risk = (t >= prev).sum()
-        d = ((t >= prev) & (t < m) & (e == 1)).sum()
-        s *= 1 - d / at_risk if at_risk else 1
-        surv.append(s)
-    km[g] = surv
-st.line_chart(pd.DataFrame(km, index=np.round(months, 1)), x_label="months",
-              y_label="survival (approx. Kaplan-Meier)")
+st.set_page_config(page_title="MuFFLe++ tumor-board assistant", page_icon="🧬", layout="wide")
+demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes)
+LIVE = bool(os.getenv("NEBIUS_API_KEY"))
+SEARCH = tavily_search if os.getenv("TAVILY_API_KEY") else None
+CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION", "5"))
+st.session_state.setdefault("live_used", 0)
+st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, source)
 
-st.subheader("Patient report")
-i = st.number_input("Patient index", 0, len(ds) - 1, int(np.argmax(risks)))
-x = {m: v[i : i + 1] for m, v in ds.x.items()}
-mask = ds.mask[i : i + 1]
-base, contrib = modality_contributions(model, x, mask)
-pct = risk_percentile(base, risks)
-avail = [m for j, m in enumerate(model.names) if mask[0, j] > 0]
-st.write(f"Available data: {', '.join(avail)} · risk percentile **{pct:.0f}**")
-st.bar_chart(pd.Series(contrib, name="log-risk added by layer"))
+# --- sidebar: what is running ----------------------------------------------------------------
+with st.sidebar:
+    st.markdown("### MuFFLe++")
+    st.caption("Federated multi-omic survival model + a Nemotron case agent.")
+    st.markdown(
+        f"**Model** · FedAvg across {len(demo.sites)} hospitals (NVIDIA FLARE)  \n"
+        f"**Held-out C-index** · {demo.c_index:.3f}  \n"
+        f"**Case agent** · {'live' if LIVE else 'offline (no key)'}: "
+        f"{model_name(DEFAULT_MODEL)} plans, {model_name(WRITER_MODEL)} writes, on Nebius "
+        f"Token Factory  \n"
+        f"**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
+    budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
+    st.caption(f"[Source code]({REPO}) · research prototype on public TCGA data, not for "
+               "clinical use.")
 
-if st.button("Write report with Nemotron"):
-    tools = CaseTools(model, x, mask, risks, args.cancer, names, c,
-                      search=tavily_search if os.getenv("TAVILY_API_KEY") else None)
-    with st.spinner("Nemotron is working on the case…"):
-        report = run_case_agent(tools)
+st.title("MuFFLe++ · federated tumor-board assistant")
+st.markdown(
+    f"{len(demo.sites)} hospitals train one survival model **without sharing patient data**. "
+    "For a patient, an NVIDIA Nemotron agent asks the model what drives the risk, looks up the "
+    "literature, and writes a tumor-board note that cites only what its tools returned.")
+
+case_tab, fed_tab, how_tab = st.tabs(["Case review", "Federation", "How it works"])
+
+# --- Case review -----------------------------------------------------------------------------
+with case_tab:
+    cases = sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile))
+    case = st.selectbox(
+        f"Held-out patient ({len(cases)} patients the model never trained on)", cases,
+        format_func=lambda c: ("★ " if c.index in demo.notes else "") + c.label,
+        help="Each hospital's validation split. ★ = a saved note is available.")
+
+    x, mask = demo.inputs(case)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Risk percentile", ordinal(case.percentile),
+              help="Share of all patients with a lower predicted risk.")
+    c2.metric("Risk group", case.group.capitalize(), help="Cohort tertiles of predicted risk.")
+    c3.metric("Hospital", case.site, help="The FL client this patient belongs to.")
+    c4.metric("Data layers", f"{len(case.layers)} of {len(demo.model.names)}",
+              help="Missing: " + (", ".join(case.missing) or "none"))
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Where this patient sits among all patients**")
+        st.altair_chart(charts.risk_position(demo.cohort_risks, case.log_risk,
+                                             f"{ordinal(case.percentile)} percentile"),
+                        width="stretch")
+    with right:
+        st.markdown("**What drives this patient's risk**")
+        _, contrib = modality_contributions(demo.model, x, mask, demo.offsets)
+        st.altair_chart(charts.contributions(
+            {LAYER_NAMES.get(m, m): v for m, v in contrib.items()}), width="stretch")
+        st.caption("Each layer's effect on this patient's predicted log-risk, compared with its "
+                   "effect on a typical patient in the cohort.")
+
+    with st.expander("What if a data layer were missing?"):
+        st.caption("Hospitals collect different data. MuFFLe++ masks a missing layer instead of "
+                   "dropping the patient, so the same model scores everyone.")
+        hide = st.pills("Hide layers", case.layers, selection_mode="multi",
+                        format_func=lambda m: LAYER_NAMES.get(m, m), key=f"hide-{case.index}")
+        if hide and len(hide) == len(case.layers):
+            st.warning("Keep at least one layer.")
+        elif hide:
+            hx, hmask = demo.inputs(case, hide)
+            with torch.no_grad():
+                risk = demo.model(hx, hmask).item()
+            pct = risk_percentile(risk, demo.cohort_risks)
+            st.metric("Risk percentile without " + ", ".join(LAYER_NAMES.get(m, m) for m in hide),
+                      ordinal(pct), f"{int(pct) - int(case.percentile):+d} percentile points",
+                      delta_color="inverse")
+
+    st.subheader("Tumor-board note")
+    saved = demo.notes.get(case.index)
+    can_live = LIVE and st.session_state.live_used < CAP
+    b1, b2, _ = st.columns([2, 2, 3])
+    write = b1.button("Write the note with Nemotron", type="primary", disabled=not can_live,
+                      help=None if can_live else ("Set NEBIUS_API_KEY for live notes." if not LIVE
+                                                  else "This session's live notes are used up."))
+    show_saved = b2.button("Show the saved note", disabled=saved is None)
+    if not can_live:
+        st.caption("Live notes are off here; ★ patients have a saved note from the live agent."
+                   if saved is None or not LIVE else
+                   "This session's live notes are used up; showing saved notes.")
+
+    if write:
+        with st.status("Nemotron is working on the case…", expanded=True) as status:
+            report = run_case_agent(demo.tools(case, SEARCH), on_step=status.write)
+            status.update(label="Note ready", state="complete", expanded=False)
+        if report.mode != "offline":
+            st.session_state.live_used += 1
+        st.session_state.reports[case.index] = (report, "live")
+    elif show_saved and saved:
+        st.session_state.reports[case.index] = (CaseReport.from_dict(saved["report"]),
+                                                f"saved on {saved['created']}")
+
+    if case.index in st.session_state.reports:
+        report, source = st.session_state.reports[case.index]
+        note, trace = st.columns([3, 2])
+        with note:
+            st.markdown(report.text)
+            if report.mode != "offline":
+                if report.issues:
+                    st.warning("Grounding check: not found in the tool outputs: "
+                               + describe(report.issues))
+                else:
+                    st.success("Grounding check: every number, gene and link in this note comes "
+                               "from the tool outputs" + (" (rewritten once after the check)."
+                                                          if report.revised else "."))
+            header = (f"# MuFFLe++ tumor-board note: case {case.index}\n\n"
+                      f"_{case.label} · {source} · written by {model_name(report.writer)}; "
+                      "research prototype, not a diagnosis._\n\n")
+            st.download_button("Download the note (Markdown)", header + report.text,
+                               file_name=f"muffle_case_{case.index}.md", mime="text/markdown")
+        with trace:
+            st.markdown("**How the agent got there**")
+            st.caption({
+                "agent": f"{model_name(report.model)} chose these tool calls; "
+                         f"{model_name(report.writer)} wrote the note · {report.tokens:,} tokens "
+                         f"· {source}",
+                "fixed plan": f"Tool calling unavailable: the tools ran in a fixed order and "
+                              f"{model_name(report.writer)} wrote the note · {source}",
+                "offline": "Offline: the tools ran in a fixed order and a template wrote the "
+                           "note.",
+            }[report.mode])
+            for line in report.notes:
+                st.caption(line)
+            for n, call in enumerate(report.trace, 1):
+                shown = ", ".join(f"{k}={json.dumps(v)}" for k, v in call.arguments.items())
+                flag = " ⚠️" if "error" in call.result else ""
+                with st.expander(f"{n}. {call.name}({shown}){flag}"):
+                    st.json(call.result)
+            st.caption("Only these derived numbers and gene names were sent to Token Factory; "
+                       "the patient's omics never leave the hospital.")
+
+# --- Federation ------------------------------------------------------------------------------
+with fed_tab:
+    st.subheader(f"{len(demo.sites)} hospitals, one model, no shared patient data")
+    left, right = st.columns([2, 3])
+    with left:
+        dot = ["digraph { rankdir=LR; bgcolor=transparent; size=\"5,3\"; node [shape=box, "
+               "style=rounded, fontname=Helvetica, fontsize=11]; edge [fontname=Helvetica, "
+               "fontsize=9];",
+               'server [label="NVIDIA FLARE server\\nFedAvg", shape=box, style="rounded,bold"];']
+        for s in demo.sites:
+            dot.append(f'"{s.name}" [label="{s.name}\\n{s.patients} patients\\n'
+                       f'data stays here"];')
+            dot.append(f'"{s.name}" -> server [label="weights", dir=both];')
+        st.graphviz_chart("\n".join(dot) + "}", width="content")
+    with right:
+        table = pd.DataFrame([{
+            "Hospital": s.name, "Patients": s.patients, "Deaths": s.deaths,
+            "Held out": s.heldout,
+            **{LAYER_NAMES.get(m, m): 100 * s.coverage[m] for m in demo.model.names
+               if m != "clinical"},
+        } for s in demo.sites])
+        st.dataframe(table, hide_index=True, column_config={
+            LAYER_NAMES.get(m, m): st.column_config.ProgressColumn(
+                LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
+            for m in demo.model.names if m != "clinical"})
+        st.caption("Bars: share of each hospital's patients with that data layer. Hospitals are "
+                   "TCGA tissue source sites grouped into three FL clients, so the gaps are real.")
+
+    res = results()
+    if res and "tcga" in args.data:
+        st.subheader("Does federated training work?")
+        main = [m for m in res["methods"] if m["group"] == "main"]
+        st.altair_chart(charts.results(main), width="stretch")
+        by = {m["method"]: m for m in res["methods"]}
+        st.markdown(
+            f"- **Federated ≈ pooled.** FedAvg reaches {by['fedavg_residual']['mean']:.3f} on "
+            f"a hospital it never saw, against {by['residual']['mean']:.3f} when the other "
+            "hospitals' patients are pooled in one place, without moving any patient data.\n"
+            f"- **Better than going it alone.** A model trained at one hospital scores "
+            f"{by['local_only']['mean']:.3f}.\n"
+            f"- **Honest baseline.** Clinical data alone (stage, age, T/N/M) scores "
+            f"{by['only_clinical']['mean']:.3f}: on overall survival in breast cancer the "
+            "omic layers don't add signal beyond it yet, so the model anchors on clinical data "
+            "and lets omics correct it.")
+        st.caption(res["protocol"] + ".")
+        with st.expander("Each omic layer on its own"):
+            single = [m for m in res["methods"] if m["group"] == "single layer"]
+            st.dataframe(pd.DataFrame(single)[["label", "mean", "sd"]].rename(
+                columns={"label": "Layer", "mean": "C-index", "sd": "sd"}), hide_index=True)
+            st.caption("Copy number alone ranks patients worse than chance across hospitals "
+                       "(below 0.5): a sign of site and batch effects.")
+
+    st.subheader("Risk groups on the held-out patients")
     left, right = st.columns([3, 2])
-    left.markdown(report.text)
-    if report.mode != "offline":
-        if report.issues:
-            left.warning("Grounding check: not found in the tool outputs: "
-                         + describe(report.issues))
-        else:
-            left.success("Grounding check: every number, gene and link in this note comes from "
-                         "the tool outputs" + (" (rewritten once after the check)."
-                                               if report.revised else "."))
-    right.markdown("**Tool calls**")
-    right.caption({
-        "agent": f"Nemotron `{report.model}` chose these calls; `{report.writer}` wrote the "
-                 f"note · {report.tokens} tokens",
-        "fixed plan": f"Tool calling unavailable: tools ran in a fixed order, `{report.writer}` "
-                      "wrote the note",
-        "offline": "Offline: tools ran in a fixed order and the template wrote the report."
-                   + ("" if os.getenv("NEBIUS_API_KEY") else
-                      " Set NEBIUS_API_KEY for the Nemotron agent."),
-    }[report.mode])
-    for note in report.notes:
-        right.caption(note)
-    for n, call in enumerate(report.trace, 1):
-        shown = ", ".join(f"{k}={json.dumps(v)}" for k, v in call.arguments.items())
-        flag = " ⚠️" if "error" in call.result else ""
-        with right.expander(f"{n}. {call.name}({shown}){flag}"):
-            st.json(call.result)
+    with left:
+        st.altair_chart(charts.survival_by_group(km_by_group(demo)), width="stretch")
+    with right:
+        st.metric("Held-out C-index (mean of hospitals)", f"{demo.c_index:.3f}")
+        st.caption(" · ".join(f"{s} {c:.3f}" for s, c in demo.c_index_by_site.items()))
+        st.caption(f"{len(demo.cases)} held-out patients, "
+                   f"{int(demo.heldout_event.sum())} deaths. Curves stop at 5 years, where "
+                   "fewer than 20 patients per group remain. The risk groups rank patients "
+                   "well; they are not calibrated probabilities of death.")
+
+# --- How it works ----------------------------------------------------------------------------
+with how_tab:
+    st.markdown(f"""
+#### 1 · Federated training (NVIDIA FLARE)
+Each hospital trains on its own patients' copy number, RNA expression, methylation, protein
+and clinical data; only model weights go to the FLARE server, which averages them (FedAvg) and
+sends the global model back. A hospital that never measured a layer still takes part: that
+layer is masked, and training randomly hides layers so the model copes. The model first learns
+a clinical risk, then lets the omic layers correct it by an amount chosen on hospitals it
+wasn't trained on.
+
+#### 2 · The case agent (NVIDIA Nemotron on Nebius Token Factory)
+- **{model_name(DEFAULT_MODEL)} plans.** It calls our tools: the patient's risk and
+  percentile, how much each data layer moves it, the top genes of a layer, and Tavily search
+  for publications or clinical trials on those genes.
+- **{model_name(WRITER_MODEL)} writes** the note from the tool outputs (Summary, Drivers,
+  Caveats, Literature).
+- **A grounding check** (plain code, no LLM) looks for any number, gene or link in the note
+  that no tool returned. If it finds one, the writer gets one rewrite; anything left is shown.
+- **Privacy:** only derived numbers (risk, percentile, contributions, attribution scores) and
+  gene names are sent to Token Factory, never a patient's omics values.
+
+#### 3 · Limits
+- Research prototype on public TCGA-BRCA data (1,064 patients, overall survival). Not for
+  clinical use.
+- Omics don't beat clinical data alone on this endpoint yet.
+- The model ranks patients; its absolute risks are only roughly calibrated. It is weaker for
+  patients under 50 and within a single stage.
+- The three "hospitals" are TCGA tissue source sites, simulated with the NVFlare simulator.
+
+[Source code, results and decisions]({REPO}) · built for the Nebius × NVIDIA Global AI
+Hackathon, {date.today().year}.
+""")
+
+if LIVE:
+    notes_left = max(0, CAP - st.session_state.live_used)
+    budget_slot.progress(notes_left / CAP if CAP else 0,
+                         text=f"Live notes left this session: {notes_left} of {CAP}")

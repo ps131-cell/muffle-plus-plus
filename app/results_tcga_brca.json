@@ -1,0 +1,110 @@
+{
+ "cohort": "TCGA-BRCA, overall survival",
+ "protocol": "leave one hospital out: train on two hospitals, test on every patient of the third; site-stratified pooled C-index, mean and sd over 5 seeds",
+ "sites": {
+  "site-1": {
+   "patients": 355,
+   "deaths": 68
+  },
+  "site-2": {
+   "patients": 355,
+   "deaths": 56
+  },
+  "site-3": {
+   "patients": 354,
+   "deaths": 24
+  }
+ },
+ "methods": [
+  {
+   "method": "fedavg_residual",
+   "label": "FedAvg, clinical-anchored residual",
+   "federated": true,
+   "group": "main",
+   "mean": 0.693,
+   "sd": 0.017,
+   "seeds": 5
+  },
+  {
+   "method": "fedavg",
+   "label": "FedAvg, plain multi-omic fusion",
+   "federated": true,
+   "group": "main",
+   "mean": 0.68,
+   "sd": 0.008,
+   "seeds": 5
+  },
+  {
+   "method": "residual",
+   "label": "Pooled data, clinical-anchored residual",
+   "federated": false,
+   "group": "main",
+   "mean": 0.7,
+   "sd": 0.012,
+   "seeds": 5
+  },
+  {
+   "method": "centralized",
+   "label": "Pooled data, plain fusion",
+   "federated": false,
+   "group": "main",
+   "mean": 0.692,
+   "sd": 0.026,
+   "seeds": 5
+  },
+  {
+   "method": "local_only",
+   "label": "One hospital alone",
+   "federated": false,
+   "group": "main",
+   "mean": 0.649,
+   "sd": 0.032,
+   "seeds": 5
+  },
+  {
+   "method": "only_clinical",
+   "label": "Clinical only (stage, age, T/N/M)",
+   "federated": false,
+   "group": "main",
+   "mean": 0.702,
+   "sd": 0.004,
+   "seeds": 5
+  },
+  {
+   "method": "only_rna",
+   "label": "RNA expression only",
+   "federated": false,
+   "group": "single layer",
+   "mean": 0.61,
+   "sd": 0.033,
+   "seeds": 5
+  },
+  {
+   "method": "only_methylation",
+   "label": "Methylation only",
+   "federated": false,
+   "group": "single layer",
+   "mean": 0.599,
+   "sd": 0.012,
+   "seeds": 5
+  },
+  {
+   "method": "only_protein",
+   "label": "Protein only",
+   "federated": false,
+   "group": "single layer",
+   "mean": 0.574,
+   "sd": 0.02,
+   "seeds": 5
+  },
+  {
+   "method": "only_genomic",
+   "label": "Copy number only",
+   "federated": false,
+   "group": "single layer",
+   "mean": 0.485,
+   "sd": 0.016,
+   "seeds": 5
+  }
+ ]
+}
