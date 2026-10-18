@@ -48,7 +48,7 @@ TOKEN_FACTORY_URL = os.getenv("TOKEN_FACTORY_BASE_URL", "https://api.tokenfactor
 DEFAULT_MODEL = os.getenv("NEMOTRON_MODEL") or "nvidia/nemotron-3-super-120b-a12b"
 WRITER_MODEL = os.getenv("NEMOTRON_WRITER_MODEL") or "nvidia/Nemotron-3-Ultra-550b-a55b"
 
-MAX_TOOL_ROUNDS = 4       # planner turns that may call tools
+MAX_TOOL_ROUNDS = 6       # planner turns that may call tools
 MAX_CALLS_PER_ROUND = 4   # extra parallel calls in one turn are dropped
 MAX_TOKENS = 900          # per planner completion
 WRITER_MAX_TOKENS = 3000  # the writer reasons before it writes; reasoning tokens count as output
@@ -58,12 +58,17 @@ WRITER_DROPS = {"note", "log_risk", "cohort_median_log_risk"}  # tool-result key
 AGENT_SYSTEM = (
     "You are the planning step of a tumor-board case agent for MuFFLe++, a federated multi-omic "
     "survival model. You cannot see patient data; use the tools to get the model's outputs for "
-    "this case. Call only the tools you need, a few at a time: usually the risk first, then "
-    "which data layers drove it, then the top features of the most influential layer(s), then "
-    "literature on those genes if a search tool is offered.\n"
+    "this case. Call only the tools you need; several tools can be called in one turn. Usually: "
+    "predict_risk and modality_contributions together, then top_features of the most "
+    "influential layer(s), then, if search_literature is offered, literature on up to 3 named "
+    "genes among those features, best known first (skip unnamed ids such as AC138356.2); for a "
+    "gene that is a drug target you may also search topic clinical_trials.\n"
     "A separate writer turns the tool outputs into the note, so do not write it yourself: when "
     "you have what you need, reply with the single word DONE."
 )
+
+SEARCH_NUDGE = ("search_literature has not been called. If any feature returned so far is a "
+                "named gene, search the best known ones (up to 3); otherwise reply DONE.")
 
 WRITER_SYSTEM = (
     "You write tumor-board notes from the outputs of MuFFLe++, a federated multi-omic survival "
@@ -83,8 +88,9 @@ WRITER_SYSTEM = (
     "layer, name none from it.\n"
     "- Caveats: the missing data layers, the model's validation C-index, and that this is a "
     "research prototype, not a diagnosis.\n"
-    "- Literature: only URLs returned by search_literature, with their titles; if no search was "
-    "run, say so. Never invent papers.\n"
+    "- Literature: only URLs returned by search_literature, with their titles and the gene each "
+    "is about; if the search returned nothing, say no relevant publications were found; if no "
+    "search was run, say so. Never invent papers.\n"
     "Don't restate these rules or explain how to read the numbers. Keep the note under 250 words."
 )
 
@@ -132,6 +138,7 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
                 {"role": "user", "content": "Case (JSON):\n" + json.dumps(tools.case_header())
                  + "\n\nGather what the tumor-board note needs."}]
     specs, trace, tokens, notes = tools.specs(), [], 0, []
+    nudged = False
     for rnd in range(1, max_rounds + 1):
         try:
             resp = client.chat.completions.create(
@@ -145,6 +152,13 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
             return _offline_report(tools, unavailable(e), tokens)
         tokens += _usage(resp)
         calls = (resp.choices[0].message.tool_calls or [])[:MAX_CALLS_PER_ROUND]
+        if not calls and not nudged and rnd < max_rounds and tools.can_search and tools.seen \
+                and not any(c.name == "search_literature" for c in trace):
+            # the planner sometimes stops before the literature step: remind it once
+            nudged = True
+            messages += [{"role": "assistant", "content": resp.choices[0].message.content or ""},
+                         {"role": "user", "content": SEARCH_NUDGE}]
+            continue
         if not calls:
             break
         messages.append({"role": "assistant", "content": resp.choices[0].message.content or "",
@@ -292,20 +306,64 @@ def build_facts(cancer: str, risk: float, percentile: float, contributions: dict
     }
 
 
+SEARCH_QUERIES_PER_REPORT = 3  # Tavily queries (credits) per search_literature call
+RESULTS_PER_GENE = 2
+CANCER_WORDS = re.compile(r"cancer|tumou?r|carcinoma|neoplas|oncolog|metasta", re.I)
+
+
 def tavily_search(genes: list[str], cancer: str, topic: str = "prognosis",
-                  k: int = 3) -> list[dict]:
-    """Tavily web search on gene names only (the case_tools ``Search`` signature)."""
+                  k: int = 5) -> list[dict]:
+    """Tavily web search on gene names only (the case_tools ``Search`` signature).
+
+    One query per gene (at most SEARCH_QUERIES_PER_REPORT), and only results whose title or
+    snippet name that gene and mention cancer are kept: a combined query, or an unnamed id like
+    AC138356.2, otherwise returns generic survival pages (or papers on other diseases) that would
+    read like citations. When some hits name this cancer type, the others are dropped. The same
+    paper on two sites (PMC and a publisher, say) is kept once. Clinical-trial hits (protocol
+    PDFs on cdn.clinicaltrials.gov) are linked as their study page, titled with the NCT id."""
     from tavily import TavilyClient
 
     client = TavilyClient(api_key=os.environ["TAVILY_API_KEY"])
-    q = " ".join(genes)
-    if topic == "clinical_trials":
-        res = client.search(f"{q} {cancer} cancer clinical trial", max_results=k,
-                            include_domains=["clinicaltrials.gov"])
-    else:
-        res = client.search(f"{q} prognosis {cancer} cancer survival", max_results=k)
-    return [{"title": r["title"], "url": r["url"], "snippet": (r.get("content") or "")[:300]}
-            for r in res.get("results", [])]
+    out, seen = [], set()
+    for gene in genes[:SEARCH_QUERIES_PER_REPORT]:
+        if topic == "clinical_trials":
+            res = client.search(f'"{gene}" {cancer} cancer', max_results=5,
+                                include_domains=["clinicaltrials.gov"])
+        else:
+            res = client.search(f'"{gene}" {cancer} cancer prognosis survival', max_results=5)
+        hits = []
+        for r in res.get("results", []):
+            title, text = r.get("title") or "", r.get("content") or ""
+            both = f"{title} {text}"
+            if not CANCER_WORDS.search(both) or not re.search(
+                    rf"(?<![\w-]){re.escape(gene)}(?![\w-])", both, re.I):
+                continue
+            url = r["url"]
+            nct = re.search(r"NCT\d{8}", url)
+            if topic == "clinical_trials" and nct:
+                url = f"https://clinicaltrials.gov/study/{nct.group()}"
+                title = f"{nct.group()}: {title}"
+            hits.append({"gene": gene, "title": title, "url": url, "snippet": text[:300],
+                         "this_cancer": cancer.lower() in both.lower()})
+        if any(h["this_cancer"] for h in hits):
+            hits = [h for h in hits if h["this_cancer"]]
+        kept = 0
+        for h in hits:
+            key = _title_key(h["title"])  # generic titles ("Protocol") don't identify a paper
+            if kept == RESULTS_PER_GENE or h["url"] in seen or (len(key) >= 25 and key in seen):
+                continue
+            seen.update({h["url"], key})
+            kept += 1
+            out.append({k_: v for k_, v in h.items() if k_ != "this_cancer"})
+    return out[:k]
+
+
+def _title_key(title: str) -> str:
+    """Same paper on two sites: "(PDF) Vav3 oncogene is ... : Oncology Letters" vs "Vav3 oncogene
+    is ... patients" -> the first 40 letters of the title proper."""
+    title = re.sub(r"^\(pdf\)\s*|\[pdf\]\s*", "", title.strip(), flags=re.I)
+    title = re.split(r"\s[|:–]\s|\.\.\.|…", title)[0]
+    return re.sub(r"[^a-z0-9]", "", title.lower())[:40]
 
 
 def offline_summary(facts: dict,

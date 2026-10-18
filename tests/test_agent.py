@@ -142,6 +142,28 @@ def test_writer_failure_falls_back_to_the_planner_model():
     assert report.notes == ["writer nvidia/writer: Token Factory unavailable (HTTP 404)"]
 
 
+def test_planner_is_reminded_once_to_search():
+    def search(genes, cancer, topic, k):
+        return [{"gene": genes[0], "title": "t", "url": "https://example.org/a", "snippet": ""}]
+
+    def search_first_gene(kw):
+        assert kw["messages"][-1]["content"] == nemotron.SEARCH_NUDGE
+        feats = json.loads(kw["messages"][-3]["content"])["features"]
+        return reply(calls=[("search_literature", {"genes": [feats[0]["name"]]})])
+
+    client = FakeClient(
+        reply(calls=[("predict_risk", {}), ("modality_contributions", {})]),
+        reply(calls=[("top_features", {"modality": "rna", "k": 2})]),
+        reply("DONE"), search_first_gene, reply("DONE"), reply("**Summary** note"))
+    report = run_case_agent(make_tools(search=search), client=client)
+    assert [c.name for c in report.trace][-1] == "search_literature"
+    assert len(client.calls) == 6  # 5 planner turns (one reminder) + writer
+    # without a search backend there is no reminder
+    client = FakeClient(reply(calls=[("predict_risk", {})]), reply("DONE"), reply("note"))
+    run_case_agent(make_tools(), client=client)
+    assert len(client.calls) == 3
+
+
 def test_cut_off_note_falls_back_to_the_planner_model():
     def writer(kw):
         if kw["model"] == "nvidia/writer":
@@ -257,3 +279,82 @@ def test_failed_summary_after_rejected_tools_goes_offline():
     client = FakeClient(fail(ApiError(400)), fail(ApiError(503)))
     report = run_case_agent(make_tools(), client=client)
     assert report.mode == "offline" and "HTTP 503" in report.notes[0]
+
+
+def test_tavily_search_keeps_results_that_name_the_gene(monkeypatch):
+    import tavily
+
+    queries = []
+
+    class FakeTavily:
+        def __init__(self, api_key):
+            assert api_key == "test-key"
+
+        def search(self, query, max_results, include_domains=None):
+            queries.append((query, include_domains))
+            gene = query.split('"')[1]
+            return {"results": [
+                {"title": f"{gene} and survival", "url": f"https://pubmed.org/{gene}",
+                 "content": "breast cancer " + "x" * 400},
+                {"title": f"{gene} in coronary artery disease", "url": f"https://heart.org/{gene}",
+                 "content": "atherosclerosis"},
+                {"title": "Breast cancer survival rates", "url": "https://generic.org",
+                 "content": "general statistics"},
+                {"title": "Protocol", "url": f"https://cdn.clinicaltrials.gov/large-docs/{gene}/"
+                 f"NCT0274361{len(gene)}/Prot_SAP_000.pdf",
+                 "content": f"targets {gene} in breast tumor cells"},
+            ]}
+
+    monkeypatch.setenv("TAVILY_API_KEY", "test-key")
+    monkeypatch.setattr(tavily, "TavilyClient", FakeTavily)
+    res = nemotron.tavily_search(["GATA3", "ESR1", "PRAME", "TP53"], "breast", "prognosis", 10)
+    assert len(queries) == nemotron.SEARCH_QUERIES_PER_REPORT  # TP53 not queried
+    assert all("generic" not in r["url"] and "heart" not in r["url"] for r in res)
+    assert [r["gene"] for r in res] == ["GATA3", "GATA3", "ESR1", "ESR1", "PRAME", "PRAME"]
+    assert {r["url"] for r in res if r["gene"] == "GATA3"} == {
+        "https://pubmed.org/GATA3", "https://cdn.clinicaltrials.gov/large-docs/GATA3/"
+        "NCT02743615/Prot_SAP_000.pdf"}
+    assert all(len(r["snippet"]) <= 300 for r in res)
+
+    queries.clear()
+    trials = nemotron.tavily_search(["PRAME"], "breast", "clinical_trials", 5)
+    assert queries == [('"PRAME" breast cancer', ["clinicaltrials.gov"])]
+    assert trials[1]["url"] == "https://clinicaltrials.gov/study/NCT02743615"
+    assert trials[1]["title"].startswith("NCT02743615: ")
+
+
+def test_tavily_search_prefers_this_cancer_and_drops_duplicate_papers(monkeypatch):
+    import tavily
+
+    class FakeTavily:
+        def __init__(self, api_key):
+            pass
+
+        def search(self, query, max_results, include_domains=None):
+            return {"results": [
+                {"title": "VAV3 oncogene is a poor prognostic factor in breast cancer patients",
+                 "url": "https://pmc.org/1", "content": "VAV3 ..."},
+                {"title": "(PDF) VAV3 oncogene is a poor prognostic factor in breast... : Onc Lett",
+                 "url": "https://ovid.com/2", "content": "VAV3 in breast cancer"},
+                {"title": "VAV3 in esophageal cancer", "url": "https://pmc.org/3",
+                 "content": "VAV3 tumour stages"},
+            ]}
+
+    monkeypatch.setenv("TAVILY_API_KEY", "k")
+    monkeypatch.setattr(tavily, "TavilyClient", FakeTavily)
+    assert [r["url"] for r in nemotron.tavily_search(["VAV3"], "breast")] == ["https://pmc.org/1"]
+
+
+def test_clinical_features_cannot_be_searched():
+    tools = make_tools(search=lambda *a: pytest.fail("clinical fields are not genes"))
+    feats = tools.top_features("clinical", 3)["features"]
+    assert feats
+    r = tools.call("search_literature", {"genes": [feats[0]["name"]]})
+    assert "error" in r and "not returned yet" in r["error"]
+
+
+def test_empty_search_says_there_is_nothing_to_cite():
+    tools = make_tools(search=lambda *a: [])
+    gene = tools.top_features("rna", 1)["features"][0]["name"]
+    r = tools.search_literature([gene])
+    assert r["results"] == [] and "nothing to cite" in r["note"]
