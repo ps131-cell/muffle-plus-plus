@@ -1,0 +1,24 @@
+# TCGA-BRCA from scripts/prepare_tcga.py (data/tcga_brca). Only what differs from default.yaml.
+base: default.yaml
+
+# ~1,060 patients but only ~150 deaths for 1,800 features: the default model overfits within
+# a few epochs. This smaller, more regularized one plateaus (pooled val C-index ~0.70 from
+# epoch ~8 to 40) on tuning seeds 98/99, so results don't hinge on the epoch count.
+# Additive fusion + heavy modality dropout keep the noisy omic layers from drowning out the
+# strong clinical signal (tuning seeds 95-99: 0.718 vs 0.672 for the default concat fusion,
+# 0.694 clinical-only). See docs/decisions.md 2026-10-18.
+model:
+  hidden: 64
+  latent: 16
+  head_hidden: 16
+  dropout: 0.5
+  fusion: additive
+  modality_dropout: 0.8
+
+train:
+  weight_decay: 1.0e-2
+  epochs: 20         # FedAvg default: epochs / local_epochs = 10 rounds
+
+data:
+  partition: site         # each FL client = whole tissue source sites (real hospitals)
+  simulate_gaps: false    # modality gaps are real (methylation ~72%, protein ~80% coverage)

@@ -17,27 +17,40 @@ import numpy as np
 import torch
 from torch.utils.data import ConcatDataset, DataLoader
 
-from muffle.config import load_config
+from muffle.config import DATA_DEFAULTS, load_config
 from muffle.data.dataset import MultiOmicDataset
 from muffle.data.partition import partition_cohort
 from muffle.engine import evaluate, train_epochs
 from muffle.models import MuffleNet
 
 
-def site_files(data_dir: Path, n_clients: int) -> list[Path]:
-    client_dir = data_dir / f"clients_{n_clients}"
-    files = sorted(client_dir.glob("site-*.npz"))
+def client_dir(data_dir: Path, n_clients: int, cfg: dict | None = None) -> Path:
+    """Where the per-client site-k.npz files live; the name encodes how they were split."""
+    data = {**DATA_DEFAULTS, **(cfg or {}).get("data", {})}  # old checkpoints have no "data"
+    gaps = "" if data["simulate_gaps"] else "_nogaps"
+    return Path(data_dir) / f"clients_{n_clients}_{data['partition']}{gaps}"
+
+
+def site_files(data_dir: Path, n_clients: int, cfg: dict | None = None) -> list[Path]:
+    """Per-client files, partitioning data_dir/cohort.npz first if needed (cfg["data"])."""
+    data = {**DATA_DEFAULTS, **(cfg or {}).get("data", {})}
+    out = client_dir(data_dir, n_clients, cfg)
+    files = sorted(out.glob("site-*.npz"))
     if len(files) != n_clients:
-        with np.load(data_dir / "cohort.npz") as f:
-            files = partition_cohort({k: f[k] for k in f.files}, n_clients, client_dir)
+        with np.load(Path(data_dir) / "cohort.npz") as f:
+            gaps = None if data["simulate_gaps"] else [[]]
+            files = partition_cohort({k: f[k] for k in f.files}, n_clients, out,
+                                     mode=data["partition"], gaps=gaps)
     return files
 
 
 def fit(train_ds, val_ds, cfg, device):
     torch.manual_seed(cfg["train"]["seed"])
     model = MuffleNet.from_config(cfg)
+    # keep the last partial batch for small sites, else a site with < batch_size train patients
+    # would take no optimizer steps at all
     loader = DataLoader(train_ds, batch_size=cfg["train"]["batch_size"], shuffle=True,
-                        drop_last=True)
+                        drop_last=len(train_ds) > cfg["train"]["batch_size"])
     train_epochs(model, loader, cfg["train"]["epochs"], cfg["train"]["lr"],
                  cfg["train"]["weight_decay"], device)
     return model, evaluate(model, val_ds, device)
@@ -74,7 +87,7 @@ def main(argv=None):
     cfg = load_config(args.config)
 
     splits = []
-    for f in site_files(args.data, args.n_clients):
+    for f in site_files(args.data, args.n_clients, cfg):
         ds = MultiOmicDataset(f, cfg["modalities"])
         splits.append((f.stem, *ds.split(cfg["train"]["val_fraction"], cfg["train"]["seed"])))
 

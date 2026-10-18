@@ -25,3 +25,7 @@ train:
 
 fl:
   prox_mu: 0.0       # >0 turns FedAvg local training into FedProx
+
+data:
+  partition: stage-skew   # how cohort.npz is split into FL clients: stage-skew | iid | site
+  simulate_gaps: true     # blank whole modalities at some clients (synthetic data)

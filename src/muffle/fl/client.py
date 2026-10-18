@@ -26,9 +26,13 @@ def main():
     p.add_argument("--config", default=None)
     p.add_argument("--local-epochs", type=int, default=None)
     p.add_argument("--prox-mu", type=float, default=None)
+    p.add_argument("--seed", type=int, default=None, help="overrides train.seed (val split)")
     args = p.parse_args()
 
     cfg = load_config(args.config)
+    if args.seed is not None:
+        cfg["train"]["seed"] = args.seed
+        torch.manual_seed(args.seed)
     epochs = args.local_epochs or cfg["train"]["local_epochs"]
     prox_mu = cfg["fl"]["prox_mu"] if args.prox_mu is None else args.prox_mu
     device = "cuda" if torch.cuda.is_available() else "cpu"

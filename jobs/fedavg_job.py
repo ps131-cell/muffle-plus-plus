@@ -16,7 +16,7 @@ from nvflare.app_opt.pt.recipes.fedavg import FedAvgRecipe
 from nvflare.recipe.sim_env import SimEnv
 
 from muffle.config import load_config
-from muffle.train_local import site_files
+from muffle.train_local import client_dir, site_files
 
 CLIENT_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "muffle" / "fl" / "client.py"
 
@@ -29,21 +29,32 @@ def main():
     p.add_argument("--rounds", type=int, default=10)
     p.add_argument("--local-epochs", type=int, default=None)
     p.add_argument("--prox-mu", type=float, default=None)
+    p.add_argument("--seed", type=int, default=None, help="overrides train.seed (val split)")
+    p.add_argument("--client-dir", type=Path, default=None,
+                   help="use these site-1..site-n.npz instead of partitioning --data")
     p.add_argument("--workspace", default="workspaces")
     p.add_argument("--gpu", default=None, help="e.g. 0, or 0,1 to spread clients over GPUs")
     args = p.parse_args()
 
     cfg = load_config(args.config)
-    site_files(args.data, args.n_clients)  # partitions the cohort if not already done
-    client_dir = (args.data / f"clients_{args.n_clients}").resolve()
+    if args.client_dir:
+        data_dir = args.client_dir.resolve()
+        n = len(list(data_dir.glob("site-*.npz")))
+        if n != args.n_clients:
+            raise SystemExit(f"{data_dir} has {n} site files, --n-clients is {args.n_clients}")
+    else:
+        site_files(args.data, args.n_clients, cfg)  # partitions the cohort if not already done
+        data_dir = client_dir(args.data, args.n_clients, cfg).resolve()
 
-    train_args = f"--data-dir {client_dir}"
+    train_args = f"--data-dir {data_dir}"
     if args.config:
         train_args += f" --config {Path(args.config).resolve()}"
     if args.local_epochs:
         train_args += f" --local-epochs {args.local_epochs}"
     if args.prox_mu is not None:
         train_args += f" --prox-mu {args.prox_mu}"
+    if args.seed is not None:
+        train_args += f" --seed {args.seed}"
 
     recipe = FedAvgRecipe(
         name="muffle_fedavg",
