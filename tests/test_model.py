@@ -54,6 +54,15 @@ def test_additive_fusion_is_a_sum_over_present_modalities():
     assert torch.allclose(model(x, mask), y1 + 0.7)
 
 
+def test_always_keep_is_never_dropped():
+    model = MuffleNet(SMALL_DIMS, modality_dropout=0.99, always_keep=["clinical"]).train()
+    mask = torch.ones(200, len(SMALL_DIMS))
+    out = model._train_time_mask(mask)
+    j = list(SMALL_DIMS).index("clinical")
+    assert out[:, j].min() == 1 and out.sum() < mask.sum() / 2
+    assert "_droppable" not in model.state_dict()  # checkpoints / FL weights unchanged
+
+
 def test_unknown_fusion_is_rejected():
     with pytest.raises(ValueError):
         MuffleNet(SMALL_DIMS, fusion="attention")

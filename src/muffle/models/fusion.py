@@ -36,6 +36,10 @@ class MuffleNet(nn.Module):
     a patient has, plus a learned offset for each missing one. A weak, noisy layer can then only
     add its own term instead of diluting a strong one (e.g. clinical stage on TCGA-BRCA).
 
+    modality_dropout hides each available modality with this probability during training, except
+    those in ``always_keep`` (e.g. clinical data every patient has; dropping it would teach the
+    model to lean on the weaker layers).
+
     Constructor arguments are stored as same-named attributes so NVFlare's job API can
     serialize the initial model.
     """
@@ -49,6 +53,7 @@ class MuffleNet(nn.Module):
         dropout: float = 0.2,
         modality_dropout: float = 0.0,
         fusion: str = "concat",
+        always_keep: list[str] | tuple[str, ...] = (),
     ):
         super().__init__()
         if fusion not in ("concat", "additive"):
@@ -57,7 +62,11 @@ class MuffleNet(nn.Module):
         self.hidden, self.latent, self.head_hidden = hidden, latent, head_hidden
         self.dropout, self.modality_dropout = dropout, modality_dropout
         self.fusion = fusion
+        self.always_keep = list(always_keep)
         self.names = list(self.modality_dims)
+        self.register_buffer("_droppable", torch.tensor(
+            [m not in self.always_keep for m in self.names], dtype=torch.float32),
+            persistent=False)
 
         small = lambda d: min(hidden, max(16, 4 * d))  # noqa: E731  clinical gets a narrow encoder
         self.encoders = nn.ModuleDict(
@@ -83,6 +92,7 @@ class MuffleNet(nn.Module):
         if not self.training or self.modality_dropout <= 0:
             return mask
         keep = (torch.rand_like(mask) > self.modality_dropout).float()
+        keep = torch.maximum(keep, 1 - self._droppable)  # always_keep columns are never hidden
         new = mask * keep
         # never hide every modality a patient has
         empty = new.sum(1) == 0

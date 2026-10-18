@@ -16,6 +16,7 @@ from nvflare.app_opt.pt.recipes.fedavg import FedAvgRecipe
 from nvflare.recipe.sim_env import SimEnv
 
 from muffle.config import load_config
+from muffle.experiment import fl_rounds
 from muffle.train_local import client_dir, site_files
 
 CLIENT_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "muffle" / "fl" / "client.py"
@@ -26,7 +27,7 @@ def main():
     p.add_argument("--data", type=Path, default=Path("data/synthetic"))
     p.add_argument("--config", default=None)
     p.add_argument("--n-clients", type=int, default=3)
-    p.add_argument("--rounds", type=int, default=10)
+    p.add_argument("--rounds", type=int, default=None, help="default: fl.rounds in the config")
     p.add_argument("--local-epochs", type=int, default=None)
     p.add_argument("--prox-mu", type=float, default=None)
     p.add_argument("--seed", type=int, default=None, help="overrides train.seed (val split)")
@@ -62,7 +63,7 @@ def main():
         model={"class_path": "muffle.models.fusion.MuffleNet",
                "args": {"modality_dims": cfg["modalities"], **cfg["model"]}},
         min_clients=args.n_clients,
-        num_rounds=args.rounds,
+        num_rounds=args.rounds or fl_rounds(cfg),
         train_script=str(CLIENT_SCRIPT),
         train_args=train_args,
         key_metric="c_index",  # keep the best global model by validation C-index
