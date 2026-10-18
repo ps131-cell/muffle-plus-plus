@@ -12,7 +12,8 @@ make setup && make test && make local && make fl
 ```
 
 On Apple Silicon, PyTorch uses the CPU (and can use the GPU via `mps`); that's plenty for the
-synthetic data. Real training runs go on Nebius.
+synthetic data and for TCGA-BRCA (federated training runs in the NVFlare simulator on the
+laptop).
 
 ## 2. Accounts and keys (you, in a browser — a few minutes each)
 
@@ -22,7 +23,7 @@ synthetic data. Real training runs go on Nebius.
 | Nebius account + hackathon credits (code on the Devpost page) | nebius.com → console | — |
 | Token Factory API key | Nebius Token Factory console → API keys | `.env` → `NEBIUS_API_KEY` |
 | Tavily API key (optional, for the bonus prize) | tavily.com | `.env` → `TAVILY_API_KEY` |
-| Nebius CLI (for Serverless Jobs) | `curl -sSL https://artifacts.nebius.cloud/cli/install.sh \| bash`, then `nebius profile create` | — |
+| Nebius CLI (optional, only for `docs/NEBIUS.md`; not used in the submission) | `curl -sSL https://artifacts.nebius.cloud/cli/install.sh \| bash`, then `nebius profile create` | — |
 
 `.env` is git-ignored. Never paste keys into code, issues or chat logs.
 
@@ -31,12 +32,14 @@ synthetic data. Real training runs go on Nebius.
   merges them — it keeps `main` working and gives you a reviewable history.
 - Mention who did the work in the commit message (e.g. `model: add FedProx (Kim)`), and set
   `Co-authored-by:` trailers if you want both names on GitHub's contributor graph.
-- `main` is protected: CI must pass before merging.
+- Merge only with green CI. GitHub branch protection needs a public repo on the free plan, so
+  until the repo goes public a local pre-push hook refuses pushes to `main`; #17 turns on
+  protection after that.
 
 ## 4. Shared files that are not code
 | What | Where |
 |---|---|
-| TCGA / CHIMERA downloads, processed matrices | `data/` locally (ignored); Nebius Object Storage for GPU runs |
+| TCGA / CHIMERA downloads, processed matrices | `data/` locally (ignored) |
 | Checkpoints, run logs | `outputs/`, `workspaces/` (ignored) |
 | Slides, video | shared Google Drive folder |
 | Decisions, meeting notes | `docs/decisions.md` |
