@@ -92,7 +92,8 @@ def test_tool_call_round_trip():
         assert kw["model"] == "nvidia/test"
         assert kw["max_tokens"] <= MAX_TOKENS and kw["tool_choice"] == "auto"
         assert {t["function"]["name"] for t in kw["tools"]} == {
-            "predict_risk", "modality_contributions", "top_features", "search_literature"}
+            "observed_findings", "predict_risk", "modality_contributions", "top_features",
+            "search_literature"}
     # the writer gets every tool output, without tools and without the tools' reading notes
     assert writer["model"] == "nvidia/writer" and "tools" not in writer
     assert writer["max_tokens"] == WRITER_MAX_TOKENS
@@ -123,8 +124,8 @@ def test_tool_rounds_are_capped():
 def test_planner_without_risk_gets_the_fixed_plan():
     client = FakeClient(reply("DONE"), reply("**Summary** note"))
     report = run_case_agent(make_tools(), client=client)
-    assert [c.name for c in report.trace] == ["predict_risk", "modality_contributions",
-                                              "top_features"]
+    assert [c.name for c in report.trace] == ["observed_findings", "predict_risk",
+                                              "modality_contributions", "top_features"]
     assert report.mode == "agent" and "fixed tool sequence" in report.notes[0]
 
 
@@ -230,8 +231,8 @@ def test_rejected_tool_calling_falls_back_to_fixed_plan():
     report = run_case_agent(make_tools(names=False), client=client)
     assert report.mode == "fixed plan" and report.text == "one-shot summary"
     assert "tools" not in client.calls[1]
-    assert [c.name for c in report.trace] == ["predict_risk", "modality_contributions",
-                                              "top_features"]
+    assert [c.name for c in report.trace] == ["observed_findings", "predict_risk",
+                                              "modality_contributions", "top_features"]
 
 
 def test_offline_fallback_without_key(monkeypatch):
@@ -241,8 +242,8 @@ def test_offline_fallback_without_key(monkeypatch):
     report = run_case_agent(make_tools(search=search))
     assert report.mode == "offline" and report.tokens == 0
     assert "percentile" in report.text and "NEBIUS_API_KEY" in report.text
-    assert [c.name for c in report.trace] == ["predict_risk", "modality_contributions",
-                                              "top_features"]
+    assert [c.name for c in report.trace] == ["observed_findings", "predict_risk",
+                                              "modality_contributions", "top_features"]
 
 
 def test_bad_tool_calls_return_errors():
@@ -269,7 +270,8 @@ def test_zero_score_features_are_dropped_and_not_searched():
     r = tools.top_features("rna", 5)
     assert r["features"] == [] and "name no features" in r["note"]
     trace = nemotron.fixed_plan(tools)
-    assert [c.name for c in trace] == ["predict_risk", "modality_contributions", "top_features"]
+    assert [c.name for c in trace] == ["observed_findings", "predict_risk",
+                                       "modality_contributions", "top_features"]
 
 
 class ApiError(Exception):
@@ -395,3 +397,22 @@ def test_empty_search_says_there_is_nothing_to_cite():
     gene = tools.top_features("rna", 1)["features"][0]["name"]
     r = tools.search_literature([gene])
     assert r["results"] == [] and "nothing to cite" in r["note"]
+
+
+def test_every_tool_result_has_an_evidence_type_and_the_offline_note_is_labeled(monkeypatch):
+    from muffle.report.case_tools import observed_facts
+
+    tools = make_tools()
+    tools.observed = observed_facts("II", 57.0)
+    obs = tools.observed_findings()
+    assert obs["evidence_type"] == "observed" and obs["recorded_stage"] == "II"
+    assert obs["age_band"] == "50-64" and "57" not in str(obs)  # coarse age only
+    assert tools.predict_risk()["evidence_type"] == "model inference"
+    assert "validation C-index" in tools.predict_risk()["uncertainty"]
+    assert tools.modality_contributions()["evidence_type"] == "model inference"
+    assert tools.top_features("rna", 3)["evidence_type"] == "model inference"
+    monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
+    text = run_case_agent(tools).text
+    for label in ("**Observed**", "[Observed] Stage: II", "**Model inferences**",
+                  "[Model inference]", "**Hypotheses and evidence**", "[Hypothesis]"):
+        assert label in text

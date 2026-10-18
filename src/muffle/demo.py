@@ -27,7 +27,7 @@ from muffle.data.dataset import MultiOmicDataset, feature_names, split_positions
 from muffle.data.partition import split_indices
 from muffle.explain import cohort_offsets, risk_group, risk_percentile
 from muffle.models import MuffleNet
-from muffle.report.case_tools import CaseTools, Search
+from muffle.report.case_tools import CaseTools, Search, observed_facts
 from muffle.train_local import heldout_c_index, load_model, site_files
 
 STAGES = {1: "I", 2: "II", 3: "III", 4: "IV"}
@@ -108,7 +108,7 @@ class Demo:
     def tools(self, case: Case, search: Search | None = None) -> CaseTools:
         x, mask = self.inputs(case)
         return CaseTools(self.model, x, mask, self.cohort_risks, self.cancer, self.names,
-                         self.c_index, search, self.offsets)
+                         self.c_index, search, self.offsets, observed_facts(case.stage, case.age))
 
 
 def build_demo(ckpt: str | Path, data_dir: str | Path, n_clients: int = 3,

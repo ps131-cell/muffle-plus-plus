@@ -2,8 +2,12 @@
 
 Each tool runs our own code locally (the trained MuffleNet, ``muffle.explain``, Tavily) and
 returns a small JSON-able dict. Tool results are sent to Token Factory, so they hold only derived
-numbers (log-risk, percentile, contributions, attribution scores) and feature/gene names — never
-the patient's raw omics values.
+numbers (log-risk, percentile, contributions, attribution scores), coarse recorded facts (stage,
+age band) and feature/gene names — never the patient's raw omics values.
+
+Every result carries an ``evidence_type`` (docs/VISION.md): "observed" (recorded or measured for
+this patient), "model inference" (a prediction, with its uncertainty) or "hypothesis" (leads such
+as literature, not findings about this patient).
 """
 
 from __future__ import annotations
@@ -25,6 +29,19 @@ LAYERS = {"clinical": "clinical: age, stage, T/N/M, histology (not an omic layer
 MAX_FEATURES = 10
 MAX_SEARCH_GENES = 3  # one Tavily query each
 TOPICS = ("prognosis", "clinical_trials")
+OBSERVED, INFERENCE, HYPOTHESIS = "observed", "model inference", "hypothesis"
+
+
+def age_band(age: float | None) -> str:
+    """Coarse age for the LLM: the note never needs the exact age."""
+    if age is None or age != age:  # None or NaN
+        return "not recorded"
+    return "under 50" if age < 50 else "50-64" if age < 65 else "65 or older"
+
+
+def observed_facts(stage: str | None = None, age: float | None = None) -> dict:
+    """Recorded clinical facts for ``observed_findings`` (stage "I".."IV" or None)."""
+    return {"recorded_stage": stage or "not recorded", "age_band": age_band(age)}
 
 # search(genes, cancer, topic, k) -> [{"title", "url", "snippet"}]; see nemotron.tavily_search
 Search = Callable[[list[str], str, str, int], list[dict]]
@@ -46,8 +63,9 @@ class CaseTools:
                  cohort_risks: np.ndarray, cancer: str,
                  feature_names: dict[str, list[str]] | None = None,
                  c_index: float | None = None, search: Search | None = None,
-                 offsets: dict[str, float] | None = None):
+                 offsets: dict[str, float] | None = None, observed: dict | None = None):
         self.model, self.x, self.mask = model.eval(), x, mask
+        self.observed = observed or {}  # observed_facts(...): recorded stage, age band
         self.offsets = offsets  # explain.cohort_offsets: contributions vs a typical patient
         self.cohort = np.asarray(cohort_risks, dtype=float)
         self.cancer, self.c_index = cancer, c_index
@@ -82,6 +100,9 @@ class CaseTools:
 
     def specs(self) -> list[dict]:
         specs = [
+            _fn("observed_findings", "What was actually recorded or measured for this patient "
+                "(evidence type: observed): which data layers exist, the recorded stage and age "
+                "band. Call it first."),
             _fn("predict_risk", "Predicted log-risk for this patient, its percentile in the "
                 "cohort, and the risk group (cohort tertiles)."),
             _fn("modality_contributions", "How much each available data layer raises or lowers "
@@ -118,10 +139,21 @@ class CaseTools:
 
     # --- tools -----------------------------------------------------------------------------
 
+    def observed_findings(self) -> dict:
+        return {"evidence_type": OBSERVED,
+                "measured_data_layers": self.available, "not_measured": self.missing,
+                **(self.observed or observed_facts()),
+                "note": "recorded facts, not predictions; a layer that was not measured is "
+                        "unknown, not normal"}
+
     def predict_risk(self) -> dict:
         with torch.no_grad():
             risk = self.model(self.x, self.mask).item()
         return {
+            "evidence_type": INFERENCE,
+            "uncertainty": "the model ranks patients correctly in about "
+                           f"{round(100 * self.c_index)}% of comparable pairs (validation "
+                           "C-index)" if self.c_index else "validation C-index not available",
             "log_risk": round(risk, 3),
             "cohort_percentile": int(explain.risk_percentile(risk, self.cohort)),
             "risk_group": explain.risk_group(risk, self.cohort),
@@ -135,7 +167,8 @@ class CaseTools:
 
     def modality_contributions(self) -> dict:
         _, contrib = explain.modality_contributions(self.model, self.x, self.mask, self.offsets)
-        out = {"log_risk_added_by_layer": {m: round(v, 3) for m, v in contrib.items()},
+        out = {"evidence_type": INFERENCE,
+               "log_risk_added_by_layer": {m: round(v, 3) for m, v in contrib.items()},
                "compared_with": "a typical patient in the cohort" if self.offsets
                                 else "the same patient without that layer",
                "available_data_layers": self.available, "missing_data_layers": self.missing,
@@ -155,7 +188,7 @@ class CaseTools:
                  if round(s, 4) != 0]
         if modality != "clinical":  # age, stage... are not genes
             self._seen.update(n for n, _ in feats)
-        out = {"modality": modality, "method": "gradient x input",
+        out = {"evidence_type": INFERENCE, "modality": modality, "method": "gradient x input",
                "features": [{"name": n, "score": round(s, 4)} for n, s in feats],
                "note": "positive score pushes risk up"}
         if not feats:
@@ -175,7 +208,9 @@ class CaseTools:
             results = self.search(genes, self.cancer, topic, 5)
         except Exception as e:  # network/quota errors shouldn't sink the report
             return {"error": f"literature search failed ({type(e).__name__})"}
-        out = {"genes": genes, "topic": topic, "results": results}
+        out = {"evidence_type": HYPOTHESIS, "genes": genes, "topic": topic, "results": results,
+               "about": "published leads on these genes in this cancer, not findings about this "
+                        "patient"}
         if not results:
             out["note"] = "no result names these genes, so there is nothing to cite"
         return out
