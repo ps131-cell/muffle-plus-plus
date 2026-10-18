@@ -2,6 +2,21 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Clinical-anchored residual model (#25); demo model uses it
+- **What:** `muffle.residual`: train the clinical anchor alone, freeze it, train the omic heads
+  on top; log-risk = clinical + λ·omics with λ ∈ {0, ¼, ½, ¾, 1}. Centrally, λ is scored on 3
+  inner splits that hold out whole tissue source sites; in FL (`fedavg_job --residual`, 20
+  anchor rounds then 20 residual rounds) each hospital scores λ on its own held-out sites and
+  shares only two pair counts per λ. `make fl-tcga` now builds the FedAvg-residual model.
+- **Why:** with random-patient inner splits λ came out ≈ 0.4 and did not transfer to new
+  hospitals (omic site/batch effects); site-held-out splits fixed that (tuning seeds:
+  0.688 → 0.701 = clinical-only).
+- **Result (LOSO, seeds 0–4):** residual 0.700 ± 0.012, FedAvg-residual 0.693 ± 0.017,
+  centralized fusion 0.692 ± 0.026, FedAvg fusion 0.680 ± 0.008, local-only 0.649 ± 0.032,
+  clinical-only 0.702 ± 0.004. Fusion now matches clinical-only (closes #25); it does not beat
+  it. FedAvg numbers vary by ~0.01 between identical runs because NVFlare's initial global
+  model is not seeded (0.668 vs 0.680 for the same config).
+
 ## 2026-10-18 — Never drop clinical in modality dropout; FedAvg gets 20 rounds on TCGA
 - **What:** `model.always_keep: [clinical]` exempts clinical (every patient has it) from
   modality dropout; `fl.rounds: 20` for TCGA (default stays epochs / local_epochs). Datasets

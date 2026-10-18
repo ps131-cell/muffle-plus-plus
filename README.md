@@ -64,14 +64,18 @@ site-stratified C-index, mean ± sd over 5 seeds (`make experiment-tcga`):
 
 | model | C-index |
 |---|---|
-| **FedAvg** (NVFlare across the other two hospitals, no data shared) | **0.668 ± 0.010** |
-| Centralized (their training data pooled) | 0.692 ± 0.026 |
+| **FedAvg, clinical-anchored residual** (NVFlare, other two hospitals, no data shared) | **0.693 ± 0.017** |
+| FedAvg, plain multi-omic fusion | 0.680 ± 0.008 |
+| Centralized, clinical-anchored residual (their data pooled) | 0.700 ± 0.012 |
+| Centralized, plain fusion | 0.692 ± 0.026 |
 | Local-only (one other hospital's own model) | 0.649 ± 0.032 |
 | Clinical data only (stage, age, T/N/M), centralized | 0.702 ± 0.004 |
 
-Federated training beats any single hospital's model and comes within ~0.02 of pooling the
-data, without moving any patient data. The fused multi-omic model is close to, but not yet
-better than, clinical stage and age alone on this endpoint (#25; `docs/decisions.md`).
+Federated training beats any single hospital's model and comes within ~0.01 of pooling the
+data, without moving any patient data. In the clinical-anchored residual model the omic
+layers may only correct the clinical risk, weighted by how well that correction transfers to
+hospitals it wasn't trained at; it matches clinical stage and age alone, while plain fusion
+fell short. On this endpoint the omics don't (yet) add signal beyond clinical data.
 
 ## Layout
 

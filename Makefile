@@ -40,10 +40,12 @@ fl: synth
 	$(BIN)/python jobs/fedavg_job.py --data data/synthetic --n-clients $(strip $(CLIENTS)) \
 		--rounds $(strip $(ROUNDS)) $(if $(strip $(GPU)),--gpu $(strip $(GPU)),)
 
-# real data (after `make tcga`): FedAvg across the 3 hospitals -> outputs/tcga_fedavg.pt
+# real data (after `make tcga`): clinical-anchored residual FedAvg across the 3 hospitals
+# (20 anchor + 20 residual rounds, λ by federated evaluation) -> outputs/tcga_fedavg.pt
 fl-tcga:
 	$(BIN)/python jobs/fedavg_job.py --data data/tcga_brca --config configs/tcga_brca.yaml \
-		--n-clients $(strip $(CLIENTS)) --workspace workspaces/tcga --save outputs/tcga_fedavg.pt
+		--n-clients $(strip $(CLIENTS)) --workspace workspaces/tcga --residual \
+		--save outputs/tcga_fedavg.pt
 
 # Nemotron case agent on one TCGA patient, real gene names (offline template without a key)
 agent-tcga:
