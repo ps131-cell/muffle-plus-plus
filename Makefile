@@ -9,7 +9,8 @@ FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_mod
 PATIENT ?= 0
 
 .PHONY: setup test lint synth tcga local fl fl-tcga agent-tcga compare experiment \
-	experiment-tcga calibration-tcga demo demo-tcga demo-notes demo-results clean-nb docker
+	experiment-tcga calibration-tcga demo demo-tcga demo-notes demo-results \
+	demo-bundle demo-hosted clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -85,6 +86,14 @@ demo-notes:
 # aggregate results of `make experiment-tcga` for the demo -> app/results_tcga_brca.json
 demo-results:
 	$(BIN)/python scripts/export_results.py
+
+# the hosted demo's bundle (weights + ~40 held-out cases) -> outputs/demo_bundle.pt
+demo-bundle:
+	$(BIN)/python scripts/make_demo_bundle.py
+
+# run the demo the way it is hosted: from the bundle only, no cohort files
+demo-hosted: demo-bundle
+	$(BIN)/streamlit run app/streamlit_app.py -- --bundle outputs/demo_bundle.pt
 
 clean-nb:
 	$(BIN)/nbstripout notebooks/*.ipynb

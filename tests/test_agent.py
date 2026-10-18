@@ -164,6 +164,29 @@ def test_planner_is_reminded_once_to_search():
     assert len(client.calls) == 3
 
 
+def test_planner_out_of_turns_gets_one_search_only_turn():
+    def search(genes, cancer, topic, k):
+        return [{"gene": genes[0], "title": "t", "url": "https://example.org/a", "snippet": ""}]
+
+    def planner(kw):
+        names = {s["function"]["name"] for s in kw["tools"]}
+        if names == {"search_literature"}:  # the extra turn
+            feats = [json.loads(m["content"]) for m in kw["messages"] if m["role"] == "tool"]
+            gene = next(f["features"][0]["name"] for f in feats if f.get("features"))
+            return reply(calls=[("search_literature", {"genes": [gene]})])
+        if not any(m["role"] == "tool" for m in kw["messages"]):
+            return reply(calls=[("predict_risk", {})])
+        return reply(calls=[("top_features", {"modality": "rna", "k": 2})])
+
+    client = FakeClient(lambda kw: reply("note") if "tools" not in kw else planner(kw))
+    report = run_case_agent(make_tools(search=search), client=client, max_rounds=3)
+    assert [c.name for c in report.trace][-1] == "search_literature"
+    assert [c.name for c in report.trace] == ["predict_risk", "top_features", "top_features",
+                                              "search_literature"]
+    assert [c.round for c in report.trace] == [1, 2, 3, 4]
+    assert client.calls[3]["messages"][-1]["content"] == nemotron.SEARCH_NUDGE
+
+
 def test_cut_off_note_falls_back_to_the_planner_model():
     def writer(kw):
         if kw["model"] == "nvidia/writer":
