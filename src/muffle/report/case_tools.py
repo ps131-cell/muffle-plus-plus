@@ -23,7 +23,7 @@ LAYERS = {"clinical": "clinical: age, stage, T/N/M, histology (not an omic layer
           "methylation": "omic: DNA methylation (CpG sites)",
           "protein": "omic: protein levels (RPPA)"}
 MAX_FEATURES = 10
-MAX_SEARCH_GENES = 5
+MAX_SEARCH_GENES = 3  # one Tavily query each
 TOPICS = ("prognosis", "clinical_trials")
 
 # search(genes, cancer, topic, k) -> [{"title", "url", "snippet"}]; see nemotron.tavily_search
@@ -53,7 +53,12 @@ class CaseTools:
         self.search = search
         self.available = [m for j, m in enumerate(model.names) if mask[0, j] > 0]
         self.missing = [m for m in model.names if m not in self.available]
-        self._seen: set[str] = set()  # names top_features returned; search is limited to them
+        self._seen: set[str] = set()  # omic names top_features returned; search is limited to them
+
+    @property
+    def seen(self) -> set[str]:
+        """Omic feature names returned so far (the genes search_literature accepts)."""
+        return set(self._seen)
 
     @property
     def can_search(self) -> bool:
@@ -88,7 +93,9 @@ class CaseTools:
         if self.can_search:
             specs.append(_fn(
                 "search_literature", f"Web search (Tavily) for publications or clinical trials "
-                f"on up to {MAX_SEARCH_GENES} genes returned by top_features, in this cancer type.",
+                f"on up to {MAX_SEARCH_GENES} genes returned by top_features for an omic layer, in "
+                "this cancer type, best known first. Pick named genes (e.g. GATA3), not unnamed "
+                "ids such as AC138356.2 or RNU6-607P, which find nothing.",
                 {"genes": {"type": "array", "items": {"type": "string"},
                            "maxItems": MAX_SEARCH_GENES},
                  "topic": {"type": "string", "enum": list(TOPICS)}},
@@ -144,7 +151,8 @@ class CaseTools:
         feats = [(n, s) for n, s in explain.top_features(self.model, self.x, self.mask, modality,
                                                          self.names.get(modality), k)
                  if round(s, 4) != 0]
-        self._seen.update(n for n, _ in feats)
+        if modality != "clinical":  # age, stage... are not genes
+            self._seen.update(n for n, _ in feats)
         out = {"modality": modality, "method": "gradient x input",
                "features": [{"name": n, "score": round(s, 4)} for n, s in feats],
                "note": "positive score pushes risk up"}
@@ -162,10 +170,13 @@ class CaseTools:
             raise ValueError("genes must come from earlier top_features results"
                              + (f"; not returned yet: {unknown}" if unknown else ""))
         try:
-            results = self.search(genes, self.cancer, topic, 3)
+            results = self.search(genes, self.cancer, topic, 5)
         except Exception as e:  # network/quota errors shouldn't sink the report
             return {"error": f"literature search failed ({type(e).__name__})"}
-        return {"genes": genes, "topic": topic, "results": results}
+        out = {"genes": genes, "topic": topic, "results": results}
+        if not results:
+            out["note"] = "no result names these genes, so there is nothing to cite"
+        return out
 
 
 def parse_arguments(arguments: str | dict | None) -> dict | None:

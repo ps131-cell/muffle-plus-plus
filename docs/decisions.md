@@ -2,6 +2,22 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Tavily literature search is live; results must name the gene and a cancer
+- **What:** `TAVILY_API_KEY` is set (Tavily dev key, free tier). `tavily_search` runs one query
+  per gene (at most 3 per call, so at most 3 credits) and keeps a result only if its title or
+  snippet names that gene and mentions cancer. When a gene has hits that name this cancer type,
+  the others are dropped. The same paper on two sites is kept once, and trial protocol PDFs
+  link to their ClinicalTrials.gov study page. Clinical fields (age, stage) can't be searched.
+  The planner gets up to 6 turns and one reminder if it stops before searching.
+- **Why:** the first live run showed the problems: a combined query or an unnamed id
+  (AC138356.2, Y_RNA) returned generic survival-rate pages; RBP1 matched a coronary artery
+  disease paper; trial hits were PDFs titled "CLINICAL STUDY PROTOCOL"; and with 4 turns, one
+  tool per turn, the planner never reached the search.
+- **Result (live, TCGA patient 463):** VAV3 ("a poor prognostic factor in breast cancer"),
+  PRAME in breast cancer (PubMed), and a pan-cancer RBP1 paper; every link passed the grounding
+  check. A patient whose only features are unnamed ids gets "no literature search was run".
+  Best Use of Tavily needs a runtime Tavily call: the agent makes one whenever it names genes.
+
 ## 2026-10-18 — Case agent: Super plans, Ultra writes, a grounding check verifies the note
 - **What:** Nemotron 3 Super runs the tool loop (up to 4 rounds) and replies DONE. Nemotron 3
   Ultra (`NEMOTRON_WRITER_MODEL`, 3,000 max tokens including its reasoning) gets the case header
