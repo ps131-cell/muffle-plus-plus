@@ -7,7 +7,7 @@ CLIENTS ?= 3
 ROUNDS  ?= 10
 FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_model.pt
 
-.PHONY: setup test lint synth tcga local fl compare demo clean-nb docker
+.PHONY: setup test lint synth tcga local fl compare experiment experiment-tcga demo clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -37,6 +37,16 @@ local: synth
 fl: synth
 	$(BIN)/python jobs/fedavg_job.py --data data/synthetic --n-clients $(strip $(CLIENTS)) \
 		--rounds $(strip $(ROUNDS)) $(if $(strip $(GPU)),--gpu $(strip $(GPU)),)
+
+# repeated seeds: centralized vs local-only vs FedAvg (+ single-modality baselines), mean ± sd
+experiment: synth
+	$(BIN)/python -m muffle.experiment --data data/synthetic --n-clients $(strip $(CLIENTS)) \
+		--seeds 0 1 2
+
+# real data (after `make tcga`): hospital clients, 5 seeds, plus leave-one-site-out (~15 min)
+experiment-tcga:
+	$(BIN)/python -m muffle.experiment --data data/tcga_brca --config configs/tcga_brca.yaml \
+		--n-clients $(strip $(CLIENTS)) --seeds 0 1 2 3 4 --loso
 
 # after `make fl`: per-site C-index table, centralized vs local-only vs the final FedAvg model
 compare: synth

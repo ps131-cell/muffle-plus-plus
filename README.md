@@ -28,6 +28,7 @@ make local      # synthetic data -> centralized + local-only baselines, saves ou
 make fl         # FedAvg across 3 simulated hospitals (NVFlare simulator)
 make compare    # per-site C-index table: centralized vs local-only vs the final FedAvg model
 make tcga       # real data: open-tier TCGA-BRCA -> data/tcga_brca/cohort.npz
+make experiment-tcga   # hospital clients: centralized vs local-only vs FedAvg, 5 seeds + LOSO
 cp .env.example .env   # add NEBIUS_API_KEY (Token Factory) and optionally TAVILY_API_KEY
 make demo       # Streamlit app: risk groups + Nemotron-written patient report
 ```
@@ -56,6 +57,21 @@ make demo       # Streamlit app: risk groups + Nemotron-written patient report
 
 Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
 
+## Results so far (TCGA-BRCA, overall survival)
+1,064 patients, 148 deaths, split into 3 simulated hospitals made of whole tissue source sites.
+Leave one site out: train on two hospitals, test on every patient of the third. Pooled
+site-stratified C-index, mean ± sd over 5 seeds (`make experiment-tcga`):
+
+| model | C-index |
+|---|---|
+| **FedAvg** (NVFlare, 3 hospitals, no data shared) | **0.652 ± 0.022** |
+| Centralized (all training data pooled) | 0.645 ± 0.014 |
+| Local-only (one hospital's own model) | 0.629 ± 0.020 |
+| Clinical data only (stage, age, T/N/M), centralized | 0.702 ± 0.004 |
+
+Federated training matches pooling the data and beats training alone. The omic layers don't
+add signal over clinical stage yet on this endpoint; see `docs/decisions.md` (2026-10-18).
+
 ## Layout
 
 | Path | What lives there |
@@ -63,6 +79,8 @@ Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON
 | `src/muffle/data/` | synthetic generator, preprocessing, hospital partitioning, `Dataset` |
 | `src/muffle/models/` | per-modality encoders, masked fusion, Cox head |
 | `src/muffle/losses.py`, `metrics.py`, `engine.py` | Cox loss, C-index, train/eval loops |
+| `src/muffle/experiment.py` | repeated-seed comparison, single-modality baselines, leave-one-site-out |
+| `configs/` | `default.yaml` (synthetic), `tcga_brca.yaml` (real data; inherits the default) |
 | `src/muffle/fl/client.py` | NVFlare Client API script that runs at each site |
 | `src/muffle/explain.py`, `report/` | per-patient drivers + Nemotron case agent and its tools |
 | `jobs/fedavg_job.py` | FedAvgRecipe job, run in the NVFlare simulator |
@@ -74,7 +92,7 @@ Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON
 ## Roadmap
 - [x] Repo, CI, synthetic data, model, FedAvg simulation, Nemotron report, demo app
 - [x] TCGA-BRCA download + harmonization (`scripts/prepare_tcga.py`)
-- [ ] Baselines vs FL on real data; leave-one-site-out validation
+- [x] Baselines vs FL on real data; leave-one-site-out validation (`make experiment-tcga`)
 - [ ] ~~FL training as a Nebius Serverless Job~~ (cut: Token Factory only, on free credits)
 - [ ] Host the demo; record the video; submit by Oct 30, 10 am PT
 - [ ] Stretch: FedProx, BLCA, proteomics, DP / secure aggregation

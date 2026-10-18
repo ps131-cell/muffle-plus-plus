@@ -31,6 +31,11 @@ class MLPEncoder(nn.Module):
 class MuffleNet(nn.Module):
     """forward(inputs: {modality: [B, d_m]}, mask: [B, M]) -> log-risk [B].
 
+    fusion="concat": one head over all modality embeddings (+ the mask).
+    fusion="additive": one small Cox head per modality; log-risk is the sum over the modalities
+    a patient has, plus a learned offset for each missing one. A weak, noisy layer can then only
+    add its own term instead of diluting a strong one (e.g. clinical stage on TCGA-BRCA).
+
     Constructor arguments are stored as same-named attributes so NVFlare's job API can
     serialize the initial model.
     """
@@ -43,11 +48,15 @@ class MuffleNet(nn.Module):
         head_hidden: int = 64,
         dropout: float = 0.2,
         modality_dropout: float = 0.0,
+        fusion: str = "concat",
     ):
         super().__init__()
+        if fusion not in ("concat", "additive"):
+            raise ValueError(f"unknown fusion {fusion!r}")
         self.modality_dims = dict(modality_dims)
         self.hidden, self.latent, self.head_hidden = hidden, latent, head_hidden
         self.dropout, self.modality_dropout = dropout, modality_dropout
+        self.fusion = fusion
         self.names = list(self.modality_dims)
 
         small = lambda d: min(hidden, max(16, 4 * d))  # noqa: E731  clinical gets a narrow encoder
@@ -55,12 +64,20 @@ class MuffleNet(nn.Module):
             {m: MLPEncoder(d, small(d), latent, dropout) for m, d in self.modality_dims.items()}
         )
         n = len(self.names)
-        self.head = nn.Sequential(
-            nn.Linear(n * latent + n, head_hidden),  # + mask so the head knows what's missing
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(head_hidden, 1, bias=False),  # Cox models have no intercept
-        )
+
+        def cox_head(in_dim: int) -> nn.Sequential:
+            return nn.Sequential(
+                nn.Linear(in_dim, head_hidden),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(head_hidden, 1, bias=False),  # Cox models have no intercept
+            )
+
+        if fusion == "concat":
+            self.head = cox_head(n * latent + n)  # + mask so the head knows what's missing
+        else:
+            self.heads = nn.ModuleDict({m: cox_head(latent) for m in self.names})
+            self.missing = nn.Parameter(torch.zeros(n))  # log-risk offset per absent modality
 
     def _train_time_mask(self, mask: torch.Tensor) -> torch.Tensor:
         if not self.training or self.modality_dropout <= 0:
@@ -78,6 +95,11 @@ class MuffleNet(nn.Module):
         return torch.cat(zs + [mask], dim=1)
 
     def forward(self, inputs: dict[str, torch.Tensor], mask: torch.Tensor) -> torch.Tensor:
+        if self.fusion == "additive":
+            mask = self._train_time_mask(mask)
+            parts = torch.stack(
+                [self.heads[m](self.encoders[m](inputs[m])).squeeze(-1) for m in self.names], 1)
+            return (parts * mask + self.missing * (1 - mask)).sum(1)
         return self.head(self.embed(inputs, mask)).squeeze(-1)
 
     @classmethod

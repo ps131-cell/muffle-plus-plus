@@ -51,7 +51,7 @@ def load(ckpt: str, data: str, n_clients: int):
         risks = model(ds.x, ds.mask).numpy()
     # Held-out C-index: the per-site validation splits `make compare` scores (never trained on).
     heldout = {}
-    for f in site_files(Path(data), n_clients):
+    for f in site_files(Path(data), n_clients, cfg):
         _, val = MultiOmicDataset(f, cfg["modalities"]).split(
             cfg["train"]["val_fraction"], cfg["train"]["seed"])
         heldout[f.stem] = evaluate(model, val)["c_index"]

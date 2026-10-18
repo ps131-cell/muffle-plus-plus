@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from muffle.models import MuffleNet
@@ -33,5 +34,26 @@ def test_modality_dropout_keeps_one():
 
 def test_constructor_args_are_attributes():
     # NVFlare's job API rebuilds the initial model from same-named attributes
-    model = MuffleNet(SMALL_DIMS, hidden=16)
+    model = MuffleNet(SMALL_DIMS, hidden=16, fusion="additive")
     assert model.modality_dims == SMALL_DIMS and model.hidden == 16
+    assert model.fusion == "additive"
+
+
+def test_additive_fusion_is_a_sum_over_present_modalities():
+    model = MuffleNet(SMALL_DIMS, hidden=16, latent=4, head_hidden=4, fusion="additive").eval()
+    x = _batch()
+    mask = torch.ones(5, len(SMALL_DIMS))
+    j = list(SMALL_DIMS).index("protein")
+    mask[:, j] = 0
+    y1 = model(x, mask)
+    assert y1.shape == (5,)
+    x["protein"] = torch.randn_like(x["protein"]) * 100  # absent: its values don't matter
+    assert torch.allclose(y1, model(x, mask))
+    with torch.no_grad():
+        model.missing[j] = 0.7  # absent modality adds its learned offset instead
+    assert torch.allclose(model(x, mask), y1 + 0.7)
+
+
+def test_unknown_fusion_is_rejected():
+    with pytest.raises(ValueError):
+        MuffleNet(SMALL_DIMS, fusion="attention")

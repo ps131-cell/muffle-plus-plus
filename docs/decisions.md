@@ -2,6 +2,26 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Real-data protocol for TCGA-BRCA, and what it showed
+- **Protocol:** 3 FL clients built from whole tissue source sites (`data.partition: site`,
+  balanced by patients: 355/355/354 patients, 68/56/24 deaths), real modality gaps only.
+  Metric: site-stratified pooled C-index (pairs only within a site). Reported seeds 0–4; every
+  tuning choice was made on seeds 95–99 only. Two protocols: 20% per-site validation splits,
+  and leave-one-site-out (LOSO: train on two hospitals, test on all of the third), which has
+  ~4× smaller error bars. FedAvg gets the same passes over the data as the baselines
+  (rounds = epochs / local_epochs) and is scored with its final global model.
+- **Model for TCGA (`configs/tcga_brca.yaml`):** the default model overfits within ~3 epochs
+  (1,800 features, ~120 training deaths), so it is smaller and heavily regularized (hidden 64,
+  latent 16, dropout 0.5, weight decay 1e-2, 20 epochs: a plateau on tuning seeds). Additive
+  fusion with modality dropout 0.8 beat the concat fusion on tuning seeds (0.718 vs 0.672).
+- **Result (LOSO, mean ± sd over seeds 0–4):** FedAvg 0.652 ± 0.022 ≈ centralized
+  0.645 ± 0.014 > local-only 0.629 ± 0.020. Same order on the validation splits (0.674 /
+  0.661 / 0.626). The federated claim holds on real hospitals.
+- **But:** clinical-only (stage, age, T/N/M) scores 0.702 ± 0.004 on LOSO and beats every
+  fusion variant tried; copy number alone is anti-predictive across sites (0.485), a sign of
+  site/batch effects. On BRCA overall survival the omic layers do not add signal yet with this
+  model. Tracked in #25; until fixed, don't claim that multi-omic fusion beats clinical data.
+
 ## 2026-10-17 — Keep the current project; make Nemotron a tool-calling case agent
 - **What:** we reviewed a broader spec (`MUFFLE_SPEC`: longitudinal visits, imaging/pathology
   foundation models, Flower + DP/SecAgg, treatment rules) and kept the current NVFlare / BRCA /
