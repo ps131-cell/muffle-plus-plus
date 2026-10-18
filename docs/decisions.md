@@ -2,6 +2,22 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-17 — TCGA-BRCA cohort: Xena GDC hub, CNV as "genomic", RPPA as "protein", OS
+- **What:** `scripts/prepare_tcga.py` (logic in `muffle.data.tcga`) builds
+  `data/tcga_brca/cohort.npz` from open-tier files on the UCSC Xena GDC hub, one 01A primary
+  tumour per patient. genomic = gene-level copy number (ASCAT3) as calls −2..2 relative to
+  tumour ploidy, not mutation calls; protein = TCGA RPPA instead of CPTAC; endpoint = overall
+  survival. The 3 GB methylation file is streamed and only the selected CpGs are cached.
+  Top-variance features are ranked on the log / M scale *before* z-scoring.
+- **Why:** open tier needs no application. CPTAC mass spec covers only ~100 TCGA-BRCA tumours,
+  RPPA ~80% of the cohort, so protein becomes a real fourth omic layer (`--skip protein` gives
+  the mask-0 variant). After z-scoring every feature has variance 1, so ranking afterwards
+  would pick features arbitrarily.
+- **Consequence:** BRCA OS has few deaths (event rate ~0.14), so per-site C-indexes will be
+  noisy; PFI from the TCGA-CDR table is the fallback endpoint. Feature selection is pooled and
+  unsupervised; a real federation would agree on features with `harmonize_features`. The
+  cohort stores `tss` (tissue source site) per patient for the hospital split (#3).
+
 ## 2026-10-17 — Nebius: Token Factory only, on the free hackathon credits
 - **What:** our Nebius usage is the Nemotron report via Token Factory, paid for with the free
   hackathon credits (event code on the Devpost page) and nothing else. FL training stays in the

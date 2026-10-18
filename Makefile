@@ -7,7 +7,7 @@ CLIENTS ?= 3
 ROUNDS  ?= 10
 FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_model.pt
 
-.PHONY: setup test lint synth local fl compare demo clean-nb docker
+.PHONY: setup test lint synth tcga local fl compare demo clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -26,6 +26,10 @@ lint:
 
 synth:
 	$(BIN)/python scripts/make_synthetic.py --out data/synthetic --n-patients 900
+
+# open-tier TCGA-BRCA -> data/tcga_brca/cohort.npz (downloads ~0.4 GB, streams ~3 GB)
+tcga:
+	$(BIN)/python scripts/prepare_tcga.py
 
 local: synth
 	$(BIN)/python -m muffle.train_local --data data/synthetic --config configs/default.yaml
