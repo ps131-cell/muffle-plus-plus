@@ -3,13 +3,14 @@
 Newest at the top. One entry per decision: date, what, why.
 
 ## 2026-10-18 — Pitch, demo model, endpoint, hosting, merging and video
-- **Pitch:** lead with federation: on leave-one-site-out, FedAvg beats every hospital training
-  alone (FedAvg-residual 0.693 ± 0.017, plain FedAvg 0.680 ± 0.008, local-only 0.649 ± 0.032),
-  plain FedAvg has the smallest spread across seeds, and no patient data leaves a site. Say
-  plainly that omics don't beat clinical data on BRCA overall survival yet (clinical-only
-  0.702). The clinical-anchored residual model (#25) is a supporting point (omics only correct
-  the clinical risk), not the headline. Don't write "federated ≈ pooled ≫ alone": FedAvg still
-  trails pooled training (0.693 vs 0.700 residual; 0.680 vs 0.692 plain fusion).
+- **Pitch:** lead with federation: on leave-one-site-out, FedAvg-residual matches pooled
+  training (0.693 ± 0.017 vs 0.700 ± 0.012; the gap is below the ~0.01 by which identical
+  FedAvg runs differ) and beats hospitals training alone (local-only 0.649 ± 0.032), and no
+  patient data leaves a site. Plain FedAvg (0.680 ± 0.008) has the smallest spread of the
+  multi-omic models. Say plainly that omics don't beat clinical data on BRCA overall survival
+  yet (clinical-only 0.702 ± 0.004). The clinical-anchored residual model (#25) is a
+  supporting point (omics only correct the clinical risk), not the headline. Don't write
+  "≫ alone": the gain over local-only (+0.044) is about 1.4 local-only sd.
 - **Demo model:** FedAvg-residual if its LOSO C-index on the reported seeds is at least plain
   FedAvg's and the agent's tools (risk, contributions, top genes) still work with it;
   otherwise plain FedAvg (#28). Applied: 0.693 ≥ 0.680 and the tools work, so

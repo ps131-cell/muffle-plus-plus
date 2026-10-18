@@ -44,6 +44,7 @@ Already cut (2026-10-17): FL as a Nebius Serverless Job — Nebius usage is Toke
 1. 0:00 (~20 s) Problem: hospitals can't pool patients' genomic data; models stay small.
 2. 0:20 (~80 s) Demo first: one held-out patient → the Nemotron case agent's tool calls
    (risk, which data layers drove it, top genes, literature) → its tumor-board summary.
-3. 1:40 (~50 s) Results: FedAvg beats every hospital training alone without moving data;
-   honest clinical baseline (omics don't beat stage and age on overall survival yet).
+3. 1:40 (~50 s) Results: FedAvg matches pooled training and beats hospitals training alone,
+   without moving data; honest clinical baseline (omics don't beat stage and age on overall
+   survival yet).
 4. 2:30 (~20 s) Stack: NVIDIA FLARE, Nemotron on Nebius Token Factory, Tavily.
