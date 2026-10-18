@@ -10,7 +10,12 @@ from muffle.config import MODALITIES
 
 
 class MultiOmicDataset(Dataset):
-    """Loads one site's ``.npz``. Each item: ({modality: tensor}, mask[M], time, event)."""
+    """Loads one site's ``.npz``. Each item: ({modality: tensor}, mask[M], time, event).
+
+    If a modality has more features than the config asks for, the first ``d`` are kept:
+    prepare_tcga.py stores each layer's features in decreasing-variance order, so a smaller
+    config size selects the top-``d`` features without rebuilding the cohort.
+    """
 
     def __init__(self, arrays: dict[str, np.ndarray] | str | Path, modalities: dict[str, int]):
         if not isinstance(arrays, dict):
@@ -20,11 +25,10 @@ class MultiOmicDataset(Dataset):
         self.x = {}
         for m, d in modalities.items():
             key = f"x_{m}"
-            self.x[m] = torch.as_tensor(
-                arrays[key] if key in arrays else np.zeros((n, d), np.float32), dtype=torch.float32
-            )
-            if self.x[m].shape[1] != d:
-                raise ValueError(f"{m}: data has {self.x[m].shape[1]} features, config says {d}")
+            x = arrays[key] if key in arrays else np.zeros((n, d), np.float32)
+            if x.shape[1] < d:
+                raise ValueError(f"{m}: data has {x.shape[1]} features, config says {d}")
+            self.x[m] = torch.as_tensor(x[:, :d], dtype=torch.float32)
         cols = [MODALITIES.index(m) for m in modalities]
         self.mask = torch.as_tensor(arrays["mask"][:, cols], dtype=torch.float32)
         self.time = torch.as_tensor(arrays["time"], dtype=torch.float32)

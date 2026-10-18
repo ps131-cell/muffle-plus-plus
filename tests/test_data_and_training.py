@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -61,3 +62,11 @@ def test_fedprox_term_runs(cohort, small_cfg):
     stats = train_epochs(model, DataLoader(ds, batch_size=64), 1, 1e-3, prox_mu=0.1,
                          global_params=anchor)
     assert stats["steps"] > 0 and np.isfinite(stats["train_loss"])
+
+
+def test_dataset_keeps_first_features_when_config_asks_for_fewer(cohort):
+    ds = MultiOmicDataset(cohort, {"rna": 10, "clinical": 8})
+    assert ds.x["rna"].shape[1] == 10
+    assert np.array_equal(ds.x["rna"].numpy(), cohort["x_rna"][:, :10])
+    with pytest.raises(ValueError):
+        MultiOmicDataset(cohort, {"rna": cohort["x_rna"].shape[1] + 1})

@@ -6,8 +6,8 @@ python -m muffle.experiment ... --methods centralized local_only     # skip FedA
 
 Per seed, every client's patients are split into train/val with that seed and every method is
 scored on the same validation patients. FedAvg runs the real NVFlare simulator job
-(jobs/fedavg_job.py) and is scored with its final global model. By default it gets as many
-passes over each patient as the baselines: rounds = epochs / local_epochs.
+(jobs/fedavg_job.py) and is scored with its final global model, after fl.rounds rounds
+(default: as many passes over each patient as the baselines, epochs / local_epochs).
 
 "pooled" is the site-stratified C-index (metrics.stratified_concordance): patients are only
 paired within a site, so per-site local-only models with different risk scales pool fairly.
@@ -43,6 +43,11 @@ ROOT = Path(__file__).resolve().parents[2]
 FL_JOB = ROOT / "jobs" / "fedavg_job.py"
 FL_CKPT = Path("muffle_fedavg/server/simulate_job/app_server/FL_global_model.pt")
 METHODS = ("centralized", "local_only", "fedavg", "single_modality")
+
+
+def fl_rounds(cfg: dict) -> int:
+    """fl.rounds, else as many passes over the data as the baselines get."""
+    return cfg["fl"].get("rounds") or max(1, cfg["train"]["epochs"] // cfg["train"]["local_epochs"])
 
 
 def with_seed(cfg: dict, seed: int) -> dict:
@@ -189,7 +194,8 @@ def main(argv=None):
     p.add_argument("--config", default=None)
     p.add_argument("--n-clients", type=int, default=3)
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    p.add_argument("--rounds", type=int, default=None, help="default: epochs / local_epochs")
+    p.add_argument("--rounds", type=int, default=None,
+                   help="default: fl.rounds, else epochs / local_epochs")
     p.add_argument("--methods", nargs="+", choices=METHODS, default=list(METHODS))
     p.add_argument("--loso", action="store_true", help="also run leave-one-site-out")
     p.add_argument("--name", default=None, help="default: <data dir>_<n>clients")
@@ -198,7 +204,7 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     cfg = load_config(args.config)
-    rounds = args.rounds or max(1, cfg["train"]["epochs"] // cfg["train"]["local_epochs"])
+    rounds = args.rounds or fl_rounds(cfg)
     name = args.name or f"{args.data.name}_{args.n_clients}clients"
     files = site_files(args.data, args.n_clients, cfg)
     sites = site_summary(files)

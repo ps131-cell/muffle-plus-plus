@@ -25,6 +25,7 @@ train:
 
 fl:
   prox_mu: 0.0       # >0 turns FedAvg local training into FedProx
+  rounds: null       # FedAvg rounds; null = train.epochs / train.local_epochs
 
 data:
   partition: stage-skew   # how cohort.npz is split into FL clients: stage-skew | iid | site
