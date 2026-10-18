@@ -27,6 +27,7 @@ make test       # unit tests
 make local      # synthetic data -> centralized + local-only baselines, saves outputs/centralized.pt
 make fl         # FedAvg across 3 simulated hospitals (NVFlare simulator)
 make compare    # per-site C-index table: centralized vs local-only vs the final FedAvg model
+make tcga       # real data: open-tier TCGA-BRCA -> data/tcga_brca/cohort.npz
 cp .env.example .env   # add NEBIUS_API_KEY (Token Factory) and optionally TAVILY_API_KEY
 make demo       # Streamlit app: risk groups + Nemotron-written patient report
 ```
@@ -52,13 +53,13 @@ Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON
 | `src/muffle/explain.py`, `report/` | per-patient drivers + Nemotron report |
 | `jobs/fedavg_job.py` | FedAvgRecipe job, run in the NVFlare simulator |
 | `app/streamlit_app.py` | demo UI |
-| `scripts/` | data prep (synthetic now, TCGA next) |
+| `scripts/` | data prep: synthetic cohort, open-tier TCGA-BRCA (`prepare_tcga.py`) |
 | `docs/` | plan PDFs, hackathon checklist, decisions log, Nebius notes |
 | `data/`, `outputs/`, `workspaces/` | **git-ignored** — never commit patient data or checkpoints |
 
 ## Roadmap
 - [x] Repo, CI, synthetic data, model, FedAvg simulation, Nemotron report, demo app
-- [ ] TCGA-BRCA download + harmonization (`scripts/prepare_tcga.py`)
+- [x] TCGA-BRCA download + harmonization (`scripts/prepare_tcga.py`)
 - [ ] Baselines vs FL on real data; leave-one-site-out validation
 - [ ] ~~FL training as a Nebius Serverless Job~~ (cut: Token Factory only, on free credits)
 - [ ] Host the demo; record the video; submit by Oct 30, 10 am PT

@@ -11,10 +11,14 @@ import numpy as np
 import pandas as pd
 
 
+def zscore(x: pd.DataFrame) -> pd.DataFrame:
+    """Per-feature z-score for data already on a log scale (e.g. RPPA); constant features -> 0."""
+    return (x - x.mean()) / x.std(ddof=0).replace(0, 1)
+
+
 def log_zscore(x: pd.DataFrame, pseudocount: float = 1.0) -> pd.DataFrame:
     """RNA-seq counts/TPM or proteomic intensities -> log -> per-feature z-score."""
-    lx = np.log1p(x.clip(lower=0) / pseudocount)
-    return (lx - lx.mean()) / lx.std(ddof=0).replace(0, 1)
+    return zscore(np.log1p(x.clip(lower=0) / pseudocount))
 
 
 def beta_to_m(beta: pd.DataFrame, eps: float = 1e-6) -> pd.DataFrame:

@@ -1,10 +1,10 @@
 # Feature sizes per modality (after per-modality feature selection).
 # Order matters: it defines the column order of the availability mask.
 modalities:
-  genomic: 200       # binary mutation / CNV gene-level calls
+  genomic: 200       # gene-level CNV calls -2..2 (TCGA) / binary calls (synthetic)
   rna: 1000          # top-variance genes, log1p + z-score
   methylation: 500   # top-variance CpGs, M-values
-  protein: 100       # CPTAC proteins, log2 + z-score
+  protein: 100       # RPPA (TCGA) or CPTAC proteins, z-scored
   clinical: 8        # age, stage, grade, one-hot histology, ...
 
 model:
