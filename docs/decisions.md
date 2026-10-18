@@ -2,6 +2,38 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Pitch, demo model, endpoint, hosting, merging and video
+- **Pitch:** lead with federation: on leave-one-site-out, FedAvg-residual matches pooled
+  training (0.693 ± 0.017 vs 0.700 ± 0.012; the gap is below the ~0.01 by which identical
+  FedAvg runs differ) and beats hospitals training alone (local-only 0.649 ± 0.032), and no
+  patient data leaves a site. Plain FedAvg (0.680 ± 0.008) has the smallest spread of the
+  multi-omic models. Say plainly that omics don't beat clinical data on BRCA overall survival
+  yet (clinical-only 0.702 ± 0.004). The clinical-anchored residual model (#25) is a
+  supporting point (omics only correct the clinical risk), not the headline. Don't write
+  "≫ alone": the gain over local-only (+0.044) is about 1.4 local-only sd.
+- **Demo model:** FedAvg-residual if its LOSO C-index on the reported seeds is at least plain
+  FedAvg's and the agent's tools (risk, contributions, top genes) still work with it;
+  otherwise plain FedAvg (#28). Applied: 0.693 ≥ 0.680 and the tools work, so
+  `make fl-tcga` builds FedAvg-residual (λ = 0.25).
+- **Endpoint:** overall survival for every reported number. PFI only as a time-boxed check
+  after the submission requirements are done, and only if TCGA-CDR shows clearly more events
+  than OS; if we run it, report both endpoints.
+- **Hosting:** Streamlit Community Cloud. The server gets only the trained weights and derived
+  features for a few dozen held-out demo patients, from a GitHub release asset (the repo bans
+  `.pt`/`.npz`). The Token Factory key is a Streamlit secret, agent calls are capped per
+  session, and cached reports for the demo patients are the fallback.
+- **Merging:** Claude may squash-merge its own PRs once CI is green if they stay within the
+  agreed plan. It still asks for PRs that change reported numbers or the pitch, touch
+  submission material (README, Devpost text, video), make the repo public, or land after the
+  Oct 28 freeze.
+- **Video:** one person records (≤ 3 min, public YouTube, no copyrighted music), agent demo
+  first: ~20 s problem, ~80 s one held-out patient (the agent's tool calls and summary),
+  ~50 s results (FedAvg vs alone, clinical baseline), ~20 s stack (NVFlare, Token Factory,
+  Nemotron). Claude drafts the script and shot list.
+- **Why:** these are the claims the numbers support, and the cheapest path to the requirements
+  in the 12 days left. The free-credit rule and the "only derived numbers" rule carry over to
+  the hosted demo.
+
 ## 2026-10-18 — Clinical-anchored residual model (#25); demo model uses it
 - **What:** `muffle.residual`: train the clinical anchor alone, freeze it, train the omic heads
   on top; log-risk = clinical + λ·omics with λ ∈ {0, ¼, ½, ¾, 1}. Centrally, λ is scored on 3
@@ -124,5 +156,5 @@ Newest at the top. One entry per decision: date, what, why.
 
 ## Open questions
 - [ ] First cancer: BRCA (most data) — confirm. BLCA second only if time allows.
-- [ ] Demo hosting: Streamlit Community Cloud vs Nebius Serverless Endpoint.
+- [x] Demo hosting: Streamlit Community Cloud (2026-10-18 entry).
 - [ ] Which Nemotron id on Token Factory (run `--list-models`).
