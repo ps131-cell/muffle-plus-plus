@@ -150,12 +150,14 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
                 {"role": "user", "content": "Case (JSON):\n" + json.dumps(tools.case_header())
                  + "\n\nGather what the tumor-board note needs."}]
     specs, trace, tokens, notes = tools.specs(), [], 0, []
-    nudged = False
-    for rnd in range(1, max_rounds + 1):
+    search_only = [s for s in specs if s["function"]["name"] == "search_literature"]
+    nudged, rnd, limit = False, 0, max_rounds
+    while rnd < limit:
+        rnd += 1
         try:
             resp = client.chat.completions.create(
-                model=model, messages=messages, tools=specs, tool_choice="auto",
-                temperature=0.2, max_tokens=max_tokens)
+                model=model, messages=messages, tools=specs if rnd <= max_rounds else search_only,
+                tool_choice="auto", temperature=0.2, max_tokens=max_tokens)
         except Exception as e:
             if rnd == 1 and getattr(e, "status_code", None) == 400:
                 # endpoint/model rejected tool calling: run the tools ourselves, then write
@@ -164,28 +166,32 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
             return _offline_report(tools, unavailable(e), tokens)
         tokens += _usage(resp)
         calls = (resp.choices[0].message.tool_calls or [])[:MAX_CALLS_PER_ROUND]
-        if not calls and not nudged and rnd < max_rounds and tools.can_search and tools.seen \
-                and not any(c.name == "search_literature" for c in trace):
-            # the planner sometimes stops before the literature step: remind it once
-            nudged = True
-            messages += [{"role": "assistant", "content": resp.choices[0].message.content or ""},
-                         {"role": "user", "content": SEARCH_NUDGE}]
-            continue
-        if not calls:
-            break
-        messages.append({"role": "assistant", "content": resp.choices[0].message.content or "",
-                         "tool_calls": [{"id": c.id, "type": "function",
-                                         "function": {"name": c.function.name,
-                                                      "arguments": c.function.arguments}}
-                                        for c in calls]})
-        step(f"{model_name(model)} called " + ", ".join(
-            f"{c.function.name}({_short_args(c.function.arguments)})" for c in calls))
+        if calls:
+            messages.append({"role": "assistant", "content": resp.choices[0].message.content or "",
+                             "tool_calls": [{"id": c.id, "type": "function",
+                                             "function": {"name": c.function.name,
+                                                          "arguments": c.function.arguments}}
+                                            for c in calls]})
+            step(f"{model_name(model)} called " + ", ".join(
+                f"{c.function.name}({_short_args(c.function.arguments)})" for c in calls))
         for c in calls:
             result = tools.call(c.function.name, c.function.arguments)
             args = parse_arguments(c.function.arguments)
             trace.append(ToolCall(rnd, c.function.name,
                                   {"_raw": c.function.arguments} if args is None else args, result))
             messages.append({"role": "tool", "tool_call_id": c.id, "content": json.dumps(result)})
+        # the planner sometimes stops, or runs out of turns, before the literature step: remind
+        # it once, with one extra turn that offers only the search if the turns are used up
+        remind = not nudged and tools.can_search and bool(tools.seen) \
+            and not any(c.name == "search_literature" for c in trace)
+        if remind and (not calls or rnd == limit):
+            nudged, limit = True, max(limit, rnd + 1)
+            if not calls:
+                messages.append({"role": "assistant",
+                                 "content": resp.choices[0].message.content or ""})
+            messages.append({"role": "user", "content": SEARCH_NUDGE})
+        elif not calls:
+            break
     if not any(c.name == "predict_risk" and "error" not in c.result for c in trace):
         notes.append("the planner did not get the risk, so the fixed tool sequence ran too")
         trace += fixed_plan(tools)

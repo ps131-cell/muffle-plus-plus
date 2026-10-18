@@ -2,6 +2,11 @@
 
 streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
 streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
+streamlit run app/streamlit_app.py -- --bundle outputs/demo_bundle.pt     # the hosted setup
+
+Without the checkpoint and cohort (the hosted demo), it loads a demo bundle instead: --bundle or
+MUFFLE_BUNDLE (a path or URL; default: the GitHub release asset). For a private repo's release,
+set GITHUB_TOKEN to a token that can read the repo.
 
 Three tabs: Case review (one held-out patient: risk, what drives it, a what-if for missing data
 layers, and the Nemotron case agent's note), Federation (the hospitals and the results), How it
@@ -14,18 +19,24 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 
-import charts
-import pandas as pd
-import streamlit as st
-import torch
+APP = Path(__file__).parent
+if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
+    sys.path.insert(0, str(APP.parent / "src"))
 
-from muffle.demo import build_demo, km_by_group, ordinal
-from muffle.explain import modality_contributions, risk_percentile
-from muffle.report.grounding import describe
-from muffle.report.nemotron import (
+import charts  # noqa: E402
+import pandas as pd  # noqa: E402
+import streamlit as st  # noqa: E402
+import torch  # noqa: E402
+
+from muffle.demo import build_demo, fetch_bundle, load_bundle, ordinal  # noqa: E402
+from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
+from muffle.report.grounding import describe  # noqa: E402
+from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
     WRITER_MODEL,
     CaseReport,
@@ -34,8 +45,8 @@ from muffle.report.nemotron import (
     tavily_search,
 )
 
-APP = Path(__file__).parent
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
+BUNDLE_URL = f"{REPO}/releases/download/demo-bundle-v1/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}
 
@@ -46,12 +57,22 @@ p.add_argument("--cancer", default="breast")
 p.add_argument("--n-clients", type=int, default=3)
 p.add_argument("--config", default=None, help="only for checkpoints without a stored config")
 p.add_argument("--notes", default=str(APP / "saved_notes.json"))
+p.add_argument("--bundle", default=os.getenv("MUFFLE_BUNDLE"),
+               help="demo bundle path or URL (default when the data isn't here: the release)")
 args, _ = p.parse_known_args()
 
 
-@st.cache_resource(show_spinner="Scoring the hospitals' patients…")
-def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, notes: str):
-    demo = build_demo(ckpt, data, n_clients, config, cancer)
+@st.cache_resource(show_spinner="Loading the model and the held-out patients…")
+def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, notes: str,
+         bundle: str | None):
+    if bundle is None and Path(ckpt).exists() and (Path(data) / "cohort.npz").exists():
+        demo = build_demo(ckpt, data, n_clients, config, cancer)
+    else:
+        source = bundle or BUNDLE_URL
+        if source.startswith("https://"):
+            source = fetch_bundle(source, Path(tempfile.gettempdir()) / "muffle_demo_bundle.pt",
+                                  os.getenv("GITHUB_TOKEN"))
+        demo = load_bundle(source)
     if Path(notes).exists():
         demo.notes = {int(k): v for k, v in json.loads(Path(notes).read_text()).items()}
     return demo
@@ -64,7 +85,8 @@ def results() -> dict | None:
 
 
 st.set_page_config(page_title="MuFFLe++ tumor-board assistant", page_icon="🧬", layout="wide")
-demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes)
+demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
+            args.bundle)
 LIVE = bool(os.getenv("NEBIUS_API_KEY"))
 SEARCH = tavily_search if os.getenv("TAVILY_API_KEY") else None
 CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION", "5"))
@@ -97,8 +119,10 @@ case_tab, fed_tab, how_tab = st.tabs(["Case review", "Federation", "How it works
 # --- Case review -----------------------------------------------------------------------------
 with case_tab:
     cases = sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile))
+    shown = (f"{len(cases)} patients" if len(cases) == demo.heldout_patients
+             else f"{len(cases)} of the {demo.heldout_patients} patients")
     case = st.selectbox(
-        f"Held-out patient ({len(cases)} patients the model never trained on)", cases,
+        f"Held-out patient ({shown} the model never trained on)", cases,
         format_func=lambda c: ("★ " if c.index in demo.notes else "") + c.label,
         help="Each hospital's validation split. ★ = a saved note is available.")
 
@@ -233,7 +257,7 @@ with fed_tab:
                    "TCGA tissue source sites grouped into three FL clients, so the gaps are real.")
 
     res = results()
-    if res and "tcga" in args.data:
+    if res and demo.names:  # real data (synthetic cohorts have no gene names)
         st.subheader("Does federated training work?")
         main = [m for m in res["methods"] if m["group"] == "main"]
         st.altair_chart(charts.results(main), width="stretch")
@@ -259,12 +283,12 @@ with fed_tab:
     st.subheader("Risk groups on the held-out patients")
     left, right = st.columns([3, 2])
     with left:
-        st.altair_chart(charts.survival_by_group(km_by_group(demo)), width="stretch")
+        st.altair_chart(charts.survival_by_group(demo.km), width="stretch")
     with right:
         st.metric("Held-out C-index (mean of hospitals)", f"{demo.c_index:.3f}")
         st.caption(" · ".join(f"{s} {c:.3f}" for s, c in demo.c_index_by_site.items()))
-        st.caption(f"{len(demo.cases)} held-out patients, "
-                   f"{int(demo.heldout_event.sum())} deaths. Curves stop at 5 years, where "
+        st.caption(f"{demo.heldout_patients} held-out patients, "
+                   f"{demo.heldout_deaths} deaths. Curves stop at 5 years, where "
                    "fewer than 20 patients per group remain. The risk groups rank patients "
                    "well; they are not calibrated probabilities of death.")
 

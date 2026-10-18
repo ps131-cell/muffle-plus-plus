@@ -2,6 +2,24 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Hosted demo runs from a 0.9 MB bundle of 40 held-out cases
+- **What:** `make demo-bundle` writes `outputs/demo_bundle.pt`: the FedAvg-residual weights,
+  the model inputs of 40 held-out patients (the 8 with saved notes plus a spread over the risk
+  range), and derived numbers only (all 1,064 predicted risks, layer offsets, per-site
+  held-out C-index, risk-group survival curves of the 213 held-out patients). It holds no
+  survival times or other patient-level data. It loads with `torch.load(weights_only=True)`,
+  so a downloaded file can't run code. Without the checkpoint and cohort, the app loads the
+  bundle from `--bundle` / `MUFFLE_BUNDLE`, by default the release asset
+  `demo-bundle-v1/demo_bundle.pt` (`GITHUB_TOKEN` lets it read a private repo's release).
+  `app/requirements.txt` is the hosted install: CPU torch, no NVFlare. The app finds `muffle`
+  in `src/` without a pip install. `make demo-hosted` runs it that way locally.
+- **Why:** the hosting decision limits the server to weights plus derived features for a few
+  dozen demo patients. Tested in a fresh environment with only `app/requirements.txt`: same
+  numbers as the full-data app, a live note works, and the live-notes counter now counts down.
+- **Agent:** if the planner uses up its turns before the literature step while named genes
+  are available, it gets one extra turn that offers only `search_literature`. Live: case 299
+  went from "no literature search was run" to 4 PMC papers.
+
 ## 2026-10-18 — Demo redesign; layer contributions measured against a typical patient
 - **What:** the demo has three tabs.
   - **Case review:** the 213 held-out patients only (each hospital's validation split, which
