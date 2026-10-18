@@ -71,8 +71,8 @@ class CaseTools:
         specs = [
             _fn("predict_risk", "Predicted log-risk for this patient, its percentile in the "
                 "cohort, and the risk group (cohort tertiles)."),
-            _fn("modality_contributions", "How much each available data layer moves the "
-                "predicted log-risk (log-risk drop when that layer is masked out)."),
+            _fn("modality_contributions", "How much each available data layer adds to the "
+                "predicted log-risk (log-risk with the layer minus log-risk with it masked out)."),
             _fn("top_features", "Top features of one data layer by gradient x input attribution "
                 "(positive pushes risk up).",
                 {"modality": {"type": "string", "enum": self.available},
@@ -113,15 +113,19 @@ class CaseTools:
             "cohort_percentile": round(explain.risk_percentile(risk, self.cohort), 1),
             "risk_group": group,
             "cohort_size": len(self.cohort),
-            "note": "Cox log-risk is relative to the cohort: higher means shorter expected "
-                    "survival; it is not an absolute probability.",
+            "cohort_median_log_risk": round(float(np.median(self.cohort)), 3),
+            "note": "Judge the patient's standing by cohort_percentile and risk_group, not by the "
+                    "sign of log_risk: log-risk is measured from the model's baseline, not from "
+                    "the cohort median. Higher means shorter expected survival; it is not an "
+                    "absolute probability.",
         }
 
     def modality_contributions(self) -> dict:
         _, contrib = explain.modality_contributions(self.model, self.x, self.mask)
-        out = {"delta_log_risk_when_removed": {m: round(v, 3) for m, v in contrib.items()},
+        out = {"log_risk_added_by_layer": {m: round(v, 3) for m, v in contrib.items()},
                "available_data_layers": self.available, "missing_data_layers": self.missing,
-               "note": "positive = this layer raises the predicted risk"}
+               "note": "positive = this layer raises the patient's predicted risk; negative = "
+                       "it lowers it"}
         if not contrib:
             out["note"] = "only one data layer is available, so contributions are undefined"
         return out
@@ -130,12 +134,18 @@ class CaseTools:
         if modality not in self.available:
             raise ValueError(f"modality must be one of the available layers {self.available}")
         k = max(1, min(int(k), MAX_FEATURES))
-        feats = explain.top_features(self.model, self.x, self.mask, modality,
-                                     self.names.get(modality), k)
+        # features whose score rounds to 0 (e.g. all-zero mutation inputs) explain nothing
+        feats = [(n, s) for n, s in explain.top_features(self.model, self.x, self.mask, modality,
+                                                         self.names.get(modality), k)
+                 if round(s, 4) != 0]
         self._seen.update(n for n, _ in feats)
-        return {"modality": modality, "method": "gradient x input",
-                "features": [{"name": n, "score": round(s, 4)} for n, s in feats],
-                "note": "positive score pushes risk up"}
+        out = {"modality": modality, "method": "gradient x input",
+               "features": [{"name": n, "score": round(s, 4)} for n, s in feats],
+               "note": "positive score pushes risk up"}
+        if not feats:
+            out["note"] = ("no single feature in this layer moves this patient's risk measurably "
+                           "(every |score| < 0.0001), so name no features from this layer")
+        return out
 
     def search_literature(self, genes: list[str], topic: str = "prognosis") -> dict:
         if topic not in TOPICS:

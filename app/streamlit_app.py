@@ -18,11 +18,10 @@ import streamlit as st
 import torch
 
 from muffle.data.dataset import MultiOmicDataset, feature_names
-from muffle.engine import evaluate
 from muffle.explain import modality_contributions, risk_percentile
 from muffle.report.case_tools import CaseTools
 from muffle.report.nemotron import run_case_agent, tavily_search
-from muffle.train_local import load_model, site_files
+from muffle.train_local import heldout_c_index, load_model
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", default="outputs/centralized.pt")
@@ -41,13 +40,7 @@ def load(ckpt: str, data: str, n_clients: int, config: str | None):
     names = feature_names(Path(data) / "cohort.npz", cfg["modalities"])
     with torch.no_grad():
         risks = model(ds.x, ds.mask).numpy()
-    # Held-out C-index: the per-site validation splits `make compare` scores (never trained on).
-    heldout = {}
-    for f in site_files(Path(data), n_clients, cfg):
-        _, val = MultiOmicDataset(f, cfg["modalities"]).split(
-            cfg["train"]["val_fraction"], cfg["train"]["seed"])
-        heldout[f.stem] = evaluate(model, val)["c_index"]
-    return model, ds, risks, heldout, names
+    return model, ds, risks, heldout_c_index(model, Path(data), n_clients, cfg), names
 
 
 st.set_page_config(page_title="MuFFLe++", layout="wide")
@@ -89,7 +82,7 @@ base, contrib = modality_contributions(model, x, mask)
 pct = risk_percentile(base, risks)
 avail = [m for j, m in enumerate(model.names) if mask[0, j] > 0]
 st.write(f"Available data: {', '.join(avail)} · risk percentile **{pct:.0f}**")
-st.bar_chart(pd.Series(contrib, name="Δ log-risk when removed"))
+st.bar_chart(pd.Series(contrib, name="log-risk added by layer"))
 
 if st.button("Write report with Nemotron"):
     tools = CaseTools(model, x, mask, risks, args.cancer, names, c,
