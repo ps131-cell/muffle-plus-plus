@@ -12,11 +12,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import torch
 from nvflare.app_opt.pt.recipes.fedavg import FedAvgRecipe
 from nvflare.recipe.sim_env import SimEnv
 
 from muffle.config import load_config
-from muffle.experiment import fl_rounds
+from muffle.experiment import FL_CKPT, fl_rounds
 from muffle.train_local import client_dir, site_files
 
 CLIENT_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "muffle" / "fl" / "client.py"
@@ -35,9 +36,13 @@ def main():
                    help="use these site-1..site-n.npz instead of partitioning --data")
     p.add_argument("--workspace", default="workspaces")
     p.add_argument("--gpu", default=None, help="e.g. 0, or 0,1 to spread clients over GPUs")
+    p.add_argument("--save", type=Path, default=None,
+                   help="also save the final global model with its config (for the app/agent)")
     args = p.parse_args()
 
     cfg = load_config(args.config)
+    if args.seed is not None:
+        cfg["train"]["seed"] = args.seed  # recorded in --save so the app uses the same val split
     if args.client_dir:
         data_dir = args.client_dir.resolve()
         n = len(list(data_dir.glob("site-*.npz")))
@@ -77,6 +82,11 @@ def main():
     run = recipe.execute(env=SimEnv(**env_kwargs))
     print("status:", run.get_status())
     print("result:", run.get_result())
+    if args.save:
+        blob = torch.load(Path(args.workspace) / FL_CKPT, map_location="cpu", weights_only=False)
+        args.save.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({"model": blob["model"], "config": cfg}, args.save)
+        print(f"saved final global model + config -> {args.save}")
 
 
 if __name__ == "__main__":

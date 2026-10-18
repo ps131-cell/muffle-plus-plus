@@ -1,7 +1,8 @@
 """MuFFLe++ demo: federated prognosis + a Nemotron case agent that writes the report.
 
 streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
-(an FL global model checkpoint from the NVFlare workspace works too)
+streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
+(a raw NVFlare FL_global_model.pt also works with --config <the yaml it was trained with>)
 """
 
 from __future__ import annotations
@@ -16,37 +17,28 @@ import pandas as pd
 import streamlit as st
 import torch
 
-from muffle.config import load_config
-from muffle.data.dataset import MultiOmicDataset
+from muffle.data.dataset import MultiOmicDataset, feature_names
 from muffle.engine import evaluate
 from muffle.explain import modality_contributions, risk_percentile
-from muffle.models import MuffleNet
 from muffle.report.case_tools import CaseTools
 from muffle.report.nemotron import run_case_agent, tavily_search
-from muffle.train_local import site_files
+from muffle.train_local import load_model, site_files
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", default="outputs/centralized.pt")
 p.add_argument("--data", default="data/synthetic")
 p.add_argument("--cancer", default="breast")
 p.add_argument("--n-clients", type=int, default=3)
+p.add_argument("--config", default=None, help="only for checkpoints without a stored config")
 args, _ = p.parse_known_args()
 
 
 @st.cache_resource
-def load(ckpt: str, data: str, n_clients: int):
-    blob = torch.load(ckpt, map_location="cpu", weights_only=False)
-    cfg = blob.get("config") if isinstance(blob, dict) else None
-    cfg = cfg or load_config()
-    state = blob["model"] if isinstance(blob, dict) and "model" in blob else blob
-    model = MuffleNet.from_config(cfg)
-    model.load_state_dict({k: torch.as_tensor(v) for k, v in state.items()})
-    model.eval()
+def load(ckpt: str, data: str, n_clients: int, config: str | None):
+    model, cfg = load_model(Path(ckpt), config)
     ds = MultiOmicDataset(Path(data) / "cohort.npz", cfg["modalities"])
-    # optional gene/feature names (names_<modality>); synthetic data has none
-    with np.load(Path(data) / "cohort.npz") as f:
-        names = {m: [str(n) for n in f[f"names_{m}"]] for m in cfg["modalities"]
-                 if f"names_{m}" in f.files}
+    # gene/feature names (names_<modality>) for TCGA; synthetic data has none
+    names = feature_names(Path(data) / "cohort.npz", cfg["modalities"])
     with torch.no_grad():
         risks = model(ds.x, ds.mask).numpy()
     # Held-out C-index: the per-site validation splits `make compare` scores (never trained on).
@@ -62,7 +54,7 @@ st.set_page_config(page_title="MuFFLe++", layout="wide")
 st.title("MuFFLe++ — federated multi-omic prognosis")
 st.caption("Research prototype. Not for clinical use.")
 
-model, ds, risks, heldout, names = load(args.ckpt, args.data, args.n_clients)
+model, ds, risks, heldout, names = load(args.ckpt, args.data, args.n_clients, args.config)
 c = float(np.mean(list(heldout.values())))
 col1, col2, col3 = st.columns(3)
 col1.metric("Patients", len(ds))

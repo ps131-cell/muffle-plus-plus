@@ -58,10 +58,21 @@ def fit(train_ds, val_ds, cfg, device):
 
 def load_checkpoint(path: Path, cfg: dict) -> MuffleNet:
     """Load outputs/centralized.pt or an NVFlare global model; both store {"model": state_dict}."""
+    return load_model(path, cfg)[0]
+
+
+def load_model(path: Path, config: dict | str | Path | None = None) -> tuple[MuffleNet, dict]:
+    """(model in eval mode, its config) from a checkpoint.
+
+    Checkpoints from train_local and ``fedavg_job.py --save`` carry their config; a raw NVFlare
+    FL_global_model.pt does not, so ``config`` (a dict or YAML path; default config if None)
+    must describe the same architecture.
+    """
     blob = torch.load(path, map_location="cpu", weights_only=False)
-    model = MuffleNet.from_config(blob.get("config") or cfg)
+    cfg = blob.get("config") or (config if isinstance(config, dict) else load_config(config))
+    model = MuffleNet.from_config(cfg)
     model.load_state_dict({k: torch.as_tensor(v) for k, v in blob["model"].items()})
-    return model
+    return model.eval(), cfg
 
 
 def results_table(results: dict[str, dict[str, float]]) -> str:
