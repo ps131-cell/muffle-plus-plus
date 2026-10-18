@@ -30,10 +30,12 @@ from types import SimpleNamespace
 
 HARD_CAP_USD = 25.50
 
-# USD per 1M (input, output) tokens. Super: the Nebius rate as listed by price trackers on
-# 2026-10-18 (the official price page needs a login). Any other model is charged the deliberately
-# high default, so the cap errs on the safe side; add its real price here before relying on it.
-PRICES_PER_M = {"nvidia/nemotron-3-super-120b-a12b": (0.30, 0.90)}
+# USD per 1M (input, output) tokens: the Nebius rates as listed by price trackers on 2026-10-18
+# (the official price page needs a login). Any other model is charged the deliberately high
+# default, so the cap errs on the safe side; add its real price here before relying on it.
+# Reasoning tokens are billed as output and are included in usage.completion_tokens.
+PRICES_PER_M = {"nvidia/nemotron-3-super-120b-a12b": (0.30, 0.90),
+                "nvidia/nemotron-3-ultra-550b-a55b": (1.00, 3.00)}
 DEFAULT_PRICE_PER_M = (3.00, 9.00)
 CHARS_PER_TOKEN = 2        # tokenizers average ~4 characters per token; 2 overestimates input
 DEFAULT_MAX_TOKENS = 4096  # reserved for a request that sets no max_tokens

@@ -3,7 +3,7 @@ import torch
 
 from muffle.explain import modality_contributions, risk_percentile, top_features
 from muffle.models import MuffleNet
-from muffle.report.nemotron import build_facts, summarize
+from muffle.report.nemotron import build_facts, offline_summary
 from tests.conftest import SMALL_DIMS
 
 
@@ -18,5 +18,5 @@ def test_explanations_and_offline_report(monkeypatch):
     feats = top_features(model, x, mask, "rna", None, k=5)
     assert len(feats) == 5
     pct = risk_percentile(base, np.array([-1.0, 0.0, 1.0]))
-    text = summarize(build_facts("breast", base, pct, contrib, feats, 0.7))
+    text = offline_summary(build_facts("breast", base, pct, contrib, feats, 0.7))
     assert "percentile" in text and "NEBIUS_API_KEY" in text

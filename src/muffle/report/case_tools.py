@@ -17,6 +17,11 @@ import torch
 from muffle import explain
 from muffle.models import MuffleNet
 
+LAYERS = {"clinical": "clinical: age, stage, T/N/M, histology (not an omic layer)",
+          "rna": "omic: gene expression (RNA-seq)",
+          "genomic": "omic: gene-level copy number",
+          "methylation": "omic: DNA methylation (CpG sites)",
+          "protein": "omic: protein levels (RPPA)"}
 MAX_FEATURES = 10
 MAX_SEARCH_GENES = 5
 TOPICS = ("prognosis", "clinical_trials")
@@ -60,6 +65,7 @@ class CaseTools:
             "cancer_type": self.cancer,
             "available_data_layers": self.available,
             "missing_data_layers": self.missing,
+            "data_layers": {m: LAYERS.get(m, m) for m in self.model.names},
             "model": "MuFFLe++ DeepSurv (Cox) on masked multi-omic fusion, trained with "
                      "federated averaging across hospitals without sharing patient data",
             "model_validation_c_index": None if self.c_index is None else round(self.c_index, 3),

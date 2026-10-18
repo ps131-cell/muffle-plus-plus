@@ -20,6 +20,7 @@ import torch
 from muffle.data.dataset import MultiOmicDataset, feature_names
 from muffle.explain import modality_contributions, risk_percentile
 from muffle.report.case_tools import CaseTools
+from muffle.report.grounding import describe
 from muffle.report.nemotron import run_case_agent, tavily_search
 from muffle.train_local import heldout_c_index, load_model
 
@@ -91,11 +92,20 @@ if st.button("Write report with Nemotron"):
         report = run_case_agent(tools)
     left, right = st.columns([3, 2])
     left.markdown(report.text)
+    if report.mode != "offline":
+        if report.issues:
+            left.warning("Grounding check: not found in the tool outputs: "
+                         + describe(report.issues))
+        else:
+            left.success("Grounding check: every number, gene and link in this note comes from "
+                         "the tool outputs" + (" (rewritten once after the check)."
+                                               if report.revised else "."))
     right.markdown("**Tool calls**")
     right.caption({
-        "agent": f"Nemotron (`{report.model}`) chose these calls · {report.tokens} tokens",
-        "fixed plan": "Tool calling unavailable: tools ran in a fixed order, Nemotron wrote "
-                      "one summary",
+        "agent": f"Nemotron `{report.model}` chose these calls; `{report.writer}` wrote the "
+                 f"note · {report.tokens} tokens",
+        "fixed plan": f"Tool calling unavailable: tools ran in a fixed order, `{report.writer}` "
+                      "wrote the note",
         "offline": "Offline: tools ran in a fixed order and the template wrote the report."
                    + ("" if os.getenv("NEBIUS_API_KEY") else
                       " Set NEBIUS_API_KEY for the Nemotron agent."),
