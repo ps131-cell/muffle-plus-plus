@@ -4,12 +4,12 @@ import torch
 from torch.utils.data import DataLoader
 
 from muffle.config import MODALITIES
-from muffle.data.dataset import MultiOmicDataset
+from muffle.data.dataset import MultiOmicDataset, feature_names
 from muffle.data.partition import partition_cohort
 from muffle.engine import evaluate, train_epochs
 from muffle.metrics import concordance_index
 from muffle.models import MuffleNet
-from muffle.train_local import load_checkpoint, results_table
+from muffle.train_local import load_checkpoint, load_model, results_table
 
 
 def test_synthetic_signal_is_learnable(cohort):
@@ -70,3 +70,22 @@ def test_dataset_keeps_first_features_when_config_asks_for_fewer(cohort):
     assert np.array_equal(ds.x["rna"].numpy(), cohort["x_rna"][:, :10])
     with pytest.raises(ValueError):
         MultiOmicDataset(cohort, {"rna": cohort["x_rna"].shape[1] + 1})
+
+
+def test_load_model_uses_stored_config_else_the_given_one(small_cfg, tmp_path):
+    cfg = {**small_cfg, "model": {**small_cfg["model"], "fusion": "additive"}}
+    model = MuffleNet.from_config(cfg)
+    with_cfg, raw = tmp_path / "saved.pt", tmp_path / "FL_global_model.pt"
+    torch.save({"model": model.state_dict(), "config": cfg}, with_cfg)
+    torch.save({"model": model.state_dict()}, raw)  # what NVFlare's persistor writes
+    loaded, got = load_model(with_cfg)  # no config needed: it's in the file
+    assert got == cfg and loaded.fusion == "additive" and not loaded.training
+    loaded, got = load_model(raw, cfg)
+    assert all(torch.equal(v, loaded.state_dict()[k]) for k, v in model.state_dict().items())
+
+
+def test_feature_names_follow_config_sizes(cohort, tmp_path):
+    path = tmp_path / "cohort.npz"
+    names = np.array([f"G{i}" for i in range(cohort["x_rna"].shape[1])])
+    np.savez(path, **cohort, names_rna=names)
+    assert feature_names(path, {"rna": 3, "clinical": 8}) == {"rna": ["G0", "G1", "G2"]}

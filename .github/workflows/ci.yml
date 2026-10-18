@@ -21,10 +21,12 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
       - name: Lint
-        run: ruff check src tests jobs scripts
+        run: ruff check src tests jobs scripts app
       - name: Unit tests
         run: pytest -q
-      - name: FL smoke test (2 clients, 2 rounds)
+      - name: FL smoke test (2 clients, 2 rounds) + offline case agent on its model
         run: |
           python scripts/make_synthetic.py --out data/synthetic --n-patients 300
-          python jobs/fedavg_job.py --data data/synthetic --n-clients 2 --rounds 2 --local-epochs 1
+          python jobs/fedavg_job.py --data data/synthetic --n-clients 2 --rounds 2 --local-epochs 1 \
+            --save outputs/fedavg.pt
+          python -m muffle.report.nemotron --agent --ckpt outputs/fedavg.pt --data data/synthetic

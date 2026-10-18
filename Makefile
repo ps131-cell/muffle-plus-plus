@@ -6,8 +6,10 @@ GPU     ?=              # e.g. GPU=0 to run the FL simulator on a GPU
 CLIENTS ?= 3
 ROUNDS  ?= 10
 FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_model.pt
+PATIENT ?= 0
 
-.PHONY: setup test lint synth tcga local fl compare experiment experiment-tcga demo clean-nb docker
+.PHONY: setup test lint synth tcga local fl fl-tcga agent-tcga compare experiment \
+	experiment-tcga demo demo-tcga clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -22,7 +24,7 @@ test:
 	$(BIN)/pytest -q
 
 lint:
-	$(BIN)/ruff check src tests jobs scripts
+	$(BIN)/ruff check src tests jobs scripts app
 
 synth:
 	$(BIN)/python scripts/make_synthetic.py --out data/synthetic --n-patients 900
@@ -37,6 +39,16 @@ local: synth
 fl: synth
 	$(BIN)/python jobs/fedavg_job.py --data data/synthetic --n-clients $(strip $(CLIENTS)) \
 		--rounds $(strip $(ROUNDS)) $(if $(strip $(GPU)),--gpu $(strip $(GPU)),)
+
+# real data (after `make tcga`): FedAvg across the 3 hospitals -> outputs/tcga_fedavg.pt
+fl-tcga:
+	$(BIN)/python jobs/fedavg_job.py --data data/tcga_brca --config configs/tcga_brca.yaml \
+		--n-clients $(strip $(CLIENTS)) --workspace workspaces/tcga --save outputs/tcga_fedavg.pt
+
+# Nemotron case agent on one TCGA patient, real gene names (offline template without a key)
+agent-tcga:
+	$(BIN)/python -m muffle.report.nemotron --agent --ckpt outputs/tcga_fedavg.pt \
+		--data data/tcga_brca --patient $(strip $(PATIENT))
 
 # repeated seeds: centralized vs local-only vs FedAvg (+ single-modality baselines), mean ± sd
 experiment: synth
@@ -55,6 +67,9 @@ compare: synth
 
 demo:
 	$(BIN)/streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
+
+demo-tcga:
+	$(BIN)/streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
 
 clean-nb:
 	$(BIN)/nbstripout notebooks/*.ipynb

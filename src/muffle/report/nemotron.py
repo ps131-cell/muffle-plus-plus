@@ -237,25 +237,24 @@ def _list_models():
             print(m.id)
 
 
-def _agent_cli(ckpt: str, data: str, patient: int, cancer: str):
+def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, config: str | None = None):
     """Run the agent on one patient of a cohort and print the tool trace and the note."""
     from pathlib import Path
 
     import torch
 
-    from muffle.config import load_config
-    from muffle.data.dataset import MultiOmicDataset
-    from muffle.train_local import load_checkpoint
+    from muffle.data.dataset import MultiOmicDataset, feature_names
+    from muffle.train_local import load_model
 
-    cfg = load_config()
-    model = load_checkpoint(Path(ckpt), cfg).eval()
-    ds = MultiOmicDataset(Path(data) / "cohort.npz", model.modality_dims)
+    model, cfg = load_model(Path(ckpt), config)
+    cohort = Path(data) / "cohort.npz"
+    ds = MultiOmicDataset(cohort, cfg["modalities"])
     with torch.no_grad():
         risks = model(ds.x, ds.mask).numpy()
     x = {m: v[patient : patient + 1] for m, v in ds.x.items()}
     search = tavily_search if os.getenv("TAVILY_API_KEY") else None
     report = run_case_agent(CaseTools(model, x, ds.mask[patient : patient + 1], risks, cancer,
-                                      search=search))
+                                      feature_names(cohort, cfg["modalities"]), search=search))
     print(f"mode={report.mode} model={report.model} tokens={report.tokens} notes={report.notes}")
     for c in report.trace:
         print(f"[{c.round}] {c.name}({json.dumps(c.arguments)}) -> {json.dumps(c.result)}")
@@ -270,11 +269,13 @@ if __name__ == "__main__":
     p.add_argument("--data", default="data/synthetic")
     p.add_argument("--patient", type=int, default=0)
     p.add_argument("--cancer", default="breast")
+    p.add_argument("--config", default=None,
+                   help="only for checkpoints without a stored config (raw NVFlare models)")
     a = p.parse_args()
     if a.list_models:
         _list_models()
     elif a.agent:
-        _agent_cli(a.ckpt, a.data, a.patient, a.cancer)
+        _agent_cli(a.ckpt, a.data, a.patient, a.cancer, a.config)
     else:
         demo = build_facts("breast", 0.84, 81.0, {"rna": 0.41, "clinical": 0.22, "genomic": 0.05},
                            [("ESR1", -0.12), ("MKI67", 0.09)], 0.71)

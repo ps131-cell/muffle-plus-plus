@@ -9,6 +9,14 @@ from torch.utils.data import Dataset
 from muffle.config import MODALITIES
 
 
+def feature_names(path: str | Path, modalities: dict[str, int]) -> dict[str, list[str]]:
+    """Gene / feature names per modality from a cohort's ``names_<modality>`` arrays (TCGA),
+    cut to the config's sizes like MultiOmicDataset. Synthetic cohorts have none: {}."""
+    with np.load(path) as f:
+        return {m: [str(n) for n in f[f"names_{m}"][:d]] for m, d in modalities.items()
+                if f"names_{m}" in f.files}
+
+
 class MultiOmicDataset(Dataset):
     """Loads one site's ``.npz``. Each item: ({modality: tensor}, mask[M], time, event).
 
