@@ -74,7 +74,8 @@ SEARCH_NUDGE = ("search_literature has not been called. If any feature returned 
 
 WRITER_SYSTEM = (
     "You write tumor-board notes from the outputs of MuFFLe++, a federated multi-omic survival "
-    "model trained across hospitals without sharing patient data. You get the case header and "
+    "model trained across simulated hospitals without sharing patient data. You get the case "
+    "header and "
     "the tool outputs as JSON; each output has an evidence_type. Write the note in Markdown with "
     "exactly these sections: **Summary**, **Observed**, **Model inferences**, **Hypotheses and "
     "evidence**, **Caveats**. In the last four, every bullet starts with its evidence type in "
@@ -352,7 +353,8 @@ def build_facts(cancer: str, risk: float, percentile: float, contributions: dict
         "modality_contributions_log_risk": {k: round(v, 3) for k, v in contributions.items()},
         "top_features_grad_x_input": [(n, round(s, 4)) for n, s in features],
         "model_validation_c_index": None if c_index is None else round(c_index, 3),
-        "model": "MuFFLe++ federated DeepSurv, trained across hospitals without sharing data",
+        "model": "MuFFLe++ federated DeepSurv, trained across simulated hospitals without sharing "
+                 "data",
     }
 
 
