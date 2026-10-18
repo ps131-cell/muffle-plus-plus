@@ -1,11 +1,26 @@
-# MuFFLe++ — Federated Multi-Omic Cancer Prognosis
+# MuFFLe++ — toward a cancer intelligence platform (breast cancer)
 
-Hospitals can't pool patients' genomic data, so prognosis models stay small and site-specific.
-MuFFLe++ trains one survival model **across hospitals without moving any patient data**: each
-site trains locally on its own omics + clinical records and only model weights are aggregated
-with **NVIDIA FLARE** (FedAvg). An **NVIDIA Nemotron** model on **Nebius Token
-Factory** then turns each prediction into a clinician-readable report, with literature found
-via **Tavily**.
+Cancer changes over time, and the evidence about one patient is scattered across tests, visits
+and hospitals that can't pool their data. Our long-term goal ([`docs/VISION.md`](docs/VISION.md))
+is a **multimodal, longitudinal cancer intelligence platform**: it connects specialized models,
+public datasets and each patient's record over time into one evidence-linked picture of the
+disease, keeps what was **observed** apart from what a model **inferred** and what is only a
+**hypothesis**, and learns across institutions without centralizing patient data. It is research
+support for clinicians, not a diagnosis or a prescription.
+
+**MuFFLe++ is milestone 1** of that platform, for breast cancer:
+- **Evidence-linked patient profile.** A multi-omic survival model (copy number, RNA,
+  methylation, protein, clinical) gives a risk estimate that copes with missing tests; an
+  **NVIDIA Nemotron** case agent on **Nebius Token Factory** calls our models as tools and writes
+  a tumor-board note with literature from **Tavily**. *In progress:* every statement labeled
+  observed / inferred / hypothesis; observed driver mutations with **CIViC** treatment evidence
+  for clinician review.
+- **Patient timeline** *(in progress)*. Risk is re-estimated as new results arrive (treatments,
+  tumor markers, sequencing), measured on real MSK-CHORD timelines (aggregate results only) and
+  shown in the demo on a clearly labeled synthetic patient.
+- **Learning across hospitals.** One survival model is trained **across simulated hospitals
+  without moving any patient data**: each site trains locally and only model weights are
+  aggregated with **NVIDIA FLARE** (FedAvg).
 
 ```
  Hospital A ─┐  encoders: genomic · RNA · methylation · protein · clinical
@@ -96,14 +111,31 @@ fell short. On this endpoint the omics don't (yet) add signal beyond clinical da
 | `docs/` | plan PDFs, hackathon checklist, decisions log, Nebius notes |
 | `data/`, `outputs/`, `workspaces/` | **git-ignored** — never commit patient data or checkpoints |
 
+## Data and licenses
+| Source | Used for | Terms |
+|---|---|---|
+| TCGA-BRCA via the GDC / UCSC Xena GDC hub | multi-omic cohort, overall survival | open tier |
+| GDC masked somatic mutation files | observed driver mutations *(in progress)* | open access |
+| [CIViC](https://civicdb.org) | treatment evidence for observed variants *(in progress)* | CC0 |
+| [MSK-CHORD](https://www.cbioportal.org/study/summary?id=msk_chord_2024) (Jee et al., Nature 2024) | real patient timelines for the risk-update evaluation *(in progress)* | CC BY-NC-ND 4.0: used locally; only code and aggregate results are published |
+
+No patient-level data is stored in this repository. Simulated hospitals and the demo's synthetic
+timeline patient are labeled as simulated. Full list with access tiers: `docs/registry.md`.
+
 ## Roadmap
-- [x] Repo, CI, synthetic data, model, FedAvg simulation, Nemotron report, demo app
-- [x] TCGA-BRCA download + harmonization (`scripts/prepare_tcga.py`)
-- [x] Baselines vs FL on real data; leave-one-site-out validation (`make experiment-tcga`)
-- [ ] ~~FL training as a Nebius Serverless Job~~ (cut: Token Factory only, on free credits)
-- [ ] Host the demo; record the video; submit by Oct 30, 10 am PT
-- [ ] Stretch: evaluate FedProx (`--prox-mu` is implemented, not yet evaluated), BLCA,
-  DP / secure aggregation
+Milestone 1 (hackathon, Oct 30 2026):
+- [x] Repo, CI, TCGA-BRCA multi-omic cohort, survival model with missing-layer masking
+- [x] Federated training across simulated hospitals, baselines, leave-one-site-out, calibration
+- [x] Nemotron case agent with tools, Tavily literature, spending cap
+- [ ] Observed / inferred / hypothesis labels in the case note
+- [ ] Observed driver mutations + CIViC evidence
+- [ ] Patient timeline: risk re-estimated as results arrive (MSK-CHORD, aggregate results)
+- [ ] Synthetic timeline patient in the demo; hosted demo; video; submit by Oct 30, 10 am PT
+
+Beyond the hackathon (see [`docs/VISION.md`](docs/VISION.md)): pathology and radiology
+encoders, inferred mutation status with calibrated uncertainty, evolutionary hypotheses from
+repeated sequencing, resistance and treatment-strategy research, real contributing institutions
+with privacy techniques.
 
 ## License
 MIT — see [LICENSE](LICENSE).
