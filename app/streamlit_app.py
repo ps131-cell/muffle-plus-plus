@@ -9,9 +9,10 @@ MUFFLE_BUNDLE (a path or URL; default: the GitHub release asset). For a private 
 set GITHUB_TOKEN to a token that can read the repo.
 
 Three tabs: Case review (one held-out patient: risk, what drives it, a what-if for missing data
-layers, and the Nemotron case agent's note), Federation (the hospitals and the results), How it
-works. Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes
-(app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the cap is reached.
+layers, and the Nemotron case agent's note), Federation (the simulated hospitals and the
+results), How it works. Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default
+5); saved notes (app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the
+cap is reached.
 """
 
 from __future__ import annotations
@@ -98,7 +99,7 @@ with st.sidebar:
     st.markdown("### MuFFLe++")
     st.caption("Federated multi-omic survival model + a Nemotron case agent.")
     st.markdown(
-        f"**Model** · FedAvg across {len(demo.sites)} hospitals (NVIDIA FLARE)  \n"
+        f"**Model** · FedAvg across {len(demo.sites)} simulated hospitals (NVIDIA FLARE)  \n"
         f"**Held-out C-index** · {demo.c_index:.3f}  \n"
         f"**Case agent** · {'live' if LIVE else 'offline (no key)'}: "
         f"{model_name(DEFAULT_MODEL)} plans, {model_name(WRITER_MODEL)} writes, on Nebius "
@@ -110,7 +111,8 @@ with st.sidebar:
 
 st.title("MuFFLe++ · federated tumor-board assistant")
 st.markdown(
-    f"{len(demo.sites)} hospitals train one survival model **without sharing patient data**. "
+    f"{len(demo.sites)} simulated hospitals (groups of TCGA tissue source sites) train one "
+    "survival model **without sharing patient data**. "
     "For a patient, an NVIDIA Nemotron agent asks the model what drives the risk, looks up the "
     "literature, and writes a tumor-board note that cites only what its tools returned.")
 
@@ -131,7 +133,8 @@ with case_tab:
     c1.metric("Risk percentile", ordinal(case.percentile),
               help="Share of all patients with a lower predicted risk.")
     c2.metric("Risk group", case.group.capitalize(), help="Cohort tertiles of predicted risk.")
-    c3.metric("Hospital", case.site, help="The FL client this patient belongs to.")
+    c3.metric("Simulated hospital", case.site,
+              help="The FL client this patient belongs to: a group of TCGA tissue source sites.")
     c4.metric("Data layers", f"{len(case.layers)} of {len(demo.model.names)}",
               help="Missing: " + (", ".join(case.missing) or "none"))
 
@@ -230,7 +233,7 @@ with case_tab:
 
 # --- Federation ------------------------------------------------------------------------------
 with fed_tab:
-    st.subheader(f"{len(demo.sites)} hospitals, one model, no shared patient data")
+    st.subheader(f"{len(demo.sites)} simulated hospitals, one model, no shared patient data")
     left, right = st.columns([2, 3])
     with left:
         dot = ["digraph { rankdir=LR; bgcolor=transparent; size=\"5,3\"; node [shape=box, "
@@ -238,7 +241,7 @@ with fed_tab:
                "fontsize=9];",
                'server [label="NVIDIA FLARE server\\nFedAvg", shape=box, style="rounded,bold"];']
         for s in demo.sites:
-            dot.append(f'"{s.name}" [label="{s.name}\\n{s.patients} patients\\n'
+            dot.append(f'"{s.name}" [label="{s.name} (simulated)\\n{s.patients} patients\\n'
                        f'data stays here"];')
             dot.append(f'"{s.name}" -> server [label="weights", dir=both];')
         st.graphviz_chart("\n".join(dot) + "}", width="content")
@@ -253,8 +256,9 @@ with fed_tab:
             LAYER_NAMES.get(m, m): st.column_config.ProgressColumn(
                 LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
             for m in demo.model.names if m != "clinical"})
-        st.caption("Bars: share of each hospital's patients with that data layer. Hospitals are "
-                   "TCGA tissue source sites grouped into three FL clients, so the gaps are real.")
+        st.caption("Bars: share of each hospital's patients with that data layer. The hospitals "
+                   "are simulated: TCGA tissue source sites grouped into three FL clients, so "
+                   "the data gaps are real.")
 
     res = results()
     if res and demo.names:  # real data (synthetic cohorts have no gene names)

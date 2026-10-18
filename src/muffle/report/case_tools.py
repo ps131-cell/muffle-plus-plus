@@ -92,7 +92,7 @@ class CaseTools:
             "missing_data_layers": self.missing,
             "data_layers": {m: LAYERS.get(m, m) for m in self.model.names},
             "model": "MuFFLe++ DeepSurv (Cox) on masked multi-omic fusion, trained with "
-                     "federated averaging across hospitals without sharing patient data",
+                     "federated averaging across simulated hospitals without sharing patient data",
             "model_validation_c_index": None if self.c_index is None else round(self.c_index, 3),
             "feature_names": "gene/feature symbols" if self.names
                              else "anonymous indices (synthetic data), not gene names",
