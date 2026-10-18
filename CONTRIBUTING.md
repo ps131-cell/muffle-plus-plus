@@ -1,7 +1,8 @@
 # How we work
 
 ## Branches and pull requests
-- `main` is protected: CI must pass. Nobody commits to it directly.
+- Nobody commits to `main` directly; merge only with green CI. Until the repo is public, a local
+  pre-push hook refuses pushes to `main` (GitHub protection comes with #17).
 - One branch per task: `<area>/<short-topic>`, e.g. `data/tcga-loader`, `fl/fedprox`.
 - Keep branches short-lived (≤ 2 days); `git pull --rebase origin main` before opening a PR.
 - Squash-merge, delete the branch, link the issue (`Closes #12`).
@@ -24,7 +25,7 @@ git push -u origin data/my-task      # then: gh pr create --fill
 |---|---|---|
 | Data (TCGA, harmonization, site splits) | Kimberley | `src/muffle/data/`, `scripts/` |
 | Model, loss, metrics, evaluation | Prakhar | `src/muffle/models/`, `losses.py`, `metrics.py` |
-| Federated + Nebius runs | shared | `src/muffle/fl/`, `jobs/`, `docs/NEBIUS.md` |
+| Federated training | shared | `src/muffle/fl/`, `jobs/`, `docs/NEBIUS.md` |
 | Nemotron report + demo + video | shared | `src/muffle/report/`, `app/` |
 
 ## Rules that protect us

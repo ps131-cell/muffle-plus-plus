@@ -3,7 +3,7 @@
 Hospitals can't pool patients' genomic data, so prognosis models stay small and site-specific.
 MuFFLe++ trains one survival model **across hospitals without moving any patient data**: each
 site trains locally on its own omics + clinical records and only model weights are aggregated
-with **NVIDIA FLARE** (FedAvg / FedProx). An **NVIDIA Nemotron** model on **Nebius Token
+with **NVIDIA FLARE** (FedAvg). An **NVIDIA Nemotron** model on **Nebius Token
 Factory** then turns each prediction into a clinician-readable report, with literature found
 via **Tavily**.
 
@@ -29,8 +29,10 @@ make fl         # FedAvg across 3 simulated hospitals (NVFlare simulator)
 make compare    # per-site C-index table: centralized vs local-only vs the final FedAvg model
 make tcga       # real data: open-tier TCGA-BRCA -> data/tcga_brca/cohort.npz
 make experiment-tcga   # hospital clients: centralized vs local-only vs FedAvg, 5 seeds + LOSO
+make fl-tcga    # the demo model: clinical-anchored residual FedAvg -> outputs/tcga_fedavg.pt
 cp .env.example .env   # add NEBIUS_API_KEY (Token Factory) and optionally TAVILY_API_KEY
-make demo       # Streamlit app: risk groups + Nemotron-written patient report
+make demo       # Streamlit app: risk groups + Nemotron-written patient report (synthetic)
+make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene names
 ```
 
 ## Hackathon: how NVIDIA and Nebius are used
@@ -51,8 +53,8 @@ make demo       # Streamlit app: risk groups + Nemotron-written patient report
   gene names are sent, never raw omics. Without `NEBIUS_API_KEY` the same tools run in a
   fixed order and an offline template writes the report. Try one case from the terminal:
   `.venv/bin/python -m muffle.report.nemotron --agent --patient 0`.
-- **Nebius AI Cloud** — optional: FL training can run as a Serverless Job on GPU
-  (`docs/NEBIUS.md`); the submission runs FL in the NVFlare simulator.
+- **Nebius AI Cloud** — not used in the submission: Nebius usage is Token Factory only, and FL
+  runs in the NVFlare simulator. `docs/NEBIUS.md` keeps untested notes for a Serverless Job.
 - **Tavily** — the agent's literature and clinical-trial search on the top prognostic genes.
 
 Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
@@ -100,7 +102,8 @@ fell short. On this endpoint the omics don't (yet) add signal beyond clinical da
 - [x] Baselines vs FL on real data; leave-one-site-out validation (`make experiment-tcga`)
 - [ ] ~~FL training as a Nebius Serverless Job~~ (cut: Token Factory only, on free credits)
 - [ ] Host the demo; record the video; submit by Oct 30, 10 am PT
-- [ ] Stretch: FedProx, BLCA, proteomics, DP / secure aggregation
+- [ ] Stretch: evaluate FedProx (`--prox-mu` is implemented, not yet evaluated), BLCA,
+  DP / secure aggregation
 
 ## License
 MIT — see [LICENSE](LICENSE).
