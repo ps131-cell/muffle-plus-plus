@@ -103,8 +103,9 @@ if st.button("Write report with Nemotron"):
         "agent": f"Nemotron (`{report.model}`) chose these calls · {report.tokens} tokens",
         "fixed plan": "Tool calling unavailable: tools ran in a fixed order, Nemotron wrote "
                       "one summary",
-        "offline": "Offline: tools ran in a fixed order and the template wrote the report. "
-                   "Set NEBIUS_API_KEY for the Nemotron agent.",
+        "offline": "Offline: tools ran in a fixed order and the template wrote the report."
+                   + ("" if os.getenv("NEBIUS_API_KEY") else
+                      " Set NEBIUS_API_KEY for the Nemotron agent."),
     }[report.mode])
     for note in report.notes:
         right.caption(note)
