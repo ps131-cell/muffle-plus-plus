@@ -54,6 +54,7 @@ class MuffleNet(nn.Module):
         modality_dropout: float = 0.0,
         fusion: str = "concat",
         always_keep: list[str] | tuple[str, ...] = (),
+        residual_scale: float = 1.0,
     ):
         super().__init__()
         if fusion not in ("concat", "additive"):
@@ -63,6 +64,9 @@ class MuffleNet(nn.Module):
         self.dropout, self.modality_dropout = dropout, modality_dropout
         self.fusion = fusion
         self.always_keep = list(always_keep)
+        # additive only: log-risk = always_keep terms + residual_scale * the other terms
+        # (the clinical-anchored residual model picks it on held-out data, 0 = anchor only)
+        self.residual_scale = float(residual_scale)
         self.names = list(self.modality_dims)
         self.register_buffer("_droppable", torch.tensor(
             [m not in self.always_keep for m in self.names], dtype=torch.float32),
@@ -109,7 +113,10 @@ class MuffleNet(nn.Module):
             mask = self._train_time_mask(mask)
             parts = torch.stack(
                 [self.heads[m](self.encoders[m](inputs[m])).squeeze(-1) for m in self.names], 1)
-            return (parts * mask + self.missing * (1 - mask)).sum(1)
+            terms = parts * mask + self.missing * (1 - mask)
+            if self.residual_scale != 1.0:
+                terms = terms * (1 + (self.residual_scale - 1) * self._droppable)
+            return terms.sum(1)
         return self.head(self.embed(inputs, mask)).squeeze(-1)
 
     @classmethod

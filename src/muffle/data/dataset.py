@@ -37,6 +37,8 @@ class MultiOmicDataset(Dataset):
             if x.shape[1] < d:
                 raise ValueError(f"{m}: data has {x.shape[1]} features, config says {d}")
             self.x[m] = torch.as_tensor(x[:, :d], dtype=torch.float32)
+        # TCGA tissue source site per patient (the hospital), for site-aware validation splits
+        self.groups = np.asarray(arrays["tss"]) if "tss" in arrays else None
         cols = [MODALITIES.index(m) for m in modalities]
         self.mask = torch.as_tensor(arrays["mask"][:, cols], dtype=torch.float32)
         self.time = torch.as_tensor(arrays["time"], dtype=torch.float32)

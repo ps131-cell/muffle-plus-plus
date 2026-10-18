@@ -37,12 +37,14 @@ from torch.utils.data import ConcatDataset, DataLoader
 from muffle.config import load_config
 from muffle.data.dataset import MultiOmicDataset
 from muffle.metrics import concordance_counts, stratified_concordance
+from muffle.residual import federated_lambda, fit_residual
 from muffle.train_local import fit, load_checkpoint, site_files
 
 ROOT = Path(__file__).resolve().parents[2]
 FL_JOB = ROOT / "jobs" / "fedavg_job.py"
 FL_CKPT = Path("muffle_fedavg/server/simulate_job/app_server/FL_global_model.pt")
-METHODS = ("centralized", "local_only", "fedavg", "single_modality")
+METHODS = ("centralized", "local_only", "fedavg", "single_modality", "residual",
+           "fedavg_residual")
 
 
 def fl_rounds(cfg: dict) -> int:
@@ -85,6 +87,12 @@ def centralized(splits, cfg, device) -> dict[str, float]:
     return score({s: site_counts(model, va, device) for s, _, va in splits})
 
 
+def residual(splits, cfg, device) -> dict[str, float]:
+    """Clinical-anchored residual model (muffle.residual), trained centrally; also returns λ."""
+    model, lam, _ = fit_residual(ConcatDataset([tr for _, tr, _ in splits]), cfg, device)
+    return {**score({s: site_counts(model, va, device) for s, _, va in splits}), "lambda": lam}
+
+
 def local_only(splits, cfg, device) -> dict[str, float]:
     return score({s: site_counts(fit(tr, va, cfg, device)[0], va, device)
                   for s, tr, va in splits})
@@ -101,7 +109,8 @@ def single_modality(files, cfg, device) -> dict[str, dict[str, float]]:
 
 
 def run_fl_job(data: Path, config: str | None, n_clients: int, rounds: int, seed: int,
-               workspace: Path, cfg: dict, clients: Path | None = None) -> torch.nn.Module:
+               workspace: Path, cfg: dict, clients: Path | None = None,
+               residual: bool = False) -> torch.nn.Module:
     """Run jobs/fedavg_job.py in the NVFlare simulator; return its final global model."""
     shutil.rmtree(workspace, ignore_errors=True)  # a fresh simulator workspace per run
     cmd = [sys.executable, str(FL_JOB), "--data", str(data), "--n-clients", str(n_clients),
@@ -110,6 +119,8 @@ def run_fl_job(data: Path, config: str | None, n_clients: int, rounds: int, seed
         cmd += ["--config", str(config)]
     if clients:
         cmd += ["--client-dir", str(clients)]
+    if residual:
+        cmd += ["--residual"]
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
     ckpt = workspace / FL_CKPT
     if r.returncode or not ckpt.exists():
@@ -124,6 +135,15 @@ def fedavg(data: Path, config: str | None, n_clients: int, rounds: int, seed: in
     return score({s: site_counts(model, va, device) for s, _, va in splits})
 
 
+def fedavg_residual(data: Path, config: str | None, n_clients: int, rounds: int, seed: int,
+                    workspace: Path, splits, cfg, device) -> dict[str, float]:
+    """Two-phase FL residual model; λ by federated evaluation on the clients' own held-out
+    sites (muffle.residual.federated_lambda)."""
+    model = run_fl_job(data, config, n_clients, rounds, seed, workspace, cfg, residual=True)
+    lam, _ = federated_lambda(model, [tr for _, tr, _ in splits], cfg, device)
+    return {**score({s: site_counts(model, va, device) for s, _, va in splits}), "lambda": lam}
+
+
 def leave_one_site_out(files: list[Path], cfg: dict, methods: list[str], device: str,
                        fl: dict | None = None) -> dict[str, dict[str, float]]:
     """Hold out each site in turn; score on all of its patients. ``fl`` holds the
@@ -136,30 +156,51 @@ def leave_one_site_out(files: list[Path], cfg: dict, methods: list[str], device:
             cfg_m = copy.deepcopy(cfg)
             cfg_m["modalities"] = {m: d}
             single[m] = (cfg_m, load_splits(files, cfg_m))
+    lambdas: list[float] = []  # residual model's λ per held-out site
+    fl_lambdas: list[float] = []
     for held, f in zip([s for s, _, _ in splits], files, strict=True):
         test = MultiOmicDataset(f, cfg["modalities"])
         others = [(s, tr, va) for s, tr, va in splits if s != held]
         if "centralized" in methods:
             model, _ = fit(ConcatDataset([tr for _, tr, _ in others]), others[0][2], cfg, device)
             counts["centralized"][held] = site_counts(model, test, device)
+        if "residual" in methods:
+            model, lam, _ = fit_residual(ConcatDataset([tr for _, tr, _ in others]), cfg, device)
+            counts["residual"][held] = site_counts(model, test, device)
+            lambdas.append(lam)
         if "local_only" in methods:  # every other hospital's own model, pairs summed = mean
             per = [site_counts(fit(tr, va, cfg, device)[0], test, device) for _, tr, va in others]
             counts["local_only"][held] = (sum(n for n, _ in per), sum(d for _, d in per))
-        if "fedavg" in methods and fl:
+        clients = None
+        if fl and {"fedavg", "fedavg_residual"} & set(methods):
             clients = fl["workspace"] / f"clients-without-{held}"
             shutil.rmtree(clients, ignore_errors=True)
             clients.mkdir(parents=True)
+            names = [s for s, _, _ in splits]
             for k, (s, _, _) in enumerate(others, 1):  # NVFlare site names are site-1..site-n
-                shutil.copy(files[[x for x, _, _ in splits].index(s)], clients / f"site-{k}.npz")
+                shutil.copy(files[names.index(s)], clients / f"site-{k}.npz")
+        if "fedavg" in methods and fl:
             model = run_fl_job(fl["data"], fl["config"], len(others), fl["rounds"], fl["seed"],
                                fl["workspace"] / f"without-{held}", cfg, clients)
             counts["fedavg"][held] = site_counts(model, test, device)
+        if "fedavg_residual" in methods and fl:
+            model = run_fl_job(fl["data"], fl["config"], len(others), fl["rounds"], fl["seed"],
+                               fl["workspace"] / f"residual-without-{held}", cfg, clients,
+                               residual=True)
+            lam, _ = federated_lambda(model, [tr for _, tr, _ in others], cfg, device)
+            counts["fedavg_residual"][held] = site_counts(model, test, device)
+            fl_lambdas.append(lam)
         for m, (cfg_m, splits_m) in single.items():
             train = ConcatDataset([tr for s, tr, _ in splits_m if s != held])
             model, _ = fit(train, splits_m[0][2], cfg_m, device)
             counts.setdefault(f"only_{m}", {})[held] = site_counts(
                 model, MultiOmicDataset(f, cfg_m["modalities"]), device)
-    return {m: score(c) for m, c in counts.items() if c}
+    out = {m: score(c) for m, c in counts.items() if c}
+    if lambdas:
+        out["residual"]["lambda"] = float(np.mean(lambdas))
+    if fl_lambdas:
+        out["fedavg_residual"]["lambda"] = float(np.mean(fl_lambdas))
+    return out
 
 
 def site_summary(files: list[Path]) -> dict[str, dict[str, int]]:
@@ -205,6 +246,11 @@ def main(argv=None):
 
     cfg = load_config(args.config)
     rounds = args.rounds or fl_rounds(cfg)
+    if not (cfg["model"].get("fusion") == "additive" and cfg["model"].get("always_keep")):
+        skip = [m for m in args.methods if m in ("residual", "fedavg_residual")]
+        if skip:
+            args.methods = [m for m in args.methods if m not in skip]
+            print(f"skipping {skip}: needs model.fusion: additive and model.always_keep")
     name = args.name or f"{args.data.name}_{args.n_clients}clients"
     files = site_files(args.data, args.n_clients, cfg)
     sites = site_summary(files)
@@ -226,6 +272,11 @@ def main(argv=None):
                                    splits, cfg_s, args.device)
         if "single_modality" in args.methods:
             res.update(single_modality(files, cfg_s, args.device))
+        if "residual" in args.methods:
+            res["residual"] = residual(splits, cfg_s, args.device)
+        if "fedavg_residual" in args.methods:
+            res["fedavg_residual"] = fedavg_residual(args.data, args.config, args.n_clients,
+                                                     rounds, seed, ws, splits, cfg_s, args.device)
         runs[seed] = res
         pooled = ", ".join(f"{m} {r['pooled']:.3f}" for m, r in res.items())
         print(f"seed {seed} ({time.time() - t0:.0f}s): pooled C-index {pooled}", flush=True)
