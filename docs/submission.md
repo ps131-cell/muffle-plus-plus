@@ -1,73 +1,105 @@
 # MuFFLe++ — Devpost submission (draft)
 
-Text for the Devpost form, one section per field. Fill the two TODO links before submitting.
+Text for the Devpost form, one section per field, in the platform framing (`docs/VISION.md`,
+decisions 2026-10-18).
+
+**Before pasting into Devpost (final pass, Oct 27):**
+- [ ] Fill the demo and video links.
+- [ ] Resolve every **IN PROGRESS** marker: describe the feature as built (with its numbers), or
+      delete the sentence if it was cut. Judges score what is demonstrated, so nothing unbuilt
+      may read as done.
+- [ ] Fill the MSK-CHORD results and its attribution (from `docs/registry.md`).
+- [ ] Re-check every number against `app/results_tcga_brca.json`, the README and decisions.
 
 | Field | Value |
 |---|---|
 | Project name | MuFFLe++ |
-| Tagline | Hospitals train one cancer survival model without sharing patient data; an NVIDIA Nemotron agent turns each prediction into a tumor-board note that cites only what its tools returned. |
+| Tagline | Milestone 1 of a cancer intelligence platform: an evidence-linked breast cancer profile, written up by an NVIDIA Nemotron agent, from a model trained across simulated hospitals without sharing data. |
 | Track | Best Apps and Agents |
 | Demo | TODO: Streamlit Community Cloud URL |
 | Video | TODO: YouTube URL (≤ 3 min) |
 | Code | https://github.com/ps131-cell/muffle-plus-plus (MIT) |
-| Built with | Python, PyTorch, NVIDIA FLARE 2.9, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token Factory, Tavily, Streamlit, Altair, TCGA |
+| Built with | Python, PyTorch, NVIDIA FLARE 2.9, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token Factory, Tavily, Streamlit, Altair, TCGA (GDC open access); IN PROGRESS: CIViC, MSK-CHORD |
 | New or existing? | New: the repository was created on Oct 17, 2026, after the Submission Period opened (Aug 26); all of it was built during the hackathon. |
 
 ---
 
 ## Inspiration
 
-A breast cancer patient's genome, tumour expression and methylation say a lot about how the
-disease will behave, but no single hospital has enough such patients to learn it well, and
-hospitals can't pool them: the data is private and regulated. So prognosis models stay small
-and site-specific. And a risk score alone doesn't help a tumor board, which needs to know what
-drives the risk and what the literature says about it.
+A cancer changes over time, and the evidence about one patient is scattered: a stage recorded
+at diagnosis, a sequencing panel, expression and methylation profiles, tumor markers, the
+treatments given and when. No single hospital has enough such patients to learn from, and
+hospitals can't pool them. A tumor board needs that evidence in one place, with what was
+measured kept apart from what a model guessed and what is only a lead from the literature.
+
+Our long-term goal is a **multimodal, longitudinal cancer intelligence platform** for one cancer
+type: it connects specialized models, public datasets and each patient's record over time into
+one evidence-linked picture of the disease, and learns across institutions without centralizing
+patient data. It is research support for clinicians, never a diagnosis or a prescription.
+MuFFLe++ is its first milestone, for breast cancer.
 
 ## What it does
 
-**One survival model, trained across hospitals without moving patient data.** Three hospitals
-(TCGA-BRCA tissue source sites grouped into three federated clients of 355, 355 and 354
-patients) each train on their own copy number, RNA expression, methylation, protein and
-clinical data. Only model weights travel, through NVIDIA FLARE. A hospital that never measured
-a layer still takes part: the layer is masked.
+Milestone 1 builds three pieces of the platform.
 
-**A case agent that explains one patient.** For a held-out patient:
+**1. An evidence-linked patient profile.** For a held-out breast cancer patient, a multi-omic
+survival model (copy number, RNA expression, methylation, protein and clinical data) estimates
+risk, and copes with missing tests by masking the missing layers. A case agent on Nebius Token
+Factory turns it into a tumor-board note:
 
-1. **Nemotron 3 Super** (on Nebius Token Factory) plans: it calls our tools for the patient's
-   risk and cohort percentile, how much each data layer moves that risk compared with a typical
-   patient, the top genes of a layer, and a Tavily search for papers or clinical trials on
-   those genes.
-2. **Nemotron 3 Ultra** writes the tumor-board note (Summary, Drivers, Caveats, Literature)
-   from the tool outputs.
-3. **A grounding check** (plain code, no LLM) looks for any number, gene or link in the note
-   that no tool returned. If it finds one, Ultra gets one rewrite; anything left is shown.
+1. **Nemotron 3 Super** plans. It calls our tools for the patient's risk and cohort percentile,
+   how much each data layer moves that risk compared with a typical patient, the top genes of a
+   layer, and a Tavily search for papers or clinical trials on those genes.
+2. **Nemotron 3 Ultra** writes the note (Summary, Drivers, Caveats, Literature) from the tool
+   outputs.
+3. **A grounding check** (plain code, no LLM) looks for any number, gene or link in the note that
+   no tool returned. If it finds one, Ultra gets one rewrite; anything left is shown.
+
+IN PROGRESS: every statement in the note labeled **observed** (e.g. the recorded stage, a
+sequenced driver mutation), **model inference** (e.g. the risk estimate) or **hypothesis**
+(e.g. a literature lead); observed driver mutations from GDC's open-access masked mutation
+files, with **CIViC** treatment evidence for clinician review.
+
+**2. A patient timeline. IN PROGRESS.** The risk of progression or death in the next 12 months
+is re-estimated each time a new result arrives (a treatment, a tumor marker, a sequencing
+report). It is measured on real MSK-CHORD timelines (aggregate results only) and shown in the
+demo on a clearly labeled **synthetic** patient, with what changed and why.
+
+**3. Learning across hospitals.** One survival model is trained across three **simulated**
+hospitals (TCGA-BRCA tissue source sites grouped into three federated clients of 355, 355 and
+354 patients) without moving patient data: each site trains on its own data and only model
+weights travel, through NVIDIA FLARE. A hospital that never measured a layer still takes part.
 
 The app has three tabs:
-- **Case review:** pick a held-out patient; see where they sit among all patients, what drives
-  their risk, and what happens if a data layer were missing; then watch the agent's steps live,
-  read the note with its grounding result and tool trace, and download it.
-- **Federation:** the hospitals and their data, and the results below.
+- **Case review:** pick one of the held-out patients; see where they sit among all patients,
+  what drives their risk, and what happens if a data layer were missing; then watch the agent's
+  steps live, read the note with its grounding result and tool trace, and download it.
+- **Federation:** the simulated hospitals and their data, and the results below.
 - **How it works:** method, privacy and limits.
 
+IN PROGRESS: the timeline view for the synthetic patient.
+
 Only derived numbers (risk, percentile, contributions, attribution scores) and gene names are
-sent to Token Factory, never a patient's omics values.
+sent to Token Factory and Tavily, never a patient's omics values and nothing from MSK-CHORD.
 
 ## How we built it
 
 - **Data:** open-access TCGA-BRCA from the UCSC Xena GDC hub: 1,064 patients, 148 deaths,
-  overall survival, one primary tumour each. Real modality gaps: methylation covers 51–83% of
-  a hospital's patients, protein 75–89%.
+  overall survival, one primary tumour each. Real gaps between data layers: methylation covers
+  51–83% of a simulated hospital's patients, protein 75–89%. IN PROGRESS: GDC open-access masked
+  somatic mutations; CIViC (CC0) evidence; MSK-CHORD timelines (CC BY-NC-ND 4.0, used locally,
+  only aggregate results published).
 - **Model (PyTorch):** an encoder per data layer, masked additive fusion and a Cox (DeepSurv)
   head, trained with modality dropout that never drops clinical data. Clinical-anchored
   residual: the model first learns a clinical risk, then the omic layers may correct it by an
   amount chosen on hospitals it wasn't trained at.
 - **Federated training:** NVIDIA FLARE 2.9's `FedAvgRecipe` in the simulator: 20 rounds for
   the clinical anchor, then 20 for the omic residual. The residual's weight is chosen by
-  federated evaluation; each hospital shares only two pair counts per candidate.
+  federated evaluation; each simulated hospital shares only two pair counts per candidate.
 - **Evaluation:** leave one hospital out (train on two, test on every patient of the third),
-  5 reported seeds, every tuning choice made on 5 other seeds; plus calibration and fairness
-  slices by age, stage and hospital.
-- **Agent:** OpenAI-compatible tool calling on Token Factory, with the tools running our model
+  5 reported seeds, every tuning choice made on 5 other seeds; calibration and fairness slices
+  by age, stage and hospital; always against clinical-only, one-hospital and pooled baselines.
+- **Agent:** OpenAI-compatible tool calling on Token Factory, with the tools running our models
   locally. A hard spending cap reserves each call's worst-case cost before sending it. If Token
   Factory is unreachable, the same tools run in a fixed order and a template writes the note.
 - **App:** Streamlit and Altair, hosted on Streamlit Community Cloud from a 0.9 MB bundle: the
@@ -75,7 +107,8 @@ sent to Token Factory, never a patient's omics values.
 
 ## Results
 
-Leave one hospital out, C-index on the unseen hospital, mean ± sd over 5 seeds:
+**Learning across hospitals** (TCGA-BRCA, overall survival). Leave one simulated hospital out,
+C-index on the unseen hospital, mean ± sd over 5 seeds:
 
 | Model | C-index |
 |---|---|
@@ -91,8 +124,12 @@ Leave one hospital out, C-index on the unseen hospital, mean ± sd over 5 seeds:
 - Honest baseline: on overall survival in breast cancer, the omic layers don't add signal
   beyond stage and age yet. That's why the model anchors on clinical data and lets the omics
   correct it.
-- The case agent: all 8 notes saved for the demo passed the grounding check; a note costs
-  about $0.01 of Token Factory credit (8k–16k tokens). The whole project used $0.46.
+
+**Patient timeline.** IN PROGRESS: 12-month risk on MSK-CHORD timelines as the record grows,
+against baselines (aggregate numbers only).
+
+**Case agent.** All 8 notes saved for the demo passed the grounding check; a note costs about
+$0.01 of Token Factory credit (8k–16k tokens). The whole project has used $0.46 so far.
 
 ## Challenges we ran into
 
@@ -109,13 +146,16 @@ Leave one hospital out, C-index on the unseen hospital, mean ± sd over 5 seeds:
 - **Literature quality.** Combined queries and unnamed gene ids returned generic survival
   pages, a coronary artery disease paper, a YouTube video. One query per gene, results that
   must name the gene and a cancer, and scholarly domains fixed it.
+- **Data rights.** MSK-CHORD's license (CC BY-NC-ND 4.0) allows local research but no
+  redistribution, so no individual MSK-CHORD patient appears in the repo, the demo, the video
+  or any LLM call; the demo's timeline patient is synthetic and labeled.
 - **Free credits only.** The Token Factory account is billed automatically once the credit
   runs out, so we built our own spending cap.
 
 ## Accomplishments that we're proud of
 
-- On real hospitals, federated training matches pooled training without moving any patient
-  data.
+- On real (TCGA) data split into simulated hospitals, federated training matches pooled
+  training without moving any patient data.
 - An evaluation we can defend: unseen hospitals, separate tuning seeds, and the clinical
   baseline reported even though it wins.
 - Every claim in a note can be traced to a tool call, and the app shows the trace.
@@ -131,9 +171,14 @@ Leave one hospital out, C-index on the unseen hospital, mean ± sd over 5 seeds:
 
 ## What's next for MuFFLe++
 
-- A pilot across real institutions, with secure aggregation or differential privacy.
-- A second endpoint (progression-free interval) and a second cancer type.
-- Running federated training as Nebius Serverless Jobs on GPUs.
+The platform roadmap (`docs/VISION.md`):
+- Pathology slides, radiology, labs and clinical notes through pretrained encoders, each added
+  only when it measurably helps.
+- Mutation status inferred from other layers, with calibrated uncertainty; evolutionary
+  hypotheses from repeated sequencing.
+- Treatment evidence beyond CIViC: resistance mechanisms and combinations, for clinician review.
+- Real contributing institutions with secure aggregation or differential privacy, and
+  federated training as Nebius Serverless Jobs on GPUs.
 
 ## How we used NVIDIA and Nebius
 
@@ -152,6 +197,7 @@ Leave one hospital out, C-index on the unseen hospital, mean ± sd over 5 seeds:
 - **Case review:** patients marked ★ have a saved note (**Show the saved note**). **Write the
   note with Nemotron** runs the live agent (about 20–30 seconds, 5 live notes per session).
   Open **What if a data layer were missing?** to hide a layer and see the risk change.
+- IN PROGRESS: how to step through the synthetic timeline patient.
 - **Federation** and **How it works** need no input.
 - Locally: `make setup`, then `.venv/bin/streamlit run app/streamlit_app.py`. Without the
   TCGA data it downloads the demo bundle from the GitHub release. Add `NEBIUS_API_KEY` and
@@ -159,9 +205,13 @@ Leave one hospital out, C-index on the unseen hospital, mean ± sd over 5 seeds:
 
 ## Data
 
-TCGA-BRCA open-access data only (no controlled-access files), from the UCSC Xena GDC hub. The
-results here are in whole or part based upon data generated by the TCGA Research Network:
-https://www.cancer.gov/tcga. Research prototype, not for clinical use.
+- TCGA-BRCA open-access data (UCSC Xena GDC hub). The results here are in whole or part based
+  upon data generated by the TCGA Research Network: https://www.cancer.gov/tcga.
+- IN PROGRESS: GDC open-access masked somatic mutations; CIViC (CC0, each evidence item cited);
+  MSK-CHORD (CC BY-NC-ND 4.0, local use, aggregate results only; attribution from
+  `docs/registry.md`).
+- Simulated hospitals and the synthetic timeline patient are labeled as such everywhere.
+  Research prototype, not for clinical use.
 
 ---
 
@@ -191,10 +241,9 @@ Each item: what happened, why it mattered, and a suggestion.
 5. **Reasoning length is hard to bound.** Ultra's reasoning counts as output: one note was cut
    off mid-sentence at a 2,000-token limit, and with a long literature list another ran past
    3,000. `reasoning_content` and `usage.completion_tokens_details.reasoning_tokens` made this
-   visible, and
-   `chat_template_kwargs: {"enable_thinking": false}` works. *Suggestion:* a reasoning budget
-   parameter (or effort levels), and a finish reason that says the reasoning used up the
-   limit.
+   visible, and `chat_template_kwargs: {"enable_thinking": false}` works. *Suggestion:* a
+   reasoning budget parameter (or effort levels), and a finish reason that says the reasoning
+   used up the limit.
 6. **What worked well:** OpenAI-compatible tool calling on Nemotron 3 Super worked on the first
    try, calls were fast (a full note took 7–10 s before we added literature search), and the
    costs were tiny (about $0.01 a note).
