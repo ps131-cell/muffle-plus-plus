@@ -345,6 +345,20 @@ def test_tavily_search_prefers_this_cancer_and_drops_duplicate_papers(monkeypatc
     assert [r["url"] for r in nemotron.tavily_search(["VAV3"], "breast")] == ["https://pmc.org/1"]
 
 
+def test_title_key_and_gene_match():
+    key = nemotron._title_key
+    assert key("Frontiers | PIGR predicts good clinical outcomes and plays a tumor sup...") == \
+        key("PIGR predicts good clinical outcomes and plays a tumor suppressor role")
+    assert key("(PDF) ELOVL2: a novel tumor suppressor attenuating tamoxifen resistance ...") == \
+        key("a novel tumor suppressor attenuating tamoxifen resistance in breast cancer")
+    assert nemotron._names_gene("VAV3", "Vav3 oncogene in breast cancer")
+    assert not nemotron._names_gene("CAMP", "cAMP signalling in breast cancer")
+    assert not nemotron._names_gene("CAMP", "18. McCabe A, Camp RL, Rimm DL")
+    assert nemotron._names_gene("PIGR", "PIGR predicts good clinical outcomes")
+    assert nemotron._names_gene("ESR1", "ESR1-positive breast tumours")
+    assert not nemotron._names_gene("ESR1", "ESR10 and pESR1")  # whole symbols only
+
+
 def test_clinical_features_cannot_be_searched():
     tools = make_tools(search=lambda *a: pytest.fail("clinical fields are not genes"))
     feats = tools.top_features("clinical", 3)["features"]

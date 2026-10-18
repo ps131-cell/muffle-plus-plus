@@ -9,7 +9,7 @@ FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_mod
 PATIENT ?= 0
 
 .PHONY: setup test lint synth tcga local fl fl-tcga agent-tcga compare experiment \
-	experiment-tcga calibration-tcga demo demo-tcga clean-nb docker
+	experiment-tcga calibration-tcga demo demo-tcga demo-notes demo-results clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -77,6 +77,14 @@ demo:
 
 demo-tcga:
 	$(BIN)/streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
+
+# live case-agent notes for the demo's featured patients -> app/saved_notes.json (~$0.12)
+demo-notes:
+	$(BIN)/python scripts/save_demo_notes.py
+
+# aggregate results of `make experiment-tcga` for the demo -> app/results_tcga_brca.json
+demo-results:
+	$(BIN)/python scripts/export_results.py
 
 clean-nb:
 	$(BIN)/nbstripout notebooks/*.ipynb

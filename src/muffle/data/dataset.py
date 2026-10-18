@@ -17,6 +17,14 @@ def feature_names(path: str | Path, modalities: dict[str, int]) -> dict[str, lis
                 if f"names_{m}" in f.files}
 
 
+def split_positions(n: int, val_fraction: float, seed: int = 0) -> tuple[list[int], list[int]]:
+    """(train, validation) row positions of a site's random validation split."""
+    g = torch.Generator().manual_seed(seed)
+    n_val = max(1, int(round(n * val_fraction)))
+    perm = torch.randperm(n, generator=g).tolist()
+    return perm[n_val:], perm[:n_val]
+
+
 class MultiOmicDataset(Dataset):
     """Loads one site's ``.npz``. Each item: ({modality: tensor}, mask[M], time, event).
 
@@ -51,10 +59,5 @@ class MultiOmicDataset(Dataset):
         return {m: x[i] for m, x in self.x.items()}, self.mask[i], self.time[i], self.event[i]
 
     def split(self, val_fraction: float, seed: int = 0) -> tuple[torch.utils.data.Subset, ...]:
-        g = torch.Generator().manual_seed(seed)
-        n_val = max(1, int(round(len(self) * val_fraction)))
-        perm = torch.randperm(len(self), generator=g).tolist()
-        return (
-            torch.utils.data.Subset(self, perm[n_val:]),
-            torch.utils.data.Subset(self, perm[:n_val]),
-        )
+        train, val = split_positions(len(self), val_fraction, seed)
+        return torch.utils.data.Subset(self, train), torch.utils.data.Subset(self, val)

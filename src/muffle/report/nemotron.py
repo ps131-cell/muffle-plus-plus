@@ -34,7 +34,8 @@ import argparse
 import json
 import os
 import re
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 
 from dotenv import load_dotenv
 
@@ -51,7 +52,7 @@ WRITER_MODEL = os.getenv("NEMOTRON_WRITER_MODEL") or "nvidia/Nemotron-3-Ultra-55
 MAX_TOOL_ROUNDS = 6       # planner turns that may call tools
 MAX_CALLS_PER_ROUND = 4   # extra parallel calls in one turn are dropped
 MAX_TOKENS = 900          # per planner completion
-WRITER_MAX_TOKENS = 3000  # the writer reasons before it writes; reasoning tokens count as output
+WRITER_MAX_TOKENS = 4096  # the writer reasons before it writes; reasoning tokens count as output
 MAX_REVISIONS = 1         # rewrites after the grounding check finds unsupported items
 WRITER_DROPS = {"note", "log_risk", "cohort_median_log_risk"}  # tool-result keys the writer skips
 
@@ -79,7 +80,8 @@ WRITER_SYSTEM = (
     "- Summary: the patient's risk as a cohort percentile (write '81st percentile', not '81%') "
     "and the risk group.\n"
     "- Drivers: every layer in log_risk_added_by_layer, largest effect first, clinical "
-    "included. For each, say whether it raises or lowers the predicted risk and by how much "
+    "included. For each, say whether it raises or lowers the predicted risk compared with "
+    "the reference in compared_with (e.g. 'a typical patient') and by how much "
     "('lowers risk by 0.12', never a minus sign), then the top features the tools returned for "
     "it. Clinical data (age, stage, T/N/M) is never an omic layer; the others are.\n"
     "- Quote numbers as the tools gave them (rounding is fine). Don't compute new numbers, "
@@ -115,6 +117,13 @@ class CaseReport:
     issues: list[dict] = field(default_factory=list)  # grounding check: unsupported items left
     revised: bool = False      # the writer rewrote the note after the grounding check
 
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> CaseReport:
+        return cls(**{**d, "trace": [ToolCall(**c) for c in d["trace"]]})
+
 
 def make_client():
     from openai import OpenAI
@@ -125,10 +134,13 @@ def make_client():
 
 def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
                    writer: str = WRITER_MODEL, max_rounds: int = MAX_TOOL_ROUNDS,
-                   max_tokens: int = MAX_TOKENS) -> CaseReport:
+                   max_tokens: int = MAX_TOKENS,
+                   on_step: Callable[[str], None] | None = None) -> CaseReport:
     """Let Nemotron (``model``) pick tools for this case, then ``writer`` writes the note and the
     grounding check runs on it. ``client`` is any OpenAI-compatible client (tests pass a fake);
-    without one and without NEBIUS_API_KEY the offline template is returned."""
+    without one and without NEBIUS_API_KEY the offline template is returned. ``on_step`` gets a
+    short line per step (the demo shows them while the agent works)."""
+    step = on_step or (lambda _: None)
     if client is None:
         if not os.getenv("NEBIUS_API_KEY"):
             return _offline_report(tools)
@@ -166,6 +178,8 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
                                          "function": {"name": c.function.name,
                                                       "arguments": c.function.arguments}}
                                         for c in calls]})
+        step(f"{model_name(model)} called " + ", ".join(
+            f"{c.function.name}({_short_args(c.function.arguments)})" for c in calls))
         for c in calls:
             result = tools.call(c.function.name, c.function.arguments)
             args = parse_arguments(c.function.arguments)
@@ -175,11 +189,28 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
     if not any(c.name == "predict_risk" and "error" not in c.result for c in trace):
         notes.append("the planner did not get the risk, so the fixed tool sequence ran too")
         trace += fixed_plan(tools)
-    return _write(tools, trace, client, writer, model, "agent", tokens, notes)
+    return _write(tools, trace, client, writer, model, "agent", tokens, notes, step)
+
+
+def model_name(model_id: str | None) -> str:
+    """'nvidia/Nemotron-3-Ultra-550b-a55b' -> 'Nemotron 3 Ultra'."""
+    if not model_id:
+        return "offline template"
+    m = re.search(r"nemotron-(\d)(?:[._](\d))?-(nano|super|ultra|lightning)", model_id, re.I)
+    if not m:
+        return model_id.split("/")[-1]
+    version = m.group(1) + (f".{m.group(2)}" if m.group(2) else "")
+    return f"Nemotron {version} {m.group(3).capitalize()}"
+
+
+def _short_args(arguments) -> str:
+    args = parse_arguments(arguments) or {}
+    return ", ".join(f"{k}={json.dumps(v)}" for k, v in args.items())
 
 
 def _write(tools: CaseTools, trace: list[ToolCall], client, writer: str, planner: str,
-           mode: str, tokens: int = 0, notes: list[str] | None = None) -> CaseReport:
+           mode: str, tokens: int = 0, notes: list[str] | None = None,
+           step: Callable[[str], None] = lambda _: None) -> CaseReport:
     """The writer turns the tool outputs into the note (the planner model writes it if the
     writer fails); then the grounding check, and at most MAX_REVISIONS rewrites."""
     notes = list(notes or [])
@@ -194,6 +225,7 @@ def _write(tools: CaseTools, trace: list[ToolCall], client, writer: str, planner
                  + json.dumps(evidence, indent=1) + "\n\nWrite the tumor-board note."}]
     text, used = "", None
     for m in dict.fromkeys([writer, planner]):
+        step(f"{model_name(m)} is writing the note")
         try:
             text, n, why = _complete(client, m, messages)
         except Exception as e:
@@ -207,8 +239,10 @@ def _write(tools: CaseTools, trace: list[ToolCall], client, writer: str, planner
     if used is None:
         return _offline_report(tools, notes[-1], tokens)
 
+    step("Checking every number, gene and link against the tool outputs")
     issues, revised = check_note(text, evidence, tools.names), False
     for _ in range(MAX_REVISIONS if issues else 0):
+        step(f"Not in the tool outputs: {describe(issues)}. {model_name(used)} is rewriting")
         fix = messages + [
             {"role": "assistant", "content": text},
             {"role": "user", "content": "A check against the tool outputs found these items in "
@@ -309,6 +343,15 @@ def build_facts(cancer: str, risk: float, percentile: float, contributions: dict
 SEARCH_QUERIES_PER_REPORT = 3  # Tavily queries (credits) per search_literature call
 RESULTS_PER_GENE = 2
 CANCER_WORDS = re.compile(r"cancer|tumou?r|carcinoma|neoplas|oncolog|metasta", re.I)
+# publication search stays on scholarly and clinical sources (no videos, vendors or forums)
+SCHOLARLY = ["pubmed.ncbi.nlm.nih.gov", "pmc.ncbi.nlm.nih.gov", "ncbi.nlm.nih.gov",
+             "nature.com", "cell.com", "sciencedirect.com", "springer.com", "link.springer.com",
+             "wiley.com", "onlinelibrary.wiley.com", "biomedcentral.com", "frontiersin.org",
+             "mdpi.com", "plos.org", "aacrjournals.org", "ascopubs.org", "annalsofoncology.org",
+             "academic.oup.com", "thelancet.com", "nejm.org", "jamanetwork.com", "bmj.com",
+             "tandfonline.com", "spandidos-publications.com", "e-century.us", "oncotarget.com",
+             "jci.org", "elifesciences.org", "cancer.gov", "proteinatlas.org", "dovepress.com",
+             "karger.com", "iiarjournals.org", "aging-us.com", "ijbs.com", "jcancer.org"]
 
 
 def tavily_search(genes: list[str], cancer: str, topic: str = "prognosis",
@@ -330,13 +373,13 @@ def tavily_search(genes: list[str], cancer: str, topic: str = "prognosis",
             res = client.search(f'"{gene}" {cancer} cancer', max_results=5,
                                 include_domains=["clinicaltrials.gov"])
         else:
-            res = client.search(f'"{gene}" {cancer} cancer prognosis survival', max_results=5)
+            res = client.search(f'"{gene}" {cancer} cancer prognosis survival', max_results=5,
+                                include_domains=SCHOLARLY)
         hits = []
         for r in res.get("results", []):
             title, text = r.get("title") or "", r.get("content") or ""
             both = f"{title} {text}"
-            if not CANCER_WORDS.search(both) or not re.search(
-                    rf"(?<![\w-]){re.escape(gene)}(?![\w-])", both, re.I):
+            if not CANCER_WORDS.search(both) or not _names_gene(gene, both):
                 continue
             url = r["url"]
             nct = re.search(r"NCT\d{8}", url)
@@ -358,12 +401,22 @@ def tavily_search(genes: list[str], cancer: str, topic: str = "prognosis",
     return out[:k]
 
 
+def _names_gene(gene: str, text: str) -> bool:
+    """The gene symbol as a whole word. Symbols with a digit may be written "Vav3"; all-letter
+    symbols must match exactly, since "cAMP" (cyclic AMP) or "Camp RL" (an author) aren't CAMP."""
+    pattern = rf"(?<![\w-]){re.escape(gene)}(?!\w)"
+    if not any(ch.isdigit() for ch in gene):
+        return re.search(pattern, text) is not None
+    return any(m.group()[0].isupper() for m in re.finditer(pattern, text, re.I))
+
+
 def _title_key(title: str) -> str:
-    """Same paper on two sites: "(PDF) Vav3 oncogene is ... : Oncology Letters" vs "Vav3 oncogene
-    is ... patients" -> the first 40 letters of the title proper."""
+    """Same paper on two sites: "Frontiers | PIGR predicts good ...", "(PDF) ELOVL2: a novel
+    tumor suppressor ..." vs "PIGR predicts good ...", "a novel tumor suppressor ..." -> the first
+    40 letters of the longest part of the title."""
     title = re.sub(r"^\(pdf\)\s*|\[pdf\]\s*", "", title.strip(), flags=re.I)
-    title = re.split(r"\s[|:–]\s|\.\.\.|…", title)[0]
-    return re.sub(r"[^a-z0-9]", "", title.lower())[:40]
+    parts = re.split(r"\s[|–]\s|:\s|\.\.\.|…", title)
+    return re.sub(r"[^a-z0-9]", "", max(parts, key=len).lower())[:40]
 
 
 def offline_summary(facts: dict,
@@ -391,6 +444,7 @@ def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
     import torch
 
     from muffle.data.dataset import MultiOmicDataset, feature_names
+    from muffle.explain import cohort_offsets
     from muffle.train_local import heldout_c_index, load_model
 
     model, cfg = load_model(Path(ckpt), config)
@@ -402,7 +456,8 @@ def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
     search = tavily_search if os.getenv("TAVILY_API_KEY") else None
     c = float(np.mean(list(heldout_c_index(model, Path(data), n_clients, cfg).values())))
     report = run_case_agent(CaseTools(model, x, ds.mask[patient : patient + 1], risks, cancer,
-                                      feature_names(cohort, cfg["modalities"]), c, search),
+                                      feature_names(cohort, cfg["modalities"]), c, search,
+                                      cohort_offsets(model, ds.x, ds.mask)),
                             writer=writer)
     print(f"mode={report.mode} planner={report.model} writer={report.writer} "
           f"tokens={report.tokens} revised={report.revised} notes={report.notes}")
