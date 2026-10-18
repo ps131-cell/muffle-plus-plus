@@ -9,7 +9,7 @@ FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_mod
 PATIENT ?= 0
 
 .PHONY: setup test lint synth tcga local fl fl-tcga agent-tcga compare experiment \
-	experiment-tcga demo demo-tcga clean-nb docker
+	experiment-tcga calibration-tcga demo demo-tcga clean-nb docker
 
 setup:
 	$(PY) -m venv $(VENV)
@@ -61,6 +61,11 @@ experiment: synth
 experiment-tcga:
 	$(BIN)/python -m muffle.experiment --data data/tcga_brca --config configs/tcga_brca.yaml \
 		--n-clients $(strip $(CLIENTS)) --seeds 0 1 2 3 4 --loso
+
+# cross-site calibration + fairness slices: clinical vs residual vs FedAvg-residual (~8 min)
+calibration-tcga:
+	$(BIN)/python -m muffle.calibration --data data/tcga_brca --config configs/tcga_brca.yaml \
+		--n-clients $(strip $(CLIENTS)) --seed 0
 
 # after `make fl`: per-site C-index table, centralized vs local-only vs the final FedAvg model
 compare: synth

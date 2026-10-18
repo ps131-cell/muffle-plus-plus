@@ -7,6 +7,8 @@ Target format (one row per patient, rows aligned across arrays):
     stage [N] (for heterogeneous partitioning)
 TCGA extras (stay under data/, never commit):
     tss [N]  tissue source site = barcode chars 6-7, the hospital that collected the sample
+    age [N]  age at diagnosis in years, NaN if unknown (evaluation slices only; the model sees
+             the z-scored, median-imputed copy in x_clinical)
     patient [N]  12-char patient barcode
     names_<modality> [d]  feature names (gene symbols, CpG ids, RPPA targets, clinical fields)
 Unmeasured modalities are all-zero rows with mask 0. Sizes d_* come from configs/default.yaml.

@@ -196,6 +196,14 @@ def _extract(values: pd.Series, pattern: str, codes: dict[str, int] | None = Non
     return pd.to_numeric(found.map(codes) if codes else found, errors="coerce").astype(float)
 
 
+def age_years(clinical: pd.DataFrame) -> pd.Series:
+    """Age at diagnosis in years (GDC age_at_index, else from days_to_birth); NaN if unknown."""
+    age = clinical["age_at_index.demographic"].astype(float)
+    if "days_to_birth.demographic" in clinical:
+        age = age.fillna(-clinical["days_to_birth.demographic"] / 365.25)
+    return age
+
+
 def clinical_features(clinical: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """GDC clinical fields (one row per patient) -> (CLINICAL_FEATURES, stage 1-4).
 
@@ -203,9 +211,7 @@ def clinical_features(clinical: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     """
     stage = _extract(clinical["ajcc_pathologic_stage.diagnoses"],
                      r"^Stage (IV|III|II|I)[A-C]?$", ROMAN)
-    age = clinical["age_at_index.demographic"].astype(float)
-    if "days_to_birth.demographic" in clinical:
-        age = age.fillna(-clinical["days_to_birth.demographic"] / 365.25)
+    age = age_years(clinical)
     histology = clinical["primary_diagnosis.diagnoses"].astype("string").str.lower()
     feats = pd.DataFrame({
         "age": age,
@@ -265,6 +271,7 @@ def assemble_cohort(
     out["mask"] = mask
     out["stage"] = stage.to_numpy(np.float32)
     out["tss"] = np.array([tissue_source_site(p) for p in patients])
+    out["age"] = age_years(clinical.loc[patients]).to_numpy(np.float32)  # evaluation slices only
     out["patient"] = np.array(patients)
     return out
 
