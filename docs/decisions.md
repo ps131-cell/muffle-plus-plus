@@ -103,8 +103,8 @@ Newest at the top. One entry per decision: date, what, why.
   `TOKEN_FACTORY_BUDGET_USD` can lower the cap but not raise it. Prices: Super at $0.30 / $0.90
   per 1M input / output tokens (price trackers; the official page needs a login); other models
   are charged a deliberately high $3 / $9 until their real price is added.
-- **Why:** the Token Factory account has a bank card that is charged automatically when the
-  balance goes negative, and the team only wants to spend the $25 promo credit.
+- **Why:** the Token Factory account is billed automatically once the credit runs out, and
+  the team only wants to spend the $25 promo credit.
 - **Limits:** the ledger (`~/.muffle/token_factory_spend.json`) only counts calls made by this
   code on this Mac; add console-playground or other usage with
   `python -m muffle.report.budget --add <USD>`. On Streamlit Community Cloud the ledger lives
