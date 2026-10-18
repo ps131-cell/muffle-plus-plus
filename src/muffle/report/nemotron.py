@@ -1,19 +1,29 @@
 """Tumor-board case agent: NVIDIA Nemotron on Nebius Token Factory, calling our own tools.
 
-The federated model produces the numbers; Nemotron decides which of them to look at. It gets the
-case header (cancer type, which data layers exist), calls tools from ``case_tools`` — risk and
-percentile, per-layer contributions, top features, and Tavily literature/trial search when gene
-names are known — then writes a cautious summary citing only those tool outputs. Tool rounds and
-tokens are capped per report, and every call counts against a hard $25.50 spending cap
-(``budget``; once reached, reports fall back to the offline template). Only derived numbers and
-gene names are sent, never raw omics.
+The federated model produces the numbers; Nemotron decides which of them to look at, in three
+steps:
+
+1. **Plan (Nemotron 3 Super, fast):** gets the case header (cancer type, which data layers exist)
+   and calls tools from ``case_tools`` — risk and percentile, per-layer contributions, top
+   features, and Tavily literature/trial search when gene names are known — until it has enough.
+2. **Write (Nemotron 3 Ultra, reasoning):** turns the tool outputs into the tumor-board note.
+   If Ultra fails or returns nothing, Super writes it instead.
+3. **Check (no LLM):** ``grounding.check_note`` looks for numbers, genes and links in the note
+   that no tool returned; if it finds any, the writer gets one chance to fix them, and whatever
+   remains is shown with the note.
+
+This follows the track's advice: Ultra for serious reasoning, Super for the fast everyday calls.
+Tool rounds and tokens are capped per report, and every call counts against a hard $25.50
+spending cap (``budget``; once reached, reports fall back to the offline template). Only derived
+numbers and gene names are sent, never raw omics.
 
 Without NEBIUS_API_KEY the same tools run in a fixed order and the offline template is returned,
 so tests and the demo work with no network. A failed live call (no credit, bad key, rate limit,
 timeout) falls back to that same offline report with the reason in ``notes``, so the demo never
 shows a traceback.
 
-Env vars: NEBIUS_API_KEY (required for live calls), NEMOTRON_MODEL, TAVILY_API_KEY (optional).
+Env vars: NEBIUS_API_KEY (required for live calls), NEMOTRON_MODEL (planner),
+NEMOTRON_WRITER_MODEL (writer), TAVILY_API_KEY (optional).
 List available model ids with:  python -m muffle.report.nemotron --list-models
 One live case from a checkpoint: python -m muffle.report.nemotron --agent --patient 0
 """
@@ -30,39 +40,52 @@ from dotenv import load_dotenv
 
 from muffle.report.budget import BudgetedClient, BudgetExceeded
 from muffle.report.case_tools import CaseTools, parse_arguments
+from muffle.report.grounding import check_note, describe
 
 load_dotenv()  # repo-root .env (git-ignored); real environment variables take precedence
 
 TOKEN_FACTORY_URL = os.getenv("TOKEN_FACTORY_BASE_URL", "https://api.tokenfactory.nebius.com/v1")
 DEFAULT_MODEL = os.getenv("NEMOTRON_MODEL") or "nvidia/nemotron-3-super-120b-a12b"
+WRITER_MODEL = os.getenv("NEMOTRON_WRITER_MODEL") or "nvidia/Nemotron-3-Ultra-550b-a55b"
 
-MAX_TOOL_ROUNDS = 4       # model turns that may call tools; one more turn writes the report
+MAX_TOOL_ROUNDS = 4       # planner turns that may call tools
 MAX_CALLS_PER_ROUND = 4   # extra parallel calls in one turn are dropped
-MAX_TOKENS = 900          # per completion
-
-SYSTEM = (
-    "You are an oncology research assistant summarizing output from a federated survival model "
-    "for a tumor board. Be precise and cautious: this is a research prototype, not a diagnosis. "
-    "Explain the risk estimate, which data layers drove it, and what would change confidence. "
-    "Never invent patient details. Use short sections: Summary, Drivers, Caveats, Literature. "
-    "In Literature cite only the candidate URLs given to you; if none are given, say that no "
-    "search was run. Never invent papers."
-)
+MAX_TOKENS = 900          # per planner completion
+WRITER_MAX_TOKENS = 3000  # the writer reasons before it writes; reasoning tokens count as output
+MAX_REVISIONS = 1         # rewrites after the grounding check finds unsupported items
+WRITER_DROPS = {"note", "log_risk", "cohort_median_log_risk"}  # tool-result keys the writer skips
 
 AGENT_SYSTEM = (
-    "You are an oncology research assistant preparing a tumor-board note from MuFFLe++, a "
-    "federated multi-omic survival model. You cannot see patient data; use the tools to get the "
-    "model's outputs for this case. Call only the tools you need, a few at a time: usually the "
-    "risk first, then which data layers drove it, then the top features of the most influential "
-    "layer(s), then literature on those genes if a search tool is offered.\n"
-    "Describe the patient's risk by cohort_percentile and risk_group; the sign of log_risk means "
-    "nothing on its own.\n"
-    "When done, write the note in Markdown with exactly these sections: **Summary**, **Drivers**, "
-    "**Caveats**, **Literature**. Cite only numbers, features and references returned by tools; "
-    "never invent patient details, genes or papers. In Literature list only URLs returned by "
-    "search_literature, or say that no search was run. Mention missing data layers and the "
-    "model's validation C-index in Caveats. This is a research prototype, not a diagnosis. "
-    "Keep the note under 250 words."
+    "You are the planning step of a tumor-board case agent for MuFFLe++, a federated multi-omic "
+    "survival model. You cannot see patient data; use the tools to get the model's outputs for "
+    "this case. Call only the tools you need, a few at a time: usually the risk first, then "
+    "which data layers drove it, then the top features of the most influential layer(s), then "
+    "literature on those genes if a search tool is offered.\n"
+    "A separate writer turns the tool outputs into the note, so do not write it yourself: when "
+    "you have what you need, reply with the single word DONE."
+)
+
+WRITER_SYSTEM = (
+    "You write tumor-board notes from the outputs of MuFFLe++, a federated multi-omic survival "
+    "model trained across hospitals without sharing patient data. You get the case header and "
+    "the tool outputs as JSON. Write the note in Markdown with exactly these sections: "
+    "**Summary**, **Drivers**, **Caveats**, **Literature**.\n"
+    "Rules:\n"
+    "- Summary: the patient's risk as a cohort percentile (write '81st percentile', not '81%') "
+    "and the risk group.\n"
+    "- Drivers: every layer in log_risk_added_by_layer, largest effect first, clinical "
+    "included. For each, say whether it raises or lowers the predicted risk and by how much "
+    "('lowers risk by 0.12', never a minus sign), then the top features the tools returned for "
+    "it. Clinical data (age, stage, T/N/M) is never an omic layer; the others are.\n"
+    "- Quote numbers as the tools gave them (rounding is fine). Don't compute new numbers, "
+    "ratios or probabilities.\n"
+    "- Name only genes and features that tools returned; if top_features returned none for a "
+    "layer, name none from it.\n"
+    "- Caveats: the missing data layers, the model's validation C-index, and that this is a "
+    "research prototype, not a diagnosis.\n"
+    "- Literature: only URLs returned by search_literature, with their titles; if no search was "
+    "run, say so. Never invent papers.\n"
+    "Don't restate these rules or explain how to read the numbers. Keep the note under 250 words."
 )
 
 
@@ -79,9 +102,12 @@ class CaseReport:
     text: str
     trace: list[ToolCall]
     mode: str  # "agent" (Nemotron chose the tools) | "fixed plan" | "offline"
-    model: str | None = None
+    model: str | None = None   # planner
     tokens: int = 0
     notes: list[str] = field(default_factory=list)
+    writer: str | None = None  # the model that wrote the note
+    issues: list[dict] = field(default_factory=list)  # grounding check: unsupported items left
+    revised: bool = False      # the writer rewrote the note after the grounding check
 
 
 def make_client():
@@ -92,10 +118,11 @@ def make_client():
 
 
 def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
-                   max_rounds: int = MAX_TOOL_ROUNDS, max_tokens: int = MAX_TOKENS) -> CaseReport:
-    """Let Nemotron pick tools for this case, then write the note. ``client`` is any
-    OpenAI-compatible client (tests pass a fake); without one and without NEBIUS_API_KEY the
-    offline template is returned."""
+                   writer: str = WRITER_MODEL, max_rounds: int = MAX_TOOL_ROUNDS,
+                   max_tokens: int = MAX_TOKENS) -> CaseReport:
+    """Let Nemotron (``model``) pick tools for this case, then ``writer`` writes the note and the
+    grounding check runs on it. ``client`` is any OpenAI-compatible client (tests pass a fake);
+    without one and without NEBIUS_API_KEY the offline template is returned."""
     if client is None:
         if not os.getenv("NEBIUS_API_KEY"):
             return _offline_report(tools)
@@ -103,32 +130,24 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
 
     messages = [{"role": "system", "content": AGENT_SYSTEM},
                 {"role": "user", "content": "Case (JSON):\n" + json.dumps(tools.case_header())
-                 + "\n\nPrepare the tumor-board note."}]
-    specs, trace, tokens = tools.specs(), [], 0
-    for rnd in range(1, max_rounds + 2):
-        last = rnd > max_rounds
-        if last:
-            messages.append({"role": "user", "content": "Tool budget used up. Write the note "
-                             "now from the tool outputs above."})
+                 + "\n\nGather what the tumor-board note needs."}]
+    specs, trace, tokens, notes = tools.specs(), [], 0, []
+    for rnd in range(1, max_rounds + 1):
         try:
             resp = client.chat.completions.create(
-                model=model, messages=messages, tools=specs,
-                tool_choice="none" if last else "auto", temperature=0.2, max_tokens=max_tokens)
+                model=model, messages=messages, tools=specs, tool_choice="auto",
+                temperature=0.2, max_tokens=max_tokens)
         except Exception as e:
             if rnd == 1 and getattr(e, "status_code", None) == 400:
-                # endpoint/model rejected tool calling: run the tools ourselves, one summary call
-                return _fixed_plan_report(tools, client, model,
-                                          f"tool calling rejected ({e})"[:300])
+                # endpoint/model rejected tool calling: run the tools ourselves, then write
+                return _write(tools, fixed_plan(tools), client, writer, model, "fixed plan",
+                              notes=[f"tool calling rejected ({e})"[:300]])
             return _offline_report(tools, unavailable(e), tokens)
-        tokens += getattr(getattr(resp, "usage", None), "total_tokens", 0) or 0
-        choice = resp.choices[0]
-        calls = (choice.message.tool_calls or [])[:MAX_CALLS_PER_ROUND]
-        if last or not calls:
-            text = _strip_think(choice.message.content or "")
-            notes = [] if text else [f"empty reply (finish_reason={choice.finish_reason})"]
-            return CaseReport(text or "_Nemotron returned no text._", trace, "agent", model,
-                              tokens, notes)
-        messages.append({"role": "assistant", "content": choice.message.content or "",
+        tokens += _usage(resp)
+        calls = (resp.choices[0].message.tool_calls or [])[:MAX_CALLS_PER_ROUND]
+        if not calls:
+            break
+        messages.append({"role": "assistant", "content": resp.choices[0].message.content or "",
                          "tool_calls": [{"id": c.id, "type": "function",
                                          "function": {"name": c.function.name,
                                                       "arguments": c.function.arguments}}
@@ -139,7 +158,74 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
             trace.append(ToolCall(rnd, c.function.name,
                                   {"_raw": c.function.arguments} if args is None else args, result))
             messages.append({"role": "tool", "tool_call_id": c.id, "content": json.dumps(result)})
-    raise AssertionError("unreachable: the last round always returns")
+    if not any(c.name == "predict_risk" and "error" not in c.result for c in trace):
+        notes.append("the planner did not get the risk, so the fixed tool sequence ran too")
+        trace += fixed_plan(tools)
+    return _write(tools, trace, client, writer, model, "agent", tokens, notes)
+
+
+def _write(tools: CaseTools, trace: list[ToolCall], client, writer: str, planner: str,
+           mode: str, tokens: int = 0, notes: list[str] | None = None) -> CaseReport:
+    """The writer turns the tool outputs into the note (the planner model writes it if the
+    writer fails); then the grounding check, and at most MAX_REVISIONS rewrites."""
+    notes = list(notes or [])
+    # the writer reads risk by percentile, so it gets no log-risk values (their sign misleads)
+    evidence = {"case": tools.case_header(),
+                "tool_outputs": [{"tool": c.name, "arguments": c.arguments,
+                                  "result": {k: v for k, v in c.result.items()
+                                             if k not in WRITER_DROPS}}
+                                 for c in trace]}
+    messages = [{"role": "system", "content": WRITER_SYSTEM},
+                {"role": "user", "content": "Case header and tool outputs (JSON):\n"
+                 + json.dumps(evidence, indent=1) + "\n\nWrite the tumor-board note."}]
+    text, used = "", None
+    for m in dict.fromkeys([writer, planner]):
+        try:
+            text, n, why = _complete(client, m, messages)
+        except Exception as e:
+            notes.append(f"writer {m}: {unavailable(e)}")
+            continue
+        tokens += n
+        if text:
+            used = m
+            break
+        notes.append(f"writer {m}: {why}")
+    if used is None:
+        return _offline_report(tools, notes[-1], tokens)
+
+    issues, revised = check_note(text, evidence, tools.names), False
+    for _ in range(MAX_REVISIONS if issues else 0):
+        fix = messages + [
+            {"role": "assistant", "content": text},
+            {"role": "user", "content": "A check against the tool outputs found these items in "
+             f"your note that no tool returned: {describe(issues)}. Rewrite the whole note so "
+             "every number, gene and link comes from the tool outputs: correct or drop them."}]
+        try:
+            new, n, _ = _complete(client, used, fix)
+        except Exception as e:
+            notes.append(f"rewrite skipped: {unavailable(e)}")
+            break
+        tokens += n
+        new_issues = check_note(new, evidence, tools.names) if new else issues
+        if new and len(new_issues) < len(issues):
+            text, issues, revised = new, new_issues, True
+    return CaseReport(text, trace, mode, planner, tokens, notes, used, issues, revised)
+
+
+def _complete(client, model: str, messages: list[dict]) -> tuple[str, int, str]:
+    """(text, tokens, why there's no text). A reply cut off at max_tokens counts as no text:
+    a half note is worse than the fallback."""
+    resp = client.chat.completions.create(model=model, messages=messages, temperature=0.2,
+                                          max_tokens=WRITER_MAX_TOKENS)
+    choice = resp.choices[0]
+    if choice.finish_reason == "length":
+        return "", _usage(resp), f"reply cut off at {WRITER_MAX_TOKENS} tokens"
+    text = _strip_think(choice.message.content or "")
+    return text, _usage(resp), "" if text else "returned no text"
+
+
+def _usage(resp) -> int:
+    return getattr(getattr(resp, "usage", None), "total_tokens", 0) or 0
 
 
 def fixed_plan(tools: CaseTools, search: bool = True) -> list[ToolCall]:
@@ -162,16 +248,6 @@ def _offline_report(tools: CaseTools, why: str | None = None, tokens: int = 0) -
     if why is None:
         return CaseReport(offline_summary(facts), trace, "offline")
     return CaseReport(offline_summary(facts, why), trace, "offline", tokens=tokens, notes=[why])
-
-
-def _fixed_plan_report(tools: CaseTools, client, model: str, why: str) -> CaseReport:
-    trace = fixed_plan(tools)
-    refs = next((c.result.get("results") for c in trace if c.name == "search_literature"), None)
-    try:
-        text = summarize(_facts(tools, trace), refs, model, client)
-    except Exception as e:
-        return _offline_report(tools, unavailable(e))
-    return CaseReport(text, trace, "fixed plan", model, notes=[why])
 
 
 HTTP_REASONS = {401: "invalid API key", 402: "out of credit", 403: "access denied",
@@ -232,12 +308,6 @@ def tavily_search(genes: list[str], cancer: str, topic: str = "prognosis",
             for r in res.get("results", [])]
 
 
-def literature(features: list[tuple[str, float]], cancer: str, k: int = 3) -> list[dict]:
-    if not os.getenv("TAVILY_API_KEY"):
-        return []
-    return tavily_search([n for n, _ in features[:3]], cancer, "prognosis", k)
-
-
 def offline_summary(facts: dict,
                     why: str = "set NEBIUS_API_KEY for the Nemotron-written report") -> str:
     drivers = sorted(facts["modality_contributions_log_risk"].items(), key=lambda kv: -abs(kv[1]))
@@ -248,27 +318,6 @@ def offline_summary(facts: dict,
     return "\n\n".join(lines)  # blank lines so st.markdown keeps them as separate paragraphs
 
 
-def summarize(facts: dict, refs: list[dict] | None = None, model: str = DEFAULT_MODEL,
-              client=None) -> str:
-    """Single-call summary of precomputed facts (no tools); the agent's fallback. API errors
-    (including ``BudgetExceeded``) propagate; ``run_case_agent`` turns them into the offline
-    report."""
-    if client is None:
-        if not os.getenv("NEBIUS_API_KEY"):
-            return offline_summary(facts)
-        client = make_client()
-    user = "Model output (JSON):\n" + json.dumps(facts, indent=2)
-    if refs:
-        user += "\n\nCandidate literature (cite only these, by URL):\n" + json.dumps(refs, indent=2)
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-        temperature=0.2,
-        max_tokens=700,
-    )
-    return _strip_think(resp.choices[0].message.content or "")
-
-
 def _list_models():
     for m in make_client().models.list():
         if "nemotron" in m.id.lower() or "nvidia" in m.id.lower():
@@ -276,7 +325,7 @@ def _list_models():
 
 
 def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
-               config: str | None = None):
+               config: str | None = None, writer: str = WRITER_MODEL):
     """Run the agent on one patient of a cohort and print the tool trace and the note."""
     from pathlib import Path
 
@@ -295,8 +344,13 @@ def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
     search = tavily_search if os.getenv("TAVILY_API_KEY") else None
     c = float(np.mean(list(heldout_c_index(model, Path(data), n_clients, cfg).values())))
     report = run_case_agent(CaseTools(model, x, ds.mask[patient : patient + 1], risks, cancer,
-                                      feature_names(cohort, cfg["modalities"]), c, search))
-    print(f"mode={report.mode} model={report.model} tokens={report.tokens} notes={report.notes}")
+                                      feature_names(cohort, cfg["modalities"]), c, search),
+                            writer=writer)
+    print(f"mode={report.mode} planner={report.model} writer={report.writer} "
+          f"tokens={report.tokens} revised={report.revised} notes={report.notes}")
+    if report.mode != "offline":
+        print("grounding: " + (describe(report.issues) if report.issues else "every number, "
+                               "gene and link is in the tool outputs"))
     for c in report.trace:
         print(f"[{c.round}] {c.name}({json.dumps(c.arguments)}) -> {json.dumps(c.result)}")
     print("\n" + report.text)
@@ -314,12 +368,11 @@ if __name__ == "__main__":
                    help="sites whose validation splits give the held-out C-index (as the demo)")
     p.add_argument("--config", default=None,
                    help="only for checkpoints without a stored config (raw NVFlare models)")
+    p.add_argument("--writer", default=WRITER_MODEL, help="model that writes the note")
     a = p.parse_args()
     if a.list_models:
         _list_models()
     elif a.agent:
-        _agent_cli(a.ckpt, a.data, a.patient, a.cancer, a.n_clients, a.config)
+        _agent_cli(a.ckpt, a.data, a.patient, a.cancer, a.n_clients, a.config, a.writer)
     else:
-        demo = build_facts("breast", 0.84, 81.0, {"rna": 0.41, "clinical": 0.22, "genomic": 0.05},
-                           [("ESR1", -0.12), ("MKI67", 0.09)], 0.71)
-        print(summarize(demo))
+        p.print_help()

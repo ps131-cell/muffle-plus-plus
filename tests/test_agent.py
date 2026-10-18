@@ -11,7 +11,7 @@ import torch
 from muffle.models import MuffleNet
 from muffle.report import nemotron
 from muffle.report.case_tools import CaseTools
-from muffle.report.nemotron import MAX_TOKENS, run_case_agent
+from muffle.report.nemotron import MAX_TOKENS, WRITER_MAX_TOKENS, run_case_agent
 from tests.conftest import SMALL_DIMS
 
 
@@ -29,12 +29,12 @@ class FakeClient:
         return step(kw) if callable(step) else step
 
 
-def reply(content=None, calls=(), tokens=100):
+def reply(content=None, calls=(), tokens=100, finish_reason="stop"):
     tool_calls = [SimpleNamespace(id=f"call_{name}_{i}", type="function",
                                   function=SimpleNamespace(name=name, arguments=json.dumps(args)))
                   for i, (name, args) in enumerate(calls)]
     msg = SimpleNamespace(content=content, tool_calls=tool_calls or None)
-    return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+    return SimpleNamespace(choices=[SimpleNamespace(message=msg, finish_reason=finish_reason)],
                            usage=SimpleNamespace(total_tokens=tokens))
 
 
@@ -69,28 +69,39 @@ def test_tool_call_round_trip():
         reply(calls=[("predict_risk", {}), ("modality_contributions", {})]),
         reply(calls=[("top_features", {"modality": "rna", "k": 3})]),
         search_top_genes,
+        reply("DONE"),
         reply("<think>plan</think>**Summary** high risk.\n\n**Literature** https://example.org/a"),
     )
-    report = run_case_agent(tools, client=client, model="nvidia/test")
+    report = run_case_agent(tools, client=client, model="nvidia/test", writer="nvidia/writer")
 
     assert report.mode == "agent" and report.model == "nvidia/test"
+    assert report.writer == "nvidia/writer" and not report.issues and not report.revised
     assert report.text.startswith("**Summary**") and "<think>" not in report.text
     assert [c.name for c in report.trace] == ["predict_risk", "modality_contributions",
                                               "top_features", "search_literature"]
     assert [c.round for c in report.trace] == [1, 1, 2, 3]
-    assert report.tokens == 400 and len(client.calls) == 4
+    assert report.tokens == 500 and len(client.calls) == 5
     assert all("error" not in c.result for c in report.trace)
     assert report.trace[0].result["risk_group"] in {"low", "medium", "high"}
     assert "protein" not in report.trace[1].result["log_risk_added_by_layer"]
     assert len(report.trace[2].result["features"]) == 3
     assert searched and searched[0][1:] == ("breast", "prognosis")
 
-    for kw in client.calls:
+    planner, writer = client.calls[:-1], client.calls[-1]
+    for kw in planner:
+        assert kw["model"] == "nvidia/test"
         assert kw["max_tokens"] <= MAX_TOKENS and kw["tool_choice"] == "auto"
         assert {t["function"]["name"] for t in kw["tools"]} == {
             "predict_risk", "modality_contributions", "top_features", "search_literature"}
+    # the writer gets every tool output, without tools and without the tools' reading notes
+    assert writer["model"] == "nvidia/writer" and "tools" not in writer
+    assert writer["max_tokens"] == WRITER_MAX_TOKENS
+    evidence = writer["messages"][1]["content"]
+    assert "https://example.org/a" in evidence and "cohort_percentile" in evidence
+    assert '"note"' not in evidence and "not an omic layer" in evidence
+    assert '"log_risk":' not in evidence and "cohort_median_log_risk" not in evidence
     # every tool call is answered with its id, in order
-    final = client.calls[-1]["messages"]
+    final = planner[-1]["messages"]
     asked = [c["id"] for m in final if m["role"] == "assistant" for c in m["tool_calls"]]
     answered = [m["tool_call_id"] for m in final if m["role"] == "tool"]
     assert asked == answered and len(answered) == 4
@@ -102,11 +113,65 @@ def test_tool_call_round_trip():
 
 
 def test_tool_rounds_are_capped():
-    client = FakeClient(lambda kw: reply("final note") if kw["tool_choice"] == "none"
+    client = FakeClient(lambda kw: reply("final note") if "tools" not in kw
                         else reply(calls=[("predict_risk", {})]))
     report = run_case_agent(make_tools(), client=client, max_rounds=2)
-    assert len(client.calls) == 3 and client.calls[-1]["tool_choice"] == "none"
+    assert len(client.calls) == 3 and "tools" not in client.calls[-1]
     assert report.text == "final note" and len(report.trace) == 2
+
+
+def test_planner_without_risk_gets_the_fixed_plan():
+    client = FakeClient(reply("DONE"), reply("**Summary** note"))
+    report = run_case_agent(make_tools(), client=client)
+    assert [c.name for c in report.trace] == ["predict_risk", "modality_contributions",
+                                              "top_features"]
+    assert report.mode == "agent" and "fixed tool sequence" in report.notes[0]
+
+
+def test_writer_failure_falls_back_to_the_planner_model():
+    def writer_down(kw):
+        if kw["model"] == "nvidia/writer":
+            raise ApiError(404)
+        return reply("**Summary** written by the planner model")
+
+    client = FakeClient(reply(calls=[("predict_risk", {})]), reply("DONE"), writer_down)
+    report = run_case_agent(make_tools(), client=client, model="nvidia/test",
+                            writer="nvidia/writer")
+    assert report.mode == "agent" and report.writer == "nvidia/test"
+    assert report.text.startswith("**Summary** written by the planner")
+    assert report.notes == ["writer nvidia/writer: Token Factory unavailable (HTTP 404)"]
+
+
+def test_cut_off_note_falls_back_to_the_planner_model():
+    def writer(kw):
+        if kw["model"] == "nvidia/writer":
+            return reply("**Summary** half a no", finish_reason="length")
+        return reply("**Summary** whole note")
+
+    client = FakeClient(reply(calls=[("predict_risk", {})]), reply("DONE"), writer)
+    report = run_case_agent(make_tools(), client=client, model="nvidia/test",
+                            writer="nvidia/writer")
+    assert report.text == "**Summary** whole note" and report.writer == "nvidia/test"
+    assert "cut off" in report.notes[0]
+
+
+def test_grounding_check_asks_for_one_rewrite():
+    invented = "**Summary** 99th percentile; see BRCA1 and https://made.up/paper."
+    client = FakeClient(reply(calls=[("predict_risk", {})]), reply("DONE"), reply(invented),
+                        reply("**Summary** the tools' numbers only."))
+    report = run_case_agent(make_tools(), client=client)
+    assert report.revised and report.issues == [] and "tools' numbers" in report.text
+    fix = client.calls[-1]["messages"][-1]["content"]
+    assert "99th" in fix and "BRCA1" in fix and "https://made.up/paper" in fix
+
+
+def test_unhelpful_rewrite_keeps_the_note_and_its_issues():
+    invented = "**Summary** risk 0.987, gene TP53."
+    client = FakeClient(reply(calls=[("predict_risk", {})]), reply("DONE"), reply(invented))
+    report = run_case_agent(make_tools(), client=client)
+    assert not report.revised and report.text == invented
+    assert {i["text"] for i in report.issues} == {"0.987", "TP53"}
+    assert len(client.calls) == 4  # planner x2, writer, one rewrite
 
 
 def test_rejected_tool_calling_falls_back_to_fixed_plan():
@@ -150,7 +215,7 @@ def test_bad_tool_calls_return_errors():
 def test_predict_risk_points_to_percentile_not_sign():
     r = make_tools().predict_risk()
     assert "cohort_median_log_risk" in r and "not by the sign" in r["note"]
-    assert "sign of log_risk" in nemotron.AGENT_SYSTEM
+    assert {"log_risk", "cohort_median_log_risk"} <= nemotron.WRITER_DROPS
 
 
 def test_zero_score_features_are_dropped_and_not_searched():

@@ -2,6 +2,34 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Case agent: Super plans, Ultra writes, a grounding check verifies the note
+- **What:** Nemotron 3 Super runs the tool loop (up to 4 rounds) and replies DONE. Nemotron 3
+  Ultra (`NEMOTRON_WRITER_MODEL`, 3,000 max tokens including its reasoning) gets the case header
+  and the tool outputs, without log-risk values or the tools' reading notes, and writes the
+  note. `muffle.report.grounding.check_note` (no LLM) then looks for numbers, gene/feature names
+  and URLs in the note that no tool returned. If it finds any, the writer gets one rewrite;
+  whatever remains is shown under the note in the demo. If Ultra fails, returns nothing or is
+  cut off at the token limit, Super writes the note. Ultra is priced at $1 / $3 per 1M tokens
+  in the spending cap (price trackers; unverified on the Nebius console).
+- **Why:** the Best Apps and Agents track text (Devpost, re-read today) says to "reach for
+  Nemotron 3 Ultra when you need serious reasoning, and let Nano or Super handle the fast,
+  everyday calls". The check makes "the note cites only tool outputs" something the demo can
+  show, not just a prompt instruction.
+- **Result (live, TCGA, 5 patients from the 10th to the 99th percentile, both writers on the
+  same tool results):** after the prompt fixes all 10 notes passed the check with no rewrite.
+  Ultra's notes are a little richer (feature scores, cohort size). A report costs about $0.01
+  with Ultra (about $0.003 with Super alone) and takes 7–10 s. The first run showed what the
+  fixes address: both models left the clinical layer out of Drivers, notes repeated log-risk
+  values and double negatives ("lowered by −0.12"), and one Ultra note was cut off at 2,000
+  tokens. This work cost $0.11 of the cap.
+- **Open:** a layer's contribution is measured against the same patient with that layer masked
+  out, so a high-risk patient can show every layer "lowering" risk (seen at the 70th and 90th
+  percentiles). Report contributions relative to the cohort average instead (demo work, step 2).
+- **Rules re-check (2026-10-18):** the Submission Period began Aug 26, so the repo is a new
+  project. A project can win one Overall or Track award plus one Bonus award. Best Use of
+  Tavily needs a runtime Tavily call (we have no key yet). There is a Most Valuable Feedback
+  prize ($100 + swag, 10 winners), so keep a running feedback log.
+
 ## 2026-10-18 — Nemotron model, and a hard $25.50 Token Factory spending cap
 - **Model:** `nvidia/nemotron-3-super-120b-a12b` (`NEMOTRON_MODEL`). Token Factory lists five
   Nemotron ids (3 Nano 30B-A3B, 3.5 Lightning, 3 Super 120B-A12B, 3 Ultra 550B, 3.5 Super VL);
