@@ -1,8 +1,10 @@
 import json
 
 import numpy as np
+import torch
 import yaml
 
+from muffle.data.dataset import MultiOmicDataset
 from muffle.config import DEFAULT_CONFIG, MODALITIES, load_config
 from muffle.data.partition import partition_cohort, split_by_group
 from muffle.experiment import leave_one_site_out
@@ -89,3 +91,33 @@ def test_leave_one_site_out_without_fl(cohort, tmp_path):
     for scores in res.values():
         assert set(scores) == {"site-1", "site-2", "site-3", "pooled"}
         assert 0 <= scores["pooled"] <= 1
+
+
+def test_residual_model_anchors_on_clinical(cohort, small_cfg):
+    from muffle.residual import LAMBDAS, fit_residual, two_stage
+
+    cfg = {**small_cfg, "model": {**small_cfg["model"], "fusion": "additive",
+                                  "always_keep": ["clinical"], "modality_dropout": 0.5},
+           "train": {**small_cfg["train"], "epochs": 2}}
+    ds = MultiOmicDataset(cohort, cfg["modalities"])
+    model = two_stage(ds, cfg)
+    x, mask = ds.x, ds.mask
+    model.eval()
+    model.residual_scale = 0.0  # anchor only: omic inputs must not matter
+    with torch.no_grad():
+        y0 = model(x, mask)
+        y1 = model({**x, "rna": torch.randn_like(x["rna"]) * 50}, mask)
+    assert torch.allclose(y0, y1, atol=1e-5)
+    model, lam, scores = fit_residual(ds, cfg)
+    assert lam in LAMBDAS and set(scores) == set(LAMBDAS) and model.residual_scale == lam
+
+
+def test_inner_split_holds_out_whole_sites():
+    from muffle.residual import inner_split
+
+    groups = np.repeat(np.array(list("ABCDEFGH")), 10)
+    tr, va = inner_split(len(groups), 0.2, 0, groups)
+    assert sorted(tr + va) == list(range(80)) and len(va) >= 16
+    assert not set(groups[tr]) & set(groups[va])  # no site on both sides
+    tr, va = inner_split(80, 0.2, 0)  # no sites: random patients
+    assert len(va) == 16

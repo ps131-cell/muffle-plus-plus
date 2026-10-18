@@ -17,7 +17,10 @@ from nvflare.app_opt.pt.recipes.fedavg import FedAvgRecipe
 from nvflare.recipe.sim_env import SimEnv
 
 from muffle.config import load_config
+from muffle.data.dataset import MultiOmicDataset
 from muffle.experiment import FL_CKPT, fl_rounds
+from muffle.models import MuffleNet
+from muffle.residual import federated_lambda
 from muffle.train_local import client_dir, site_files
 
 CLIENT_SCRIPT = Path(__file__).resolve().parents[1] / "src" / "muffle" / "fl" / "client.py"
@@ -36,6 +39,9 @@ def main():
                    help="use these site-1..site-n.npz instead of partitioning --data")
     p.add_argument("--workspace", default="workspaces")
     p.add_argument("--gpu", default=None, help="e.g. 0, or 0,1 to spread clients over GPUs")
+    p.add_argument("--residual", action="store_true",
+                   help="clinical-anchored residual model: `rounds` anchor-only rounds, then "
+                        "`rounds` more for the other layers; --save also picks λ (federated)")
     p.add_argument("--save", type=Path, default=None,
                    help="also save the final global model with its config (for the app/agent)")
     args = p.parse_args()
@@ -61,6 +67,9 @@ def main():
         train_args += f" --prox-mu {args.prox_mu}"
     if args.seed is not None:
         train_args += f" --seed {args.seed}"
+    rounds = args.rounds or fl_rounds(cfg)
+    if args.residual:
+        train_args += f" --residual-from {rounds}"
 
     recipe = FedAvgRecipe(
         name="muffle_fedavg",
@@ -68,7 +77,7 @@ def main():
         model={"class_path": "muffle.models.fusion.MuffleNet",
                "args": {"modality_dims": cfg["modalities"], **cfg["model"]}},
         min_clients=args.n_clients,
-        num_rounds=args.rounds or fl_rounds(cfg),
+        num_rounds=2 * rounds if args.residual else rounds,
         train_script=str(CLIENT_SCRIPT),
         train_args=train_args,
         key_metric="c_index",  # keep the best global model by validation C-index
@@ -84,6 +93,15 @@ def main():
     print("result:", run.get_result())
     if args.save:
         blob = torch.load(Path(args.workspace) / FL_CKPT, map_location="cpu", weights_only=False)
+        if args.residual:
+            model = MuffleNet.from_config(cfg)
+            model.load_state_dict({k: torch.as_tensor(v) for k, v in blob["model"].items()})
+            sites = [MultiOmicDataset(f, cfg["modalities"]).split(
+                cfg["train"]["val_fraction"], cfg["train"]["seed"])[0]
+                for f in sorted(data_dir.glob("site-*.npz"))]
+            lam, scores = federated_lambda(model, sites, cfg)
+            cfg["model"]["residual_scale"] = lam
+            print(f"residual scale λ = {lam} (federated inner C-index {scores})")
         args.save.parent.mkdir(parents=True, exist_ok=True)
         torch.save({"model": blob["model"], "config": cfg}, args.save)
         print(f"saved final global model + config -> {args.save}")
