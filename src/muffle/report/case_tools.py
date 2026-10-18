@@ -1,0 +1,163 @@
+"""Tools the Nemotron case agent can call, bound to one patient.
+
+Each tool runs our own code locally (the trained MuffleNet, ``muffle.explain``, Tavily) and
+returns a small JSON-able dict. Tool results are sent to Token Factory, so they hold only derived
+numbers (log-risk, percentile, contributions, attribution scores) and feature/gene names — never
+the patient's raw omics values.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+
+import numpy as np
+import torch
+
+from muffle import explain
+from muffle.models import MuffleNet
+
+MAX_FEATURES = 10
+MAX_SEARCH_GENES = 5
+TOPICS = ("prognosis", "clinical_trials")
+
+# search(genes, cancer, topic, k) -> [{"title", "url", "snippet"}]; see nemotron.tavily_search
+Search = Callable[[list[str], str, str, int], list[dict]]
+
+
+def _fn(name: str, description: str, properties: dict | None = None,
+        required: list[str] | None = None) -> dict:
+    return {"type": "function", "function": {
+        "name": name, "description": description,
+        "parameters": {"type": "object", "properties": properties or {},
+                       "required": required or []}}}
+
+
+class CaseTools:
+    """The agent's view of one case. ``call(name, arguments)`` never raises: bad calls come back
+    as ``{"error": ...}`` so the model can correct itself."""
+
+    def __init__(self, model: MuffleNet, x: dict[str, torch.Tensor], mask: torch.Tensor,
+                 cohort_risks: np.ndarray, cancer: str,
+                 feature_names: dict[str, list[str]] | None = None,
+                 c_index: float | None = None, search: Search | None = None):
+        self.model, self.x, self.mask = model.eval(), x, mask
+        self.cohort = np.asarray(cohort_risks, dtype=float)
+        self.cancer, self.c_index = cancer, c_index
+        self.names = feature_names or {}
+        self.search = search
+        self.available = [m for j, m in enumerate(model.names) if mask[0, j] > 0]
+        self.missing = [m for m in model.names if m not in self.available]
+        self._seen: set[str] = set()  # names top_features returned; search is limited to them
+
+    @property
+    def can_search(self) -> bool:
+        """Literature search only makes sense with real gene names (not synthetic indices)."""
+        return self.search is not None and bool(self.names)
+
+    def case_header(self) -> dict:
+        return {
+            "cancer_type": self.cancer,
+            "available_data_layers": self.available,
+            "missing_data_layers": self.missing,
+            "model": "MuFFLe++ DeepSurv (Cox) on masked multi-omic fusion, trained with "
+                     "federated averaging across hospitals without sharing patient data",
+            "model_validation_c_index": None if self.c_index is None else round(self.c_index, 3),
+            "feature_names": "gene/feature symbols" if self.names
+                             else "anonymous indices (synthetic data), not gene names",
+        }
+
+    def specs(self) -> list[dict]:
+        specs = [
+            _fn("predict_risk", "Predicted log-risk for this patient, its percentile in the "
+                "cohort, and the risk group (cohort tertiles)."),
+            _fn("modality_contributions", "How much each available data layer moves the "
+                "predicted log-risk (log-risk drop when that layer is masked out)."),
+            _fn("top_features", "Top features of one data layer by gradient x input attribution "
+                "(positive pushes risk up).",
+                {"modality": {"type": "string", "enum": self.available},
+                 "k": {"type": "integer", "minimum": 1, "maximum": MAX_FEATURES}},
+                ["modality"]),
+        ]
+        if self.can_search:
+            specs.append(_fn(
+                "search_literature", f"Web search (Tavily) for publications or clinical trials "
+                f"on up to {MAX_SEARCH_GENES} genes returned by top_features, in this cancer type.",
+                {"genes": {"type": "array", "items": {"type": "string"},
+                           "maxItems": MAX_SEARCH_GENES},
+                 "topic": {"type": "string", "enum": list(TOPICS)}},
+                ["genes"]))
+        return specs
+
+    def call(self, name: str, arguments: str | dict | None) -> dict:
+        tools = {s["function"]["name"]: getattr(self, s["function"]["name"]) for s in self.specs()}
+        if name not in tools:
+            return {"error": f"unknown tool {name!r}; available: {sorted(tools)}"}
+        args = parse_arguments(arguments)
+        if args is None:
+            return {"error": "arguments must be a JSON object"}
+        try:
+            return tools[name](**args)
+        except (TypeError, ValueError) as e:
+            return {"error": str(e)}
+
+    # --- tools -----------------------------------------------------------------------------
+
+    def predict_risk(self) -> dict:
+        with torch.no_grad():
+            risk = self.model(self.x, self.mask).item()
+        lo, hi = np.quantile(self.cohort, [1 / 3, 2 / 3])
+        group = "low" if risk <= lo else "medium" if risk <= hi else "high"
+        return {
+            "log_risk": round(risk, 3),
+            "cohort_percentile": round(explain.risk_percentile(risk, self.cohort), 1),
+            "risk_group": group,
+            "cohort_size": len(self.cohort),
+            "note": "Cox log-risk is relative to the cohort: higher means shorter expected "
+                    "survival; it is not an absolute probability.",
+        }
+
+    def modality_contributions(self) -> dict:
+        _, contrib = explain.modality_contributions(self.model, self.x, self.mask)
+        out = {"delta_log_risk_when_removed": {m: round(v, 3) for m, v in contrib.items()},
+               "available_data_layers": self.available, "missing_data_layers": self.missing,
+               "note": "positive = this layer raises the predicted risk"}
+        if not contrib:
+            out["note"] = "only one data layer is available, so contributions are undefined"
+        return out
+
+    def top_features(self, modality: str, k: int = 5) -> dict:
+        if modality not in self.available:
+            raise ValueError(f"modality must be one of the available layers {self.available}")
+        k = max(1, min(int(k), MAX_FEATURES))
+        feats = explain.top_features(self.model, self.x, self.mask, modality,
+                                     self.names.get(modality), k)
+        self._seen.update(n for n, _ in feats)
+        return {"modality": modality, "method": "gradient x input",
+                "features": [{"name": n, "score": round(s, 4)} for n, s in feats],
+                "note": "positive score pushes risk up"}
+
+    def search_literature(self, genes: list[str], topic: str = "prognosis") -> dict:
+        if topic not in TOPICS:
+            raise ValueError(f"topic must be one of {list(TOPICS)}")
+        genes = [g for g in genes if isinstance(g, str)][:MAX_SEARCH_GENES]
+        unknown = [g for g in genes if g not in self._seen]
+        if not genes or unknown:
+            raise ValueError("genes must come from earlier top_features results"
+                             + (f"; not returned yet: {unknown}" if unknown else ""))
+        try:
+            results = self.search(genes, self.cancer, topic, 3)
+        except Exception as e:  # network/quota errors shouldn't sink the report
+            return {"error": f"literature search failed ({type(e).__name__})"}
+        return {"genes": genes, "topic": topic, "results": results}
+
+
+def parse_arguments(arguments: str | dict | None) -> dict | None:
+    """Tool-call arguments arrive as a JSON string (OpenAI format); None if not an object."""
+    if isinstance(arguments, dict):
+        return arguments
+    try:
+        args = json.loads(arguments or "{}")
+    except json.JSONDecodeError:
+        return None
+    return args if isinstance(args, dict) else None
