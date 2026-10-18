@@ -2,6 +2,26 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — Nemotron model, and a hard $25.50 Token Factory spending cap
+- **Model:** `nvidia/nemotron-3-super-120b-a12b` (`NEMOTRON_MODEL`). Token Factory lists five
+  Nemotron ids (3 Nano 30B-A3B, 3.5 Lightning, 3 Super 120B-A12B, 3 Ultra 550B, 3.5 Super VL);
+  Super ran the case agent with tool calling on the first try: TCGA patients 0 and 5 gave
+  `mode=agent`, 3 tool calls, ~4.8k tokens, about $0.002 per report. Ultra wasn't tried (cost).
+- **Spending cap:** every live call goes through `muffle.report.budget`. It reserves the
+  worst-case cost before sending (input estimated at 2 characters per token, plus the full
+  `max_tokens`), swaps in the real cost from `usage` afterwards, and refuses any call that could
+  take total spend past $25.50; the report then falls back to the offline template.
+  `TOKEN_FACTORY_BUDGET_USD` can lower the cap but not raise it. Prices: Super at $0.30 / $0.90
+  per 1M input / output tokens (price trackers; the official page needs a login); other models
+  are charged a deliberately high $3 / $9 until their real price is added.
+- **Why:** the Token Factory account has a bank card that is charged automatically when the
+  balance goes negative, and the team only wants to spend the $25 promo credit.
+- **Limits:** the ledger (`~/.muffle/token_factory_spend.json`) only counts calls made by this
+  code on this Mac; add console-playground or other usage with
+  `python -m muffle.report.budget --add <USD>`. On Streamlit Community Cloud the ledger lives
+  in the container and resets on restart, so give the hosted app a low
+  `TOKEN_FACTORY_BUDGET_USD` secret and check the Usage tab in the Nebius console.
+
 ## 2026-10-18 — Pitch, demo model, endpoint, hosting, merging and video
 - **Pitch:** lead with federation: on leave-one-site-out, FedAvg-residual matches pooled
   training (0.693 ± 0.017 vs 0.700 ± 0.012; the gap is below the ~0.01 by which identical
@@ -157,4 +177,4 @@ Newest at the top. One entry per decision: date, what, why.
 ## Open questions
 - [ ] First cancer: BRCA (most data) — confirm. BLCA second only if time allows.
 - [x] Demo hosting: Streamlit Community Cloud (2026-10-18 entry).
-- [ ] Which Nemotron id on Token Factory (run `--list-models`).
+- [x] Which Nemotron id on Token Factory: `nvidia/nemotron-3-super-120b-a12b` (2026-10-18 entry).

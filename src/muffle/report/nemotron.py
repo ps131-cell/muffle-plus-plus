@@ -4,8 +4,9 @@ The federated model produces the numbers; Nemotron decides which of them to look
 case header (cancer type, which data layers exist), calls tools from ``case_tools`` — risk and
 percentile, per-layer contributions, top features, and Tavily literature/trial search when gene
 names are known — then writes a cautious summary citing only those tool outputs. Tool rounds and
-tokens are capped per report (free hackathon credits). Only derived numbers and gene names are
-sent, never raw omics.
+tokens are capped per report, and every call counts against a hard $25.50 spending cap
+(``budget``; once reached, reports fall back to the offline template). Only derived numbers and
+gene names are sent, never raw omics.
 
 Without NEBIUS_API_KEY the same tools run in a fixed order and the offline template is returned,
 so tests and the demo work with no network.
@@ -25,12 +26,13 @@ from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
+from muffle.report.budget import BudgetedClient, BudgetExceeded
 from muffle.report.case_tools import CaseTools, parse_arguments
 
 load_dotenv()  # repo-root .env (git-ignored); real environment variables take precedence
 
 TOKEN_FACTORY_URL = os.getenv("TOKEN_FACTORY_BASE_URL", "https://api.tokenfactory.nebius.com/v1")
-DEFAULT_MODEL = os.getenv("NEMOTRON_MODEL", "nvidia/Nemotron-3-Nano")  # check --list-models
+DEFAULT_MODEL = os.getenv("NEMOTRON_MODEL") or "nvidia/nemotron-3-super-120b-a12b"
 
 MAX_TOOL_ROUNDS = 4       # model turns that may call tools; one more turn writes the report
 MAX_CALLS_PER_ROUND = 4   # extra parallel calls in one turn are dropped
@@ -40,7 +42,9 @@ SYSTEM = (
     "You are an oncology research assistant summarizing output from a federated survival model "
     "for a tumor board. Be precise and cautious: this is a research prototype, not a diagnosis. "
     "Explain the risk estimate, which data layers drove it, and what would change confidence. "
-    "Never invent patient details. Use short sections: Summary, Drivers, Caveats, Literature."
+    "Never invent patient details. Use short sections: Summary, Drivers, Caveats, Literature. "
+    "In Literature cite only the candidate URLs given to you; if none are given, say that no "
+    "search was run. Never invent papers."
 )
 
 AGENT_SYSTEM = (
@@ -79,7 +83,8 @@ class CaseReport:
 def make_client():
     from openai import OpenAI
 
-    return OpenAI(base_url=TOKEN_FACTORY_URL, api_key=os.environ["NEBIUS_API_KEY"], timeout=60)
+    return BudgetedClient(OpenAI(base_url=TOKEN_FACTORY_URL, api_key=os.environ["NEBIUS_API_KEY"],
+                                 timeout=60))
 
 
 def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
@@ -89,8 +94,7 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
     offline template is returned."""
     if client is None:
         if not os.getenv("NEBIUS_API_KEY"):
-            trace = fixed_plan(tools, search=False)
-            return CaseReport(offline_summary(_facts(tools, trace)), trace, "offline")
+            return _offline_report(tools)
         client = make_client()
 
     messages = [{"role": "system", "content": AGENT_SYSTEM},
@@ -106,6 +110,8 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
             resp = client.chat.completions.create(
                 model=model, messages=messages, tools=specs,
                 tool_choice="none" if last else "auto", temperature=0.2, max_tokens=max_tokens)
+        except BudgetExceeded as e:
+            return _offline_report(tools, str(e), tokens)
         except Exception as e:
             if rnd > 1 or getattr(e, "status_code", None) != 400:
                 raise
@@ -145,6 +151,14 @@ def fixed_plan(tools: CaseTools, search: bool = True) -> list[ToolCall]:
         args = {"genes": [f["name"] for f in trace[2].result["features"][:3]]}
         trace.append(ToolCall(0, "search_literature", args, tools.call("search_literature", args)))
     return trace
+
+
+def _offline_report(tools: CaseTools, why: str | None = None, tokens: int = 0) -> CaseReport:
+    trace = fixed_plan(tools, search=False)
+    facts = _facts(tools, trace)
+    if why is None:
+        return CaseReport(offline_summary(facts), trace, "offline")
+    return CaseReport(offline_summary(facts, why), trace, "offline", tokens=tokens, notes=[why])
 
 
 def _fixed_plan_report(tools: CaseTools, client, model: str, why: str) -> CaseReport:
@@ -203,12 +217,13 @@ def literature(features: list[tuple[str, float]], cancer: str, k: int = 3) -> li
     return tavily_search([n for n, _ in features[:3]], cancer, "prognosis", k)
 
 
-def offline_summary(facts: dict) -> str:
+def offline_summary(facts: dict,
+                    why: str = "set NEBIUS_API_KEY for the Nemotron-written report") -> str:
     drivers = sorted(facts["modality_contributions_log_risk"].items(), key=lambda kv: -abs(kv[1]))
     lines = [f"Summary: risk at the {facts['risk_percentile_vs_cohort']:.0f}th percentile of the "
              f"{facts['cancer_type']} cohort.",
              "Drivers: " + ", ".join(f"{m} ({v:+.2f})" for m, v in drivers),
-             "Caveats: offline template — set NEBIUS_API_KEY for the Nemotron-written report."]
+             f"Caveats: offline template — {why}."]
     return "\n\n".join(lines)  # blank lines so st.markdown keeps them as separate paragraphs
 
 
@@ -222,12 +237,15 @@ def summarize(facts: dict, refs: list[dict] | None = None, model: str = DEFAULT_
     user = "Model output (JSON):\n" + json.dumps(facts, indent=2)
     if refs:
         user += "\n\nCandidate literature (cite only these, by URL):\n" + json.dumps(refs, indent=2)
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-        temperature=0.2,
-        max_tokens=700,
-    )
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
+            temperature=0.2,
+            max_tokens=700,
+        )
+    except BudgetExceeded as e:
+        return offline_summary(facts, str(e))
     return _strip_think(resp.choices[0].message.content or "")
 
 
