@@ -10,7 +10,8 @@ from muffle.data.partition import partition_cohort, split_by_group
 from muffle.experiment import leave_one_site_out
 from muffle.experiment import main as experiment
 from muffle.metrics import concordance_counts, concordance_index, stratified_concordance
-from muffle.train_local import client_dir, site_files
+from muffle.models import MuffleNet
+from muffle.train_local import client_dir, heldout_c_index, site_files
 from tests.conftest import SMALL_DIMS
 
 
@@ -121,3 +122,12 @@ def test_inner_split_holds_out_whole_sites():
     assert not set(groups[tr]) & set(groups[va])  # no site on both sides
     tr, va = inner_split(80, 0.2, 0)  # no sites: random patients
     assert len(va) == 16
+
+
+def test_heldout_c_index_per_site(cohort, tmp_path):
+    cfg = load_config()
+    cfg["modalities"] = SMALL_DIMS
+    cfg["model"].update(hidden=16, latent=4, head_hidden=4)
+    np.savez_compressed(tmp_path / "cohort.npz", **cohort)
+    res = heldout_c_index(MuffleNet.from_config(cfg), tmp_path, 3, cfg)
+    assert set(res) == {"site-1", "site-2", "site-3"} and all(0 <= v <= 1 for v in res.values())

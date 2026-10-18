@@ -53,6 +53,8 @@ AGENT_SYSTEM = (
     "model's outputs for this case. Call only the tools you need, a few at a time: usually the "
     "risk first, then which data layers drove it, then the top features of the most influential "
     "layer(s), then literature on those genes if a search tool is offered.\n"
+    "Describe the patient's risk by cohort_percentile and risk_group; the sign of log_risk means "
+    "nothing on its own.\n"
     "When done, write the note in Markdown with exactly these sections: **Summary**, **Drivers**, "
     "**Caveats**, **Literature**. Cite only numbers, features and references returned by tools; "
     "never invent patient details, genes or papers. In Literature list only URLs returned by "
@@ -143,11 +145,11 @@ def fixed_plan(tools: CaseTools, search: bool = True) -> list[ToolCall]:
     """The tool sequence the agent usually picks, run without an LLM (offline / fallback)."""
     trace = [ToolCall(0, n, {}, tools.call(n, {}))
              for n in ("predict_risk", "modality_contributions")]
-    contrib = trace[1].result.get("delta_log_risk_when_removed") or {}
+    contrib = trace[1].result.get("log_risk_added_by_layer") or {}
     strongest = max(contrib, key=lambda m: abs(contrib[m])) if contrib else tools.available[0]
     args = {"modality": strongest, "k": 5}
     trace.append(ToolCall(0, "top_features", args, tools.call("top_features", args)))
-    if search and tools.can_search:
+    if search and tools.can_search and trace[2].result.get("features"):
         args = {"genes": [f["name"] for f in trace[2].result["features"][:3]]}
         trace.append(ToolCall(0, "search_literature", args, tools.call("search_literature", args)))
     return trace
@@ -172,7 +174,7 @@ def _facts(tools: CaseTools, trace: list[ToolCall]) -> dict:
     r = {c.name: c.result for c in trace}
     return build_facts(tools.cancer, r["predict_risk"]["log_risk"],
                        r["predict_risk"]["cohort_percentile"],
-                       r["modality_contributions"]["delta_log_risk_when_removed"],
+                       r["modality_contributions"]["log_risk_added_by_layer"],
                        [(f["name"], f["score"]) for f in r["top_features"]["features"]],
                        tools.c_index)
 
@@ -255,14 +257,16 @@ def _list_models():
             print(m.id)
 
 
-def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, config: str | None = None):
+def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
+               config: str | None = None):
     """Run the agent on one patient of a cohort and print the tool trace and the note."""
     from pathlib import Path
 
+    import numpy as np
     import torch
 
     from muffle.data.dataset import MultiOmicDataset, feature_names
-    from muffle.train_local import load_model
+    from muffle.train_local import heldout_c_index, load_model
 
     model, cfg = load_model(Path(ckpt), config)
     cohort = Path(data) / "cohort.npz"
@@ -271,8 +275,9 @@ def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, config: str | No
         risks = model(ds.x, ds.mask).numpy()
     x = {m: v[patient : patient + 1] for m, v in ds.x.items()}
     search = tavily_search if os.getenv("TAVILY_API_KEY") else None
+    c = float(np.mean(list(heldout_c_index(model, Path(data), n_clients, cfg).values())))
     report = run_case_agent(CaseTools(model, x, ds.mask[patient : patient + 1], risks, cancer,
-                                      feature_names(cohort, cfg["modalities"]), search=search))
+                                      feature_names(cohort, cfg["modalities"]), c, search))
     print(f"mode={report.mode} model={report.model} tokens={report.tokens} notes={report.notes}")
     for c in report.trace:
         print(f"[{c.round}] {c.name}({json.dumps(c.arguments)}) -> {json.dumps(c.result)}")
@@ -287,13 +292,15 @@ if __name__ == "__main__":
     p.add_argument("--data", default="data/synthetic")
     p.add_argument("--patient", type=int, default=0)
     p.add_argument("--cancer", default="breast")
+    p.add_argument("--n-clients", type=int, default=3,
+                   help="sites whose validation splits give the held-out C-index (as the demo)")
     p.add_argument("--config", default=None,
                    help="only for checkpoints without a stored config (raw NVFlare models)")
     a = p.parse_args()
     if a.list_models:
         _list_models()
     elif a.agent:
-        _agent_cli(a.ckpt, a.data, a.patient, a.cancer, a.config)
+        _agent_cli(a.ckpt, a.data, a.patient, a.cancer, a.n_clients, a.config)
     else:
         demo = build_facts("breast", 0.84, 81.0, {"rna": 0.41, "clinical": 0.22, "genomic": 0.05},
                            [("ESR1", -0.12), ("MKI67", 0.09)], 0.71)

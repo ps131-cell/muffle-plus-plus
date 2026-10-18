@@ -81,7 +81,7 @@ def test_tool_call_round_trip():
     assert report.tokens == 400 and len(client.calls) == 4
     assert all("error" not in c.result for c in report.trace)
     assert report.trace[0].result["risk_group"] in {"low", "medium", "high"}
-    assert "protein" not in report.trace[1].result["delta_log_risk_when_removed"]
+    assert "protein" not in report.trace[1].result["log_risk_added_by_layer"]
     assert len(report.trace[2].result["features"]) == 3
     assert searched and searched[0][1:] == ("breast", "prognosis")
 
@@ -145,3 +145,18 @@ def test_bad_tool_calls_return_errors():
     assert "search_literature" not in {s["function"]["name"] for s in make_tools().specs()}
     names = {s["function"]["name"] for s in make_tools(names=False, search=print).specs()}
     assert "search_literature" not in names
+
+
+def test_predict_risk_points_to_percentile_not_sign():
+    r = make_tools().predict_risk()
+    assert "cohort_median_log_risk" in r and "not by the sign" in r["note"]
+    assert "sign of log_risk" in nemotron.AGENT_SYSTEM
+
+
+def test_zero_score_features_are_dropped_and_not_searched():
+    tools = make_tools(search=lambda *a: pytest.fail("no search without features"))
+    tools.x = {m: torch.zeros_like(v) for m, v in tools.x.items()}  # gradient x input = 0
+    r = tools.top_features("rna", 5)
+    assert r["features"] == [] and "name no features" in r["note"]
+    trace = nemotron.fixed_plan(tools)
+    assert [c.name for c in trace] == ["predict_risk", "modality_contributions", "top_features"]

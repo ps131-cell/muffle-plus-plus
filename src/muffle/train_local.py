@@ -44,6 +44,16 @@ def site_files(data_dir: Path, n_clients: int, cfg: dict | None = None) -> list[
     return files
 
 
+def heldout_c_index(model: MuffleNet, data_dir: Path, n_clients: int, cfg: dict) -> dict:
+    """C-index per site on the validation splits `make compare` scores (never trained on)."""
+    out = {}
+    for f in site_files(Path(data_dir), n_clients, cfg):
+        _, val = MultiOmicDataset(f, cfg["modalities"]).split(
+            cfg["train"]["val_fraction"], cfg["train"]["seed"])
+        out[f.stem] = evaluate(model, val)["c_index"]
+    return out
+
+
 def fit(train_ds, val_ds, cfg, device):
     torch.manual_seed(cfg["train"]["seed"])
     model = MuffleNet.from_config(cfg)

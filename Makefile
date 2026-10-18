@@ -50,7 +50,7 @@ fl-tcga:
 # Nemotron case agent on one TCGA patient, real gene names (offline template without a key)
 agent-tcga:
 	$(BIN)/python -m muffle.report.nemotron --agent --ckpt outputs/tcga_fedavg.pt \
-		--data data/tcga_brca --patient $(strip $(PATIENT))
+		--data data/tcga_brca --patient $(strip $(PATIENT)) --n-clients $(strip $(CLIENTS))
 
 # repeated seeds: centralized vs local-only vs FedAvg (+ single-modality baselines), mean ± sd
 experiment: synth
