@@ -65,6 +65,17 @@ def test_synthetic_coverage_and_longitudinal():
                                        "treatment is unknown")
 
 
+def test_events_until_a_version_month_hides_later_sequencing():
+    pf = synthetic_file(timeline())
+    before = g.events_until(EVENTS, pf.versions[5].month)  # month -1: imaging, before sequencing
+    assert g.variants(pf, before) == []
+    assert {c["status"] for c in g.panel_coverage(pf, before)} == {g.NOT_TESTED}
+    assert g.longitudinal(pf, before)["statement"].startswith("not sequenced")
+    at = g.events_until(EVENTS, pf.versions[6].month)  # month 0: the sequencing itself
+    assert [v["variant"] for v in g.variants(pf, at)] == ["PIK3CA H1047R"]
+    assert g.events_until(None, None) == EVENTS
+
+
 def test_tcga_case_two_variants_and_fourteen_genes_tested_not_found():
     pf = case_file(SimpleNamespace(**CASE))
     vs = g.variants(pf, EVENTS, lookup=lambda gene, change: [])

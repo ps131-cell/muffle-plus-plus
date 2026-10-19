@@ -1,9 +1,12 @@
 """Genomics (tumor sequencing) workbench page for one patient file.
 
-The workspace pages call ``render(file, events=None, evidence=None)`` with a
-``muffle.workspace.PatientFile``; ``evidence`` maps "GENE CHANGE" to CIViC items (the hosted
-app's ``civic.evidence`` results), ``lookup`` is an optional ``(gene, change) -> items`` callable.
-Standalone, with two demo files (the synthetic patient and one TCGA case):
+The workspace pages call ``render(file, events=None, evidence=None, version=None)`` with a
+``muffle.workspace.PatientFile``; ``evidence`` maps "GENE CHANGE" to CIViC items (the
+``civic.evidence`` results), ``version`` is an index into ``file.versions`` (the variants known
+as of that version's month; the latest when None), ``lookup`` an optional
+``(gene, change) -> items`` callable. ``render`` draws inside the current container only: no
+page config, no sidebar. Standalone page, with two example files (the synthetic patient and one
+TCGA case):
 
     streamlit run app/workbenches/genomics.py
 
@@ -75,15 +78,19 @@ def _variant_details(v: dict) -> None:
     st.caption(e["note"])
 
 
-def render(file, events=None, evidence: dict | None = None, lookup=None) -> None:
+def render(file, events=None, evidence: dict | None = None, version: int | None = None,
+           lookup=None) -> None:
     key = f"genomics-{file.id}"
+    month = None if version is None else file.versions[version].month
+    events = wb.events_until(events, month)
     vs = wb.variants(file, events, evidence, lookup)
     queue = wb.review_queue(vs)
     card = wb.data_card()
     lon = wb.longitudinal(file, events)
     levels = sorted(v["strongest_level"] for v in vs if v["strongest_level"])
 
-    st.subheader(f"Genomics workbench · {file.id}")
+    st.subheader(f"Genomics workbench · {file.id}"
+                 + (f" · as of {file.versions[version].label}" if version is not None else ""))
     if file.kind == "synthetic":
         st.warning(file.note)  # "Synthetic patient: made up by hand ..."
     else:
@@ -178,9 +185,9 @@ def render(file, events=None, evidence: dict | None = None, lookup=None) -> None
         hide_index=True, width="stretch")
 
 
-# ---------------------------------------------------------------- standalone demo
+# ---------------------------------------------------------------- standalone page
 
-DEMO_CASE = SimpleNamespace(index=926, site="site-2", stage="III", age=55.0, percentile=99.0,
+EXAMPLE_CASE = SimpleNamespace(index=926, site="site-2", stage="III", age=55.0, percentile=99.0,
                             group="high", layers=["clinical", "genomic", "rna", "protein"],
                             missing=["methylation"], mutations=["PIK3CA p.H1047R", "TP53 p.R175H"])
 
@@ -200,8 +207,8 @@ def main() -> None:
     from muffle.workspace import case_file, synthetic_file
     st.set_page_config(page_title="Genomics workbench", layout="wide")
     tl = json.loads((APP / "timeline_synthetic.json").read_text(encoding="utf-8"))
-    choice = st.radio("Patient file", ["SYNTHETIC-001 (synthetic patient)",
-                                       f"Case {DEMO_CASE.index} (TCGA-BRCA public data)"],
+    choice = st.radio("Example file", ["SYNTHETIC-001 (synthetic patient)",
+                                       f"Case {EXAMPLE_CASE.index} (TCGA-BRCA public data)"],
                       horizontal=True)
     if choice.startswith("SYNTHETIC"):
         render(synthetic_file(tl), evidence=tl.get("evidence"))
@@ -209,7 +216,7 @@ def main() -> None:
         lookup = _civic_lookup()
         if lookup is None:
             st.caption("CIViC table not available on this machine: no evidence items shown.")
-        render(case_file(DEMO_CASE), lookup=lookup)
+        render(case_file(EXAMPLE_CASE), lookup=lookup)
 
 
 if __name__ == "__main__":

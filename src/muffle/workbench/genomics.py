@@ -45,6 +45,13 @@ def _events(events):
     return EVENTS
 
 
+def events_until(events, month: int | None):
+    """The record up to and including ``month`` (a report version's month); all of it when
+    ``month`` is None (the latest version, or a TCGA baseline that has no month)."""
+    events = _events(events)
+    return events if month is None else [e for e in events if e["month"] <= month]
+
+
 def _synthetic_evidence() -> dict:
     if not SYNTHETIC_JSON.exists():
         return {}
