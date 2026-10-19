@@ -81,6 +81,8 @@ Three buttons lead on: **Import tests**, **Tests** and **Timeline**.
 - Any two versions can be compared: what changed and why.
 
 ## Test workbenches
+The depth and the quality-of-life features of each workbench, and what ships before the
+freeze, are designed in [`WORKBENCHES.md`](WORKBENCHES.md).
 
 ### The depth standard
 The team's Colon Tumor Front Analyzer (a separate project on colon cancer whole-slide images, in a
