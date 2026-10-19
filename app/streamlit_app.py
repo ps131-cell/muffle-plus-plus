@@ -82,7 +82,7 @@ p.add_argument("--cancer", default="breast")
 p.add_argument("--n-clients", type=int, default=3)
 p.add_argument("--config", default=None, help="only for checkpoints without a stored config")
 p.add_argument("--notes", default=str(APP / "saved_notes.json"))
-p.add_argument("--bundle", default=os.getenv("MUFFLE_BUNDLE"),
+p.add_argument("--bundle", default=os.getenv("MUFFLE_BUNDLE") or None,
                help="demo bundle path or URL (default when the data isn't here: the release)")
 args, _ = p.parse_known_args()
 
@@ -142,7 +142,7 @@ demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args
 LIVE = bool(os.getenv("NEBIUS_API_KEY"))
 SEARCH = tavily_search if os.getenv("TAVILY_API_KEY") else None
 EVIDENCE = evidence()
-CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION", "5"))
+CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION") or 5)  # "" (an empty .env line) = default
 st.session_state.setdefault("live_used", 0)
 st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, source)
 
