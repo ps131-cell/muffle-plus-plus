@@ -2,6 +2,19 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-19 — The app is a clinician application, not a hackathon demo
+- **What:** the app's clinician path (patient list, patient file, tests and their workbenches,
+  timeline) carries no hackathon, sponsor or "demo" wording. The demo's "Federation" and "How it
+  works" tabs become one "Methods and validation" page with model cards, data sources and how
+  the case note is produced; provenance lines name the models and services that produced each
+  result. The hackathon story stays in `README.md`, `docs/submission.md` and `docs/video.md`.
+- **Why:** the user's words: "the actual app is separate from my video submission... It should
+  be an application that can be used by a pathologist." Judges still see Nemotron on Token
+  Factory in the provenance lines and the README, which meets the entry requirement.
+- **Consequence:** the honesty labels (synthetic, simulated, observed / inference / hypothesis,
+  placeholder) and the clinician-review line stay; they are not demo talk. `docs/WORKSPACE.md`
+  gains a "Product framing" section and `CLAUDE.md` a rule.
+
 ## 2026-10-19 — CIViC evidence: compound profiles count, strongest level first; the hosted app downloads the table
 - **What:** `civic.evidence` (#56) matches a variant inside CIViC's "OR" compound profiles
   ("PIK3CA H1047R OR PIK3CA H1047Y OR PIK3CA H1047L") and gene-level profiles ("PIK3CA
