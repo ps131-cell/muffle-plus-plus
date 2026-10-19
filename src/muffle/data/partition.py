@@ -25,7 +25,8 @@ DEFAULT_GAPS: list[list[str]] = [
     ["protein", "rna"],
 ]
 
-PER_PATIENT_KEYS = ("time", "event", "mask", "stage", "true_log_hazard", "tss", "age")
+PER_PATIENT_KEYS = ("time", "event", "mask", "stage", "true_log_hazard", "tss", "age",
+                    "mut_status", "mut_changes")
 
 
 def split_by_group(groups: np.ndarray, n_clients: int) -> list[np.ndarray]:

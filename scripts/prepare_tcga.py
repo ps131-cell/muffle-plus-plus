@@ -9,6 +9,10 @@ TCGA extras (stay under data/, never commit):
     tss [N]  tissue source site = barcode chars 6-7, the hospital that collected the sample
     age [N]  age at diagnosis in years, NaN if unknown (evaluation slices only; the model sees
              the z-scored, median-imputed copy in x_clinical)
+    mut_genes [G], mut_status [N, G], mut_changes [N]  observed driver mutations from GDC's
+             open-access somatic calls: 1 mutated, 0 sequenced without a protein-altering
+             mutation, NaN not sequenced; changes as "PIK3CA p.H1047R;TP53 p.R175H" (case agent
+             findings only, not a model input)
     patient [N]  12-char patient barcode
     names_<modality> [d]  feature names (gene symbols, CpG ids, RPPA targets, clinical fields)
 Unmeasured modalities are all-zero rows with mask 0. Sizes d_* come from configs/default.yaml.
@@ -53,7 +57,7 @@ if __name__ == "__main__":
     p.add_argument("--raw", type=Path, default=None, help="default: data/raw/<project>")
     p.add_argument("--out", type=Path, default=None, help="default: data/<project>")
     p.add_argument("--config", default=None)
-    p.add_argument("--skip", nargs="*", default=[], choices=list(BUILDERS),
+    p.add_argument("--skip", nargs="*", default=[], choices=[*BUILDERS, "mutations"],
                    help="leave these modalities out (zeros, mask 0)")
     p.add_argument("--max-missing", type=float, default=0.2,
                    help="drop features missing in more than this fraction of measured tumours")

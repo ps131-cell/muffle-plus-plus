@@ -39,9 +39,22 @@ def age_band(age: float | None) -> str:
     return "under 50" if age < 50 else "50-64" if age < 65 else "65 or older"
 
 
-def observed_facts(stage: str | None = None, age: float | None = None) -> dict:
-    """Recorded clinical facts for ``observed_findings`` (stage "I".."IV" or None)."""
-    return {"recorded_stage": stage or "not recorded", "age_band": age_band(age)}
+def observed_facts(stage: str | None = None, age: float | None = None,
+                   mutations: list[str] | None = None) -> dict:
+    """Recorded facts for ``observed_findings``: stage "I".."IV" or None, age, and the sequenced
+    driver mutations ("PIK3CA p.H1047R"; [] = sequenced, none in the panel; None = not
+    sequenced, which is unknown, not wild type)."""
+    out = {"recorded_stage": stage or "not recorded", "age_band": age_band(age)}
+    if mutations is None:
+        out["sequenced_driver_mutations"] = "not sequenced"
+    else:
+        out["sequenced_driver_mutations"] = [m.replace(" p.", " ") for m in mutations] or \
+            "none of the panel's driver genes is mutated"
+    return out
+
+
+# evidence(gene, protein_change, cancer) -> [CIViC items]; see muffle.report.civic.evidence
+Evidence = Callable[[str, str, str], list[dict]]
 
 # search(genes, cancer, topic, k) -> [{"title", "url", "snippet"}]; see nemotron.tavily_search
 Search = Callable[[list[str], str, str, int], list[dict]]
@@ -63,9 +76,11 @@ class CaseTools:
                  cohort_risks: np.ndarray, cancer: str,
                  feature_names: dict[str, list[str]] | None = None,
                  c_index: float | None = None, search: Search | None = None,
-                 offsets: dict[str, float] | None = None, observed: dict | None = None):
+                 offsets: dict[str, float] | None = None, observed: dict | None = None,
+                 evidence: Evidence | None = None):
         self.model, self.x, self.mask = model.eval(), x, mask
-        self.observed = observed or {}  # observed_facts(...): recorded stage, age band
+        self.observed = observed or {}  # observed_facts(...): stage, age band, mutations
+        self.evidence = evidence
         self.offsets = offsets  # explain.cohort_offsets: contributions vs a typical patient
         self.cohort = np.asarray(cohort_risks, dtype=float)
         self.cancer, self.c_index = cancer, c_index
@@ -79,6 +94,12 @@ class CaseTools:
     def seen(self) -> set[str]:
         """Omic feature names returned so far (the genes search_literature accepts)."""
         return set(self._seen)
+
+    @property
+    def mutations(self) -> list[str]:
+        """The patient's sequenced driver mutations ("PIK3CA H1047R"), [] if none known."""
+        m = self.observed.get("sequenced_driver_mutations")
+        return m if isinstance(m, list) else []
 
     @property
     def can_search(self) -> bool:
@@ -113,6 +134,11 @@ class CaseTools:
                  "k": {"type": "integer", "minimum": 1, "maximum": MAX_FEATURES}},
                 ["modality"]),
         ]
+        if self.evidence is not None and self.mutations:
+            specs.append(_fn(
+                "treatment_evidence", "CIViC evidence on therapies for this patient's sequenced "
+                "driver mutations, in this cancer type (evidence type: hypothesis; for clinician "
+                "review, not a recommendation)."))
         if self.can_search:
             specs.append(_fn(
                 "search_literature", f"Web search (Tavily) for publications or clinical trials "
@@ -195,6 +221,20 @@ class CaseTools:
             out["note"] = ("no single feature in this layer moves this patient's risk measurably "
                            "(every |score| < 0.0001), so name no features from this layer")
         return out
+
+    def treatment_evidence(self) -> dict:
+        variants = []
+        for m in self.mutations:
+            gene, _, change = m.partition(" ")
+            try:
+                items = self.evidence(gene, change, self.cancer)
+            except Exception as e:  # a broken cache shouldn't sink the report
+                return {"error": f"evidence lookup failed ({type(e).__name__})"}
+            variants.append({"variant": m, "civic_items": items})
+        return {"evidence_type": HYPOTHESIS, "source": "CIViC (civicdb.org, CC0)",
+                "use": "evidence for clinician review, not a treatment recommendation; levels: "
+                       "A validated, B clinical, C case study, D preclinical, E inferential",
+                "variants": variants}
 
     def search_literature(self, genes: list[str], topic: str = "prognosis") -> dict:
         if topic not in TOPICS:
