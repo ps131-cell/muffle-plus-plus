@@ -12,10 +12,10 @@ support for clinicians, not a diagnosis or a prescription.
 - **Evidence-linked patient profile.** A multi-omic survival model (copy number, RNA,
   methylation, protein, clinical) gives a risk estimate that copes with missing tests; an
   **NVIDIA Nemotron** case agent on **Nebius Token Factory** calls our models as tools and writes
-  a tumor-board note with literature from **Tavily**. *In progress:* every statement labeled
-  observed / inferred / hypothesis; observed driver mutations with **CIViC** treatment evidence
+  a tumor-board note with literature from **Tavily**. Every statement is labeled observed /
+  inferred / hypothesis, and observed driver mutations come with **CIViC** treatment evidence
   for clinician review.
-- **Patient timeline** *(in progress)*. Risk is re-estimated as new results arrive (treatments,
+- **Patient timeline.** Risk is re-estimated as new results arrive (treatments,
   tumor markers, sequencing), measured on real MSK-CHORD timelines (aggregate results only) and
   shown in the demo on a clearly labeled synthetic patient.
 - **Learning across hospitals.** One survival model is trained **across simulated hospitals
