@@ -5,7 +5,11 @@ spread over the risk range), their model inputs. Everything else is derived: coh
 offsets, per-site C-index, and risk-group survival curves. No other patient-level data.
 
 python scripts/make_demo_bundle.py
-gh release upload demo-bundle-v1 outputs/demo_bundle.pt --clobber     # after review
+gh release create demo-bundle-v2 outputs/demo_bundle.pt --title "Demo bundle v2" --notes "..."
+# then bump BUNDLE_RELEASE in app/streamlit_app.py (the hosted app pins the tag) and reboot it.
+
+Cases carry their sequenced driver mutations (``Case.mutations``, GDC open-access calls); a
+bundle written before that field existed loads with ``mutations=None`` ("not sequenced").
 """
 
 from __future__ import annotations

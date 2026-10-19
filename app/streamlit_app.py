@@ -1,4 +1,4 @@
-"""MuFFLe++ demo: a federated tumor-board assistant.
+"""MuFFLe++ demo: milestone 1 of a cancer intelligence platform (breast cancer).
 
 streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
 streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
@@ -14,11 +14,14 @@ review (one held-out patient: risk, what drives it, a what-if for missing data l
 Nemotron case agent's note), Federation (the simulated hospitals and the results), How it works.
 Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes
 (app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the cap is reached.
+CIViC's evidence table (CC0, ~4 MB) is downloaded once per process into data/raw/civic/; if that
+fails, the agent runs without the treatment_evidence tool and the sidebar says so.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import sys
@@ -31,13 +34,21 @@ if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-instal
     sys.path.insert(0, str(APP.parent / "src"))
 
 import charts  # noqa: E402
+# ponytail: Streamlit Cloud hot updates can keep a stale sibling module; reload keeps
+# charts.py in step with this file
+importlib.reload(charts)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 import torch  # noqa: E402
 
-from muffle.demo import build_demo, fetch_bundle, load_bundle, ordinal  # noqa: E402
+from muffle.demo import (  # noqa: E402
+    build_demo,
+    evidence_lookup,
+    fetch_bundle,
+    load_bundle,
+    ordinal,
+)
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
-from muffle.report import civic  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
 from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
@@ -49,7 +60,8 @@ from muffle.report.nemotron import (  # noqa: E402
 )
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
-BUNDLE_URL = f"{REPO}/releases/download/demo-bundle-v1/demo_bundle.pt"
+BUNDLE_RELEASE = "demo-bundle-v1"  # bump once the next release exists (scripts/make_demo_bundle.py)
+BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}
 
@@ -81,6 +93,12 @@ def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, 
     return demo
 
 
+@st.cache_resource(show_spinner="Loading CIViC treatment evidence…")
+def evidence():
+    """CIViC's table once per process; None (no treatment_evidence tool) if it can't load."""
+    return evidence_lookup()
+
+
 @st.cache_data
 def results() -> dict | None:
     path = APP / "results_tcga_brca.json"
@@ -106,14 +124,14 @@ def secrets_to_env() -> None:
             os.environ[key] = str(value)
 
 
-st.set_page_config(page_title="MuFFLe++ tumor-board assistant", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="MuFFLe++ · cancer intelligence platform, milestone 1",
+                   page_icon="🧬", layout="wide")
 secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
             args.bundle)
 LIVE = bool(os.getenv("NEBIUS_API_KEY"))
 SEARCH = tavily_search if os.getenv("TAVILY_API_KEY") else None
-# CIViC treatment evidence, only where its table is already cached (the hosted bundle has none)
-EVIDENCE = civic.evidence if civic.load_table(download=False) is not None else None
+EVIDENCE = evidence()
 CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION", "5"))
 st.session_state.setdefault("live_used", 0)
 st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, source)
@@ -121,24 +139,30 @@ st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, sourc
 # --- sidebar: what is running ----------------------------------------------------------------
 with st.sidebar:
     st.markdown("### MuFFLe++")
-    st.caption("Federated multi-omic survival model + a Nemotron case agent.")
+    st.caption("Cancer intelligence platform, milestone 1: an evidence-linked patient profile "
+               "that updates along the timeline, learned across simulated hospitals.")
     st.markdown(
         f"**Model** · FedAvg across {len(demo.sites)} simulated hospitals (NVIDIA FLARE)  \n"
         f"**Held-out C-index** · {demo.c_index:.3f}  \n"
         f"**Case agent** · {'live' if LIVE else 'offline (no key)'}: "
         f"{model_name(DEFAULT_MODEL)} plans, {model_name(WRITER_MODEL)} writes, on Nebius "
         f"Token Factory  \n"
-        f"**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
+        f"**Treatment evidence** · "
+        f"{'CIViC (CC0), for clinician review' if EVIDENCE else 'off (CIViC table unavailable)'}"
+        f"  \n**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
     budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
     st.caption(f"[Source code]({REPO}) · research prototype on public TCGA data, not for "
                "clinical use.")
 
-st.title("MuFFLe++ · federated tumor-board assistant")
+st.title("MuFFLe++ · cancer intelligence platform, milestone 1 (breast cancer)")
 st.markdown(
-    f"{len(demo.sites)} simulated hospitals (groups of TCGA tissue source sites) train one "
-    "survival model **without sharing patient data**. "
-    "For a patient, an NVIDIA Nemotron agent asks the model what drives the risk, looks up the "
-    "literature, and writes a tumor-board note that cites only what its tools returned.")
+    "One evidence-linked picture of a patient's disease, updated as the record grows, that keeps "
+    "what was **observed** apart from what a model **inferred** and what is only a "
+    f"**hypothesis**. A multi-omic survival model is trained across {len(demo.sites)} simulated "
+    "hospitals **without sharing patient data** (NVIDIA FLARE); an NVIDIA Nemotron case agent on "
+    "Nebius Token Factory calls it as a tool, adds CIViC treatment evidence and literature, and "
+    "writes a note that cites only what its tools returned. Research support for clinician "
+    "review, not a diagnosis.")
 
 timeline_tab, case_tab, fed_tab, how_tab = st.tabs(
     ["Patient timeline (synthetic)", "Case review", "Federation", "How it works"])
@@ -392,33 +416,85 @@ with fed_tab:
 
 # --- How it works ----------------------------------------------------------------------------
 with how_tab:
+    res, tl = results(), timeline()
+    by = {m["method"]: m for m in res["methods"]} if res else None
+    signal = (
+        f"- **The omics do not yet add signal.** Leave one hospital out, mean C-index over 5 "
+        f"seeds: clinical data alone (stage, age, T/N/M) {by['only_clinical']['mean']:.3f}; "
+        f"FedAvg, clinical-anchored residual {by['fedavg_residual']['mean']:.3f}; the same model "
+        f"on pooled data {by['residual']['mean']:.3f}; one hospital alone "
+        f"{by['local_only']['mean']:.3f}. Federation matches pooling and beats a single hospital, "
+        "but on overall survival in TCGA-BRCA the omic layers don't beat clinical data yet."
+        if by else
+        "- The leave-one-hospital-out results on TCGA-BRCA appear in the Federation tab when the "
+        "app runs on real data.")
+    patient = tl["patient_id"] if tl else "The timeline patient"
     st.markdown(f"""
-#### 1 · Federated training (NVIDIA FLARE)
-Each hospital trains on its own patients' copy number, RNA expression, methylation, protein
-and clinical data; only model weights go to the FLARE server, which averages them (FedAvg) and
-sends the global model back. A hospital that never measured a layer still takes part: that
-layer is masked, and training randomly hides layers so the model copes. The model first learns
-a clinical risk, then lets the omic layers correct it by an amount chosen on hospitals it
-wasn't trained on.
+MuFFLe++ is milestone 1 of a multimodal, longitudinal cancer intelligence platform for breast
+cancer: an **evidence-linked patient profile** (multi-omic risk model, observed driver mutations,
+CIViC evidence, literature) that **updates along the patient's timeline**, written up by a
+Nemotron case agent, with one model **learned across hospitals** without moving patient data.
+Every finding is labeled **observed** (measured or recorded), **model inference** (a prediction,
+with its uncertainty) or **hypothesis** (evidence and literature leads).
 
-#### 2 · The case agent (NVIDIA Nemotron on Nebius Token Factory)
-- **{model_name(DEFAULT_MODEL)} plans.** It calls our tools: the patient's risk and
-  percentile, how much each data layer moves it, the top genes of a layer, and Tavily search
-  for publications or clinical trials on those genes.
-- **{model_name(WRITER_MODEL)} writes** the note from the tool outputs (Summary, Drivers,
-  Caveats, Literature).
+#### The four tabs
+- **Patient timeline (synthetic).** {patient} is made up by hand for the demo and labeled as
+  such. From the first tumor sequencing on, every event re-scores the risk of progression or
+  death in the next 12 months with models trained locally on real MSK-CHORD timelines (Jee et
+  al., Nature 2024; CC BY-NC-ND 4.0): only aggregate metrics and this synthetic patient's scores
+  are published, no MSK-CHORD patient leaves the machine, and these scores never go to an LLM.
+  Observed events, the model's inferences and CIViC evidence for the observed driver sit apart.
+- **Case review.** One held-out TCGA-BRCA patient the federated model never trained on: risk
+  percentile and group, how much each data layer moves the risk compared with a typical
+  patient, a what-if for missing layers, and the case agent's note with its tool trace.
+- **Federation.** The {len(demo.sites)} simulated hospitals (TCGA tissue source sites grouped
+  into FL clients), their data gaps, and the leave-one-hospital-out results against baselines.
+- **How it works.** This page.
+
+#### The case agent (NVIDIA Nemotron on Nebius Token Factory)
+- **{model_name(DEFAULT_MODEL)} plans.** It decides which tools to call. The tools run locally
+  and label what they return: `observed_findings` (*observed*: measured and missing data layers,
+  recorded stage, age band, the sequenced driver mutations from GDC open-access somatic calls,
+  or "not sequenced"), `predict_risk`, `modality_contributions` and `top_features` (*model
+  inference*, with the model's validation C-index as its uncertainty), `treatment_evidence`
+  (*hypothesis*: CIViC items for the observed mutations) and `search_literature` (*hypothesis*:
+  Tavily search for papers or trials on up to 3 named genes).
+- **{model_name(WRITER_MODEL)} writes** the note from the tool outputs, in five sections:
+  Summary, Observed, Model inferences, Hypotheses and evidence, Caveats. Every bullet starts
+  with [Observed], [Model inference] or [Hypothesis]. If Ultra fails, Super writes.
 - **A grounding check** (plain code, no LLM) looks for any number, gene or link in the note
-  that no tool returned. If it finds one, the writer gets one rewrite; anything left is shown.
-- **Privacy:** only derived numbers (risk, percentile, contributions, attribution scores) and
-  gene names are sent to Token Factory, never a patient's omics values.
+  that no tool returned. The writer gets one rewrite; anything left is shown with the note.
+- **Treatment content is evidence, not advice.** Each CIViC (CC0) item keeps its evidence level
+  (A validated … E inferential), significance, citation and link, for clinician review, never
+  a recommendation.
+- Without a key the same tools run in a fixed order and a template writes the note; ★ patients
+  have a saved note from the live agent.
 
-#### 3 · Limits
+#### Federated training (NVIDIA FLARE, simulated hospitals)
+Each simulated hospital trains on its own patients' copy number, RNA expression, methylation,
+protein and clinical data; only model weights go to the FLARE server, which averages them
+(FedAvg) and sends the global model back. A hospital that never measured a layer still takes
+part: the layer is masked, and training randomly hides layers so the model copes. The model
+first learns a clinical risk, then lets the omic layers correct it by an amount chosen on
+hospitals it wasn't trained on. The hospitals run in the NVFlare simulator, not at real sites.
+
+#### Limits
+{signal}
+- The model ranks patients; its absolute risks are only roughly calibrated, and it is weaker
+  for patients under 50 and within a single stage.
+- The timeline patient is synthetic. The MSK-CHORD models' held-out AUROC is shown next to each
+  estimate; some of their features reflect care (how often labs and treatments are recorded),
+  not only biology.
 - Research prototype on public TCGA-BRCA data (1,064 patients, overall survival). Not for
   clinical use.
-- Omics don't beat clinical data alone on this endpoint yet.
-- The model ranks patients; its absolute risks are only roughly calibrated. It is weaker for
-  patients under 50 and within a single stage.
-- The three "hospitals" are TCGA tissue source sites, simulated with the NVFlare simulator.
+
+#### Privacy
+- Only derived numbers (risk, percentile, contributions, attribution scores) and gene or
+  mutation names go to Token Factory and Tavily, never a patient's omics values, and nothing
+  from MSK-CHORD. The hosted demo loads a bundle: the model weights and a few dozen held-out
+  patients' processed features, nothing else patient-level.
+- Every Token Factory call counts against a hard spending cap; once reached, notes fall back to
+  the offline template.
 
 [Source code, results and decisions]({REPO}) · built for the Nebius × NVIDIA Global AI
 Hackathon, {date.today().year}.

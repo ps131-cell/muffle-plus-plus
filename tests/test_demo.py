@@ -6,6 +6,7 @@ import torch
 from muffle.data.dataset import MultiOmicDataset, split_positions
 from muffle.demo import (
     build_demo,
+    evidence_lookup,
     fetch_bundle,
     kaplan_meier,
     load_bundle,
@@ -81,3 +82,42 @@ def test_case_report_round_trips_through_json():
     r = CaseReport("**Summary** x", [ToolCall(1, "predict_risk", {}, {"cohort_percentile": 81})],
                    "agent", "m", 10, ["n"], "w", [{"kind": "gene", "text": "TP53"}], True)
     assert CaseReport.from_dict(json.loads(json.dumps(r.to_dict()))) == r
+
+
+def test_bundle_keeps_mutations_and_reads_v1_cases(cohort, small_cfg, tmp_path):
+    np.savez(tmp_path / "cohort.npz", **cohort)
+    torch.manual_seed(0)
+    torch.save({"model": MuffleNet.from_config(small_cfg).state_dict(), "config": small_cfg},
+               tmp_path / "m.pt")
+    demo = build_demo(tmp_path / "m.pt", tmp_path, n_clients=3)
+    assert all(c.mutations is None for c in demo.cases)  # this cohort has no mutation calls
+    demo.cases[0].mutations = ["PIK3CA p.H1047R", "TP53 p.R175H"]
+    demo.cases[1].mutations = []  # sequenced, nothing in the panel
+    small = subset(demo, pick_cases(demo, 3))
+    path = save_bundle(small, tmp_path / "bundle.pt")
+    loaded = load_bundle(path)
+    assert [c.mutations for c in loaded.cases] == [c.mutations for c in small.cases]
+    assert loaded.cases[0].mutations == ["PIK3CA p.H1047R", "TP53 p.R175H"]
+    assert loaded.tools(loaded.cases[0]).mutations == ["PIK3CA H1047R", "TP53 R175H"]
+
+    b = torch.load(path, weights_only=True)  # a v1 bundle written before cases had mutations
+    for c in b["cases"]:
+        del c["mutations"]
+    torch.save(b, tmp_path / "old.pt")
+    assert all(c.mutations is None for c in load_bundle(tmp_path / "old.pt").cases)
+
+
+def test_evidence_lookup_only_fails_quietly(monkeypatch):
+    import pandas as pd
+
+    from muffle.report import civic
+
+    def boom(*a, **k):
+        raise OSError("no network")
+
+    monkeypatch.setattr(civic, "load_table", boom)
+    assert evidence_lookup() is None
+    monkeypatch.setattr(civic, "load_table", lambda *a, **k: None)
+    assert evidence_lookup() is None
+    monkeypatch.setattr(civic, "load_table", lambda *a, **k: pd.DataFrame({"gene": ["PIK3CA"]}))
+    assert evidence_lookup() is civic.evidence

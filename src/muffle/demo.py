@@ -27,6 +27,7 @@ from muffle.data.dataset import MultiOmicDataset, feature_names, split_positions
 from muffle.data.partition import split_indices
 from muffle.explain import cohort_offsets, risk_group, risk_percentile
 from muffle.models import MuffleNet
+from muffle.report import civic
 from muffle.report.case_tools import CaseTools, Evidence, Search, observed_facts
 from muffle.train_local import heldout_c_index, load_model, site_files
 
@@ -112,6 +113,17 @@ class Demo:
         return CaseTools(self.model, x, mask, self.cohort_risks, self.cancer, self.names,
                          self.c_index, search, self.offsets,
                          observed_facts(case.stage, case.age, case.mutations), evidence)
+
+
+def evidence_lookup() -> Evidence | None:
+    """``civic.evidence`` once CIViC's table is loaded (CC0, ~4 MB, downloaded on first use and
+    cached under data/raw/civic/), or None if the download or the parse fails: the app then
+    runs without the treatment_evidence tool instead of showing a traceback."""
+    try:
+        table = civic.load_table()
+    except Exception:  # no network, a changed schema, an unwritable cache dir
+        return None
+    return civic.evidence if table is not None else None
 
 
 def sequenced_mutations(arrays: dict, pos: int) -> list[str] | None:
