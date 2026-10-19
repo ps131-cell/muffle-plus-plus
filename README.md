@@ -52,25 +52,46 @@ make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene 
 
 ## Hackathon: how NVIDIA and Nebius are used
 - **NVIDIA FLARE** — federated training (`jobs/fedavg_job.py`, `src/muffle/fl/client.py`).
-- **NVIDIA Nemotron via Nebius Token Factory** — a tool-calling **case agent**
-  (`src/muffle/report/nemotron.py`). For the selected patient, Nemotron decides which of our
-  tools to call (OpenAI-compatible tool calling), then writes the tumor-board note (Summary,
-  Drivers, Caveats, Literature) citing only tool outputs. The tools run locally
-  (`src/muffle/report/case_tools.py`):
-  - `predict_risk`: log-risk, cohort percentile and risk group from the federated model
-  - `modality_contributions`: how much each data layer moves the risk (`muffle.explain`)
-  - `top_features`: top genes/features of a layer by gradient × input
-  - `search_literature`: Tavily search for papers or clinical trials on those genes (only
-    offered when real gene names and `TAVILY_API_KEY` are available)
+- **NVIDIA Nemotron via Nebius Token Factory** — milestone 1 of the platform's orchestration
+  layer: a tool-calling **case agent** (`src/muffle/report/nemotron.py`) coordinates our models
+  and evidence sources into an **evidence-linked note** for one patient. It keeps what was
+  **observed** apart from what a model **inferred** and what is only a **hypothesis**, says
+  which data is missing, and is written for clinician review, never as a diagnosis or a
+  prescription. Three steps:
+  1. **Nemotron 3 Super gathers the evidence:** it decides which tools to call
+     (OpenAI-compatible tool calling). The tools run locally
+     (`src/muffle/report/case_tools.py`) and label what they return:
+     - `observed_findings` (*observed*): data layers measured and missing, recorded stage, age
+       band
+     - `predict_risk` (*model inference*): risk, cohort percentile and risk group from the
+       federated model
+     - `modality_contributions` (*model inference*): how much each data layer raises or lowers
+       the risk compared with a typical patient (`muffle.explain`)
+     - `top_features` (*model inference*): top genes/features of a layer by gradient × input
+     - `search_literature` (*hypothesis*): Tavily search for papers or clinical trials on up to
+       3 named genes, as leads to review (only offered when real gene names and
+       `TAVILY_API_KEY` are available)
+  2. **Nemotron 3 Ultra writes the note** from the tool outputs (Summary, Observed, Model
+     inferences, Hypotheses and evidence, Caveats), each bullet labeled [Observed],
+     [Model inference] or [Hypothesis].
+  3. **A grounding check** (`src/muffle/report/grounding.py`, plain code, no LLM) flags any
+     number, gene or link in the note that no tool returned, so every claim traces back to its
+     source. Ultra gets one rewrite; anything left is shown with the note.
 
-  The demo shows the tool-call trace next to the report. Each report is capped at 4 tool
-  rounds and 900 tokens per completion (free hackathon credits). Only derived numbers and
-  gene names are sent, never raw omics. Without `NEBIUS_API_KEY` the same tools run in a
-  fixed order and an offline template writes the report. Try one case from the terminal:
-  `.venv/bin/python -m muffle.report.nemotron --agent --patient 0`.
+  Limits per note: up to 6 planner turns (plus one search-only turn if it stops before the
+  literature step), 900 tokens per planner turn, 4,096 for Ultra (its reasoning counts) and 3
+  Tavily queries. If Ultra fails or is cut off, Super writes the note. Every call goes through
+  a hard $25.50 spending cap (`src/muffle/report/budget.py`). Only derived numbers and gene
+  names are sent, never raw omics. The demo shows each step live, the grounding result and the
+  tool trace. Without `NEBIUS_API_KEY` the same tools run in a fixed order and a template writes
+  the note. Try one TCGA case from the terminal (after `make tcga` and `make fl-tcga`):
+  `make agent-tcga PATIENT=0`.
 - **Nebius AI Cloud** — not used in the submission: Nebius usage is Token Factory only, and FL
   runs in the NVFlare simulator. `docs/NEBIUS.md` keeps untested notes for a Serverless Job.
-- **Tavily** — the agent's literature and clinical-trial search on the top prognostic genes.
+- **Tavily** — the agent's literature and clinical-trial search on the genes behind a patient's
+  risk: one query per gene; a result is kept only if it names the gene and a cancer;
+  publications come from scholarly and clinical sites; trial hits link to their
+  ClinicalTrials.gov page.
 
 Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
 
