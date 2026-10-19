@@ -9,7 +9,7 @@ FL_CKPT ?= workspaces/muffle_fedavg/server/simulate_job/app_server/FL_global_mod
 PATIENT ?= 0
 
 .PHONY: setup test lint synth tcga local fl fl-tcga agent-tcga compare experiment \
-	experiment-tcga calibration-tcga demo demo-tcga demo-notes demo-results \
+	experiment-tcga calibration-tcga msk-chord experiment-msk demo demo-tcga demo-notes demo-results \
 	demo-bundle demo-hosted clean-nb docker
 
 setup:
@@ -62,6 +62,14 @@ experiment: synth
 experiment-tcga:
 	$(BIN)/python -m muffle.experiment --data data/tcga_brca --config configs/tcga_brca.yaml \
 		--n-clients $(strip $(CLIENTS)) --seeds 0 1 2 3 4 --loso
+
+# real timelines (local only, CC BY-NC-ND): MSK-CHORD -> data/raw/msk_chord (~47 MB download)
+msk-chord:
+	$(BIN)/python scripts/prepare_msk_chord.py
+
+# risk of progression or death in the next 12 months, re-predicted at 0/6/12/24 months (~1 min)
+experiment-msk:
+	$(BIN)/python -m muffle.longitudinal
 
 # cross-site calibration + fairness slices: clinical vs residual vs FedAvg-residual (~8 min)
 calibration-tcga:
