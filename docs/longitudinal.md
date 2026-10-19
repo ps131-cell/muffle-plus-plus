@@ -38,6 +38,29 @@ The record-so-far model is far better than diagnosis-only at every landmark (AUR
 0.66–0.71, Brier roughly halved), and it improves as the record grows (0.880 at sequencing →
 0.931 two years later).
 
+## The demo's synthetic timeline patient
+
+`make demo-timeline` (`muffle.timeline`, `scripts/make_timeline_patient.py`) scores one
+**synthetic** patient, written by hand for the demo (not a real person, not sampled or copied
+from any dataset; only its event types and units follow MSK-CHORD). Diagnosed stage II HR+/HER2−,
+adjuvant chemotherapy and letrozole, bone recurrence, tumor sequencing with PIK3CA H1047R at
+month 0, then palbociclib + fulvestrant, CA 15-3 values, a liver progression at month 12 and
+alpelisib.
+
+At each event from month 0 on, the patient is re-scored by the record-so-far models of the latest
+landmark at or before it (the five evaluated models, seeds 0–4: mean and range), next to the
+diagnosis-only baseline. The change since the previous event is split one change at a time
+(treatments, progression history, metastatic sites, CA 15-3, ECOG, ...; the switch to a later
+landmark's model; the rest is interactions). The demo's first tab steps through the record and
+shows, at each point, what is observed, the model inference and what changed, and CIViC evidence
+for the observed driver (for clinician review).
+
+Only this synthetic patient's record and scores, the aggregate metrics above and the CIViC items
+are written to `app/timeline_synthetic.json`; no MSK-CHORD patient and no model leaves the
+machine. Between landmarks, a landmark's model scores records a few months older than those it was
+trained on, and a switch to the next landmark's model can move the risk by itself (landmark
+populations differ); the tab shows that part separately.
+
 ## Caveats
 - **Labels come from NLP of radiology reports** (MSK-CHORD's progression annotations), not from
   adjudicated RECIST reads.

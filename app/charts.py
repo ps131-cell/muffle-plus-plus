@@ -43,24 +43,27 @@ def risk_position(cohort_risks: np.ndarray, patient_risk: float, label: str) -> 
     return (bars + rule + text).properties(height=240).configure_axis(**GRID)
 
 
-def contributions(contrib: dict[str, float]) -> alt.Chart:
-    """Horizontal bars: how much each layer moves this patient's log-risk vs a typical patient."""
+def contributions(contrib: dict[str, float],
+                  title: str = "change in log-risk vs a typical patient",
+                  fmt: str = "+.2f") -> alt.Chart:
+    """Horizontal bars: how much each layer moves this patient's log-risk vs a typical patient
+    (or, with ``title`` and ``fmt``, any signed change in risk)."""
     df = pd.DataFrame({"layer": list(contrib), "value": list(contrib.values())})
     df["effect"] = np.where(df["value"] >= 0, "raises risk", "lowers risk")
-    df["label"] = df["value"].map(lambda v: f"{v:+.2f}")
+    df["label"] = df["value"].map(lambda v: format(v, fmt))
     order = df.sort_values("value", key=abs, ascending=False)["layer"].tolist()
     lo, hi = min(0.0, df["value"].min()), max(0.0, df["value"].max())
     pad = 0.3 * max(hi - lo, 0.05)  # room for the value labels
     base = alt.Chart(df).encode(y=alt.Y("layer:N", sort=order, title=None,
                                         axis=alt.Axis(labelOverlap=False, labelLimit=200)))
     bars = base.mark_bar(cornerRadiusEnd=4, height=18).encode(
-        x=alt.X("value:Q", title="change in log-risk vs a typical patient",
+        x=alt.X("value:Q", title=title,
                 scale=alt.Scale(domain=[lo - (pad if lo < 0 else 0), hi + (pad if hi > 0 else 0)],
                                 nice=False)),
         color=alt.Color("effect:N", scale=alt.Scale(domain=["raises risk", "lowers risk"],
                                                     range=[RED, BLUE]),
                         legend=alt.Legend(orient="bottom", title=None)),
-        tooltip=["layer:N", "effect:N", alt.Tooltip("value:Q", format="+.3f", title="log-risk")])
+        tooltip=["layer:N", "effect:N", alt.Tooltip("value:Q", format=fmt, title="change")])
     labels = base.mark_text(dx=alt.expr("datum.value >= 0 ? 6 : -6"),
                             align=alt.expr("datum.value >= 0 ? 'left' : 'right'")).encode(
         x="value:Q", text="label:N")
@@ -120,3 +123,36 @@ def survival_by_group(km: dict[str, tuple[np.ndarray, np.ndarray, int]]) -> alt.
     labels = alt.Chart(ends).mark_text(align="left", dx=6).encode(
         x="months:Q", y="survival:Q", text="group:N")
     return (lines + points + labels).properties(height=280).configure_axis(**GRID)
+
+
+def risk_timeline(updates: list[dict], events: list[dict], month: float) -> alt.Chart:
+    """The synthetic patient's 12-month risk at each event: the record-so-far models (mean, and
+    their range over seeds as a band) and the diagnosis-only baseline; a rule marks ``month``."""
+    rows = [{"month": u["month"], "risk": u["risk"], "lo": u["risk_range"][0],
+             "hi": u["risk_range"][1], "baseline": u["baseline"],
+             "event": events[u["event"]]["text"]} for u in updates if "risk" in u]
+    df = pd.DataFrame(rows)
+    x = alt.X("month:Q", title="months since the first tumor sequencing",
+              scale=alt.Scale(domain=[df["month"].min() - 0.5, df["month"].max() + 3]))
+    pct = alt.Axis(format="%")
+    y = alt.Y("risk:Q", title="12-month risk", scale=alt.Scale(domain=[0, 1]), axis=pct)
+    tip = [alt.Tooltip("month:Q", title="month"), alt.Tooltip("event:N"),
+           alt.Tooltip("risk:Q", format=".0%", title="record so far"),
+           alt.Tooltip("lo:Q", format=".0%", title="lowest of 5 models"),
+           alt.Tooltip("hi:Q", format=".0%", title="highest of 5 models"),
+           alt.Tooltip("baseline:Q", format=".0%", title="diagnosis only")]
+    base = alt.Chart(df).encode(x=x)
+    band = base.mark_area(opacity=0.15, color=BLUE, interpolate="step-after").encode(
+        y=alt.Y("lo:Q", scale=alt.Scale(domain=[0, 1]), axis=pct, title="12-month risk"),
+        y2="hi:Q")
+    line = base.mark_line(color=BLUE, strokeWidth=2, interpolate="step-after").encode(y=y)
+    dots = base.mark_circle(color=BLUE, size=70, opacity=1).encode(y=y, tooltip=tip)
+    baseline = base.mark_line(color=AQUA, strokeWidth=2, strokeDash=[5, 4],
+                              interpolate="step-after").encode(y="baseline:Q", tooltip=tip)
+    last = df.tail(1)
+    names = alt.Chart(pd.concat([last.assign(v=last["risk"], name="record so far"),
+                                 last.assign(v=last["baseline"], name="diagnosis only")])
+                      ).mark_text(align="left", dx=8).encode(x="month:Q", y="v:Q", text="name:N")
+    now = alt.Chart(pd.DataFrame({"month": [month]})).mark_rule(opacity=0.5).encode(x="month:Q")
+    return (band + line + baseline + dots + names + now).properties(height=280).configure_axis(
+        **GRID)
