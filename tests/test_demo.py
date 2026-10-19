@@ -93,7 +93,7 @@ def test_bundle_keeps_mutations_and_reads_v1_cases(cohort, small_cfg, tmp_path):
     assert all(c.mutations is None for c in demo.cases)  # this cohort has no mutation calls
     demo.cases[0].mutations = ["PIK3CA p.H1047R", "TP53 p.R175H"]
     demo.cases[1].mutations = []  # sequenced, nothing in the panel
-    small = subset(demo, pick_cases(demo, 3))
+    small = subset(demo, pick_cases(demo, 4, [demo.cases[0].index, demo.cases[1].index]))
     path = save_bundle(small, tmp_path / "bundle.pt")
     loaded = load_bundle(path)
     assert [c.mutations for c in loaded.cases] == [c.mutations for c in small.cases]
