@@ -4,7 +4,7 @@ Text for the Devpost form, one section per field, in the platform framing (`docs
 decisions 2026-10-18).
 
 **Before pasting into Devpost (final pass, Oct 27):**
-- [ ] Fill the demo and video links.
+- [ ] Fill the video link (the demo link is in).
 - [ ] Resolve every **IN PROGRESS** marker: describe the feature as built (with its numbers), or
       delete the sentence if it was cut. Judges score what is demonstrated, so nothing unbuilt
       may read as done.
@@ -16,7 +16,7 @@ decisions 2026-10-18).
 | Project name | MuFFLe++ |
 | Tagline | Milestone 1 of a cancer intelligence platform: an evidence-linked breast cancer profile, written up by an NVIDIA Nemotron agent, from a model trained across simulated hospitals without sharing data. |
 | Track | Best Apps and Agents |
-| Demo | TODO: Streamlit Community Cloud URL |
+| Demo | https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; no login) |
 | Video | TODO: YouTube URL (≤ 3 min) |
 | Code | https://github.com/ps131-cell/muffle-plus-plus (MIT) |
 | Built with | Python, PyTorch, NVIDIA FLARE 2.9, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token Factory, Tavily, Streamlit, Altair, TCGA (GDC open access); IN PROGRESS: CIViC, MSK-CHORD |
