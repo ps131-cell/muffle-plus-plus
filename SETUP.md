@@ -7,13 +7,16 @@ The repo lives at `~/PycharmProjects/muffle-plus-plus`.
 
 ```bash
 cd ~/PycharmProjects/muffle-plus-plus
-python3 --version            # needs 3.10–3.13; if not: brew install python@3.12, then make setup PY=python3.12
+python3 --version            # needs 3.10–3.13; if not, install one and run `make setup PY=python3.12`
 make setup && make test && make local && make fl
 ```
 
 On Apple Silicon, PyTorch uses the CPU (and can use the GPU via `mps`); that's plenty for the
 synthetic data and for TCGA-BRCA (federated training runs in the NVFlare simulator on the
 laptop).
+
+**Windows:** use WSL2. `src/muffle/report/budget.py` needs `fcntl`, and with Smart App Control on,
+Windows blocks the unsigned native DLLs of numpy and torch, so the native install does not run.
 
 ## 2. Accounts and keys (you, in a browser — a few minutes each)
 
@@ -32,14 +35,13 @@ laptop).
   merges them — it keeps `main` working and gives you a reviewable history.
 - Mention who did the work in the commit message (e.g. `model: add FedProx (Kim)`), and set
   `Co-authored-by:` trailers if you want both names on GitHub's contributor graph.
-- Merge only with green CI. GitHub branch protection needs a public repo on the free plan, so
-  until the repo goes public a local pre-push hook refuses pushes to `main`; #17 turns on
-  protection after that.
+- Merge only with green CI. The repo is public; changes reach `main` through pull requests only
+  (GitHub branch protection on `main` is planned, #17).
 
 ## 4. Shared files that are not code
 | What | Where |
 |---|---|
-| TCGA / CHIMERA downloads, processed matrices | `data/` locally (ignored) |
+| TCGA-BRCA, GDC masked somatic calls, CIViC, MSK-CHORD downloads, processed matrices | `data/` locally (ignored) |
 | Checkpoints, run logs | `outputs/`, `workspaces/` (ignored) |
 | Slides, video | shared Google Drive folder |
 | Decisions, meeting notes | `docs/decisions.md` |
@@ -47,4 +49,4 @@ laptop).
 ## 5. Data access
 TCGA open-tier expression, methylation, copy number, clinical and survival data need no
 application (GDC Data Portal or the UCSC Xena GDC hub). Raw somatic mutation calls are
-controlled-access — use gene-level/open summaries. CHIMERA is CC BY-NC-SA (research use OK).
+controlled-access — use gene-level/open summaries. Licenses and access tiers of every dataset used are in `docs/registry.md`.

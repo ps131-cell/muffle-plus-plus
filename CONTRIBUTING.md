@@ -1,8 +1,8 @@
 # How we work
 
 ## Branches and pull requests
-- Nobody commits to `main` directly; merge only with green CI. Until the repo is public, a local
-  pre-push hook refuses pushes to `main` (GitHub protection comes with #17).
+- Nobody commits to `main` directly; merge only with green CI. The repo is public;
+  GitHub branch protection on `main` is planned (#17).
 - One branch per task: `<area>/<short-topic>`, e.g. `data/tcga-loader`, `fl/fedprox`.
 - Keep branches short-lived (≤ 2 days); `git pull --rebase origin main` before opening a PR.
 - Squash-merge, delete the branch, link the issue (`Closes #12`).
@@ -33,4 +33,4 @@ git push -u origin data/my-task      # then: gh pr create --fill
 - **Never commit secrets** — keys go in `.env` (ignored).
 - Clear notebook outputs before committing (`make clean-nb`).
 - Log decisions (dataset, metrics, architecture) in `docs/decisions.md` with a date.
-- The repo goes public for the hackathon: write commit messages and comments accordingly.
+- The repo is public: write commit messages and comments accordingly.
