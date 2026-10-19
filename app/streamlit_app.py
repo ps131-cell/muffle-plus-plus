@@ -8,11 +8,12 @@ Without the checkpoint and cohort (the hosted demo), it loads a demo bundle inst
 MUFFLE_BUNDLE (a path or URL; default: the GitHub release asset). For a private repo's release,
 set GITHUB_TOKEN to a token that can read the repo.
 
-Three tabs: Case review (one held-out patient: risk, what drives it, a what-if for missing data
-layers, and the Nemotron case agent's note), Federation (the simulated hospitals and the
-results), How it works. Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default
-5); saved notes (app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the
-cap is reached.
+Four tabs: Patient timeline (a synthetic patient whose 12-month risk is re-predicted at each
+event by the MSK-CHORD models; app/timeline_synthetic.json from `make demo-timeline`), Case
+review (one held-out patient: risk, what drives it, a what-if for missing data layers, and the
+Nemotron case agent's note), Federation (the simulated hospitals and the results), How it works.
+Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes
+(app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the cap is reached.
 """
 
 from __future__ import annotations
@@ -86,7 +87,27 @@ def results() -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
+@st.cache_data
+def timeline() -> dict | None:
+    path = APP / "timeline_synthetic.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def secrets_to_env() -> None:
+    """Streamlit Community Cloud keeps the app's secrets in st.secrets; copy the top-level
+    values into the environment, where the agent and the spending cap read them. Real
+    environment variables win; without a secrets file (local runs use .env) nothing happens."""
+    try:
+        items = dict(st.secrets)
+    except Exception:  # no secrets.toml
+        return
+    for key, value in items.items():
+        if isinstance(value, (str, int, float)) and key not in os.environ:
+            os.environ[key] = str(value)
+
+
 st.set_page_config(page_title="MuFFLe++ tumor-board assistant", page_icon="🧬", layout="wide")
+secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
             args.bundle)
 LIVE = bool(os.getenv("NEBIUS_API_KEY"))
@@ -119,7 +140,77 @@ st.markdown(
     "For a patient, an NVIDIA Nemotron agent asks the model what drives the risk, looks up the "
     "literature, and writes a tumor-board note that cites only what its tools returned.")
 
-case_tab, fed_tab, how_tab = st.tabs(["Case review", "Federation", "How it works"])
+timeline_tab, case_tab, fed_tab, how_tab = st.tabs(
+    ["Patient timeline (synthetic)", "Case review", "Federation", "How it works"])
+
+# --- Patient timeline (synthetic) ------------------------------------------------------------
+with timeline_tab:
+    tl = timeline()
+    if tl is None:
+        st.info("The timeline patient isn't built here (`make demo-timeline`, needs MSK-CHORD).")
+    else:
+        st.warning(f"**{tl['patient_id']} is synthetic.** {tl['notice']}", icon="🧪")
+        events, updates = tl["events"], tl["updates"]
+        i = st.select_slider(
+            "Record up to", options=list(range(len(events))), value=len(events) - 1,
+            format_func=lambda k: f"month {events[k]['month']} · {events[k]['kind']}",
+            help="Months after the first tumor sequencing. Move back to see the record grow.")
+        st.markdown(f"**Latest event (observed):** month {events[i]['month']} · "
+                    f"{events[i]['text']}")
+        scored = [u for u in updates[: i + 1] if "risk" in u]
+        if not scored:
+            st.caption("No risk estimate yet: the models' clock starts at the first tumor "
+                       "sequencing (month 0).")
+        else:
+            u = scored[-1]
+            m = tl["models"][str(u["landmark"])]
+            st.caption(f"**Model inference** · {tl['task']}, from the month-{u['landmark']} "
+                       "MSK-CHORD models")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("12-month risk", f"{u['risk']:.0%}",
+                      None if "previous" not in u else
+                      f"{100 * (u['risk'] - u['previous']):+.0f} points",
+                      delta_color="inverse", help=tl["task"].capitalize() + ".")
+            c2.metric("Range, 5 models", "{:.0%}–{:.0%}".format(*u["risk_range"]),
+                      help="The same model trained on five different 80% splits (seeds 0–4).")
+            c3.metric("Diagnosis only", f"{u['baseline']:.0%}",
+                      help="Baseline: stage, HR and HER2 alone, same patients and learner.")
+            c4.metric("Model AUROC", f"{m['auroc'][0]:.2f}",
+                      help=f"Held-out AUROC of the month-{u['landmark']} model on MSK-CHORD, "
+                           f"mean of 5 seeds (diagnosis only: {m['baseline_auroc'][0]:.2f}; "
+                           f"{m['n']:,} patients, event rate {m['event_rate']:.0%}).")
+            st.altair_chart(charts.risk_timeline(updates[: i + 1], events, u["month"]),
+                            width="stretch")
+
+        obs_col, inf_col = st.columns(2)
+        with obs_col:
+            st.markdown("**Observed** · what the record says so far")
+            st.markdown("\n".join(f"- **{k}:** {v}" for k, v in updates[i]["observed"]))
+        with inf_col:
+            st.markdown("**Model inference** · what changed and why")
+            if scored:
+                st.markdown(scored[-1]["summary"])
+                if scored[-1].get("changes"):
+                    st.altair_chart(charts.contributions(
+                        {c["what"]: c["points"] for c in scored[-1]["changes"]},
+                        title="change in risk (points)", fmt="+.0f"), width="stretch")
+                    st.caption("One change at a time against the previous record, scored by "
+                               "the current model; changes interact, so the rest is shown.")
+        with st.container(border=True):
+            st.markdown("**Hypotheses and evidence** · for clinician review")
+            drivers = [g for g in tl["evidence"] if events[i]["month"] >= 0]
+            for name in drivers:
+                for e in tl["evidence"][name]:
+                    st.markdown(f"- **{name}** · {e['therapies']} · CIViC level "
+                                f"{e['evidence_level']} ({e['level_meaning']}), "
+                                f"{e['significance'].lower()} · [{e['citation']}]({e['url']})")
+            st.caption("CIViC (CC0) evidence for the observed driver, not a recommendation."
+                       if drivers else "No sequenced drivers yet, so no treatment evidence.")
+
+        with st.expander("Event log (observed)"):
+            st.dataframe(pd.DataFrame(events[: i + 1]), hide_index=True, width="stretch")
+        st.caption(tl["model_note"] + " Some features reflect care, not only biology (how "
+                   "often labs and treatments are recorded); see docs/longitudinal.md.")
 
 # --- Case review -----------------------------------------------------------------------------
 with case_tab:
