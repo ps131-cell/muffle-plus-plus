@@ -109,14 +109,20 @@ def landmark(data: dict[str, pd.DataFrame], months: float,
     event = alive.index.isin(future) | ((alive["died"] == 1) & (alive["os_days"] <= end))
     known = event | (alive["os_days"] > end)
     ids = alive.index[known]
+    return features(data, ids, cut), pd.Series(event[known].astype(float), index=ids,
+                                               name="event")
 
-    x = alive.loc[ids, BASELINE].copy()
+
+def features(data: dict[str, pd.DataFrame], ids, cut: float) -> pd.DataFrame:
+    """The record-so-far features of patients ``ids`` from events on or before day ``cut``."""
+    x = data["patients"].loc[ids, BASELINE].copy()
     tr = data["treatment"]
     tr = tr[tr["day"] <= cut]
     for kind in TREATMENT_TYPES:
         x[f"rx_{kind.lower().replace(' ', '_')}"] = (
             tr[tr["SUBTYPE"] == kind].groupby("PATIENT_ID").size().reindex(ids).fillna(0))
     x["rx_agents"] = tr.groupby("PATIENT_ID")["AGENT"].nunique().reindex(ids).fillna(0)
+    prog = data["progression"]
     past = prog[prog["day"] <= cut]
     x["progressions_so_far"] = past.groupby("PATIENT_ID").size().reindex(ids).fillna(0)
     x["months_since_progression"] = ((cut - past.groupby("PATIENT_ID")["day"].max())
@@ -132,31 +138,45 @@ def landmark(data: dict[str, pd.DataFrame], months: float,
     drv = data["drivers"]  # sequenced at time 0, so known at every landmark
     for g in DRIVERS:
         x[f"mut_{g}"] = x.index.isin(drv.loc[drv["Hugo_Symbol"] == g, "PATIENT_ID"]).astype(float)
-    return x, pd.Series(event[known].astype(float), index=ids, name="event")
+    return x
+
+
+def _test_ids(data: dict[str, pd.DataFrame], seed: int, test_fraction: float) -> set:
+    everyone = np.array(sorted(data["patients"].index))
+    return set(np.random.default_rng(seed).permutation(everyone)
+               [: int(len(everyone) * test_fraction)])
+
+
+def _fit(x: pd.DataFrame, y: pd.Series, train, cols: list[str], seed: int):
+    """(classifier, columns it uses) on the ``train`` rows."""
+    # a feature nobody in the training split has yet (e.g. no progression before time 0)
+    # carries no information, and an all-missing column breaks the binning
+    cols = [c for c in cols if x.loc[train, c].notna().any()]
+    clf = HistGradientBoostingClassifier(max_depth=3, random_state=seed)
+    return clf.fit(x.loc[train, cols], y[train]), cols
 
 
 def evaluate(data: dict[str, pd.DataFrame], seeds=(0, 1, 2, 3, 4), landmarks=LANDMARKS,
-             test_fraction: float = 0.2) -> dict:
-    """AUROC and Brier per landmark for the baseline and the record-so-far model."""
-    everyone = np.array(sorted(data["patients"].index))
+             test_fraction: float = 0.2, keep_models: bool = False) -> dict:
+    """AUROC and Brier per landmark for the baseline and the record-so-far model.
+
+    With ``keep_models``, each run also keeps its two fitted (classifier, columns) pairs under
+    "models" (not JSON-serializable; used to score the demo's synthetic patient)."""
     out = {}
     for L in landmarks:
         x, y = landmark(data, L)
         rows = {"n": int(len(y)), "event_rate": float(y.mean()), "runs": []}
         for seed in seeds:
-            test_ids = set(np.random.default_rng(seed).permutation(everyone)
-                           [: int(len(everyone) * test_fraction)])
-            test = x.index.isin(test_ids)
-            run = {}
+            test = x.index.isin(_test_ids(data, seed, test_fraction))
+            run, models = {}, {}
             for name, cols in (("baseline", BASELINE), ("record_so_far", list(x.columns))):
-                # a feature nobody in the training split has yet (e.g. no progression before
-                # time 0) carries no information, and an all-missing column breaks the binning
-                cols = [c for c in cols if x.loc[~test, c].notna().any()]
-                clf = HistGradientBoostingClassifier(max_depth=3, random_state=seed)
-                clf.fit(x.loc[~test, cols], y[~test])
-                prob = clf.predict_proba(x.loc[test, cols])[:, 1]
+                clf, used = _fit(x, y, ~test, cols, seed)
+                prob = clf.predict_proba(x.loc[test, used])[:, 1]
                 run[name] = {"auroc": float(roc_auc_score(y[test], prob)),
                              "brier": float(brier_score_loss(y[test], prob))}
+                models[name] = (clf, used)
+            if keep_models:
+                run["models"] = models
             rows["runs"].append(run)
         for name in ("baseline", "record_so_far"):
             for m in ("auroc", "brier"):
