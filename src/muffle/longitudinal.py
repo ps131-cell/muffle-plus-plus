@@ -27,9 +27,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.metrics import brier_score_loss, roc_auc_score
 
+# scikit-learn is imported inside the functions that fit and score: the hosted demo imports this
+# module (through muffle.timeline) for the synthetic patient's record and has no scikit-learn
 ROOT = Path("data/raw/msk_chord/extract/msk_chord_2024")
 DAYS_PER_MONTH = 30.4375
 LANDMARKS = (0, 6, 12, 24)
@@ -149,6 +149,8 @@ def _test_ids(data: dict[str, pd.DataFrame], seed: int, test_fraction: float) ->
 
 def _fit(x: pd.DataFrame, y: pd.Series, train, cols: list[str], seed: int):
     """(classifier, columns it uses) on the ``train`` rows."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
     # a feature nobody in the training split has yet (e.g. no progression before time 0)
     # carries no information, and an all-missing column breaks the binning
     cols = [c for c in cols if x.loc[train, c].notna().any()]
@@ -162,6 +164,8 @@ def evaluate(data: dict[str, pd.DataFrame], seeds=(0, 1, 2, 3, 4), landmarks=LAN
 
     With ``keep_models``, each run also keeps its two fitted (classifier, columns) pairs under
     "models" (not JSON-serializable; used to score the demo's synthetic patient)."""
+    from sklearn.metrics import brier_score_loss, roc_auc_score
+
     out = {}
     for L in landmarks:
         x, y = landmark(data, L)
