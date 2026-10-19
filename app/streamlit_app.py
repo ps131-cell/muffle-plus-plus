@@ -93,7 +93,21 @@ def timeline() -> dict | None:
     return json.loads(path.read_text()) if path.exists() else None
 
 
+def secrets_to_env() -> None:
+    """Streamlit Community Cloud keeps the app's secrets in st.secrets; copy the top-level
+    values into the environment, where the agent and the spending cap read them. Real
+    environment variables win; without a secrets file (local runs use .env) nothing happens."""
+    try:
+        items = dict(st.secrets)
+    except Exception:  # no secrets.toml
+        return
+    for key, value in items.items():
+        if isinstance(value, (str, int, float)) and key not in os.environ:
+            os.environ[key] = str(value)
+
+
 st.set_page_config(page_title="MuFFLe++ tumor-board assistant", page_icon="🧬", layout="wide")
+secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
             args.bundle)
 LIVE = bool(os.getenv("NEBIUS_API_KEY"))

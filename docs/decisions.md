@@ -13,9 +13,11 @@ Newest at the top. One entry per decision: date, what, why.
   on CC BY-NC-ND data could count as sharing adapted material.
 - **Why:** it shows the vision's longitudinal profile on real-data models without hosting or
   showing any MSK-CHORD patient, and the hosted demo needs no MSK-CHORD files.
-- **Not yet:** the Nemotron agent doesn't narrate the timeline. The scores come from models
-  trained on MSK-CHORD, and the data rule says nothing from MSK-CHORD goes to Token Factory;
-  whether model scores on a synthetic patient may is for the team to decide.
+- **No MSK-CHORD-model output goes to Token Factory** (team decision, 2026-10-19): the timeline's
+  risk scores, ranges and attributions come from models trained on MSK-CHORD, so they stay out
+  of every LLM call, like MSK-CHORD itself. If the Nemotron agent ever narrates the timeline, it
+  gets only the synthetic patient's own events (diagnosis, treatments, labs, imaging,
+  sequencing), never the scores; narration is optional, and the demo does without it.
 
 ## 2026-10-18 — MuFFLe++ becomes milestone 1 of a cancer intelligence platform
 - **What:** the project is reframed around the team's vision (`docs/VISION.md`): a multimodal,
