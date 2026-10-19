@@ -5,11 +5,18 @@ decisions 2026-10-18).
 
 **Before pasting into Devpost (final pass, Oct 27):**
 - [ ] Fill the video link (the demo link is in).
-- [ ] Resolve every **IN PROGRESS** marker: describe the feature as built (with its numbers), or
-      delete the sentence if it was cut. Judges score what is demonstrated, so nothing unbuilt
-      may read as done.
-- [ ] Fill the MSK-CHORD results and its attribution (from `docs/registry.md`).
-- [ ] Re-check every number against `app/results_tcga_brca.json`, the README and decisions.
+- [x] Every "in progress" marker is resolved (Oct 19): the parts are described as built, with
+      numbers from `docs/longitudinal.md`, `app/timeline_synthetic.json`,
+      `app/results_tcga_brca.json` and `docs/registry.md`. If a part is cut before the freeze,
+      delete its sentences; judges score what is demonstrated.
+- [ ] Re-save the 8 demo notes with the labeled format (`scripts/save_demo_notes.py`, needs a
+      live key and the full cohort; the saved ones date from Oct 18, before the labels), then
+      update the "Case agent" paragraph under Results.
+- [ ] Check on the hosted demo that the Case review tab shows what "What it does" says: the demo
+      bundle carries no mutation calls and no CIViC table, so there the Observed mutations and
+      CIViC bullets appear only if the hosted-app work adds them; otherwise reword to "local run".
+- [ ] Re-check every number against `app/results_tcga_brca.json`, the README, decisions and
+      `docs/longitudinal.md`.
 
 | Field | Value |
 |---|---|
@@ -19,7 +26,7 @@ decisions 2026-10-18).
 | Demo | https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; no login) |
 | Video | TODO: YouTube URL (≤ 3 min) |
 | Code | https://github.com/ps131-cell/muffle-plus-plus (MIT) |
-| Built with | Python, PyTorch, NVIDIA FLARE 2.9, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token Factory, Tavily, Streamlit, Altair, TCGA (GDC open access); IN PROGRESS: CIViC, MSK-CHORD |
+| Built with | Python, PyTorch, NVIDIA FLARE 2.9, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token Factory, Tavily, Streamlit, Altair, scikit-learn; data: TCGA-BRCA (GDC open access, incl. masked somatic mutations), CIViC (CC0), MSK-CHORD (CC BY-NC-ND 4.0, local use only) |
 | New or existing? | New: the repository was created on Oct 17, 2026, after the Submission Period opened (Aug 26); all of it was built during the hackathon. |
 
 ---
@@ -47,48 +54,84 @@ survival model (copy number, RNA expression, methylation, protein and clinical d
 risk, and copes with missing tests by masking the missing layers. A case agent on Nebius Token
 Factory turns it into a tumor-board note:
 
-1. **Nemotron 3 Super** plans. It calls our tools for the patient's risk and cohort percentile,
-   how much each data layer moves that risk compared with a typical patient, the top genes of a
-   layer, and a Tavily search for papers or clinical trials on those genes.
-2. **Nemotron 3 Ultra** writes the note (Summary, Drivers, Caveats, Literature) from the tool
-   outputs.
+1. **Nemotron 3 Super** plans. It calls our tools for what was recorded for the patient (data
+   layers measured and missing, recorded stage, age band, sequenced driver mutations), the
+   patient's risk and cohort percentile, how much each data layer moves that risk compared with
+   a typical patient, the top genes of a layer, CIViC treatment evidence for the patient's
+   observed driver mutations, and a Tavily search for papers or clinical trials on those genes.
+2. **Nemotron 3 Ultra** writes the note from the tool outputs, in five sections: Summary,
+   Observed, Model inferences, Hypotheses and evidence, Caveats.
 3. **A grounding check** (plain code, no LLM) looks for any number, gene or link in the note that
    no tool returned. If it finds one, Ultra gets one rewrite; anything left is shown.
 
-IN PROGRESS: every statement in the note labeled **observed** (e.g. the recorded stage, a
-sequenced driver mutation), **model inference** (e.g. the risk estimate) or **hypothesis**
-(e.g. a literature lead); observed driver mutations from GDC's open-access masked mutation
-files, with **CIViC** treatment evidence for clinician review.
+**Every statement in the note carries one of three labels**, and the writer is told never to
+present an inference or a hypothesis as observed:
+- **[Observed]**: measured or recorded for this patient: the data layers that exist, the recorded
+  stage, and the driver mutations found in the tumor's sequencing. A patient who was not
+  sequenced is reported as "not sequenced", which is unknown, not wild type.
+- **[Model inference]**: a prediction with its uncertainty: the risk and cohort percentile, each
+  layer's effect on the risk, the top features.
+- **[Hypothesis]**: CIViC treatment evidence and literature leads, for clinician review, never a
+  recommendation and never a finding about this patient.
 
-**2. A patient timeline. IN PROGRESS.** The risk of progression or death in the next 12 months
-is re-estimated each time a new result arrives (a treatment, a tumor marker, a sequencing
-report). It is measured on real MSK-CHORD timelines (aggregate results only) and shown in the
-demo on a clearly labeled **synthetic** patient, with what changed and why.
+The observed mutations are GDC's open-access masked somatic calls for TCGA-BRCA, read for a
+panel of 16 breast cancer driver genes (PIK3CA, TP53, CDH1, GATA3, ESR1 and others); they are
+shown but are not an input to the risk model. For each observed mutation the agent adds
+**CIViC** (CC0) evidence items for breast cancer: therapy, evidence level (A validated … E
+inferential), significance, citation and a link to the CIViC item. Without an LLM, the same tools run in a
+fixed order and a template writes the same sections and labels.
+
+**2. A patient timeline.** The risk of progression or death in the next 12 months is
+re-estimated each time a new result arrives (a treatment, a tumor marker, an imaging read, a
+sequencing report). We measured it on real **MSK-CHORD** timelines (5,368 breast cancer
+patients; used locally, aggregate results only) and show it in the demo on **SYNTHETIC-001**,
+a **synthetic** patient we wrote by hand: it is not a real person and not taken from any
+dataset, only its event types and units follow MSK-CHORD. The patient has 16 events, from
+diagnosis (stage II, hormone-receptor positive, HER2 negative) through adjuvant therapy, a bone
+recurrence, tumor sequencing (PIK3CA H1047R) at month 0, palbociclib + fulvestrant, a liver
+progression at month 12 and alpelisib, to month 24. From month 0 on, each event re-scores the
+patient and splits the change since the previous event into its causes (a new treatment,
+progression history, a CA 15-3 value, the ECOG performance status).
 
 **3. Learning across hospitals.** One survival model is trained across three **simulated**
 hospitals (TCGA-BRCA tissue source sites grouped into three federated clients of 355, 355 and
 354 patients) without moving patient data: each site trains on its own data and only model
 weights travel, through NVIDIA FLARE. A hospital that never measured a layer still takes part.
 
-The app has three tabs:
+The app has four tabs:
+- **Patient timeline (synthetic):** a slider steps through SYNTHETIC-001's record. At each point
+  it shows what is **observed** (the record so far), the **model inference** (12-month risk,
+  the range over 5 models, the diagnosis-only baseline, the model's held-out AUROC, and what
+  changed and why) and, in a **hypotheses and evidence** panel, CIViC evidence for the observed
+  driver, for clinician review. A banner says the patient is synthetic.
 - **Case review:** pick one of the held-out patients; see where they sit among all patients,
   what drives their risk, and what happens if a data layer were missing; then watch the agent's
   steps live, read the note with its grounding result and tool trace, and download it.
 - **Federation:** the simulated hospitals and their data, and the results below.
 - **How it works:** method, privacy and limits.
 
-IN PROGRESS: the timeline view for the synthetic patient.
-
-Only derived numbers (risk, percentile, contributions, attribution scores) and gene names are
-sent to Token Factory and Tavily, never a patient's omics values and nothing from MSK-CHORD.
+Only derived numbers (risk, percentile, contributions, attribution scores) and gene and
+mutation names are sent to Token Factory and Tavily, never a patient's omics values and nothing
+from MSK-CHORD: neither its data nor the output of a model trained on it, which includes the
+synthetic patient's risk scores. The timeline tab is not narrated by an LLM.
 
 ## How we built it
 
 - **Data:** open-access TCGA-BRCA from the UCSC Xena GDC hub: 1,064 patients, 148 deaths,
   overall survival, one primary tumour each. Real gaps between data layers: methylation covers
-  51–83% of a simulated hospital's patients, protein 75–89%. IN PROGRESS: GDC open-access masked
-  somatic mutations; CIViC (CC0) evidence; MSK-CHORD timelines (CC BY-NC-ND 4.0, used locally,
-  only aggregate results published).
+  51–83% of a simulated hospital's patients, protein 75–89%. Added for the platform: GDC
+  open-access masked somatic mutations (16 breast cancer driver genes, shown as observed
+  findings, not a model input); CIViC (CC0) treatment evidence; and MSK-CHORD timelines
+  (Jee et al., *Nature* 2024, CC BY-NC-ND 4.0), used locally, with only aggregate results
+  published. Every resource, its license and what leaves the machine is in `docs/registry.md`.
+- **Timeline models:** scikit-learn gradient boosting (depth 3, library defaults, nothing
+  tuned), trained on MSK-CHORD at landmarks 0, 6, 12 and 24 months after a patient's first
+  tumor sequencing. At a landmark, every patient still alive is scored for progression or death
+  in the next 12 months from what was recorded up to then. Two feature sets on the same patients
+  and learner: *diagnosis only* (stage, hormone-receptor and HER2 status) and *record so far*
+  (plus treatments, prior progressions, metastatic sites, CA 15-3 and CEA, ECOG and eight
+  sequenced drivers). Patient-level 80/20 splits, seeds 0–4. The models stay on our machine:
+  sharing a model trained on CC BY-NC-ND data could count as sharing adapted material.
 - **Model (PyTorch):** an encoder per data layer, masked additive fusion and a Cox (DeepSurv)
   head, trained with modality dropout that never drops clinical data. Clinical-anchored
   residual: the model first learns a clinical risk, then the omic layers may correct it by an
@@ -125,11 +168,34 @@ C-index on the unseen hospital, mean ± sd over 5 seeds:
   beyond stage and age yet. That's why the model anchors on clinical data and lets the omics
   correct it.
 
-**Patient timeline.** IN PROGRESS: 12-month risk on MSK-CHORD timelines as the record grows,
-against baselines (aggregate numbers only).
+**Patient timeline** (MSK-CHORD, real timelines; aggregate numbers only). AUROC for progression
+or death in the next 12 months, mean ± sd over 5 seeds, on held-out patients, diagnosis only vs
+the record so far:
 
-**Case agent.** All 8 notes saved for the demo passed the grounding check; a note costs about
-$0.01 of Token Factory credit (8k–16k tokens). The whole project has used $0.46 so far.
+| Landmark (months after sequencing) | Patients | Event rate | Diagnosis only | Record so far |
+|---|---|---|---|---|
+| 0 | 5,137 | 0.44 | 0.663 ± 0.010 | **0.880 ± 0.003** |
+| 6 | 4,610 | 0.42 | 0.665 ± 0.010 | **0.912 ± 0.009** |
+| 12 | 4,051 | 0.40 | 0.672 ± 0.014 | **0.928 ± 0.007** |
+| 24 | 3,105 | 0.34 | 0.706 ± 0.031 | **0.931 ± 0.014** |
+
+- The record-so-far model beats diagnosis-only at every landmark, the Brier score roughly
+  halves (for example 0.226 → 0.140 at month 0 and 0.194 → 0.096 at month 24), and it improves
+  as the record grows (0.880 at sequencing → 0.931 two years later). Compare the two models
+  within a landmark, not across landmarks: the populations differ.
+- Read it with its caveats: the labels come from NLP of radiology reports, not adjudicated
+  reads; some features partly measure how closely a patient is followed; a recent progression
+  strongly predicts the next one, which makes this easier than predicting a first event; it is
+  one institution (MSK, enriched for advanced disease: 44% have an event within 12 months of
+  sequencing) with no external validation; nothing was tuned.
+- SYNTHETIC-001, scored by these models, goes from 38% (range over 5 models 35–40%, diagnosis
+  only 44%) at the first sequencing, to 52% when ECOG 1 is recorded at month 1, 88% (range
+  81–93%) at the month-12 liver progression, and 60% (54–66%) at month 24. These scores
+  illustrate how the risk moves with the record; they are not a validation on that patient.
+
+**Case agent.** A note costs about $0.01 of Token Factory credit (8k–16k tokens). The whole
+project has used $0.46 so far. The 8 notes saved for the demo passed the grounding check; they
+were written on Oct 18, before the evidence labels, mutations and CIViC were added to the note.
 
 ## Challenges we ran into
 
@@ -148,7 +214,13 @@ $0.01 of Token Factory credit (8k–16k tokens). The whole project has used $0.4
   must name the gene and a cancer, and scholarly domains fixed it.
 - **Data rights.** MSK-CHORD's license (CC BY-NC-ND 4.0) allows local research but no
   redistribution, so no individual MSK-CHORD patient appears in the repo, the demo, the video
-  or any LLM call; the demo's timeline patient is synthetic and labeled.
+  or any LLM call. We went further: the trained timeline models stay local, and the risk scores
+  they produce never go to an LLM either. The demo's timeline patient is hand-written, synthetic
+  and labeled, and the hosted demo needs no MSK-CHORD file.
+- **Real records are incomplete and contain care, not only biology.** A patient with no
+  mutation call may not have been sequenced at all, which is unknown, not wild type, so the note
+  says "not sequenced". On timelines, the number of tumor-marker tests and treatments partly
+  measures how closely a patient is followed; we list this as a caveat next to the results.
 - **Free credits only.** The Token Factory account is billed automatically once the credit
   runs out, so we built our own spending cap.
 
@@ -159,6 +231,11 @@ $0.01 of Token Factory credit (8k–16k tokens). The whole project has used $0.4
 - An evaluation we can defend: unseen hospitals, separate tuning seeds, and the clinical
   baseline reported even though it wins.
 - Every claim in a note can be traced to a tool call, and the app shows the trace.
+- Every statement in a note is labeled observed, model inference or hypothesis, and treatment
+  content is CIViC evidence with its citation and link, "for clinician review", never advice.
+- A risk estimate that updates along a patient's record: on real timelines it rises from AUROC
+  0.663 (diagnosis only) to 0.880 at first sequencing and 0.931 two years later, and the demo
+  shows the same on a synthetic patient with an explanation of each change.
 
 ## What we learned
 
@@ -174,8 +251,8 @@ $0.01 of Token Factory credit (8k–16k tokens). The whole project has used $0.4
 The platform roadmap (`docs/VISION.md`):
 - Pathology slides, radiology, labs and clinical notes through pretrained encoders, each added
   only when it measurably helps.
-- Mutation status inferred from other layers, with calibrated uncertainty; evolutionary
-  hypotheses from repeated sequencing.
+- Mutation status inferred from other layers, with calibrated uncertainty (today a mutation is
+  observed or unknown); evolutionary hypotheses from repeated sequencing.
 - Treatment evidence beyond CIViC: resistance mechanisms and combinations, for clinician review.
 - Real contributing institutions with secure aggregation or differential privacy, and
   federated training as Nebius Serverless Jobs on GPUs.
@@ -187,7 +264,8 @@ The platform roadmap (`docs/VISION.md`):
   grounding check finds something), following the track's advice to use Ultra for reasoning
   and Super for the fast calls.
 - **NVIDIA FLARE 2.9:** federated training with the Recipe API in the simulator.
-- **Tavily:** literature and clinical-trial search on the genes behind each patient's risk.
+- **Tavily:** literature and clinical-trial search on the genes behind each patient's risk;
+  only gene names and the cancer type are sent.
 - **Nebius AI Cloud:** not used (see feedback).
 
 ## Testing instructions
@@ -197,7 +275,11 @@ The platform roadmap (`docs/VISION.md`):
 - **Case review:** patients marked ★ have a saved note (**Show the saved note**). **Write the
   note with Nemotron** runs the live agent (about 20–30 seconds, 5 live notes per session).
   Open **What if a data layer were missing?** to hide a layer and see the risk change.
-- IN PROGRESS: how to step through the synthetic timeline patient.
+- **Patient timeline (synthetic):** the first tab. Drag the slider "Record up to" from the first
+  event (month -40) to the last (month 24) to watch SYNTHETIC-001's record grow. The risk
+  estimate starts at month 0, the first tumor sequencing. At each point, read what is observed,
+  the 12-month risk with its range and the diagnosis-only baseline, what changed, and the CIViC
+  evidence for the observed PIK3CA mutation. The "Event log" lists every event so far.
 - **Federation** and **How it works** need no input.
 - Locally: `make setup`, then `.venv/bin/streamlit run app/streamlit_app.py`. Without the
   TCGA data it downloads the demo bundle from the GitHub release. Add `NEBIUS_API_KEY` and
@@ -207,11 +289,17 @@ The platform roadmap (`docs/VISION.md`):
 
 - TCGA-BRCA open-access data (UCSC Xena GDC hub). The results here are in whole or part based
   upon data generated by the TCGA Research Network: https://www.cancer.gov/tcga.
-- IN PROGRESS: GDC open-access masked somatic mutations; CIViC (CC0, each evidence item cited);
-  MSK-CHORD (CC BY-NC-ND 4.0, local use, aggregate results only; attribution from
-  `docs/registry.md`).
-- Simulated hospitals and the synthetic timeline patient are labeled as such everywhere.
-  Research prototype, not for clinical use.
+- GDC open-access masked somatic mutations for TCGA-BRCA (UCSC Xena GDC hub; germline calls
+  removed): driver mutations as observed findings.
+- CIViC (https://civicdb.org, CC0): treatment evidence for observed variants; each item keeps its
+  evidence level, citation and CIViC link.
+- MSK-CHORD (Jee et al., *Nature* 2024; cBioPortal study `msk_chord_2024`; CC BY-NC-ND 4.0):
+  used locally for the risk-update models. We publish the code and aggregate results, with
+  attribution, and nothing else from it: no patient, no model, no output sent to an LLM. Only
+  SYNTHETIC-001's scores are published.
+- Simulated hospitals and the synthetic timeline patient (SYNTHETIC-001) are labeled as such
+  everywhere. Research prototype for clinician review, not a diagnosis and not a treatment
+  recommendation.
 
 ---
 
