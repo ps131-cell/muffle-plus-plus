@@ -1072,40 +1072,40 @@
  "evidence": {
   "PIK3CA H1047R": [
    {
-    "molecular_profile": "PIK3CA H1047R",
-    "match": "this variant",
-    "therapies": "Fulvestrant,Everolimus",
-    "evidence_level": "C",
-    "level_meaning": "case study",
-    "significance": "Sensitivity/Response",
-    "direction": "Supports",
-    "disease": "HER2 Positive Breast Cancer",
-    "citation": "Sun et al., 2016",
-    "url": "https://civicdb.org/links/evidence_items/1623"
-   },
-   {
-    "molecular_profile": "PIK3CA H1047R",
-    "match": "this variant",
-    "therapies": "Izorlisib",
-    "evidence_level": "D",
-    "level_meaning": "preclinical",
+    "molecular_profile": "PIK3CA H1047R OR PIK3CA H1047Y OR PIK3CA H1047L",
+    "match": "this variant (the profile also covers H1047Y, H1047L)",
+    "therapies": "Fulvestrant,Alpelisib",
+    "evidence_level": "A",
+    "level_meaning": "validated association",
     "significance": "Sensitivity/Response",
     "direction": "Supports",
     "disease": "Breast Cancer",
-    "citation": "Tanaka et al., 2011",
-    "url": "https://civicdb.org/links/evidence_items/314"
+    "citation": "André et al., 2019",
+    "url": "https://civicdb.org/links/evidence_items/7318"
    },
    {
-    "molecular_profile": "PIK3CA H1047R",
-    "match": "this variant",
-    "therapies": "Pictilisib",
-    "evidence_level": "D",
-    "level_meaning": "preclinical",
+    "molecular_profile": "PIK3CA Mutation",
+    "match": "any mutation in the gene",
+    "therapies": "Fulvestrant,Alpelisib",
+    "evidence_level": "A",
+    "level_meaning": "validated association",
     "significance": "Sensitivity/Response",
     "direction": "Supports",
-    "disease": "HER2 Positive Breast Cancer",
-    "citation": "O'Brien et al., 2010",
-    "url": "https://civicdb.org/links/evidence_items/2096"
+    "disease": "Breast Cancer",
+    "citation": "André et al., 2019",
+    "url": "https://civicdb.org/links/evidence_items/7313"
+   },
+   {
+    "molecular_profile": "PIK3CA H1047R OR PIK3CA H1047Y OR PIK3CA H1047L OR PIK3CA H1047D OR PIK3CA H1047I OR PIK3CA H1047N OR PIK3CA H1047P OR PIK3CA H1047Q OR PIK3CA H1047T",
+    "match": "this variant (the profile also covers H1047Y, H1047L, H1047D, H1047I, H1047N, H1047P, H1047Q, H1047T)",
+    "therapies": "Fulvestrant,Palbociclib,Inavolisib",
+    "evidence_level": "A",
+    "level_meaning": "validated association",
+    "significance": "Sensitivity/Response",
+    "direction": "Supports",
+    "disease": "Breast Cancer",
+    "citation": "Wedam et al., 2025",
+    "url": "https://civicdb.org/links/evidence_items/12533"
    }
   ]
  }
