@@ -21,7 +21,6 @@ fails, the agent runs without the treatment_evidence tool and the sidebar says s
 from __future__ import annotations
 
 import argparse
-import importlib
 import json
 import os
 import sys
@@ -33,13 +32,24 @@ APP = Path(__file__).parent
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
 
-import charts  # noqa: E402
-# ponytail: Streamlit Cloud hot updates can keep a stale sibling module; reload keeps
-# charts.py in step with this file
-importlib.reload(charts)
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 import torch  # noqa: E402
+
+from muffle.hotreload import purge_modules, source_digest  # noqa: E402
+
+# ponytail: Streamlit Cloud hot-updates this file but keeps the modules this process already
+# imported (charts.py, src/muffle), which crashed the hosted app twice on Oct 19 (AttributeError
+# on charts.risk_timeline, ImportError on muffle.demo.evidence_lookup). When the sources differ
+# from what this process last ran, drop those modules and the caches their old code built.
+CODE_DIGEST = source_digest([APP, APP.parent / "src" / "muffle"])
+if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
+    purge_modules(("charts", "muffle"))
+    st.cache_resource.clear()
+    st.cache_data.clear()
+    sys._muffle_code_digest = CODE_DIGEST
+
+import charts  # noqa: E402
 
 from muffle.demo import (  # noqa: E402
     build_demo,
