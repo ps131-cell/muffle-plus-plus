@@ -10,7 +10,7 @@ as an issue, so the demo can flag it and the writer can be asked once to fix it.
   ("3 layers") are structural and skipped.
 - **genes**: a cohort feature name (exact case) that no tool returned, or a gene-like symbol with
   a digit (TP53, BRCA1) that isn't in the evidence. TNM codes (T2N0, M0) and HER2 are
-  allowed.
+  allowed. A hyphen typed as U+2010 or U+2011 (writers often send IGKV4‑1) counts as "-".
 - **URLs**: must be one of the URLs returned by search_literature.
 """
 
@@ -23,6 +23,7 @@ TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-]*[A-Za-z0-9]|[A-Za-z0-9]")
 GENE_LIKE = re.compile(r"[A-Z][A-Z0-9\-]*\d[A-Z0-9\-]*")
 ALLOWED = re.compile(r"HER2|(?:[TNM](?:[0-4]|X|is)[a-d]?)+")  # HER2, T2N0M0, T1c, NX
 URL = re.compile(r"https?://[^\s)\]>\"'`]+")
+HYPHENS = str.maketrans("‐‑", "--")
 
 
 def _numbers_in(obj) -> list[float]:
@@ -64,7 +65,8 @@ def check_note(text: str, evidence,
     """Issues in ``text`` (the note) that aren't backed by ``evidence`` (case header + tool calls
     and results, any JSON-able object). Each issue: {"kind": number|gene|url, "text": ...}."""
     known_numbers = _numbers_in(evidence)
-    strings = _strings_in(evidence)
+    text = text.translate(HYPHENS)
+    strings = [s.translate(HYPHENS) for s in _strings_in(evidence)]
     evidence_tokens = {t for s in strings for t in TOKEN.findall(s)}
     vocab = {n for m, names in (feature_names or {}).items() if m != "clinical" for n in names}
     urls = {u.rstrip("/") for s in strings for u in URL.findall(s)}

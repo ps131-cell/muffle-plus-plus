@@ -52,7 +52,9 @@ WRITER_MODEL = os.getenv("NEMOTRON_WRITER_MODEL") or "nvidia/Nemotron-3-Ultra-55
 MAX_TOOL_ROUNDS = 6       # planner turns that may call tools
 MAX_CALLS_PER_ROUND = 4   # extra parallel calls in one turn are dropped
 MAX_TOKENS = 900          # per planner completion
-WRITER_MAX_TOKENS = 4096  # the writer reasons before it writes; reasoning tokens count as output
+# the writer reasons before it writes, and reasoning tokens count as output: at 4096, Ultra was cut
+# off on 6 of 9 cases on 2026-10-19 (CIViC items and literature make longer notes)
+WRITER_MAX_TOKENS = 8192
 MAX_REVISIONS = 1         # rewrites after the grounding check finds unsupported items
 WRITER_DROPS = {"note", "log_risk", "cohort_median_log_risk"}  # tool-result keys the writer skips
 
@@ -209,6 +211,11 @@ def run_case_agent(tools: CaseTools, client=None, model: str = DEFAULT_MODEL,
     if not any(c.name == "predict_risk" and "error" not in c.result for c in trace):
         notes.append("the planner did not get the risk, so the fixed tool sequence ran too")
         trace += fixed_plan(tools)
+    elif "treatment_evidence" in {s["function"]["name"] for s in specs} \
+            and not any(c.name == "treatment_evidence" for c in trace):
+        # a note on a sequenced driver always carries its CIViC evidence (Super skipped it once)
+        notes.append("the planner skipped treatment_evidence, so it ran too")
+        trace.append(ToolCall(0, "treatment_evidence", {}, tools.call("treatment_evidence", {})))
     return _write(tools, trace, client, writer, model, "agent", tokens, notes, step)
 
 

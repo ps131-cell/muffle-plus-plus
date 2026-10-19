@@ -70,7 +70,7 @@ from muffle.report.nemotron import (  # noqa: E402
 )
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
-BUNDLE_RELEASE = "demo-bundle-v1"  # bump once the next release exists (scripts/make_demo_bundle.py)
+BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
 BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}

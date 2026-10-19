@@ -129,6 +129,20 @@ def test_planner_without_risk_gets_the_fixed_plan():
     assert report.mode == "agent" and "fixed tool sequence" in report.notes[0]
 
 
+def test_skipped_treatment_evidence_runs_anyway():
+    from muffle.report.case_tools import observed_facts
+
+    tools = make_tools()
+    tools.observed = observed_facts("II", 57.0, ["PIK3CA p.H1047R"])
+    tools.evidence = lambda gene, change, cancer: [{"evidence_level": "A", "gene": gene}]
+    client = FakeClient(reply(calls=[("predict_risk", {})]), reply("DONE"), reply("**Summary** x"))
+    report = run_case_agent(tools, client=client)
+    assert [(c.round, c.name) for c in report.trace] == [(1, "predict_risk"),
+                                                         (0, "treatment_evidence")]
+    assert report.trace[1].result["variants"][0]["civic_items"][0]["gene"] == "PIK3CA"
+    assert report.notes == ["the planner skipped treatment_evidence, so it ran too"]
+
+
 def test_writer_failure_falls_back_to_the_planner_model():
     def writer_down(kw):
         if kw["model"] == "nvidia/writer":
