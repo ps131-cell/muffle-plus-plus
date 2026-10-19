@@ -13,15 +13,15 @@ Re-check the Devpost page before submitting — rules can be updated.
 
 | Requirement | Our answer | Status |
 |---|---|---|
-| Runs on Nebius Token Factory **or** AI Cloud (Serverless Jobs / Endpoints / DevPods) | Nemotron report calls Token Factory at runtime, on the free hackathon credits (FL stays in the NVFlare simulator; Serverless Job cut — see decisions 2026-10-17) | [ ] |
-| Uses ≥1 NVIDIA open-source model (e.g. Nemotron) | `src/muffle/report/nemotron.py` writes the prognosis report with Nemotron | [ ] |
-| Fits a track | **Best Apps and Agents** (an app people would use, powered by Nemotron on Token Factory) | [ ] |
-| Public repo, OSI license visible in the About section | MIT `LICENSE`; make the repo public before submitting | [ ] |
-| README: setup/run + how NVIDIA models, Token Factory, other Nebius tools are used | README "Hackathon" section | [ ] |
-| Working demo URL, free to test through Dec 15 | Streamlit app hosted on a free tier (Streamlit Community Cloud) | [ ] |
-| Public YouTube video ≤ 3 min, no copyrighted music | Script below | [ ] |
-| Text description + feedback on Token Factory / AI Cloud / NVIDIA tools | Draft in `docs/submission.md` | [ ] |
-| Third-party data used under its terms | TCGA open tier; GDC masked somatic mutations (open); CIViC (CC0); MSK-CHORD (CC BY-NC-ND 4.0) used locally with only aggregate results published, never shown in the demo or video (`docs/registry.md`) | [ ] |
+| Runs on Nebius Token Factory **or** AI Cloud (Serverless Jobs / Endpoints / DevPods) | Nemotron report calls Token Factory at runtime, on the free hackathon credits (FL stays in the NVFlare simulator; Serverless Job cut — see decisions 2026-10-17) | Done: the case agent calls Nemotron 3 Super and Ultra on Token Factory at runtime (decisions 2026-10-18) |
+| Uses ≥1 NVIDIA open-source model (e.g. Nemotron) | `src/muffle/report/nemotron.py` writes the prognosis report with Nemotron | Done: Nemotron 3 Super and Ultra |
+| Fits a track | **Best Apps and Agents** (an app people would use, powered by Nemotron on Token Factory) | Done |
+| Public repo, OSI license visible in the About section | MIT `LICENSE` | Done: public, MIT (checked with `gh repo view` on 2026-10-19) |
+| README: setup/run + how NVIDIA models, Token Factory, other Nebius tools are used | README "Hackathon" section | In progress: PR #53 open; final numbers and URL on Oct 27 |
+| Working demo URL, free to test through Dec 15 | Streamlit app hosted on a free tier (Streamlit Community Cloud) | Hosted at https://cancer-intelligence-platform.streamlit.app; the live case agent waits for the keys in the Streamlit secrets (user action); bundle v2 pending |
+| Public YouTube video ≤ 3 min, no copyrighted music | Script below | Script drafted (PR #47); not recorded |
+| Text description + feedback on Token Factory / AI Cloud / NVIDIA tools | Draft in `docs/submission.md` | Drafted (PR #42) |
+| Third-party data used under its terms | TCGA open tier; GDC masked somatic mutations (open); CIViC (CC0); MSK-CHORD (CC BY-NC-ND 4.0) used locally with only aggregate results published, never shown in the demo or video (`docs/registry.md`) | Done (`docs/registry.md`) |
 
 Bonus: **Best Use of Tavily** ($3k) — the report's literature lookup uses Tavily.
 Credits: event code on the Devpost page (Token Factory) + Nebius Builders Program.
@@ -35,13 +35,16 @@ milestone 1 of the cancer intelligence platform (`docs/VISION.md`, decisions 202
 
 | Days | Platform work (milestone 1) | Product / submission |
 |---|---|---|
-| Oct 18–19 | Vision in the docs; observed / inferred / hypothesis labels in the case note | — |
-| Oct 19–21 | Observed driver mutations from GDC open MAFs; CIViC evidence tool for clinician review | `docs/registry.md` (datasets + models, license, access tier) |
-| Oct 21–24 | MSK-CHORD timelines (local only) → risk of progression or death in the next 12 months, re-predicted at each new event, measured against baselines as the record grows | — |
-| Oct 24–26 | Synthetic timeline patient (labeled) in the demo: the profile updates with each result and records what changed and why | Host the demo (Streamlit Community Cloud) |
+| Oct 18–19 | **Done.** Vision in the docs; evidence labels in the case note (#43) | — |
+| Oct 19–21 | **Done.** Observed driver mutations from GDC open MAFs and CIViC treatment evidence for clinician review (#46) | **Done.** `docs/registry.md` (#52) |
+| Oct 21–24 | **Done.** MSK-CHORD timelines (local only), 12-month risk re-predicted at each new event, measured against baselines as the record grows (#48) | — |
+| Oct 24–26 | **Done.** Synthetic timeline patient (labeled) in the demo: the profile updates with each result and records what changed and why (#49) | **Done.** Demo hosted on Streamlit Community Cloud on Oct 19 (#50) |
 | Oct 27 | Final numbers into README and decisions | Description + feedback draft |
 | Oct 28 | **Freeze** | Record + upload video, make the repo public, protect `main` |
 | Oct 30 | — | **Submit before 10 am PT** |
+
+Open scope decisions: a survey of pretrained models and datasets per test type (`docs/model_survey.md`,
+in progress) and the clinician workspace (`docs/WORKSPACE.md`, PR #54).
 
 Scope cuts if behind (in order): the synthetic patient's richness (fewer event types), CIViC
 beyond the top drivers, registry depth, FedProx / DP / BLCA (not planned).
