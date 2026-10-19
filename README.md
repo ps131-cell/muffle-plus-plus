@@ -136,9 +136,9 @@ fell short. On this endpoint the omics don't (yet) add signal beyond clinical da
 | Source | Used for | Terms |
 |---|---|---|
 | TCGA-BRCA via the GDC / UCSC Xena GDC hub | multi-omic cohort, overall survival | open tier |
-| GDC masked somatic mutation files | observed driver mutations *(in progress)* | open access |
-| [CIViC](https://civicdb.org) | treatment evidence for observed variants *(in progress)* | CC0 |
-| [MSK-CHORD](https://www.cbioportal.org/study/summary?id=msk_chord_2024) (Jee et al., Nature 2024) | real patient timelines for the risk-update evaluation *(in progress)* | CC BY-NC-ND 4.0: used locally; only code and aggregate results are published |
+| GDC masked somatic mutation files | observed driver mutations in the case note (not a model input) | open access |
+| [CIViC](https://civicdb.org) | treatment evidence for observed variants, for clinician review | CC0 |
+| [MSK-CHORD](https://www.cbioportal.org/study/summary?id=msk_chord_2024) (Jee et al., Nature 2024) | real patient timelines: 12-month risk re-predicted as the record grows; scores the demo's synthetic patient | CC BY-NC-ND 4.0: used locally; only code, aggregate results and the synthetic patient's scores are published |
 
 No patient-level data is stored in this repository. Simulated hospitals and the demo's synthetic
 timeline patient are labeled as simulated. Full list with access tiers: `docs/registry.md`.
@@ -148,10 +148,12 @@ Milestone 1 (hackathon, Oct 30 2026):
 - [x] Repo, CI, TCGA-BRCA multi-omic cohort, survival model with missing-layer masking
 - [x] Federated training across simulated hospitals, baselines, leave-one-site-out, calibration
 - [x] Nemotron case agent with tools, Tavily literature, spending cap
-- [ ] Observed / inferred / hypothesis labels in the case note
-- [ ] Observed driver mutations + CIViC evidence
-- [ ] Patient timeline: risk re-estimated as results arrive (MSK-CHORD, aggregate results)
-- [ ] Synthetic timeline patient in the demo; hosted demo; video; submit by Oct 30, 10 am PT
+- [x] Observed / inferred / hypothesis labels in the case note
+- [x] Observed driver mutations + CIViC evidence
+- [x] Patient timeline: risk re-estimated as results arrive (MSK-CHORD, aggregate results)
+- [x] Synthetic timeline patient in the demo
+- [x] Registry of datasets, models and services (`docs/registry.md`)
+- [ ] Hosted demo; video; submit by Oct 30, 10 am PT
 
 Beyond the hackathon (see [`docs/VISION.md`](docs/VISION.md)): pathology and radiology
 encoders, inferred mutation status with calibrated uncertainty, evolutionary hypotheses from
