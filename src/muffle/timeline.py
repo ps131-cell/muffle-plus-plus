@@ -1,6 +1,6 @@
 """A synthetic breast-cancer patient whose profile updates at every event (milestone 1, part 3).
 
-SYNTHETIC: this patient was written by hand for the demo. It is not a real person and was not
+SYNTHETIC: this patient was written by hand. It is not a real person and was not
 sampled or copied from any dataset. Only the *structure* of its record (event types, units,
 treatment classes, drug names) follows MSK-CHORD's cBioPortal timelines, so the MSK-CHORD risk
 models of ``muffle.longitudinal`` score it with exactly the features they were evaluated on.
@@ -25,9 +25,9 @@ import pandas as pd
 from muffle.longitudinal import BASELINE, DAYS_PER_MONTH, DRIVERS, features
 
 PATIENT_ID = "SYNTHETIC-001"
-NOTICE = ("Synthetic patient: made up by hand for this demo, not a real person and not taken "
-          "from any dataset. Its record follows the structure of MSK-CHORD timelines so the "
-          "MSK-CHORD risk models can score it.")
+NOTICE = ("Synthetic patient: written by hand to show how a record grows, not a real person "
+          "and not taken from any dataset. Its record follows the structure of MSK-CHORD "
+          "timelines so the MSK-CHORD risk models can score it.")
 MODEL_NOTE = ("Risk models trained locally on MSK-CHORD breast cancer timelines (Jee et al., "
               "Nature 2024; CC BY-NC-ND 4.0). Only this synthetic patient's scores and aggregate "
               "test metrics are published; no MSK-CHORD patient or model leaves the machine.")

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from muffle.data.tcga import DRIVERS as TCGA_PANEL
 from muffle.demo import ordinal
+from muffle.longitudinal import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED, age_band
 from muffle.timeline import EVENTS, PATIENT_ID
 
@@ -25,7 +27,11 @@ MARKERS = {"ca153": ("CA 15-3", "U/mL"), "cea": ("CEA", "ng/mL")}
 # Reference limits as the record states them. SYNTHETIC-001's first lab report reads
 # "reference below 30"; CEA has none in the record, so it never raises an alert.
 REFERENCE_LIMITS = {"ca153": (30.0, "the record's lab report (month -2)")}
-RISE = 0.25    # PLACEHOLDER: a marker rise worth an alert, not validated
+# A significant marker rise per the EGTM breast cancer recommendations: at least 25% over the
+# previous value with the second value above the reference interval, to be confirmed with a second
+# specimen within a month (which an alert raised at one timepoint can't know yet)
+RISE = 0.25
+EGTM = "literature: EGTM breast cancer recommendations (egtm.eu; Molina et al., Tumour Biol 2005)"
 RISK_JUMP = 20  # PLACEHOLDER: a rise in 12-month risk (points) worth an alert, not validated
 
 ASSAYS = {"clinical": "Clinical record (stage, T/N/M, age, histology)",
@@ -53,6 +59,7 @@ class Test:
     result: str
     workbench: str   # labs, mutations, omics, record, imaging, slides
     status: str      # status of that workbench: implemented or planned
+    details: dict = field(default_factory=dict)  # what the workbench opens: marker, layer, variants
 
 
 @dataclass
@@ -96,11 +103,14 @@ def _event_tests(e: dict) -> list[Test]:
     if e["kind"] == "Imaging":
         out.append(Test("Imaging", m, "Imaging report", e["text"], "imaging", PLANNED))
     if "mutations" in e:
-        found = ", ".join(f"{g} {c}" for g, c in e["mutations"]) or "no panel driver mutated"
-        out.append(Test("Sequencing", m, "Tumor sequencing", found, "mutations", IMPLEMENTED))
+        found = [f"{g} {c}" for g, c in e["mutations"]]
+        out.append(Test("Sequencing", m, "Tumor sequencing", ", ".join(found)
+                        or "no panel driver mutated", "mutations", IMPLEMENTED,
+                        {"variants": found, "panel": list(DRIVERS)}))
     for key, (name, unit) in MARKERS.items():
         if key in e:
-            out.append(Test("Lab", m, name, f"{e[key]:g} {unit}", "labs", IMPLEMENTED))
+            out.append(Test("Lab", m, name, f"{e[key]:g} {unit}", "labs", IMPLEMENTED,
+                            {"marker": key}))
     return out
 
 
@@ -131,7 +141,8 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
                     f"{name} rose from {before:g} to {value:g} {unit} ({value / before - 1:+.0%}),"
                     f" above the reference limit of {limit[0]:g}", m, f"{name}, month {m}",
                     OBSERVED, f"above the reference limit and at least {RISE:.0%} above the "
-                    "previous value", f"limit from {limit[1]}; {RISE:.0%} rise is a placeholder"))
+                    "previous value; unconfirmed until a second specimen within a month",
+                    f"limit from {limit[1]}; the {RISE:.0%} rise from {EGTM}"))
         for gene, change in e.get("mutations", []):
             variant = f"{gene} {change}"
             if variant in seen_drivers:
@@ -177,12 +188,13 @@ def case_file(case, c_index: float | None = None) -> PatientFile:
     mutation panel as tests, and no alerts, since nothing earlier exists to compare with."""
     muts = None if case.mutations is None else [m.replace(" p.", " ") for m in case.mutations]
     tests = [Test("Clinical record" if m == "clinical" else "Data layer", None, ASSAYS[m],
-                  "measured", "record" if m == "clinical" else "omics", IMPLEMENTED)
+                  "measured", "record" if m == "clinical" else "omics", IMPLEMENTED, {"layer": m})
              for m in case.layers]
     if muts is not None:
-        tests.append(Test("Mutation panel", None, "Somatic mutations, 16 breast cancer drivers "
-                          "(exome sequencing)", ", ".join(muts) or "none of the panel's genes "
-                          "mutated", "mutations", IMPLEMENTED))
+        tests.append(Test("Mutation panel", None, f"Somatic mutations, {len(TCGA_PANEL)} breast "
+                          "cancer drivers (exome sequencing)", ", ".join(muts) or "none of the "
+                          "panel's genes mutated", "mutations", IMPLEMENTED,
+                          {"variants": muts, "panel": TCGA_PANEL}))
     observed = [
         ["Stage", case.stage or "not recorded"],
         ["Age band", age_band(case.age)],
