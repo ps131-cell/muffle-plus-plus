@@ -2,6 +2,33 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-19 — The product vision: a clinician workspace with a deep workbench per test type
+- **What:** the team's full product idea is written down. `docs/VISION.md` holds the idea
+  (characterize the cancer from every test, follow it in a versioned patient file, track its
+  evolution, support evolution-informed treatment decisions, learn from contributed data) with
+  what the evidence supports. `docs/WORKSPACE.md` specifies the app: a patient list with search,
+  a patient file that opens on the latest report (summary, SOS tile, why the AI thinks so, risk
+  factors and areas of risk), test import that creates a new report version, a tests browser,
+  and a timeline of report versions. Every test type gets its own interactive workbench, analyzed
+  tile by tile or region by region (hover for brief stats, click to expand), at the depth of the
+  team's Colon Tumor Front Analyzer.
+- **Treatment:** the idea of steering the tumor's evolution is recorded as an evidence-backed
+  research direction. Each treatment closes the most likely escape routes until a combination can
+  block the rest, and slows growth in between. The evidence: PADA-1 and SERENA-6 switched
+  treatment on an emerging ESR1 mutation in blood before progression; models of combination,
+  extinction and adaptive therapy support the rest. Those models favor giving drugs together over
+  closing routes one at a time. The platform shows evidence and hypotheses; it never recommends
+  a treatment.
+- **Data from clinicians:** roadmap only. No real patient data in the hackathon; federated
+  learning stays on simulated hospitals.
+- **Cancer:** breast stays (2026-10-18); lymphoma was only an example. Breast also has the
+  clearest precedent for the treatment idea (ESR1 mutations under aromatase inhibitors).
+- **Why:** the team wants the platform, not only its first slice, written down so every session
+  and the submission work from the same picture.
+- **Open:** which parts of the workspace ship before the Oct 28 freeze; a survey of public
+  pretrained models and datasets for each test type; whether code from the colon analyzer may be
+  reused under both hackathons' rules.
+
 ## 2026-10-18 — The demo's timeline patient: hand-written, scored by the MSK-CHORD models
 - **What:** the synthetic patient (`muffle.timeline`) is written by hand (stage II HR+/HER2−,
   bone recurrence, PIK3CA H1047R, a liver progression at month 12), not sampled from MSK-CHORD

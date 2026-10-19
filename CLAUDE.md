@@ -6,10 +6,14 @@ patient profile (multi-omic risk model, observed driver mutations, CIViC evidenc
 that updates along a patient timeline, written up by a Nemotron case agent on Nebius Token
 Factory, plus federated training across simulated hospitals with NVIDIA FLARE. Entry for the
 Nebius × NVIDIA Global AI Hackathon — **deadline Fri Oct 30 2026, 10:00 am PT; freeze Oct 28**.
-Requirements + plan: `docs/HACKATHON.md`. Decisions: `docs/decisions.md`. Datasets and models:
-`docs/registry.md`. Original research plan: `docs/plan/`.
+Requirements + plan: `docs/HACKATHON.md`. Product spec (patient files, report timeline, a
+workbench per test type): `docs/WORKSPACE.md`. Decisions: `docs/decisions.md`. Datasets and
+models: `docs/registry.md`. Original research plan: `docs/plan/`.
 
-Team: two people sharing one Mac and one GitHub account. Repo: `~/PycharmProjects/muffle-plus-plus`.
+Team: two people sharing one Mac and one GitHub account (`ps131-cell`). Repo:
+`~/PycharmProjects/muffle-plus-plus`. A second account, `PSMacaroni`, also has write access, and
+a Windows PC is used too; on Windows, run the code in WSL (`budget.py` needs `fcntl`, the
+Makefile a Unix shell).
 Several Claude sessions may work here at once: use your own branch (and a git worktree if the
 main folder is on someone else's branch); never switch the main folder's branch from under
 another session.
@@ -42,6 +46,13 @@ another session.
 - Simulated hospitals, synthetic patients and simulated arrival orders are always labeled as
   such in code output, the demo and docs.
 - Treatment content is evidence with a source, "for clinician review" — never a recommendation.
+  That includes the evolution-informed strategies in `docs/VISION.md` part three: show evidence
+  and hypotheses, never a regimen.
+- Everything the app shows carries its status: modules and findings are implemented,
+  experimentally validated or planned; thresholds come from a guideline, the literature,
+  calibration, or are a placeholder. A placeholder must never look validated.
+- Each test type gets its own pipeline and workbench at the depth of the team's Colon Tumor Front
+  Analyzer (`docs/WORKSPACE.md`); a multimodal result must not hide a weak component.
 - Records are incomplete by design: every component must work when a data layer or test is
   missing (the model takes a mask; keep `tests/test_model.py` passing).
 - Report against clear baselines (clinical-only, one hospital alone, pooled training). Tune on
@@ -56,6 +67,10 @@ another session.
   patient is synthetic and labeled.
 - CIViC content is CC0; cite the evidence item. Check every new source's license and access tier
   and add it to `docs/registry.md` before using it.
+- No real patient data from clinicians enters this project. Learning from contributed data is
+  roadmap (consent, ethics approval and data agreements first); show it with simulated sites.
+- Code from the Colon Tumor Front Analyzer (built for another hackathon) may be reused only after
+  checking both hackathons' rules, and the Devpost text must disclose it.
 
 ## Technical notes
 - NVFlare ≥ 2.8 Recipe API (`FedAvgRecipe` + `SimEnv`) — check the installed version's docs
