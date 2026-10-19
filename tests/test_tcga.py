@@ -90,6 +90,17 @@ def raw(tmp_path):
     rppa = rng.normal(0, 0.5, (20, 6))
     write(xena(rppa, [f"PROT{i}" for i in range(20)], tumours[2:8], "peptide_target"),
           tmp_path, "protein")
+
+    # patients 0-3 sequenced (2: only a non-driver gene, 3: only a non-coding call), 4-7 not;
+    # synonymous calls and the normal (11A) sample don't count
+    muts = pd.DataFrame({
+        "sample": [tumours[0], tumours[1], tumours[0], tumours[2], tumours[3],
+                   PATIENTS[4] + "-11A"],
+        "gene": ["PIK3CA", "TP53", "TP53", "GENE5", "CDH1", "PIK3CA"],
+        "Amino_Acid_Change": ["p.H1047R", "p.R342*", "p.P72P", "p.A1T", "p.X1_splice", "p.E545K"],
+        "effect": ["missense_variant", "stop_gained;NMD_transcript_variant", "synonymous_variant",
+                   "missense_variant", "intron_variant", "missense_variant"]})
+    write(muts, tmp_path, "mutations", index=False)
     return tmp_path
 
 
@@ -168,6 +179,13 @@ def test_build_cohort_end_to_end(raw, tmp_path):
     assert np.allclose(cohort["time"], days[PATIENTS[:8]] / DAYS_PER_MONTH)
     assert cohort["event"].tolist() == [float(i % 3 == 0) for i in range(8)]
     assert set(cohort["stage"]) <= {1, 2, 3, 4}
+
+    genes = list(cohort["mut_genes"])
+    status, changes = cohort["mut_status"], cohort["mut_changes"]
+    p3k, tp53 = genes.index("PIK3CA"), genes.index("TP53")
+    assert status[0, p3k] == 1 and status[1, tp53] == 1 and status[0, tp53] == 0
+    assert np.all(status[2:4] == 0) and np.isnan(status[4:]).all()  # not sequenced != wild type
+    assert changes[0] == "PIK3CA p.H1047R" and changes[1] == "TP53 p.R342*" and changes[2] == ""
 
     np.savez_compressed(tmp_path / "cohort.npz", **cohort)
     ds = MultiOmicDataset(tmp_path / "cohort.npz", DIMS)

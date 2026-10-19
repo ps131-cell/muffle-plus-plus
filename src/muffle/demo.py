@@ -27,7 +27,7 @@ from muffle.data.dataset import MultiOmicDataset, feature_names, split_positions
 from muffle.data.partition import split_indices
 from muffle.explain import cohort_offsets, risk_group, risk_percentile
 from muffle.models import MuffleNet
-from muffle.report.case_tools import CaseTools, Search
+from muffle.report.case_tools import CaseTools, Evidence, Search, observed_facts
 from muffle.train_local import heldout_c_index, load_model, site_files
 
 STAGES = {1: "I", 2: "II", 3: "III", 4: "IV"}
@@ -53,6 +53,7 @@ class Case:
     stage: str | None  # "I".."IV"; None if unknown or not recorded
     layers: list[str]
     missing: list[str]
+    mutations: list[str] | None = None  # sequenced drivers; None = not sequenced
 
     @property
     def label(self) -> str:
@@ -105,10 +106,19 @@ class Demo:
             mask[0, self.model.names.index(m)] = 0
         return x, mask
 
-    def tools(self, case: Case, search: Search | None = None) -> CaseTools:
+    def tools(self, case: Case, search: Search | None = None,
+              evidence: Evidence | None = None) -> CaseTools:
         x, mask = self.inputs(case)
         return CaseTools(self.model, x, mask, self.cohort_risks, self.cancer, self.names,
-                         self.c_index, search, self.offsets)
+                         self.c_index, search, self.offsets,
+                         observed_facts(case.stage, case.age, case.mutations), evidence)
+
+
+def sequenced_mutations(arrays: dict, pos: int) -> list[str] | None:
+    """A patient's observed driver mutations from cohort / site arrays; None if not sequenced."""
+    if "mut_status" not in arrays or np.isnan(arrays["mut_status"][pos]).all():
+        return None
+    return [m for m in str(arrays["mut_changes"][pos]).split(";") if m]
 
 
 def build_demo(ckpt: str | Path, data_dir: str | Path, n_clients: int = 3,
@@ -142,26 +152,27 @@ def build_demo(ckpt: str | Path, data_dir: str | Path, n_clients: int = 3,
                                       or arrays["x_clinical"][pos, unknown_col] <= 0):
                 stage = STAGES.get(int(arrays["stage"][pos]))
             held.append((path.stem, int(parts[k][pos]), ds, pos,
-                         float(arrays["age"][pos]) if "age" in arrays else None, stage))
+                         float(arrays["age"][pos]) if "age" in arrays else None, stage,
+                         sequenced_mutations(arrays, pos)))
 
     x_all = {m: torch.cat([x[m] for x in all_x]) for m in cfg["modalities"]}
     mask_all = torch.cat(all_mask)
     with torch.no_grad():
         cohort_risks = model(x_all, mask_all).numpy()
 
-    x = {m: torch.stack([ds.x[m][pos] for _, _, ds, pos, _, _ in held]) for m in model.names}
-    mask = torch.stack([ds.mask[pos] for _, _, ds, pos, _, _ in held])
+    x = {m: torch.stack([ds.x[m][pos] for _, _, ds, pos, _, _, _ in held]) for m in model.names}
+    mask = torch.stack([ds.mask[pos] for _, _, ds, pos, _, _, _ in held])
     with torch.no_grad():
         risks = model(x, mask).numpy()
     cases = []
-    for row, (site, index, _, _, age, stage) in enumerate(held):
+    for row, (site, index, _, _, age, stage, muts) in enumerate(held):
         layers = [m for j, m in enumerate(model.names) if mask[row, j] > 0]
         cases.append(Case(row, index, site, float(risks[row]),
                           risk_percentile(risks[row], cohort_risks),
                           risk_group(risks[row], cohort_risks), age, stage, layers,
-                          [m for m in model.names if m not in layers]))
-    time = np.array([float(ds.time[pos]) for _, _, ds, pos, _, _ in held])
-    event = np.array([float(ds.event[pos]) for _, _, ds, pos, _, _ in held])
+                          [m for m in model.names if m not in layers], muts))
+    time = np.array([float(ds.time[pos]) for _, _, ds, pos, _, _, _ in held])
+    event = np.array([float(ds.event[pos]) for _, _, ds, pos, _, _, _ in held])
     return Demo(model, cfg, cancer, x, mask, cohort_risks, cohort_offsets(model, x_all, mask_all),
                 names, heldout_c_index(model, data_dir, n_clients, cfg), cases, sites,
                 km_by_group(time, event, [c.group for c in cases]), len(cases), int(event.sum()))
