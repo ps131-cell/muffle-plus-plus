@@ -1,8 +1,9 @@
 """Blood and lab workbench for a patient file (docs/WORKSPACE.md, "Blood and lab panels").
 
-streamlit run app/workbenches/labs.py        # the synthetic patient's workbench on its own
+streamlit run app/workbenches/labs.py        # the synthetic patient's workbench, standalone page
 
-The workspace pages call ``render(file)`` with a ``muffle.workspace.PatientFile``. Overview first,
+The workspace pages call ``render(file, events=None, version=None)`` with a
+``muffle.workspace.PatientFile``; it draws inside the current container only. Overview first,
 then a trend per marker (hover for brief stats), the results table with filters, one expander per
 flagged result (the full history and why the flag appeared), the "look here" queue, the quality
 checks and the rules card. Every number is plain arithmetic on observed values
@@ -50,14 +51,19 @@ BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, f"{ABOVE}, {RISING}": RED, f"{ABOVE}, {FALLING}": ORANGE,
           RISING: ORANGE, FALLING: BLUE}
 GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
-PLACEHOLDER_CHIP = "placeholder threshold"
+PLACEHOLDER_CHIP, LITERATURE_CHIP = "placeholder threshold", "literature threshold"
+PROVENANCE = ("Data: the patient record's lab results (observed). Method: rules, version 1, "
+              "plain arithmetic, no model. Thresholds: the reference limit from the record's "
+              "lab report; the 25% rise criterion from the EGTM guidance (literature); the fall "
+              "and gap rules are placeholders. Status: implemented, not validated on a cohort.")
 CAVEAT = ("An out-of-range or rising value is not evidence of progression by itself: it is an "
           "observed value to look at next to imaging and the clinic. Nothing here is a "
           "recommendation.")
 
 
 def chips(*labels: str) -> None:
-    """Small status captions: implemented (gray), placeholder threshold (orange), planned (blue)."""
+    """Small status captions: implemented and literature threshold (gray), placeholder
+    threshold (orange), planned (blue)."""
     color = {PLACEHOLDER_CHIP: "orange", PLANNED: "blue"}
     st.caption(" ".join(f":{color.get(label, 'gray')}-badge[{label}]" for label in labels))
 
@@ -132,9 +138,13 @@ def _table(rows: list[dict]) -> pd.DataFrame:
     return out
 
 
-def render(file: PatientFile, events: list[dict] | None = None) -> None:
-    """The workbench for one patient file. Synthetic files use ``muffle.timeline.EVENTS`` (or
-    ``events``); a TCGA file holds no lab results, and the page says so."""
+def render(file: PatientFile, events: list[dict] | None = None,
+           version: int | None = None) -> None:
+    """The workbench for one patient file, drawn inside the current container (no page config,
+    no sidebar). Synthetic files use ``muffle.timeline.EVENTS`` (or ``events``); with
+    ``version`` (an index into ``file.versions``) the workbench is shown as of that version's
+    month, with flags computed from the results up to it only. A TCGA file holds no lab
+    results, and the page says so."""
     st.subheader("Blood and lab workbench")
     st.caption(f"{file.id} · {file.title}")
     if file.kind != "synthetic":
@@ -148,11 +158,19 @@ def render(file: PatientFile, events: list[dict] | None = None) -> None:
         return
 
     events = EVENTS if events is None else events
+    if version is not None:
+        cutoff = file.versions[version].month
+        later = sum(e["month"] > cutoff for e in events)
+        events = [e for e in events if e["month"] <= cutoff]
+        st.caption(f"As of month {cutoff} ({file.versions[version].label}): "
+                   f"{later} later events hidden, flags computed from the results up to here.")
     rows, queue = results_table(events), look_here(events)
     checks, intervals = quality_checks(events), treatment_intervals(events)
     span = (min(e["month"] for e in events), max(e["month"] for e in events))
-    chips(IMPLEMENTED, PLACEHOLDER_CHIP, "synthetic patient")
-    st.warning(file.note)
+    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP, "synthetic patient")
+    st.warning("Synthetic patient: this record was written by hand and is not a real person. "
+               "Its values exist to show how the workbench reads a series.")
+    st.caption(PROVENANCE)
 
     # overview: one paragraph
     measured = sorted({r["marker"] for r in rows})
@@ -168,11 +186,12 @@ def render(file: PatientFile, events: list[dict] | None = None) -> None:
         + f". {len(flagged)} of {len(rows)} results flagged, {len(queue)} open items in the "
         f"look-here queue, {sum(not c['ok'] for c in checks)} quality checks failing. "
         "All values observed; every flag is plain arithmetic against the record's reference "
-        "limit or the placeholder 25% rule.")
+        "limit or the EGTM 25% rise criterion (a rise is unconfirmed until a second specimen "
+        "within a month).")
 
     # trends: one chart per marker, hover for brief stats
     st.markdown("#### Trends")
-    chips(IMPLEMENTED, PLACEHOLDER_CHIP)
+    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
     st.caption("Hover a point for its value, change from the previous value and from the "
                "nadir, rate and source event. Shaded spans are treatment intervals (the record "
                "holds starts only: a span ends at the next treatment event or the record's "
@@ -199,7 +218,7 @@ def render(file: PatientFile, events: list[dict] | None = None) -> None:
 
     # more info: one expander per flagged result
     st.markdown("#### Flagged results: why")
-    chips(IMPLEMENTED, PLACEHOLDER_CHIP)
+    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
     for r in reversed(flagged):
         with st.expander(f"Month {r['month']}: {r['marker']} {r['value']:g} {r['unit']}, "
                          f"{r['flag']}"):
@@ -217,7 +236,7 @@ def render(file: PatientFile, events: list[dict] | None = None) -> None:
 
     # look here
     st.markdown("#### Look here")
-    chips(IMPLEMENTED, PLACEHOLDER_CHIP)
+    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
     st.caption("Every flagged result, latest first, one row per rule that fired. Observed "
                "values; the status names the source of each threshold.")
     if queue:

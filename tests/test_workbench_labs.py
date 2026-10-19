@@ -5,6 +5,7 @@ from muffle.workbench.labs import (
     ABOVE,
     FALLING,
     FROM_RECORD,
+    LITERATURE,
     PLACEHOLDER,
     PLANNED_PANELS,
     RISING,
@@ -53,8 +54,11 @@ def test_look_here_queue_is_latest_first_with_rule_source_and_status():
         (24, ABOVE), (19, ABOVE), (16, ABOVE), (16, FALLING), (11, ABOVE), (11, RISING),
         (4, ABOVE), (4, FALLING), (1, ABOVE), (-2, ABOVE)]
     rising = next(i for i in queue if i["flag"] == RISING)
-    assert rising["status"] == PLACEHOLDER and "placeholder" in rising["threshold"]
-    assert rising["rule"] == "at least 25% above the previous value"
+    assert rising["status"] == LITERATURE and rising["threshold"].startswith("European Group")
+    assert rising["rule"] == ("at least 25% above the previous value; unconfirmed until a "
+                              "second specimen within a month")
+    falling = next(i for i in queue if i["flag"] == FALLING)
+    assert falling["status"] == PLACEHOLDER and "placeholder" in falling["threshold"]
     above = next(i for i in queue if i["flag"] == ABOVE)
     assert above["status"] == FROM_RECORD
     assert above["threshold"] == "below 30 U/mL, from the record's lab report (month -2)"
@@ -94,10 +98,12 @@ def test_rules_card_has_no_model_and_every_threshold_a_source():
     assert card["kind"].startswith("rules only") and card["validation"].startswith("none")
     assert card["evidence"] == "observed" and card["status"] == "implemented"
     for t in card["thresholds"]:
-        assert t["source"] and t["status"] in (FROM_RECORD, PLACEHOLDER)
+        assert t["source"] and t["status"] in (FROM_RECORD, LITERATURE, PLACEHOLDER)
         assert ("placeholder" in t["source"]) == (t["status"] == PLACEHOLDER)
-    assert [t["name"] for t in card["thresholds"]] == [
-        "CA 15-3 reference limit", "rise", "fall", "gap"]
+    assert [(t["name"], t["status"]) for t in card["thresholds"]] == [
+        ("CA 15-3 reference limit", FROM_RECORD), ("rise", LITERATURE), ("fall", PLACEHOLDER),
+        ("gap", PLACEHOLDER)]
+    assert "EGTM" in card["validation"]
     assert any("noise" in f for f in card["known_failures"])
     assert any("assay method" in f for f in card["known_failures"])
     assert all(status == PLANNED for _, _, status in PLANNED_PANELS)
@@ -116,6 +122,21 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     assert len(at.expander) == 7 and len(at.dataframe[0].value) == 8
     at.checkbox[0].check().run()
     assert len(at.dataframe[0].value) == 7  # the month-7 value within the limit drops out
+    text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.warning, *at.info]
+                    + [*at.subheader]).lower()
+    assert "synthetic" in text and not any(w in text for w in ("demo", "hackathon"))
+
+    as_of = AppTest.from_string(f"""
+import json, sys
+sys.path[:0] = [{str(root / "app")!r}, {str(root / "src")!r}]
+from workbenches.labs import render
+from muffle.workspace import synthetic_file
+tl = json.loads(open({str(root / "app" / "timeline_synthetic.json")!r}, encoding="utf-8").read())
+render(synthetic_file(tl), version=9)  # month 7: CA 15-3 30, within limit
+""", default_timeout=60).run()
+    assert not as_of.exception
+    assert as_of.caption[1].value.startswith("As of month 7 (month 7 · Imaging): 6 later events")
+    assert len(as_of.dataframe[0].value) == 4 and len(as_of.expander) == 3
 
     tcga = AppTest.from_string(f"""
 import sys

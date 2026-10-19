@@ -2,9 +2,10 @@
 functions over a patient record shaped like ``muffle.timeline.EVENTS``.
 
 Every number here is plain arithmetic on observed values: no model, no fit, no imputation. The
-markers, their units, the reference limits the record states, the placeholder rise rule and the
+markers, their units, the reference limits the record states, the 25% rise criterion and the
 per-marker series come from ``muffle.workspace``; this module only reads them. Every finding is
-**observed**. An out-of-range or rising value is something to look at, not evidence of
+**observed** and every threshold names its source: the record, the EGTM guidance (literature) or
+a placeholder. An out-of-range or rising value is something to look at, not evidence of
 progression by itself.
 """
 
@@ -15,20 +16,28 @@ from muffle.workspace import IMPLEMENTED, MARKERS, PLANNED, REFERENCE_LIMITS, RI
 
 WITHIN, ABOVE, RISING, FALLING = "within limit", "above limit", "rising", "falling"
 FROM_RECORD = f"{IMPLEMENTED}, reference from the record"
+LITERATURE = f"{IMPLEMENTED}, threshold from the literature"
 PLACEHOLDER = f"{IMPLEMENTED}, threshold placeholder"
 NO_REFERENCE = "none in the record"
 GAP_MONTHS = 6  # PLACEHOLDER: a gap between two results of one marker worth a quality note
+# The rise criterion is the European Group on Tumor Markers (EGTM) guidance on serial tumor
+# marker measurements; a rise counts as confirmed only with a second specimen within a month.
+RISE_SOURCE = (f"European Group on Tumor Markers (EGTM) guidance: a {RISE:.0%} rise over the "
+               "previous value is a significant change (literature)")
+RISE_CAVEAT = "unconfirmed until a second specimen within a month"
 # A fall is the same ratio the other way round: the previous value at least RISE above this one,
 # so a fall that undoes a flagged rise is flagged too (value / previous <= 1 / (1 + RISE)).
 FALL = 1 / (1 + RISE) - 1
+FALL_SOURCE = (f"the EGTM {RISE:.0%} rise criterion applied the other way round: a placeholder, "
+               "not a guideline value")
 
 RULES = {  # flag: (how it was decided, threshold source, status)
     ABOVE: ("the value is above the reference limit the record states",
             "the reference limit the record states", FROM_RECORD),
-    RISING: (f"at least {RISE:.0%} above the previous value",
-             f"{RISE:.0%} is a placeholder, not validated", PLACEHOLDER),
-    FALLING: (f"the previous value was at least {RISE:.0%} above this one",
-              f"{RISE:.0%} is a placeholder, not validated", PLACEHOLDER),
+    RISING: (f"at least {RISE:.0%} above the previous value; {RISE_CAVEAT}",
+             RISE_SOURCE, LITERATURE),
+    FALLING: (f"the previous value was at least {RISE:.0%} above this one", FALL_SOURCE,
+              PLACEHOLDER),
 }
 
 # what the spec's row names and the record lacks: shown as planned, never as results
@@ -139,10 +148,10 @@ def rules_card(markers: dict = MARKERS, limits: dict = REFERENCE_LIMITS) -> dict
                    "value": f"below {v:g} {markers[k][1]}", "source": src, "status": FROM_RECORD}
                   for k, (v, src) in limits.items() if k in markers]
     thresholds += [
-        {"name": "rise", "value": f"{RISE:.0%} above the previous value",
-         "source": "placeholder, not validated", "status": PLACEHOLDER},
+        {"name": "rise", "value": f"{RISE:.0%} above the previous value; {RISE_CAVEAT}",
+         "source": RISE_SOURCE, "status": LITERATURE},
         {"name": "fall", "value": f"the previous value {RISE:.0%} above this one",
-         "source": "placeholder, not validated", "status": PLACEHOLDER},
+         "source": FALL_SOURCE, "status": PLACEHOLDER},
         {"name": "gap", "value": f"over {GAP_MONTHS} months between results",
          "source": "placeholder, not validated", "status": PLACEHOLDER},
     ]
@@ -155,10 +164,11 @@ def rules_card(markers: dict = MARKERS, limits: dict = REFERENCE_LIMITS) -> dict
                    "previous value, rate per month, change from the nadir; quality checks",
         "thresholds": thresholds,
         "evidence": OBSERVED,
-        "validation": "none: no cohort, no outcome, no assay study",
+        "validation": "none here: no cohort, no outcome, no assay study; the rise criterion "
+                      "is the EGTM guidance, not validated on this record",
         "known_failures": [
             "a rise within the assay's noise is flagged like a real one: the rules know no "
-            "analytical variation",
+            f"analytical variation, and a flagged rise is {RISE_CAVEAT}",
             "a changed assay method or laboratory shifts values without the record saying so: "
             "the checks only see what the record states",
             "an out-of-range value is not evidence of progression by itself: the rules read no "
