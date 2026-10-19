@@ -8,6 +8,8 @@ disease, keeps what was **observed** apart from what a model **inferred** and wh
 **hypothesis**, and learns across institutions without centralizing patient data. It is research
 support for clinicians, not a diagnosis or a prescription.
 
+**Live demo:** https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; it runs on a bundle of 40 held-out TCGA-BRCA cases and writes live Nemotron notes, a few per session).
+
 **MuFFLe++ is milestone 1** of that platform, for breast cancer:
 - **Evidence-linked patient profile.** A multi-omic survival model (copy number, RNA,
   methylation, protein, clinical) gives a risk estimate that copes with missing tests; an
@@ -153,7 +155,8 @@ Milestone 1 (hackathon, Oct 30 2026):
 - [x] Patient timeline: risk re-estimated as results arrive (MSK-CHORD, aggregate results)
 - [x] Synthetic timeline patient in the demo
 - [x] Registry of datasets, models and services (`docs/registry.md`)
-- [ ] Hosted demo; video; submit by Oct 30, 10 am PT
+- [x] Hosted demo (Streamlit Community Cloud)
+- [ ] Video; submit by Oct 30, 10 am PT
 
 Beyond the hackathon (see [`docs/VISION.md`](docs/VISION.md)): pathology and radiology
 encoders, inferred mutation status with calibrated uncertainty, evolutionary hypotheses from
