@@ -21,6 +21,7 @@ fails, the agent runs without the treatment_evidence tool and the sidebar says s
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -95,7 +96,9 @@ def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, 
     else:
         source = bundle or BUNDLE_URL
         if source.startswith("https://"):
-            source = fetch_bundle(source, Path(tempfile.gettempdir()) / "muffle_demo_bundle.pt",
+            # one file per URL, so a new release isn't masked by the previous release's file
+            name = f"muffle_bundle_{hashlib.sha1(source.encode()).hexdigest()[:12]}.pt"
+            source = fetch_bundle(source, Path(tempfile.gettempdir()) / name,
                                   os.getenv("GITHUB_TOKEN"))
         demo = load_bundle(source)
     if Path(notes).exists():
