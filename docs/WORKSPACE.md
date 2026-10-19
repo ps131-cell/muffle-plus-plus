@@ -2,10 +2,10 @@
 
 The product through which clinicians use the platform in [`VISION.md`](VISION.md): a workspace of
 patient files, in which every test type has its own deep, interactive workbench. This is a design
-spec written on 2026-10-19. Today's demo implements parts of it (see "Status today"), and which
-further parts ship before the Oct 28 freeze is still open. It is research and decision support
-for qualified clinicians: every finding is labeled observed, model inference or hypothesis, and
-treatment content is evidence for clinician review, never a recommendation.
+spec written on 2026-10-19. Today's demo implements parts of it; "Status today" says which, and
+what ships before the Oct 28 freeze (scope B, decided 2026-10-19). It is research and decision
+support for qualified clinicians: every finding is labeled observed, model inference or
+hypothesis, and treatment content is evidence for clinician review, never a recommendation.
 
 ## Screens
 
@@ -114,8 +114,25 @@ aggregated into a whole-test result.
 | Blood and lab panels (CBC, chemistry, tumor markers) | results table, trend plots with treatments marked | reference intervals for the method, change from the patient's own baseline, rate of change; unit and method checks | out of range is not evidence of progression by itself |
 | ctDNA (liquid biopsy) | variants over time with allele fractions | new or rising mutations, e.g. ESR1 | little tumor DNA gives false negatives; blood-cell (clonal hematopoiesis) variants can look like tumor variants |
 | Tumor sequencing (DNA) | variant browser, allele fraction, copy number, evidence links | detection, interpretation and predicted effect kept apart; CIViC and literature evidence | one sample is one place and one time; purity and depth limit what is seen |
-| RNA, methylation, protein | heatmaps, ranked features, pathway and subtype scores | normalization stated; signatures with their reference definitions | RNA is not protein, and neither is pathway activity |
+| RNA expression and methylation | heatmaps, ranked genes, expression distributions, pathway and subtype scores, comparisons across samples and timepoints | normalization stated; differential expression with effect sizes, uncertainty and multiple-testing correction; signatures with their reference definitions; batch, library-quality and missing-gene checks | RNA is not protein, and neither is pathway activity; subtype calls only from a validated model |
+| Proteomics (RPPA, mass spectrometry) | protein tables, abundance distributions, fold changes, comparison plots | missingness and detection limits; post-translational modifications such as phosphorylation where the assay measures them; links to pathways and genomics | a DNA variant does not imply a protein level or activity; batch, normalization and multiple-testing controls |
+| Single-cell sequencing | cell embedding maps, clusters, marker-gene panels, cell populations per sample | cell-type annotations with confidence, population proportions compared across samples, per-cell quality checks, candidate cell interactions | annotations and inferred interactions are model-supported interpretations, not observed identities or physical contacts |
 | Clinical documents | full text with source sentences highlighted | extracted diagnoses, procedures, drugs and dates | documented kept apart from inferred; conflicting reports kept |
+
+## Cross-test and longitudinal intelligence
+The value of one record is in connecting tests across modalities and over time. Every connection
+carries its source: a direct sample match, an explicit clinical record, a validated statistical
+association, or a research hypothesis.
+- **Unified patient timeline**: collection dates, results, treatments and later observations on
+  one axis.
+- **Cross-modality search**: every finding about a gene, a lesion or a documented event, across
+  tests.
+- **Side-by-side comparison** of two report versions: what changed and why.
+- **Evidence graph**: which measurements support each higher-level interpretation.
+- **Discrepancy queue**: conflicting results, mismatched sample identifiers, and disagreement
+  between models.
+- **Research workspace**: related findings and literature gathered for professional review, never
+  presented as a diagnosis or a treatment recommendation.
 
 ## Pipeline contract
 Every test type goes through the same steps:
@@ -181,5 +198,16 @@ is in [`registry.md`](registry.md). Gated models need access requests.
 | Expression, methylation, protein | Used by the risk model; per-layer top features only |
 | Status labels on modules | Not built |
 
-Open: which of these ship before the Oct 28 freeze, and the model and dataset survey above
-(`decisions.md`, 2026-10-19).
+### What ships before the Oct 28 freeze (scope B, decided 2026-10-19)
+Starting with the pathology workbench would reuse the most existing work, but the colon
+analyzer's tissue heads were trained on colon tissue and don't transfer to breast. So the order is:
+1. **The patient record:** patient list, patient file with SOS tile, tests and report timeline,
+   for SYNTHETIC-001 and the held-out TCGA cases.
+2. **Workbenches on existing data:** labs (tumor markers) and genomics (observed drivers with
+   CIViC evidence).
+3. **One real cross-test workflow:** a sequenced driver, its CIViC evidence, and the timeline's
+   risk update with what changed and why.
+4. **Pathology and radiology:** shown as planned, pending the model and dataset survey's
+   shortlist.
+
+Everything else in this spec is roadmap, and the app labels it so (`decisions.md`, 2026-10-19).

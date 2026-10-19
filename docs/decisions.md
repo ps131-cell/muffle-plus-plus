@@ -2,6 +2,19 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-19 — Before the freeze: the workspace slice on existing data (scope B)
+- **What:** by the Oct 28 freeze, the app gains the patient record from `docs/WORKSPACE.md`:
+  - a patient list, a patient file with an SOS tile, tests and a report timeline;
+  - lab and mutation workbenches on existing data (SYNTHETIC-001 and the held-out TCGA cases);
+  - one real cross-test workflow: a sequenced driver, its CIViC evidence, and the risk update.
+
+  Slide and scan workbenches, and test import, show as planned.
+- **Why:** judges score "a complete product, not a proof of concept", and this shows the
+  product loop without new models. The pathology workbench isn't first: the colon analyzer's
+  tissue heads don't transfer to breast, so it waits for the model survey's shortlist.
+- **Also:** the open fixes from the handoff (CIViC matching, labeled saved notes, bundle v2, the
+  hosted demo) run in parallel sessions. The Windows PC runs the code in WSL2.
+
 ## 2026-10-19 — The product vision: a clinician workspace with a deep workbench per test type
 - **What:** the team's full product idea is written down. `docs/VISION.md` holds the idea
   (characterize the cancer from every test, follow it in a versioned patient file, track its
