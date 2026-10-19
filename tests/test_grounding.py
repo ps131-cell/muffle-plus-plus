@@ -39,6 +39,11 @@ def test_invented_items_are_flagged():
                            ("gene", "AC124067.4"), ("url", "https://made.up/x")}
 
 
+def test_unicode_hyphens_count_as_hyphens():
+    # Nemotron wrote "IGKV4‑1" with a non-breaking hyphen (U+2011) on 2026-10-19
+    assert kinds("RNU6‑607P and GATA3‐high tumours") == set()
+
+
 def test_describe_groups_by_kind():
     issues = check_note("TP53 at 0.95", EVIDENCE, NAMES)
     assert describe(issues) == "numbers: 0.95; genes/features: TP53"

@@ -1,15 +1,38 @@
 {
  "563": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \nThis patient's predicted survival risk is at the 7th percentile (low risk group) among 1,064 breast cancer patients.\n\n**Drivers**  \n- Clinical (non\u2011omic): lowers risk by 0.232 vs a typical patient in the cohort. Top features: ductal (0.023), pathologic_n (-0.021), pathologic_t (-0.011), age (0.011), stage (0.010).  \n- Genomic: lowers risk by 0.062. No top features returned.  \n- RNA: lowers risk by 0.056. No top features returned.  \n- Protein: lowers risk by 0.033. No top features returned.\n\n**Caveats**  \nMethylation data missing. Model validation C\u2011index 0.728. This is a research prototype, not a diagnosis.\n\n**Literature**  \nNo literature search was run.",
+   "text": "**Summary**  \nThe model estimates this patient's risk at the 7th percentile (low risk group).\n\n**Observed**  \n- [Observed] Measured data layers: genomic, rna, protein, clinical.  \n- [Observed] Missing data layer: methylation.  \n- [Observed] Recorded stage: I.  \n- [Observed] Age band: under 50.  \n- [Observed] Sequenced driver mutations: not sequenced.\n\n**Model inferences**  \n- [Model inference] Risk: 7th percentile, low risk group; uncertainty: the model ranks patients correctly in about 73% of comparable pairs (validation C-index).  \n- [Model inference] Clinical layer lowers risk by 0.232 vs. a typical patient in the cohort; top features: ductal, pathologic_n, pathologic_t, age, stage.  \n- [Model inference] Genomic layer lowers risk by 0.062 vs. a typical patient in the cohort; no top features returned.  \n- [Model inference] RNA layer lowers risk by 0.056 vs. a typical patient in the cohort; no top features returned.  \n- [Model inference] Protein layer lowers risk by 0.033 vs. a typical patient in the cohort; no top features returned.\n\n**Hypotheses and evidence**  \n- [Hypothesis] No literature search was run.\n\n**Caveats**  \n- [Model inference] Missing data layer: methylation.  \n- [Model inference] Model validation C-index: 0.728.  \n- [Model inference] This is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [
+       "methylation"
+      ],
+      "recorded_stage": "I",
+      "age_band": "under 50",
+      "sequenced_driver_mutations": "not sequenced",
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.86,
       "cohort_percentile": 7,
       "risk_group": "low",
@@ -23,6 +46,7 @@
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": -0.062,
        "rna": -0.056,
@@ -50,6 +74,7 @@
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "clinical",
       "method": "gradient x input",
       "features": [
@@ -80,7 +105,7 @@
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 8017,
+   "tokens": 9401,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
@@ -88,16 +113,41 @@
   }
  },
  "564": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \n25th percentile, low risk group.\n\n**Drivers**  \n- Clinical: lowers risk by 0.159 compared with a typical patient in the cohort. No top features returned.  \n- Protein (omic: protein levels): raises risk by 0.021. Top features: U-Histone-H2B (\u20110.0095), ACSL1 (0.0093), S6 (0.0091), HSP27_pS82 (0.0075), STAT5ALPHA (0.0067).  \n- RNA (omic: gene expression): raises risk by 0.013. No top features returned.  \n- Methylation (omic: DNA methylation): lowers risk by 0.005. No top features returned.  \n- Genomic (omic: gene\u2011level copy number): lowers risk by 0.004. No top features returned.\n\n**Caveats**  \nNo missing data layers. Model validation C\u2011index: 0.728. This is a research prototype, not a diagnosis.\n\n**Literature**  \n- ACSL1: \u201cExpression of ACSL1 in breast cancer\u201d \u2013 https://www.proteinatlas.org/ENSG00000151726-ACSL1/cancer/breast+cancer  \n- ACSL1: \u201cACSL1 Regulates TNF\u03b1\u2011Induced GM\u2011CSF Production by \u2026\u201d \u2013 https://pmc.ncbi.nlm.nih.gov/articles/PMC6843696  \n- S6: no relevant publications found.  \n- HSP27_pS82: no relevant publications found.",
+   "text": "**Summary**  \nThe model estimates this patient's risk at the 25th percentile (low risk group).\n\n**Observed**  \n- [Observed] Measured: genomic, rna, methylation, protein, clinical; no missing. Stage I, age 65+. Driver mutations: MAP3K1 R1428Vfs*7, MAP3K1 S901Kfs*8.\n\n**Model inferences**  \n- [Model inference] Risk: 25th percentile, low; uncertainty: model ranks correctly in ~73% of pairs (C-index 0.728).  \n- [Model inference] Clinical lowers risk by 0.159 vs typical; top features: age (0.282), stage (-0.163), pathologic_t (-0.080), ductal (0.018), pathologic_n (0.012).  \n- [Model inference] Protein raises risk by 0.021; no top features.  \n- [Model inference] RNA raises risk by 0.013; top features: MKX (-0.005), PWWP3B (0.005), ENHO (0.005), PHGDH (-0.005), CD2 (0.004).  \n- [Model inference] Methylation lowers risk by 0.005; no top features.  \n- [Model inference] Genomic lowers risk by 0.004; top features: LINC01300 (0.003), AC083973.1 (-0.003), CHRNA6 (0.002), AC090453.1 (-0.002), LINC01605 (0.002).\n\n**Hypotheses and evidence**  \n- [Hypothesis] CIViC: no evidence for MAP3K1 R1428Vfs*7 or S901Kfs*8. Literature: PHGDH \u2013 \"Prognostic significance of phosphoglycerate dehydrogenase in breast cancer.\" (https://pubmed.ncbi.nlm.nih.gov/33625616) and \"High Expression of PHGDH Predicts Poor Prognosis in Non\u2013Small Cell Lung Cancer1\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC5143353); no relevant publications for MKX or CHRNA6. These are leads for review, not patient findings.\n\n**Caveats**  \n- [Model inference] No missing data layers; validation C-index 0.728; this is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "methylation",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [],
+      "recorded_stage": "I",
+      "age_band": "65 or older",
+      "sequenced_driver_mutations": [
+       "MAP3K1 R1428Vfs*7",
+       "MAP3K1 S901Kfs*8"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.748,
       "cohort_percentile": 25,
       "risk_group": "low",
@@ -111,6 +161,7 @@
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": -0.004,
        "rna": 0.013,
@@ -134,32 +185,33 @@
      "round": 3,
      "name": "top_features",
      "arguments": {
-      "modality": "protein",
+      "modality": "clinical",
       "k": 5
      },
      "result": {
-      "modality": "protein",
+      "evidence_type": "model inference",
+      "modality": "clinical",
       "method": "gradient x input",
       "features": [
        {
-        "name": "U-Histone-H2B",
-        "score": -0.0095
+        "name": "age",
+        "score": 0.2821
        },
        {
-        "name": "ACSL1",
-        "score": 0.0093
+        "name": "stage",
+        "score": -0.1626
        },
        {
-        "name": "S6",
-        "score": 0.0091
+        "name": "pathologic_t",
+        "score": -0.0801
        },
        {
-        "name": "HSP27_pS82",
-        "score": 0.0075
+        "name": "ductal",
+        "score": 0.0183
        },
        {
-        "name": "STAT5ALPHA",
-        "score": 0.0067
+        "name": "pathologic_n",
+        "score": 0.0115
        }
       ],
       "note": "positive score pushes risk up"
@@ -167,59 +219,178 @@
     },
     {
      "round": 4,
+     "name": "top_features",
+     "arguments": {
+      "modality": "genomic",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "genomic",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "LINC01300",
+        "score": 0.0031
+       },
+       {
+        "name": "AC083973.1",
+        "score": -0.0025
+       },
+       {
+        "name": "CHRNA6",
+        "score": 0.0024
+       },
+       {
+        "name": "AC090453.1",
+        "score": -0.0023
+       },
+       {
+        "name": "LINC01605",
+        "score": 0.0023
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 5,
+     "name": "treatment_evidence",
+     "arguments": {},
+     "result": {
+      "evidence_type": "hypothesis",
+      "source": "CIViC (civicdb.org, CC0)",
+      "use": "evidence for clinician review, not a treatment recommendation; levels: A validated, B clinical, C case study, D preclinical, E inferential",
+      "variants": [
+       {
+        "variant": "MAP3K1 R1428Vfs*7",
+        "civic_items": []
+       },
+       {
+        "variant": "MAP3K1 S901Kfs*8",
+        "civic_items": []
+       }
+      ]
+     }
+    },
+    {
+     "round": 6,
+     "name": "top_features",
+     "arguments": {
+      "modality": "rna",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "rna",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "MKX",
+        "score": -0.0052
+       },
+       {
+        "name": "PWWP3B",
+        "score": 0.005
+       },
+       {
+        "name": "ENHO",
+        "score": 0.0046
+       },
+       {
+        "name": "PHGDH",
+        "score": -0.0045
+       },
+       {
+        "name": "CD2",
+        "score": 0.0037
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 7,
      "name": "search_literature",
      "arguments": {
       "genes": [
-       "ACSL1",
-       "S6",
-       "HSP27_pS82"
+       "PHGDH",
+       "MKX",
+       "CHRNA6"
       ],
       "topic": "prognosis"
      },
      "result": {
+      "evidence_type": "hypothesis",
       "genes": [
-       "ACSL1",
-       "S6",
-       "HSP27_pS82"
+       "PHGDH",
+       "MKX",
+       "CHRNA6"
       ],
       "topic": "prognosis",
       "results": [
        {
-        "gene": "ACSL1",
-        "title": "Expression of ACSL1 in breast cancer",
-        "url": "https://www.proteinatlas.org/ENSG00000151726-ACSL1/cancer/breast+cancer",
-        "snippet": "ACSL1 is not prognostic in Breast Invasive Carcinoma (TCGA). Alive (n=880) Dead (n=141) Female (n=1009) Male (n=12) Stage: n/a (n=10) Stage I (n=85)"
+        "gene": "PHGDH",
+        "title": "Prognostic significance of phosphoglycerate dehydrogenase in breast cancer.",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/33625616",
+        "snippet": "Immunohistochemical examination showed that PHGDH is mainly localized in the cytoplasm of breast cancer cells and significantly associated with higher cancer grade, larger tumor size, increased PCNA expression, and lymph node positivity. Analysis of the GOBO dataset of 737 patients demonstrated that"
        },
        {
-        "gene": "ACSL1",
-        "title": "ACSL1 Regulates TNF\u03b1-Induced GM-CSF Production by ...",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6843696",
-        "snippet": "by R Thomas \u00b7 2019 \u00b7 Cited by 47 \u2014 Herein, we determined whether TNF\u03b1 could induce GM-CSF production in MDA-MB-231 breast cancer metastatic cells, and if so, which signal"
+        "gene": "PHGDH",
+        "title": "High Expression of PHGDH Predicts Poor Prognosis in Non\u2013Small Cell Lung Cancer1",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5143353",
+        "snippet": "revealed that PGHDH protein expression was essential for growth in three breast cancer cell lines (BT-20, SK-BR-3, MCF-7) but not in nontumorigenic breast epithelial cells (MCF-10a) . Interestingly, PHGDH overexpression disturbed acinar morphogenesis in the epithelial cells (MCF-10a), interrupted th"
        }
-      ]
+      ],
+      "about": "published leads on these genes in this cancer, not findings about this patient"
      }
     }
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 14511,
+   "tokens": 23474,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
-   "revised": true
+   "revised": false
   }
  },
  "47": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \n45th percentile, medium risk group.\n\n**Drivers**  \n- Clinical: lowers risk by 0.149 compared with a typical patient in the cohort; no top features returned.  \n- Protein: lowers risk by 0.022 compared with a typical patient in the cohort; no top features returned.  \n- RNA: raises risk by 0.015 compared with a typical patient in the cohort; top features: ORM1, STK19B, CFD, MSLN, IGHGP.  \n- Genomic: raises risk by 0.006 compared with a typical patient in the cohort; top features: LINC01300, CHRNA6, AC100803.1, LINC02055, AC100803.3.\n\n**Caveats**  \nMissing data layer: methylation. Model validation C-index: 0.728. This is a research prototype, not a diagnosis.\n\n**Literature**  \n- MSLN: \"Mesothelin (MSLN) is Highly Expressed in Triple Negative Breast Cancer and is Associated with Enhanced Cell Proliferation and Proinflammatory Tumor Microenvironment.\" https://pubmed.ncbi.nlm.nih.gov/40080368  \n- MSLN: \"Expression of MSLN in cancer - Summary - The Human Protein Atlas\" https://www.proteinatlas.org/ENSG00000102854-MSLN/cancer  \n- ORM1: \"Orosomucoid 1 promotes epirubicin resistance in breast ...\" https://pmc.ncbi.nlm.nih.gov/articles/PMC8806942  \n- ORM1: \"Multiomics insights on the onset, progression, and metastatic evolution of breast cancer\" https://pmc.ncbi.nlm.nih.gov/articles/PMC10758476  \n- CHRNA6: \"Unveiling promising breast cancer biomarkers - PMC - NIH\" https://pmc.ncbi.nlm.nih.gov/articles/PMC10829368",
+   "text": "**Summary**  \nThe model estimates this patient's risk at the 45th percentile (medium risk group).\n\n**Observed**  \n- [Observed] Measured data layers: genomic, rna, protein, clinical.  \n- [Observed] Missing data layer: methylation.  \n- [Observed] Recorded stage: II.  \n- [Observed] Age band: 50-64.  \n- [Observed] Sequenced driver mutations: TP53 R196*.\n\n**Model inferences**  \n- [Model inference] Risk: 45th percentile, medium risk group; uncertainty: model ranks patients correctly in ~73% of comparable pairs (validation C-index).  \n- [Model inference] Clinical layer lowers risk by 0.149 vs typical patient; top features: ductal (0.182), stage (-0.0137), age (0.0133), pathologic_t (0.0053), pathologic_n (-0.0048).  \n- [Model inference] Protein layer lowers risk by 0.022 vs typical patient; top features: none returned.  \n- [Model inference] RNA layer raises risk by 0.015 vs typical patient; top features: none returned.  \n- [Model inference] Genomic layer raises risk by 0.006 vs typical patient; top features: none returned.\n\n**Hypotheses and evidence**  \n- [Hypothesis] No treatment evidence items (CIViC) returned.  \n- [Hypothesis] No literature search was run.\n\n**Caveats**  \nMissing data layer: methylation. Model validation C-index: 0.728. This is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [
+       "methylation"
+      ],
+      "recorded_stage": "II",
+      "age_band": "50-64",
+      "sequenced_driver_mutations": [
+       "TP53 R196*"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.627,
       "cohort_percentile": 45,
       "risk_group": "medium",
@@ -229,10 +400,11 @@
      }
     },
     {
-     "round": 1,
+     "round": 2,
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": 0.006,
        "rna": 0.015,
@@ -253,131 +425,45 @@
      }
     },
     {
-     "round": 2,
-     "name": "top_features",
-     "arguments": {
-      "modality": "genomic",
-      "k": 5
-     },
-     "result": {
-      "modality": "genomic",
-      "method": "gradient x input",
-      "features": [
-       {
-        "name": "LINC01300",
-        "score": 0.0047
-       },
-       {
-        "name": "CHRNA6",
-        "score": 0.0035
-       },
-       {
-        "name": "AC100803.1",
-        "score": 0.0034
-       },
-       {
-        "name": "LINC02055",
-        "score": -0.0033
-       },
-       {
-        "name": "AC100803.3",
-        "score": 0.003
-       }
-      ],
-      "note": "positive score pushes risk up"
-     }
-    },
-    {
-     "round": 2,
-     "name": "top_features",
-     "arguments": {
-      "modality": "rna",
-      "k": 5
-     },
-     "result": {
-      "modality": "rna",
-      "method": "gradient x input",
-      "features": [
-       {
-        "name": "ORM1",
-        "score": 0.0023
-       },
-       {
-        "name": "STK19B",
-        "score": 0.0018
-       },
-       {
-        "name": "CFD",
-        "score": -0.0017
-       },
-       {
-        "name": "MSLN",
-        "score": 0.0016
-       },
-       {
-        "name": "IGHGP",
-        "score": 0.0016
-       }
-      ],
-      "note": "positive score pushes risk up"
-     }
-    },
-    {
      "round": 3,
-     "name": "search_literature",
+     "name": "top_features",
      "arguments": {
-      "genes": [
-       "MSLN",
-       "ORM1",
-       "CHRNA6"
-      ],
-      "topic": "prognosis"
+      "modality": "clinical",
+      "k": 5
      },
      "result": {
-      "genes": [
-       "MSLN",
-       "ORM1",
-       "CHRNA6"
-      ],
-      "topic": "prognosis",
-      "results": [
+      "evidence_type": "model inference",
+      "modality": "clinical",
+      "method": "gradient x input",
+      "features": [
        {
-        "gene": "MSLN",
-        "title": "Mesothelin (MSLN) is Highly Expressed in Triple Negative Breast Cancer and is Associated with Enhanced Cell Proliferation and Proinflammatory Tumor Microenvironment.",
-        "url": "https://pubmed.ncbi.nlm.nih.gov/40080368",
-        "snippet": "High MSLN expression was primarily observed in epithelial cells, and its expression was associated with reduced stromal adipocytes in the tumor microenvironment (TME), supporting its role as a TNBC surface marker. MSLN expression was also associated with the TNBC subtype and advanced N stages in BC."
+        "name": "ductal",
+        "score": 0.182
        },
        {
-        "gene": "MSLN",
-        "title": "Expression of MSLN in cancer - Summary - The Human Protein Atlas",
-        "url": "https://www.proteinatlas.org/ENSG00000102854-MSLN/cancer",
-        "snippet": "is favorable or unfavorable is indicated in brackets. Each Kaplan-Meier plot is clickable and redirects to a detailed page that includes individual expression and survival data for patients with the selected cancer. |  | MSLN is a prognostic marker in: | | Renal cancer (KIRP) p<0.001 Potential progn"
+        "name": "stage",
+        "score": -0.0137
        },
        {
-        "gene": "ORM1",
-        "title": "Orosomucoid 1 promotes epirubicin resistance in breast ...",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8806942",
-        "snippet": "by L Qiong \u00b7 2021 \u00b7 Cited by 27 \u2014 ORM1 has been shown to play an important role in chemotherapeutic drug resistance in breast cancer cells. Therefore, we hypothesize that ORM1 affects the"
+        "name": "age",
+        "score": 0.0133
        },
        {
-        "gene": "ORM1",
-        "title": "Multiomics insights on the onset, progression, and metastatic evolution of breast cancer",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10758476",
-        "snippet": "Figure 2 \u00b7 Biomarkers of breast cancer at different time points of tumor development detected by omics. Summary of markers observed in breast cancer onset (A), progression (B) and metastasis/relapse (C) detected by genomic, transcriptomic, proteomic, metabolomics, lipidomic and/or microbiomic. 87 im"
+        "name": "pathologic_t",
+        "score": 0.0053
        },
        {
-        "gene": "CHRNA6",
-        "title": "Unveiling promising breast cancer biomarkers - PMC - NIH",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10829368",
-        "snippet": "by A Golestan \u00b7 2024 \u00b7 Cited by 46 \u2014 CHRNA6 may serve as valuable biomarkers for breast cancer diagnosis, and PKMYT1 may also have prognostic significance."
+        "name": "pathologic_n",
+        "score": -0.0048
        }
-      ]
+      ],
+      "note": "positive score pushes risk up"
      }
     }
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 11435,
+   "tokens": 13083,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
@@ -385,16 +471,38 @@
   }
  },
  "730": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \n59th percentile, medium risk group.\n\n**Drivers**  \n- Clinical: lowers risk by 0.183 compared with a typical patient in the cohort. Top features: none.  \n- RNA: raises risk by 0.141 compared with a typical patient in the cohort. Top features: MUC1, CAMP, ELOVL2, BAIAP3, CITED4.  \n- Methylation: raises risk by 0.076 compared with a typical patient in the cohort. Top features: cg12462916, cg01244650, cg21577651, cg08508337, cg00713939.  \n- Protein: raises risk by 0.036 compared with a typical patient in the cohort. Top features: none.  \n- Genomic: raises risk by 0.008 compared with a typical patient in the cohort. Top features: LINC01300, AC083973.1, CHRNA6, AC046195.2, LINC01605.\n\n**Caveats**  \nNo missing data layers. Model validation C-index: 0.728. This is a research prototype, not a diagnosis.\n\n**Literature**  \n- MUC1: \u201cOverexpression of MUC1 predicts poor prognosis in patients with breast cancer\u201d \u2013 https://pmc.ncbi.nlm.nih.gov/articles/PMC6313072  \n- MUC1: \u201cPrognostic significance of MUC1 epithelial mucin expression in breast cancer.\u201d \u2013 https://pubmed.ncbi.nlm.nih.gov/7705823  \n- ELOVL2: \u201cELOVL2 promotes cancer progression by inhibiting cell apoptosis in renal cell carcinoma\u201d \u2013 https://pmc.ncbi.nlm.nih.gov/articles/PMC8674704  \n- ELOVL2: \u201cExpression of ELOVL2 in cancer - Summary - The Human Protein Atlas\u201d \u2013 https://www.proteinatlas.org/ENSG00000197977-ELOVL2/cancer",
+   "text": "**Summary**  \nThe model estimates this patient's risk at the 59th percentile, placing them in the medium risk group.\n\n**Observed**  \n- [Observed] All five data layers measured: genomic, rna, methylation, protein, clinical; none missing.  \n- [Observed] Recorded stage: II; age band: under 50.  \n- [Observed] Sequenced driver mutations: none of the panel's driver genes is mutated.\n\n**Model inferences**  \n- [Model inference] Predicted risk: 59th percentile, medium risk group; uncertainty: the model ranks patients correctly in about 73% of comparable pairs (validation C-index).  \n- [Model inference] Clinical data lowers risk by 0.183 compared with a typical patient in the cohort.  \n- [Model inference] RNA raises risk by 0.141; top features: MUC1, CAMP, ELOVL2, BAIAP3, CITED4.  \n- [Model inference] Methylation raises risk by 0.076; top features: cg12462916, cg01244650, cg21577651, cg08508337, cg00713939.  \n- [Model inference] Protein raises risk by 0.036; no top features returned.  \n- [Model inference] Genomic raises risk by 0.008; no top features returned.\n\n**Hypotheses and evidence**  \n- [Hypothesis] Literature leads for MUC1: \"Overexpression of MUC1 predicts poor prognosis in patients with breast cancer\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC6313072); \"Prognostic significance of MUC1 epithelial mucin expression in breast cancer.\" (https://pubmed.ncbi.nlm.nih.gov/7705823).  \n- [Hypothesis] Literature leads for ELOVL2: \"ELOVL2 promotes cancer progression by inhibiting cell apoptosis in renal cell carcinoma\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC8674704); \"a novel tumor suppressor attenuating tamoxifen resistance ...\" (https://e-century.us/files/ajcr/11/6/ajcr0132816.pdf).  \n- [Hypothesis] No publications returned for CAMP.\n\n**Caveats**  \n- [Observed] No missing data layers.  \n- [Model inference] Model validation C-index: 0.728.  \n- [Model inference] This is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "methylation",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [],
+      "recorded_stage": "II",
+      "age_band": "under 50",
+      "sequenced_driver_mutations": "none of the panel's driver genes is mutated",
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.536,
       "cohort_percentile": 59,
       "risk_group": "medium",
@@ -404,10 +512,11 @@
      }
     },
     {
-     "round": 1,
+     "round": 3,
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": 0.008,
        "rna": 0.141,
@@ -428,13 +537,14 @@
      }
     },
     {
-     "round": 2,
+     "round": 4,
      "name": "top_features",
      "arguments": {
       "modality": "rna",
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "rna",
       "method": "gradient x input",
       "features": [
@@ -463,13 +573,14 @@
      }
     },
     {
-     "round": 2,
+     "round": 5,
      "name": "top_features",
      "arguments": {
       "modality": "methylation",
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "methylation",
       "method": "gradient x input",
       "features": [
@@ -498,42 +609,7 @@
      }
     },
     {
-     "round": 3,
-     "name": "top_features",
-     "arguments": {
-      "modality": "genomic",
-      "k": 5
-     },
-     "result": {
-      "modality": "genomic",
-      "method": "gradient x input",
-      "features": [
-       {
-        "name": "LINC01300",
-        "score": 0.0024
-       },
-       {
-        "name": "AC083973.1",
-        "score": -0.0021
-       },
-       {
-        "name": "CHRNA6",
-        "score": 0.0021
-       },
-       {
-        "name": "AC046195.2",
-        "score": -0.002
-       },
-       {
-        "name": "LINC01605",
-        "score": 0.002
-       }
-      ],
-      "note": "positive score pushes risk up"
-     }
-    },
-    {
-     "round": 5,
+     "round": 6,
      "name": "search_literature",
      "arguments": {
       "genes": [
@@ -544,6 +620,7 @@
       "topic": "prognosis"
      },
      "result": {
+      "evidence_type": "hypothesis",
       "genes": [
        "MUC1",
        "CAMP",
@@ -571,17 +648,18 @@
        },
        {
         "gene": "ELOVL2",
-        "title": "Expression of ELOVL2 in cancer - Summary - The Human Protein Atlas",
-        "url": "https://www.proteinatlas.org/ENSG00000197977-ELOVL2/cancer",
-        "snippet": "analysis. | |  | PROGNOSTIC SUMMARYi Kaplan-Meier plots for all cancers where high expression of this gene has significant (p<0.001) association with patient survival are shown in this summary. Whether the prognosis is favorable or unfavorable is indicated in brackets. Each Kaplan-Meier plot is clic"
+        "title": "a novel tumor suppressor attenuating tamoxifen resistance ...",
+        "url": "https://e-century.us/files/ajcr/11/6/ajcr0132816.pdf",
+        "snippet": "denoted by the bar graph. Images from two tissue sets are represented. Scale bar, 50 \u03bcm. E. Kaplan-Meier survival analysis of ELOVL2 expression in breast cancer. Samples (n = 1,746) are stratified into two groups based on ELOVL2 expression level. The log-rank test is performed in all tumor samples u"
        }
-      ]
+      ],
+      "about": "published leads on these genes in this cancer, not findings about this patient"
      }
     }
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 16158,
+   "tokens": 15598,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
@@ -589,16 +667,41 @@
   }
  },
  "1043": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \nThis patient's predicted survival risk places them in the 75th percentile (high-risk group) among 1,064 breast cancer patients.\n\n**Drivers**  \n- Clinical (raises risk by 0.156 vs. a typical patient in the cohort). No omic features reported.  \n- Genomic (raises risk by 0.053). Top features: AC103758.1, AC011676.5, LINC01300, AC138647.1, FAM135B.  \n- RNA (lowers risk by 0.029). Top features: PIGR, CXCL11, IDO1, GBP5, CCL8.  \n- Methylation (lowers risk by 0.004). Top features: cg05742082, cg26989202, cg04256316, cg26394244, cg12664209.\n\n**Caveats**  \nMissing data layer: protein. Model validation C-index: 0.728. This is a research prototype, not a clinical diagnosis.\n\n**Literature**  \n- FAM135B: \"Latest insights into the global epidemiological features, screening, early diagnosis and prognosis prediction of esophageal squamous cell carcinoma\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC11154680)  \n- FAM135B: \"Expression of ADAM29 and FAM135B in the pathological ...\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC7039107)  \n- IDO1: \"Prognostic and immune correlation of IDO1 promoter methylation in breast cancer\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC11561124)  \n- IDO1: \"Objective measurement and clinical significance of IDO1 protein in hormone receptor-positive breast cancer | Journal for ImmunoTherapy of Cancer\" (https://jitc.bmj.com/content/5/1/81)  \n- CXCL11: \"Frontiers | CXCL11 Correlates With Antitumor Immunity and an Improved Prognosis in Colon Cancer\" (https://www.frontiersin.org/journals/cell-and-developmental-biology/articles/10.3389/fcell.2021.646252/full)",
+   "text": "**Summary**  \nThe model estimates the patient at the 75th percentile (high risk group).\n\n**Observed**  \n[Observed] Measured: genomic, rna, methylation, clinical; missing: protein; stage III; age <50; driver: TP53 R175H.\n\n**Model inferences**  \n[Model inference] Risk: 75th percentile, high risk; uncertainty: model ranks ~73% pairs (C-index).  \n[Model inference] Clinical raises risk by 0.156 vs typical; top features: age, stage, pathologic_n, ductal, pathologic_t.  \n[Model inference] Genomic raises risk by 0.053; top features: AC103758.1, AC011676.5, LINC01300, AC138647.1, FAM135B.  \n[Model inference] RNA lowers risk by 0.029; no top features.  \n[Model inference] Methylation lowers risk by 0.004; no top features.\n\n**Hypotheses and evidence**  \n[Hypothesis] TP53 R175H \u2013 Tamoxifen, level C, Resistance; URL: https://civicdb.org/links/evidence_items/2784.  \n[Hypothesis] TP53 R175H \u2013 Doxorubicin, level D, Sensitivity/Response; URL: https://civicdb.org/links/evidence_items/851.  \n[Hypothesis] TP53 R175H \u2013 Doxorubicin, level D, Sensitivity/Response; URL: https://civicdb.org/links/evidence_items/319.  \n[Hypothesis] No relevant publications for FAM135B.\n\n**Caveats**  \n[Observed] Missing layer: protein.  \n[Observed] Validation C-index: 0.728.  \n[Hypothesis] Research prototype for clinician review, not diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "methylation",
+       "clinical"
+      ],
+      "not_measured": [
+       "protein"
+      ],
+      "recorded_stage": "III",
+      "age_band": "under 50",
+      "sequenced_driver_mutations": [
+       "TP53 R175H"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.36,
       "cohort_percentile": 75,
       "risk_group": "high",
@@ -612,6 +715,7 @@
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": 0.053,
        "rna": -0.029,
@@ -635,10 +739,47 @@
      "round": 3,
      "name": "top_features",
      "arguments": {
+      "modality": "clinical",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "clinical",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "age",
+        "score": -0.1397
+       },
+       {
+        "name": "stage",
+        "score": 0.102
+       },
+       {
+        "name": "pathologic_n",
+        "score": 0.0875
+       },
+       {
+        "name": "ductal",
+        "score": -0.0213
+       },
+       {
+        "name": "pathologic_t",
+        "score": 0.0136
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 3,
+     "name": "top_features",
+     "arguments": {
       "modality": "genomic",
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "genomic",
       "method": "gradient x input",
       "features": [
@@ -668,72 +809,69 @@
     },
     {
      "round": 4,
-     "name": "top_features",
-     "arguments": {
-      "modality": "rna",
-      "k": 5
-     },
+     "name": "treatment_evidence",
+     "arguments": {},
      "result": {
-      "modality": "rna",
-      "method": "gradient x input",
-      "features": [
+      "evidence_type": "hypothesis",
+      "source": "CIViC (civicdb.org, CC0)",
+      "use": "evidence for clinician review, not a treatment recommendation; levels: A validated, B clinical, C case study, D preclinical, E inferential",
+      "variants": [
        {
-        "name": "PIGR",
-        "score": -0.0012
-       },
-       {
-        "name": "CXCL11",
-        "score": -0.0012
-       },
-       {
-        "name": "IDO1",
-        "score": -0.0012
-       },
-       {
-        "name": "GBP5",
-        "score": -0.0012
-       },
-       {
-        "name": "CCL8",
-        "score": -0.0012
+        "variant": "TP53 R175H",
+        "civic_items": [
+         {
+          "molecular_profile": "TP53 Mutation",
+          "match": "any mutation in the gene",
+          "therapies": "Tamoxifen",
+          "evidence_level": "C",
+          "level_meaning": "case study",
+          "significance": "Resistance",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Berns et al., 2000",
+          "url": "https://civicdb.org/links/evidence_items/2784"
+         },
+         {
+          "molecular_profile": "TP53 Mutation",
+          "match": "any mutation in the gene",
+          "therapies": "Doxorubicin",
+          "evidence_level": "D",
+          "level_meaning": "preclinical",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Jackson et al., 2012",
+          "url": "https://civicdb.org/links/evidence_items/851"
+         },
+         {
+          "molecular_profile": "TP53 R175H",
+          "match": "this variant",
+          "therapies": "Doxorubicin",
+          "evidence_level": "D",
+          "level_meaning": "preclinical",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Jackson et al., 2012",
+          "url": "https://civicdb.org/links/evidence_items/319"
+         }
+        ]
        }
-      ],
-      "note": "positive score pushes risk up"
+      ]
      }
     },
     {
      "round": 5,
-     "name": "top_features",
+     "name": "search_literature",
      "arguments": {
-      "modality": "methylation",
-      "k": 5
+      "genes": [
+       "FAM135B",
+       "TP53"
+      ],
+      "topic": "prognosis"
      },
      "result": {
-      "modality": "methylation",
-      "method": "gradient x input",
-      "features": [
-       {
-        "name": "cg05742082",
-        "score": 0.0006
-       },
-       {
-        "name": "cg26989202",
-        "score": -0.0006
-       },
-       {
-        "name": "cg04256316",
-        "score": -0.0005
-       },
-       {
-        "name": "cg26394244",
-        "score": 0.0005
-       },
-       {
-        "name": "cg12664209",
-        "score": 0.0004
-       }
-      ],
-      "note": "positive score pushes risk up"
+      "error": "genes must come from earlier top_features results; not returned yet: ['TP53']"
      }
     },
     {
@@ -741,57 +879,25 @@
      "name": "search_literature",
      "arguments": {
       "genes": [
-       "FAM135B",
-       "IDO1",
-       "CXCL11"
+       "FAM135B"
       ],
       "topic": "prognosis"
      },
      "result": {
+      "evidence_type": "hypothesis",
       "genes": [
-       "FAM135B",
-       "IDO1",
-       "CXCL11"
+       "FAM135B"
       ],
       "topic": "prognosis",
-      "results": [
-       {
-        "gene": "FAM135B",
-        "title": "Latest insights into the global epidemiological features, screening, early diagnosis and prognosis prediction of esophageal squamous cell carcinoma",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11154680",
-        "snippet": "with the growth factor granuline, suggesting that FAM135B is a potential therapeutic target and prognostic factor for ESCC. Furthermore, the mutations in PIK3CA discussed above may also be related to survival in ESCC patients and may be prognostic biomarkers. [...] reduce the proliferation, invasion"
-       },
-       {
-        "gene": "FAM135B",
-        "title": "Expression of ADAM29 and FAM135B in the pathological ...",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7039107",
-        "snippet": "by T Wang \u00b7 2020 \u00b7 Cited by 10 \u2014 the prognosis of patients with esophageal cancer remains poor, whereby the 5-year survival rate is <20% (8). the 5-year survival rate can be as high as 80\u201390%"
-       },
-       {
-        "gene": "IDO1",
-        "title": "Prognostic and immune correlation of IDO1 promoter methylation in breast cancer",
-        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11561124",
-        "snippet": "mRNA and protein expression levels were significantly greater in the basal subtype of breast cancer (Fig. 1A, B). Further survival analysis indicated that HER2-subtype patients with high IDO1 expression had a better prognosis, while there was no significant difference in survival between patients wi"
-       },
-       {
-        "gene": "IDO1",
-        "title": "Objective measurement and clinical significance of IDO1 protein in hormone receptor-positive breast cancer | Journal for ImmunoTherapy of Cancer",
-        "url": "https://jitc.bmj.com/content/5/1/81",
-        "snippet": "Hormone-receptor positive breast cancer (BC) accounts for 60-80% of all breast malignancies [1, 2]. Despite having a better prognosis than other BC subtypes, progression to metastatic disease occurs inevitably in over 20% of patients. Following the first metastasis, the median overall survival range"
-       },
-       {
-        "gene": "CXCL11",
-        "title": "Frontiers | CXCL11 Correlates With Antitumor Immunity and an Improved Prognosis in Colon Cancer",
-        "url": "https://www.frontiersin.org/journals/cell-and-developmental-biology/articles/10.3389/fcell.2021.646252/full",
-        "snippet": "1B). Therefore, we focused on the prognostic significance of CXCL11 in COAD, and we downloaded a dataset from the TCGA (n = 451). The results revealed that high CXCL11 mRNA expression was associated with prolonged survival (P = 0.0053, Figure 1C). [...] cells had better OS (overall survival, P = 0.0"
-       }
-      ]
+      "results": [],
+      "about": "published leads on these genes in this cancer, not findings about this patient",
+      "note": "no result names these genes, so there is nothing to cite"
      }
     }
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 14201,
+   "tokens": 23096,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
@@ -799,16 +905,41 @@
   }
  },
  "545": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \nThe patient is at the 88th percentile of risk (high risk group) in a cohort of 1064 breast cancer patients.\n\n**Drivers**  \n- Clinical (raises risk by 0.385): top features \u2013 ductal, age, pathologic_n, stage, pathologic_t.  \n- RNA (lowers risk by 0.055): top features \u2013 SLC25A24P2, MT-TT, COX6CP1.  \n- Protein (raises risk by 0.044): no top features returned.  \n- Methylation (raises risk by 0.013): no top features returned.  \n- Genomic (lowers risk by 0.004): top features \u2013 LINC01300, AC083973.1, CHRNA6.\n\n**Caveats**  \nNo missing data layers. Model validation C-index: 0.728. This is a research prototype, not a clinical diagnosis.\n\n**Literature**  \nNo literature search was run.",
+   "text": "**Summary**  \nThe patient is estimated at the 88th percentile (high risk group) by the MuFFLe++ model.\n\n**Observed**  \n- [Observed] All five data layers measured (genomic, rna, methylation, protein, clinical); none missing.  \n- [Observed] Recorded stage: III.  \n- [Observed] Age band: 65 or older.  \n- [Observed] Sequenced driver mutations: ESR1 P222S, GATA3 R364Hfs*10.\n\n**Model inferences**  \n- [Model inference] Risk: 88th percentile, high risk group (uncertainty: model ranks patients correctly in about 73% of comparable pairs, validation C-index 0.728).  \n- [Model inference] Clinical layer raises risk by 0.385 vs a typical patient; top features: ductal (0.027), age (0.020), pathologic_n (0.020), stage (-0.014), pathologic_t (0.002).  \n- [Model inference] RNA layer lowers risk by 0.055; top features: SLC25A24P2 (-0.001), MT-TT (0.001), COX6CP1 (0.001), AGT (-0.001), HNRNPA1P57 (0.001).  \n- [Model inference] Protein layer raises risk by 0.044; top features: NFKBP65_pS536 (0.009), PLC-gamma1 (-0.008), HSP27_pS82 (0.008), EPPK1 (0.008), ACC1 (-0.008).  \n- [Model inference] Methylation layer raises risk by 0.013; top features: cg11595545 (-0.004), cg12928379 (-0.004), cg08369872 (-0.003), cg21577651 (-0.003), cg22282405 (0.003).  \n- [Model inference] Genomic layer lowers risk by 0.004; top features: LINC01300 (0.003), AC083973.1 (-0.003), CHRNA6 (0.002), AC090453.1 (-0.002), LINC01605 (0.002).\n\n**Hypotheses and evidence**  \n- [Hypothesis] ESR1 P222S \u2013 CIViC items: (1) ESR1 Mutation \u2192 Elacestrant; level A (validated); significance Sensitivity/Response; supports; URL https://civicdb.org/links/evidence_items/11443. (2) PIK3CA/RB1/ESR1 Mutation \u2192 Fulvestrant, Palbociclib; level B (clinical); significance Resistance; supports; URL https://civicdb.org/links/evidence_items/12045. GATA3 R364Hfs*10 \u2013 no CIViC items.  \n- [Hypothesis] Literature search returned an error (genes must come from earlier top_features results; not returned yet: ['PLCG1']), so no relevant publications were retrieved.\n\n**Caveats**  \n- [Observed] No missing data layers.  \n- [Model inference] Model validation C-index: 0.728.  \n- [Hypothesis] This is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "methylation",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [],
+      "recorded_stage": "III",
+      "age_band": "65 or older",
+      "sequenced_driver_mutations": [
+       "ESR1 P222S",
+       "GATA3 R364Hfs*10"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.23,
       "cohort_percentile": 88,
       "risk_group": "high",
@@ -822,6 +953,7 @@
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": -0.004,
        "rna": -0.055,
@@ -849,6 +981,7 @@
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "clinical",
       "method": "gradient x input",
       "features": [
@@ -881,9 +1014,10 @@
      "name": "top_features",
      "arguments": {
       "modality": "genomic",
-      "k": 3
+      "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "genomic",
       "method": "gradient x input",
       "features": [
@@ -898,19 +1032,28 @@
        {
         "name": "CHRNA6",
         "score": 0.0024
+       },
+       {
+        "name": "AC090453.1",
+        "score": -0.0023
+       },
+       {
+        "name": "LINC01605",
+        "score": 0.0023
        }
       ],
       "note": "positive score pushes risk up"
      }
     },
     {
-     "round": 5,
+     "round": 4,
      "name": "top_features",
      "arguments": {
       "modality": "rna",
-      "k": 3
+      "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "rna",
       "method": "gradient x input",
       "features": [
@@ -925,15 +1068,155 @@
        {
         "name": "COX6CP1",
         "score": 0.001
+       },
+       {
+        "name": "AGT",
+        "score": -0.0009
+       },
+       {
+        "name": "HNRNPA1P57",
+        "score": 0.0008
        }
       ],
       "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 5,
+     "name": "treatment_evidence",
+     "arguments": {},
+     "result": {
+      "evidence_type": "hypothesis",
+      "source": "CIViC (civicdb.org, CC0)",
+      "use": "evidence for clinician review, not a treatment recommendation; levels: A validated, B clinical, C case study, D preclinical, E inferential",
+      "variants": [
+       {
+        "variant": "ESR1 P222S",
+        "civic_items": [
+         {
+          "molecular_profile": "ESR1 Mutation",
+          "match": "any mutation in the gene",
+          "therapies": "Elacestrant",
+          "evidence_level": "A",
+          "level_meaning": "validated association",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Bidard et al., 2022",
+          "url": "https://civicdb.org/links/evidence_items/11443"
+         },
+         {
+          "molecular_profile": "PIK3CA Mutation OR RB1 Mutation OR ESR1 Mutation",
+          "match": "any mutation in the gene (the profile also covers PIK3CA Mutation, RB1 Mutation)",
+          "therapies": "Fulvestrant,Palbociclib",
+          "evidence_level": "B",
+          "level_meaning": "clinical evidence",
+          "significance": "Resistance",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "O'Leary et al., 2018",
+          "url": "https://civicdb.org/links/evidence_items/12045"
+         }
+        ]
+       },
+       {
+        "variant": "GATA3 R364Hfs*10",
+        "civic_items": []
+       }
+      ]
+     }
+    },
+    {
+     "round": 6,
+     "name": "top_features",
+     "arguments": {
+      "modality": "methylation",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "methylation",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "cg11595545",
+        "score": -0.0037
+       },
+       {
+        "name": "cg12928379",
+        "score": -0.0035
+       },
+       {
+        "name": "cg08369872",
+        "score": -0.0033
+       },
+       {
+        "name": "cg21577651",
+        "score": -0.0029
+       },
+       {
+        "name": "cg22282405",
+        "score": 0.0026
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 6,
+     "name": "top_features",
+     "arguments": {
+      "modality": "protein",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "protein",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "NFKBP65_pS536",
+        "score": 0.0085
+       },
+       {
+        "name": "PLC-gamma1",
+        "score": -0.0082
+       },
+       {
+        "name": "HSP27_pS82",
+        "score": 0.0079
+       },
+       {
+        "name": "EPPK1",
+        "score": 0.0079
+       },
+       {
+        "name": "ACC1",
+        "score": -0.0075
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 7,
+     "name": "search_literature",
+     "arguments": {
+      "genes": [
+       "CHRNA6",
+       "AGT",
+       "PLCG1"
+      ],
+      "topic": "prognosis"
+     },
+     "result": {
+      "error": "genes must come from earlier top_features results; not returned yet: ['PLCG1']"
      }
     }
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 12758,
+   "tokens": 22438,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
@@ -941,16 +1224,41 @@
   }
  },
  "601": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \n95th percentile, high risk group.\n\n**Drivers**  \n- Clinical raises risk by 0.387 compared with a typical patient in the cohort. Top features: ductal (0.026), age (0.020), pathologic_n (0.018), stage (-0.013), pathologic_t (0.002).  \n- RNA raises risk by 0.023. Top features: NAT1 (-0.007), FADS2 (0.006), GRPR (-0.006).  \n- Protein lowers risk by 0.017. No top features returned.  \n- Genomic lowers risk by 0.011. Top features: ADAM18 (-0.008), AC007991.2 (-0.007), AC007991.1 (-0.007).\n\n**Caveats**  \nMissing data layer: methylation. Model validation C-index: 0.728. This is a research prototype, not a diagnosis.\n\n**Literature**  \nNo literature search was run.",
+   "text": "**Summary**  \nThe model estimates this patient's risk at the 95th percentile (high risk group).\n\n**Observed**  \n- [Observed] Measured data layers: genomic, rna, protein, clinical; missing: methylation.  \n- [Observed] Recorded stage: III.  \n- [Observed] Age band: 65 or older.  \n- [Observed] Sequenced driver mutations: TP53 E285Rfs*54.\n\n**Model inferences**  \n- [Model inference] Risk: 95th percentile, high risk group; uncertainty: the model ranks patients correctly in about 73% of comparable pairs (validation C-index).  \n- [Model inference] Clinical layer raises risk by 0.387 compared with a typical patient; top features: ductal, age, pathologic_n, stage, pathologic_t.  \n- [Model inference] RNA layer raises risk by 0.023; no top features returned.  \n- [Model inference] Protein layer lowers risk by 0.017; no top features returned.  \n- [Model inference] Genomic layer lowers risk by 0.011; top features: ADAM18, AC007991.2, AC007991.1, AC087362.1, LINC02055.\n\n**Hypotheses and evidence**  \n- [Hypothesis] Literature lead for ADAM18: \"Expression of ADAM18 in cancer - Summary\" (https://www.proteinatlas.org/ENSG00000168619-ADAM18/cancer) \u2013 published leads on this gene in breast cancer, not findings about this patient.\n\n**Caveats**  \n- [Observed] Missing data layers: methylation.  \n- [Model inference] Model validation C-index: 0.728.  \n- [Observed] This is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [
+       "methylation"
+      ],
+      "recorded_stage": "III",
+      "age_band": "65 or older",
+      "sequenced_driver_mutations": [
+       "TP53 E285Rfs*54"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": -0.095,
       "cohort_percentile": 95,
       "risk_group": "high",
@@ -964,6 +1272,7 @@
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": -0.011,
        "rna": 0.023,
@@ -991,6 +1300,7 @@
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "clinical",
       "method": "gradient x input",
       "features": [
@@ -1023,9 +1333,10 @@
      "name": "top_features",
      "arguments": {
       "modality": "genomic",
-      "k": 3
+      "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "genomic",
       "method": "gradient x input",
       "features": [
@@ -1040,42 +1351,49 @@
        {
         "name": "AC007991.1",
         "score": -0.0067
+       },
+       {
+        "name": "AC087362.1",
+        "score": -0.0058
+       },
+       {
+        "name": "LINC02055",
+        "score": -0.0058
        }
       ],
       "note": "positive score pushes risk up"
      }
     },
     {
-     "round": 5,
-     "name": "top_features",
+     "round": 6,
+     "name": "search_literature",
      "arguments": {
-      "modality": "rna",
-      "k": 3
+      "genes": [
+       "ADAM18"
+      ],
+      "topic": "prognosis"
      },
      "result": {
-      "modality": "rna",
-      "method": "gradient x input",
-      "features": [
+      "evidence_type": "hypothesis",
+      "genes": [
+       "ADAM18"
+      ],
+      "topic": "prognosis",
+      "results": [
        {
-        "name": "NAT1",
-        "score": -0.0072
-       },
-       {
-        "name": "FADS2",
-        "score": 0.0057
-       },
-       {
-        "name": "GRPR",
-        "score": -0.0055
+        "gene": "ADAM18",
+        "title": "Expression of ADAM18 in cancer - Summary",
+        "url": "https://www.proteinatlas.org/ENSG00000168619-ADAM18/cancer",
+        "snippet": "Kaplan-Meier plots for all cancers where high expression of this gene has significant (p<0.001) association with patient survival are shown in this summary."
        }
       ],
-      "note": "positive score pushes risk up"
+      "about": "published leads on these genes in this cancer, not findings about this patient"
      }
     }
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 12703,
+   "tokens": 16236,
    "notes": [],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
@@ -1083,16 +1401,42 @@
   }
  },
  "299": {
-  "created": "2026-10-18",
-  "ckpt": "tcga_fedavg.pt",
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
   "report": {
-   "text": "**Summary**  \n99th percentile, high risk group.\n\n**Drivers**  \n- Clinical raises risk by 0.384 compared with a typical patient in the cohort. Top features: ductal, pathologic_n, age, stage, pathologic_t.  \n- RNA raises risk by 0.158 compared with a typical patient in the cohort. Top features: SLC13A2, SBSPON, IGKV4-1, IGHJ4, IGHV1-24.  \n- Genomic raises risk by 0.007 compared with a typical patient in the cohort. No top features returned.  \n- Protein raises risk by 0.003 compared with a typical patient in the cohort. No top features returned.\n\n**Caveats**  \nMissing data layer: methylation. Model validation C-index: 0.728. This is a research prototype, not a diagnosis.\n\n**Literature**  \n- IGHJ4: Expression of IGHJ4 in cancer - Summary (https://v23.proteinatlas.org/ENSG00000240041-IGHJ4/pathology).  \n- No relevant publications were found for SLC13A2 and IGHV1-24.",
+   "text": "## Summary\nModel estimate: 99th percentile, high risk group.\n\n## Observed\n- [Observed] Measured data layers: genomic, rna, protein, clinical; missing: methylation.\n- [Observed] Recorded stage: III.\n- [Observed] Age band: 65 or older.\n- [Observed] Sequenced driver mutations: MAP3K1 S588Ffs*3, TP53 R110del.\n\n## Model inferences\n- [Model inference] Risk estimate: 99th percentile, high risk group; uncertainty: model ranks patients correctly in about 73% of comparable pairs (validation C-index 0.728).\n- [Model inference] Clinical layer raises risk by 0.384 compared with a typical patient in the cohort; no top features returned.\n- [Model inference] RNA layer raises risk by 0.158; top features: SLC13A2 (0.0062), SBSPON (-0.0047), IGKV4-1 (-0.0046), IGHJ4 (0.0034), IGHV1-24 (0.0033).\n- [Model inference] Genomic layer raises risk by 0.007; top features: LINC01300 (0.0073), AC083973.1 (-0.0068), MIR486-2 (0.0068), AC138647.2 (0.0067), GINS4 (-0.0066).\n- [Model inference] Protein layer raises risk by 0.003; no top features returned.\n\n## Hypotheses and evidence\n- [Hypothesis] Treatment evidence (CIViC) for TP53 R110del: Tamoxifen, evidence level C (case study), significance Resistance, URL https://civicdb.org/links/evidence_items/2784.\n- [Hypothesis] Treatment evidence (CIViC) for TP53 R110del: Doxorubicin, evidence level D (preclinical), significance Sensitivity/Response, URL https://civicdb.org/links/evidence_items/851.\n- [Hypothesis] Literature search for prognosis genes SLC13A2, GINS4, SBSPON returned one publication: \"GINS4 might be a novel prognostic immune-related biomarker ...\" (https://pmc.ncbi.nlm.nih.gov/articles/PMC8976371) about GINS4; no relevant publications found for SLC13A2 and SBSPON.\n\n## Caveats\n- [Observed] Missing data layer: methylation.\n- [Model inference] Model validation C-index: 0.728.\n- [Hypothesis] This is a research prototype for clinician review, not a diagnosis or treatment recommendation.",
    "trace": [
     {
      "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [
+       "methylation"
+      ],
+      "recorded_stage": "III",
+      "age_band": "65 or older",
+      "sequenced_driver_mutations": [
+       "MAP3K1 S588Ffs*3",
+       "TP53 R110del"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
      "name": "predict_risk",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
       "log_risk": 0.075,
       "cohort_percentile": 99,
       "risk_group": "high",
@@ -1102,10 +1446,11 @@
      }
     },
     {
-     "round": 2,
+     "round": 3,
      "name": "modality_contributions",
      "arguments": {},
      "result": {
+      "evidence_type": "model inference",
       "log_risk_added_by_layer": {
        "genomic": 0.007,
        "rna": 0.158,
@@ -1126,41 +1471,6 @@
      }
     },
     {
-     "round": 3,
-     "name": "top_features",
-     "arguments": {
-      "modality": "clinical",
-      "k": 5
-     },
-     "result": {
-      "modality": "clinical",
-      "method": "gradient x input",
-      "features": [
-       {
-        "name": "ductal",
-        "score": 0.0287
-       },
-       {
-        "name": "pathologic_n",
-        "score": 0.0224
-       },
-       {
-        "name": "age",
-        "score": 0.0203
-       },
-       {
-        "name": "stage",
-        "score": -0.014
-       },
-       {
-        "name": "pathologic_t",
-        "score": 0.0017
-       }
-      ],
-      "note": "positive score pushes risk up"
-     }
-    },
-    {
      "round": 4,
      "name": "top_features",
      "arguments": {
@@ -1168,6 +1478,7 @@
       "k": 5
      },
      "result": {
+      "evidence_type": "model inference",
       "modality": "rna",
       "method": "gradient x input",
       "features": [
@@ -1197,28 +1508,423 @@
     },
     {
      "round": 5,
+     "name": "top_features",
+     "arguments": {
+      "modality": "genomic",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "genomic",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "LINC01300",
+        "score": 0.0073
+       },
+       {
+        "name": "AC083973.1",
+        "score": -0.0068
+       },
+       {
+        "name": "MIR486-2",
+        "score": 0.0068
+       },
+       {
+        "name": "AC138647.2",
+        "score": 0.0067
+       },
+       {
+        "name": "GINS4",
+        "score": -0.0066
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 6,
+     "name": "treatment_evidence",
+     "arguments": {},
+     "result": {
+      "evidence_type": "hypothesis",
+      "source": "CIViC (civicdb.org, CC0)",
+      "use": "evidence for clinician review, not a treatment recommendation; levels: A validated, B clinical, C case study, D preclinical, E inferential",
+      "variants": [
+       {
+        "variant": "MAP3K1 S588Ffs*3",
+        "civic_items": []
+       },
+       {
+        "variant": "TP53 R110del",
+        "civic_items": [
+         {
+          "molecular_profile": "TP53 Mutation",
+          "match": "any mutation in the gene",
+          "therapies": "Tamoxifen",
+          "evidence_level": "C",
+          "level_meaning": "case study",
+          "significance": "Resistance",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Berns et al., 2000",
+          "url": "https://civicdb.org/links/evidence_items/2784"
+         },
+         {
+          "molecular_profile": "TP53 Mutation",
+          "match": "any mutation in the gene",
+          "therapies": "Doxorubicin",
+          "evidence_level": "D",
+          "level_meaning": "preclinical",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Jackson et al., 2012",
+          "url": "https://civicdb.org/links/evidence_items/851"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "round": 7,
      "name": "search_literature",
      "arguments": {
       "genes": [
        "SLC13A2",
-       "IGHJ4",
-       "IGHV1-24"
+       "GINS4",
+       "SBSPON"
       ],
       "topic": "prognosis"
      },
      "result": {
+      "evidence_type": "hypothesis",
       "genes": [
        "SLC13A2",
-       "IGHJ4",
-       "IGHV1-24"
+       "GINS4",
+       "SBSPON"
       ],
       "topic": "prognosis",
       "results": [
        {
-        "gene": "IGHJ4",
-        "title": "Expression of IGHJ4 in cancer - Summary",
-        "url": "https://v23.proteinatlas.org/ENSG00000240041-IGHJ4/pathology",
-        "snippet": "Kaplan-Meier plots for all cancers where high expression of this gene has significant (p<0.001) association with patient survival are shown in this summary."
+        "gene": "GINS4",
+        "title": "GINS4 might be a novel prognostic immune-related biomarker ...",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8976371",
+        "snippet": "by D Jin \u00b7 2022 \u00b7 Cited by 11 \u2014 Overexpression of GINS4 Is associated with tumor progression and poor survival ... Expression and prognosis analysis of GINS subunits in human"
+       }
+      ],
+      "about": "published leads on these genes in this cancer, not findings about this patient"
+     }
+    }
+   ],
+   "mode": "agent",
+   "model": "nvidia/nemotron-3-super-120b-a12b",
+   "tokens": 20526,
+   "notes": [],
+   "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
+   "issues": [],
+   "revised": false
+  }
+ },
+ "926": {
+  "created": "2026-10-19",
+  "ckpt": "demo_bundle.pt",
+  "report": {
+   "text": "**Summary**  \nThe model estimates this patient at the 13th percentile (low risk group).\n\n**Observed**  \n- [Observed] Measured layers: genomic, rna, methylation, protein, clinical; none missing.  \n- [Observed] Stage not recorded; age band 50-64.  \n- [Observed] Driver mutations: CBFB I102N, CDH1 K668*, PIK3CA H1047R.\n\n**Model inferences**  \n- [Model inference] Risk: 13th percentile, low risk; uncertainty: model ranks correctly in ~73% of pairs (C-index 0.728).  \n- [Model inference] Clinical lowers risk by 0.079 vs typical patient; top features: stage_unknown (0.143), lobular (0.053), pathologic_n (0.048), stage (-0.022), pathologic_t (-0.018).  \n- [Model inference] Genomic lowers risk by 0.062; no top features.  \n- [Model inference] RNA lowers risk by 0.059; top features: IFITM3P2 (0.0015), OBP2B (0.001), SPAG6 (0.0008), OLFM4 (0.0008), WNK4 (0.0008).  \n- [Model inference] Methylation lowers risk by 0.004; top features: cg11452571 (-0.0006), cg04804877 (0.0006), cg27299406 (0.0005), cg12634932 (0.0005), cg16316162 (0.0005).  \n- [Model inference] Protein lowers risk by 0.002; no top features.\n\n**Hypotheses and evidence**  \n- [Hypothesis] CIViC evidence for PIK3CA H1047R (level A, Sensitivity/Response): Fulvestrant+Alpelisib (https://civicdb.org/links/evidence_items/7318; https://civicdb.org/links/evidence_items/7313); Fulvestrant+Palbociclib+Inavolisib (https://civicdb.org/links/evidence_items/12533). No items for CBFB I102N or CDH1 K668*.  \n- [Hypothesis] Literature leads (prognosis): OLFM4 \u2013 \u201cOLFM4 Expression in Ductal Carcinoma\u2026\u201d (Wiley), \u201cOLFM4, LY6D and S100A7\u2026\u201d (PMC6172070); SPAG6 \u2013 \u201cOmics Technologies\u2026\u201d (PMC10454385), \u201cThe Janus Face of SPAG6\u2026\u201d (PMC12510430). No results for WNK4.\n\n**Caveats**  \n- [Observed] No missing data layers.  \n- [Model inference] Validation C-index 0.728.  \n- Research prototype for clinician review only; not a diagnosis or treatment recommendation.",
+   "trace": [
+    {
+     "round": 1,
+     "name": "observed_findings",
+     "arguments": {},
+     "result": {
+      "evidence_type": "observed",
+      "measured_data_layers": [
+       "genomic",
+       "rna",
+       "methylation",
+       "protein",
+       "clinical"
+      ],
+      "not_measured": [],
+      "recorded_stage": "not recorded",
+      "age_band": "50-64",
+      "sequenced_driver_mutations": [
+       "CBFB I102N",
+       "CDH1 K668*",
+       "PIK3CA H1047R"
+      ],
+      "note": "recorded facts, not predictions; a layer that was not measured is unknown, not normal"
+     }
+    },
+    {
+     "round": 2,
+     "name": "predict_risk",
+     "arguments": {},
+     "result": {
+      "evidence_type": "model inference",
+      "uncertainty": "the model ranks patients correctly in about 73% of comparable pairs (validation C-index)",
+      "log_risk": -0.819,
+      "cohort_percentile": 13,
+      "risk_group": "low",
+      "cohort_size": 1064,
+      "cohort_median_log_risk": -0.6,
+      "note": "Judge the patient's standing by cohort_percentile and risk_group, not by the sign of log_risk: log-risk is measured from the model's baseline, not from the cohort median. Higher means shorter expected survival; it is not an absolute probability."
+     }
+    },
+    {
+     "round": 2,
+     "name": "modality_contributions",
+     "arguments": {},
+     "result": {
+      "evidence_type": "model inference",
+      "log_risk_added_by_layer": {
+       "genomic": -0.062,
+       "rna": -0.059,
+       "methylation": -0.004,
+       "protein": -0.002,
+       "clinical": -0.079
+      },
+      "compared_with": "a typical patient in the cohort",
+      "available_data_layers": [
+       "genomic",
+       "rna",
+       "methylation",
+       "protein",
+       "clinical"
+      ],
+      "missing_data_layers": [],
+      "note": "positive = this layer raises the patient's predicted risk; negative = it lowers it"
+     }
+    },
+    {
+     "round": 3,
+     "name": "top_features",
+     "arguments": {
+      "modality": "clinical",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "clinical",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "stage_unknown",
+        "score": 0.1427
+       },
+       {
+        "name": "lobular",
+        "score": 0.0532
+       },
+       {
+        "name": "pathologic_n",
+        "score": 0.0482
+       },
+       {
+        "name": "stage",
+        "score": -0.0222
+       },
+       {
+        "name": "pathologic_t",
+        "score": -0.018
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 4,
+     "name": "top_features",
+     "arguments": {
+      "modality": "genomic",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "genomic",
+      "method": "gradient x input",
+      "features": [],
+      "note": "no single feature in this layer moves this patient's risk measurably (every |score| < 0.0001), so name no features from this layer"
+     }
+    },
+    {
+     "round": 5,
+     "name": "top_features",
+     "arguments": {
+      "modality": "rna",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "rna",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "IFITM3P2",
+        "score": 0.0015
+       },
+       {
+        "name": "OBP2B",
+        "score": 0.001
+       },
+       {
+        "name": "SPAG6",
+        "score": 0.0008
+       },
+       {
+        "name": "OLFM4",
+        "score": 0.0008
+       },
+       {
+        "name": "WNK4",
+        "score": 0.0008
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 6,
+     "name": "top_features",
+     "arguments": {
+      "modality": "methylation",
+      "k": 5
+     },
+     "result": {
+      "evidence_type": "model inference",
+      "modality": "methylation",
+      "method": "gradient x input",
+      "features": [
+       {
+        "name": "cg11452571",
+        "score": -0.0006
+       },
+       {
+        "name": "cg04804877",
+        "score": 0.0006
+       },
+       {
+        "name": "cg27299406",
+        "score": 0.0005
+       },
+       {
+        "name": "cg12634932",
+        "score": 0.0005
+       },
+       {
+        "name": "cg16316162",
+        "score": 0.0005
+       }
+      ],
+      "note": "positive score pushes risk up"
+     }
+    },
+    {
+     "round": 7,
+     "name": "search_literature",
+     "arguments": {
+      "genes": [
+       "OLFM4",
+       "WNK4",
+       "SPAG6"
+      ],
+      "topic": "prognosis"
+     },
+     "result": {
+      "evidence_type": "hypothesis",
+      "genes": [
+       "OLFM4",
+       "WNK4",
+       "SPAG6"
+      ],
+      "topic": "prognosis",
+      "results": [
+       {
+        "gene": "OLFM4",
+        "title": "OLFM4 Expression in Ductal Carcinoma In Situ and in ...",
+        "url": "https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/10.1002/pmic.201800446",
+        "snippet": "OLFM4 was an independent worse prognostic factor for distant metastasis-free and breast cancer\u2013specific survival for ER-positive breast cancer"
+       },
+       {
+        "gene": "OLFM4",
+        "title": "OLFM4, LY6D and S100A7 as potent markers for distant ...",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6172070",
+        "snippet": "by A Mayama \u00b7 2018 \u00b7 Cited by 56 \u2014 Breast cancer\u2010specific survival of estrogen receptor (ER)\u2010positive stage I\u2010III breast cancer patients (n = 135) according to OLFM4 (A), LY6D (B) and S100A7"
+       },
+       {
+        "gene": "SPAG6",
+        "title": "Omics Technologies Improving Breast Cancer Research and Diagnostics",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10454385",
+        "snippet": "Epigenomic investigation could indeed discover crucial molecular markers associated with BC diagnosis and prognosis. The gene SPAG6 was recently discovered to have higher promoter methylation in serum samples from women with DCIS and early invasive BC compared to controls with benign illness. SPAG6 "
+       },
+       {
+        "gene": "SPAG6",
+        "title": "The Janus Face of SPAG6: Inducing EMT in Luminal Breast Cancer ...",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12510430",
+        "snippet": "by A Sechi \u00b7 2025 \u00b7 Cited by 1 \u2014 SPAG6 may have an important role in triggering the EMT program in luminal breast cancer cells, driving tumour progression and metastasis."
+       }
+      ],
+      "about": "published leads on these genes in this cancer, not findings about this patient"
+     }
+    },
+    {
+     "round": 0,
+     "name": "treatment_evidence",
+     "arguments": {},
+     "result": {
+      "evidence_type": "hypothesis",
+      "source": "CIViC (civicdb.org, CC0)",
+      "use": "evidence for clinician review, not a treatment recommendation; levels: A validated, B clinical, C case study, D preclinical, E inferential",
+      "variants": [
+       {
+        "variant": "CBFB I102N",
+        "civic_items": []
+       },
+       {
+        "variant": "CDH1 K668*",
+        "civic_items": []
+       },
+       {
+        "variant": "PIK3CA H1047R",
+        "civic_items": [
+         {
+          "molecular_profile": "PIK3CA H1047R OR PIK3CA H1047Y OR PIK3CA H1047L",
+          "match": "this variant (the profile also covers H1047Y, H1047L)",
+          "therapies": "Fulvestrant,Alpelisib",
+          "evidence_level": "A",
+          "level_meaning": "validated association",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Andr\u00e9 et al., 2019",
+          "url": "https://civicdb.org/links/evidence_items/7318"
+         },
+         {
+          "molecular_profile": "PIK3CA Mutation",
+          "match": "any mutation in the gene",
+          "therapies": "Fulvestrant,Alpelisib",
+          "evidence_level": "A",
+          "level_meaning": "validated association",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Andr\u00e9 et al., 2019",
+          "url": "https://civicdb.org/links/evidence_items/7313"
+         },
+         {
+          "molecular_profile": "PIK3CA H1047R OR PIK3CA H1047Y OR PIK3CA H1047L OR PIK3CA H1047D OR PIK3CA H1047I OR PIK3CA H1047N OR PIK3CA H1047P OR PIK3CA H1047Q OR PIK3CA H1047T",
+          "match": "this variant (the profile also covers H1047Y, H1047L, H1047D, H1047I, H1047N, H1047P, H1047Q, H1047T)",
+          "therapies": "Fulvestrant,Palbociclib,Inavolisib",
+          "evidence_level": "A",
+          "level_meaning": "validated association",
+          "significance": "Sensitivity/Response",
+          "direction": "Supports",
+          "disease": "Breast Cancer",
+          "citation": "Wedam et al., 2025",
+          "url": "https://civicdb.org/links/evidence_items/12533"
+         }
+        ]
        }
       ]
      }
@@ -1226,8 +1932,10 @@
    ],
    "mode": "agent",
    "model": "nvidia/nemotron-3-super-120b-a12b",
-   "tokens": 13244,
-   "notes": [],
+   "tokens": 21476,
+   "notes": [
+    "the planner skipped treatment_evidence, so it ran too"
+   ],
    "writer": "nvidia/Nemotron-3-Ultra-550b-a55b",
    "issues": [],
    "revised": false
