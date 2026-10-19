@@ -2,16 +2,18 @@
 
 The workspace pages call ``render(file, events=None, evidence=None, version=None)`` with a
 ``muffle.workspace.PatientFile``; ``evidence`` maps "GENE CHANGE" to CIViC items (the
-``civic.evidence`` results), ``version`` is an index into ``file.versions`` (the variants known
-as of that version's month; the latest when None), ``lookup`` an optional
-``(gene, change) -> items`` callable. ``render`` draws inside the current container only: no
-page config, no sidebar. Standalone page, with two example files (the synthetic patient and one
-TCGA case):
+``civic.evidence`` results), ``version`` is an index into ``file.versions`` (the variants and
+treatments known as of that version; the latest when None), ``lookup`` an optional
+``(gene, change) -> items`` callable, ``table`` the loaded CIViC table (for resistance items
+and the watchlist; without it only the cited literature appears). ``render`` draws inside the
+current container only: no page config, no sidebar. Standalone page, with two example files
+(the synthetic patient and one TCGA case):
 
     streamlit run app/workbenches/genomics.py
 
-Everything shown is observed (a sequenced mutation) or a hypothesis (a CIViC item, for clinician
-review, never a recommendation); planned parts are shown as planned rows, never as results.
+Everything shown is observed (a sequenced mutation) or a hypothesis (a CIViC item or a
+literature lead, for clinician review, never a recommendation); planned parts are shown as
+planned rows, never as results. Review marks live in ``st.session_state`` for the session.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ from muffle.workbench import genomics as wb  # noqa: E402
 
 COLORS = {wb.IMPLEMENTED: "green", wb.PLANNED: "gray", "observed": "blue", "hypothesis": "orange",
           wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray",
-          wb.PANEL_NOT_STATED: "gray"}
+          wb.PANEL_NOT_STATED: "gray", "present": "orange", "none": "gray"}
 QUEUE_WHY = {wb.ESTABLISHED: "a CIViC item of level A or B",
              wb.UNCERTAIN: "CIViC items of level C, D or E only",
              wb.NO_ITEMS: "no CIViC item in breast cancer"}
@@ -41,6 +43,8 @@ ITEM_COLUMNS = {"evidence_level": "Level", "therapies": "Therapies",
                 "significance": "Significance", "direction": "Direction", "url": "CIViC",
                 "level_meaning": "Level meaning", "citation": "Citation", "disease": "Disease",
                 "match": "Profile match"}
+LINK = {"CIViC": st.column_config.LinkColumn(display_text="evidence item"),
+        "Source link": st.column_config.LinkColumn(display_text="open")}
 
 
 def badge(text: str, color: str | None = None) -> str:
@@ -55,48 +59,100 @@ def _items_table(items: list[dict]) -> None:
     df = pd.DataFrame(items).reindex(columns=list(ITEM_COLUMNS)).fillna("")
     df["level_meaning"] = df["evidence_level"].map(lambda v: LEVELS.get(v, "unknown"))
     st.dataframe(df.rename(columns=ITEM_COLUMNS), hide_index=True, width="stretch",
-                 column_config={"CIViC": st.column_config.LinkColumn(display_text="evidence item")})
+                 column_config=LINK)
 
 
-def _variant_details(v: dict) -> None:
-    d = v["detection"]
-    st.markdown(f"**[Observed] Detection** {badge(d['evidence'])}")
-    st.table(pd.DataFrame({"": ["Test", "When", "Sample", "Assay", "Allele fraction"],
-                           "value": [d["test"], d["when"], d["sample"], d["assay"],
-                                     d["allele_fraction"]]}).set_index(""))
-    i = v["interpretation"]
-    st.markdown(f"**[Hypothesis] Interpretation** {badge(i['evidence'])} · {i['source']} · "
-                "for clinician review, never a recommendation")
-    if i["items"]:
-        _items_table(i["items"])
+def _marks_of(marks: dict, target: str) -> str:
+    return ", ".join(f"{m['verdict']} ({m['initials']}, {m['time']})"
+                     for m in marks.get(target, [])) or "no mark yet"
+
+
+def _spot(v: dict, rungs: list[dict], cov: dict[str, str], strip: list, marks: dict,
+          key: str) -> None:
+    """The Spot panel of one variant: ladder, CIViC table, the panel's view of the gene, the
+    sample, the review marks."""
+    st.markdown(f"### Spot: {v['variant']} · {v['sample']}"
+                + (f" · month {v['month']}" if v["month"] is not None else ""))
+    items = v["interpretation"]["items"]
+    st.markdown("**Evidence ladder** · each rung carries its own evidence type and what would "
+                "strengthen it")
+    for r in rungs:
+        st.markdown(f"**{r['rung']}. {r['label']}** {badge(r['evidence'])} {badge(r['status'])}")
+        for line in r["lines"]:
+            st.markdown(f"- {line}")
+        st.caption(f"What would strengthen it: {r['strengthen']}")
+    st.markdown("**CIViC items** · for clinician review, never a recommendation")
+    if items:
+        _items_table(items)
     else:
-        st.info(i["note"])
-    e = v["effect"]
-    st.markdown(f"**[Hypothesis] Predicted effect** {badge(e['evidence'])}")
-    for s in e["statements"]:
-        st.markdown(f"- {s}")
-    st.caption(e["note"])
+        st.info(v["interpretation"]["note"])
+    st.markdown("**Conflicting evidence, side by side** · never averaged")
+    groups = wb.conflicts(items)
+    both = [c for c in groups if c["supports"] and c["does_not_support"]]
+    for c in both:
+        st.markdown(f"*{c['association']}*")
+        left, right = st.columns(2)
+        for col, side, name in ((left, "supports", "Supports"),
+                                (right, "does_not_support", "Does not support")):
+            col.markdown(f"**{name}** ({len(c[side])})")
+            for i in c[side]:
+                col.markdown(f"- level {i.get('evidence_level', '?')} · {i.get('citation', '?')}"
+                             f" ({i['year']}) · {i.get('disease', '')}")
+    if not both:
+        st.caption(f"No item contradicts another for this variant"
+                   f" ({len(groups)} one-sided association{'s' if len(groups) != 1 else ''}).")
+    c1, c2 = st.columns(2)
+    c1.markdown(f"**The panel's view of {v['gene']}**  \n{badge(cov.get(v['gene'], 'outside'))}"
+                f" · {'in' if v['gene'] in cov else 'not in'} the 16-gene panel")
+    c2.markdown("**Sample**  \n" + " → ".join(f"{k}: {val}" for k, val in strip[:4]))
+    st.markdown(f"**Review marks** · {_marks_of(marks, v['variant'])}")
+    initials = st.session_state.get(f"{key}-initials", "")
+    cols = st.columns(len(wb.VERDICTS) + 2)
+    for col, verdict in zip(cols, wb.VERDICTS, strict=False):
+        if col.button(verdict.capitalize(), key=f"{key}-{v['variant']}-{verdict}"):
+            wb.add_mark(marks, v["variant"], verdict, initials)
+            st.rerun()
+    if items:
+        with st.expander("Mark one evidence item"):
+            labels = {f"{i.get('evidence_level', '?')} · {i.get('therapies', '')} · "
+                      f"{i.get('citation', '')}": i.get("url") or f"{v['variant']}#{n}"
+                      for n, i in enumerate(items)}
+            picked = st.selectbox("Evidence item", list(labels), key=f"{key}-{v['variant']}-item")
+            verdict = st.radio("Mark", wb.VERDICTS, horizontal=True,
+                               key=f"{key}-{v['variant']}-item-verdict")
+            if st.button("Mark this item", key=f"{key}-{v['variant']}-item-go"):
+                wb.add_mark(marks, labels[picked], verdict, initials)
+                st.rerun()
+            st.caption(_marks_of(marks, labels[picked]))
 
 
 def render(file, events=None, evidence: dict | None = None, version: int | None = None,
-           lookup=None) -> None:
-    key = f"genomics-{file.id}"
+           lookup=None, table=None) -> None:
+    key = f"genomics-{file.id}-{'latest' if version is None else version}"  # widget keys
     month = None if version is None else file.versions[version].month
     events = wb.events_until(events, month)
     vs = wb.variants(file, events, evidence, lookup)
-    queue = wb.review_queue(vs)
-    card = wb.data_card()
-    lon = wb.longitudinal(file, events)
+    queue, card, lon = wb.review_queue(vs), wb.data_card(), wb.longitudinal(file, events)
+    strip, coverage = wb.provenance(file, events), wb.panel_coverage(file, events)
+    cov = {c["gene"]: c["status"] for c in coverage}
+    ladders = {v["variant"]: wb.ladder(v, wb.variant_resistance(v, table)) for v in vs}
+    watch = wb.watchlist(file, version, table)
+    marks = st.session_state.setdefault(f"genomics-{file.id}-marks", {})  # per file
     levels = sorted(v["strongest_level"] for v in vs if v["strongest_level"])
 
     st.subheader(f"Genomics workbench · {file.id}"
                  + (f" · as of {file.versions[version].label}" if version is not None else ""))
     if file.kind == "synthetic":
-        st.warning(file.note)  # "Synthetic patient: made up by hand ..."
+        st.warning(f"{file.title}. Not taken from any dataset; its record follows the "
+                   "structure of real breast cancer timelines.")
     else:
         st.caption(file.title)
     st.markdown(" ".join([badge(wb.IMPLEMENTED), *(badge(f"{w}: planned", "gray")
                                                    for w, _ in wb.PLANNED_ROWS)]))
+
+    # sample provenance strip
+    for col, (k, val) in zip(st.columns([1, 1, 1, 2, 2, 3]), strip, strict=True):
+        col.markdown(f"**{k}**  \n{val}")
 
     # overview
     cols = st.columns(5)
@@ -115,37 +171,66 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         st.info("Sequenced: none of the panel's genes mutated (panel genes only; purity and depth "
                 "unknown, so this is not proof of absence).")
 
-    # variant browser
+    # variant browser with search, then the Spot panel of the selected row
     st.markdown("#### Variant browser")
+    shown = []
     if vs:
-        c1, c2 = st.columns([2, 3])
-        search = c1.text_input("Search by gene", key=f"{key}-search").strip().upper()
+        c1, c2, c3 = st.columns([2, 2, 1])
+        query = c1.text_input("Search: a gene, \"level A\", \"resistance\", a therapy",
+                              key=f"{key}-search")
         options = [_level_text(lv) for lv in dict.fromkeys(levels)] + (
             ["none"] if any(v["strongest_level"] is None for v in vs) else [])
         chosen = c2.multiselect("Strongest evidence level", options, default=options,
                                 key=f"{key}-levels")
-        shown = [v for v in vs if search in v["gene"].upper()
-                 and _level_text(v["strongest_level"]) in chosen]
-        table = pd.DataFrame([{"Gene": v["gene"], "Change": v["change"], "Sample": v["sample"],
-                               "Month": "—" if v["month"] is None else v["month"],
-                               "Strongest level": _level_text(v["strongest_level"]),
-                               "CIViC items": len(v["interpretation"]["items"]),
-                               "Queue": next(q for q, names in queue.items()
-                                             if v["variant"] in names)} for v in shown])
-        st.dataframe(table, hide_index=True, width="stretch")
-        for v in shown:
-            with st.expander(f"More info: {v['variant']} · {v['sample']}"
-                             + (f" · month {v['month']}" if v["month"] is not None else "")):
-                _variant_details(v)
+        c3.text_input("Reviewer initials", key=f"{key}-initials", max_chars=6)
+        hits = wb.search(vs, coverage, query)
+        if hits["note"]:
+            st.info(hits["note"][0].upper() + hits["note"][1:] + ": nothing is said about it, "
+                    "not that it is wild type.")
+        shown = [v for v in hits["variants"] if _level_text(v["strongest_level"]) in chosen]
+        rows = [{"Gene": v["gene"], "Change": v["change"], "Sample": v["sample"],
+                 "Month": "—" if v["month"] is None else v["month"],
+                 "Strongest level": _level_text(v["strongest_level"]),
+                 "CIViC items": len(v["interpretation"]["items"]),
+                 "Resistance leads": sum(1 for r in ladders[v["variant"]][4]["items"])
+                 + len(ladders[v["variant"]][4]["literature"]),
+                 "Queue": next(q for q, names in queue.items() if v["variant"] in names),
+                 "Marks": len(marks.get(v["variant"], []))} for v in shown]
+        if rows:
+            picked = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
+                                  on_select="rerun", selection_mode="single-row",
+                                  key=f"{key}-table")
+            sel = picked.selection.rows
+            st.caption("Click a row to open its Spot panel below.")
+            _spot(shown[sel[0]] if sel else shown[0], ladders[(shown[sel[0]] if sel
+                                                               else shown[0])["variant"]],
+                  cov, strip, marks, key)
+        else:
+            st.caption("No variant matches.")
     else:
         st.caption("No variant to browse.")
 
+    # resistance watchlist
+    st.markdown("#### Resistance watchlist")
+    st.markdown(f"{badge(watch['evidence'])} **{watch['use']}** · for the treatments recorded in "
+                f"this file: {', '.join(watch['treatments']) or 'none'}")
+    if watch["rows"]:
+        st.dataframe(pd.DataFrame(watch["rows"]).rename(columns={
+            "under": "Under", "alteration": "What to watch", "finding": "Known from",
+            "source": "Source", "url": "Source link", "level": "Evidence level",
+            "detect": "Would be detected by"}), hide_index=True, width="stretch",
+            column_config=LINK)
+    if watch["note"]:
+        st.caption(watch["note"].capitalize() + ".")
+    st.caption("Sources: CIViC resistance items (civicdb.org, CC0) whose therapies include a "
+               "recorded drug, and the trials cited in the platform's vision (PADA-1, SERENA-6). "
+               "A watch item is never advice.")
+
     # panel coverage
     st.markdown("#### Panel coverage")
-    cov = wb.panel_coverage(file, events)
-    counts = pd.Series([c["status"] for c in cov]).value_counts()
+    counts = pd.Series([c["status"] for c in coverage]).value_counts()
     st.markdown(" · ".join(f"{badge(s)} {n}" for s, n in counts.items()))
-    st.dataframe(pd.DataFrame(cov).rename(columns={"gene": "Gene", "status": "Status"}),
+    st.dataframe(pd.DataFrame(coverage).rename(columns={"gene": "Gene", "status": "Status"}),
                  hide_index=True, width="stretch", height=200)
     st.caption("The 16 breast cancer driver genes of the TCGA panel (src/muffle/data/tcga.py). "
                "A gene that was not tested, or whose panel is not stated, is unknown: never read "
@@ -156,7 +241,7 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     for col, (name, names) in zip(st.columns(3), queue.items(), strict=True):
         col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
         for n in names:
-            col.markdown(f"- {n}")
+            col.markdown(f"- {n} · {_marks_of(marks, n)}")
         if not names:
             col.caption("none")
 
@@ -168,6 +253,16 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
             hide_index=True, width="stretch")
     statement = lon["statement"][0].upper() + lon["statement"][1:]
     st.markdown(f"{statement}. {badge('ctDNA: ' + lon['ctdna'], 'gray')}")
+
+    # export
+    st.markdown("#### Export")
+    e1, e2 = st.columns(2)
+    e1.download_button("Report (Markdown)",
+                       wb.report_markdown(file, vs, ladders, watch, marks, strip),
+                       f"genomics_{file.id.replace(' ', '_')}.md", "text/markdown",
+                       key=f"{key}-md")
+    e2.download_button("Variants and items (CSV)", wb.report_csv(vs, marks),
+                       f"genomics_{file.id.replace(' ', '_')}.csv", "text/csv", key=f"{key}-csv")
 
     # limits, data card, planned
     st.markdown("#### Limits")
@@ -188,35 +283,39 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
 # ---------------------------------------------------------------- standalone page
 
 EXAMPLE_CASE = SimpleNamespace(index=926, site="site-2", stage="III", age=55.0, percentile=99.0,
-                            group="high", layers=["clinical", "genomic", "rna", "protein"],
-                            missing=["methylation"], mutations=["PIK3CA p.H1047R", "TP53 p.R175H"])
+                               group="high", layers=["clinical", "genomic", "rna", "protein"],
+                               missing=["methylation"],
+                               mutations=["PIK3CA p.H1047R", "TP53 p.R175H"])
 
 
 @st.cache_resource(show_spinner="Loading CIViC evidence (CC0, ~4 MB, once)...")
-def _civic_lookup():
-    """``civic.evidence`` bound to the nightly table, or None when it cannot load."""
+def _civic_table():
+    """The CIViC nightly table, or None when it cannot load (the page still renders)."""
     from muffle.report import civic
     try:
-        table = civic.load_table()
-    except Exception:  # offline: the page still renders, with no CIViC items
+        return civic.load_table()
+    except Exception:
         return None
-    return lambda gene, change: civic.evidence(gene, change, "breast", 3, table)
 
 
 def main() -> None:
+    from muffle.report import civic
     from muffle.workspace import case_file, synthetic_file
     st.set_page_config(page_title="Genomics workbench", layout="wide")
     tl = json.loads((APP / "timeline_synthetic.json").read_text(encoding="utf-8"))
     choice = st.radio("Example file", ["SYNTHETIC-001 (synthetic patient)",
                                        f"Case {EXAMPLE_CASE.index} (TCGA-BRCA public data)"],
                       horizontal=True)
+    table = _civic_table()
+    if table is None:
+        st.caption("CIViC table not available on this machine: evidence items and resistance "
+                   "items are not shown; the cited literature still is.")
     if choice.startswith("SYNTHETIC"):
-        render(synthetic_file(tl), evidence=tl.get("evidence"))
+        render(synthetic_file(tl), evidence=tl.get("evidence"), table=table)
     else:
-        lookup = _civic_lookup()
-        if lookup is None:
-            st.caption("CIViC table not available on this machine: no evidence items shown.")
-        render(case_file(EXAMPLE_CASE), lookup=lookup)
+        lookup = None if table is None else \
+            (lambda gene, change: civic.evidence(gene, change, "breast", 3, table))
+        render(case_file(EXAMPLE_CASE), lookup=lookup, table=table)
 
 
 if __name__ == "__main__":
