@@ -9,6 +9,7 @@ about $0.015 of Token Factory credit and up to 3 Tavily searches per case.
 
 python scripts/save_demo_notes.py                      # 8 cases spread over the risk range
 python scripts/save_demo_notes.py --cases 463 334      # these cohort indices (added/replaced)
+python scripts/save_demo_notes.py --bundle outputs/demo_bundle.pt --cases ...  # as hosted
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from muffle.demo import build_demo
+from muffle.demo import build_demo, load_bundle
 from muffle.report import civic
 from muffle.report.nemotron import run_case_agent, tavily_search
 
@@ -37,11 +38,13 @@ def main(argv=None):
     p.add_argument("--percentiles", type=float, nargs="*",
                    default=[8, 25, 45, 60, 75, 88, 95, 99])
     p.add_argument("--out", type=Path, default=Path("app/saved_notes.json"))
+    p.add_argument("--bundle", default=None,
+                   help="write notes from this demo bundle, as the hosted app shows the cases")
     a = p.parse_args(argv)
     if not os.getenv("NEBIUS_API_KEY"):
         raise SystemExit("NEBIUS_API_KEY is not set: saved notes must come from the live agent")
 
-    demo = build_demo(a.ckpt, a.data, a.n_clients)
+    demo = load_bundle(a.bundle) if a.bundle else build_demo(a.ckpt, a.data, a.n_clients)
     by_index = {c.index: c for c in demo.cases}
     if a.cases:
         picks = [by_index[i] for i in a.cases]
@@ -60,7 +63,8 @@ def main(argv=None):
             print(f"case {case.index}: agent unavailable ({report.notes}); not saved")
             continue
         saved[str(case.index)] = {"created": date.today().isoformat(),
-                                  "ckpt": Path(a.ckpt).name, "report": report.to_dict()}
+                                  "ckpt": Path(a.bundle or a.ckpt).name,
+                                  "report": report.to_dict()}
         print(f"case {case.index} ({case.label}): {report.tokens} tokens, "
               f"{len(report.issues)} grounding issues")
     a.out.write_text(json.dumps(saved, indent=1) + "\n")
