@@ -16,7 +16,8 @@ another session.
 
 ## Commands
 `make setup` · `make test` · `make lint` · `make tcga` · `make experiment-tcga` ·
-`make calibration-tcga` · `make fl-tcga` · `make agent-tcga` · `make demo-tcga` (all use `.venv`).
+`make calibration-tcga` · `make msk-chord` · `make experiment-msk` ·
+`make demo-timeline` · `make fl-tcga` · `make agent-tcga` · `make demo-tcga` (all use `.venv`).
 
 ## Rules
 - Work on a branch `<area>/<topic>`, open a PR with `gh pr create`; never commit to `main`.
