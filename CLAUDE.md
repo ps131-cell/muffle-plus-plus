@@ -57,6 +57,13 @@ another session.
   missing (the model takes a mask; keep `tests/test_model.py` passing).
 - Report against clear baselines (clinical-only, one hospital alone, pooled training). Tune on
   seeds 95–99 only; report seeds 0–4.
+- The app is a clinician application, not a hackathon demo (team decision 2026-10-19): the
+  home screen is the patient list, a file opens on its latest report, tests open their
+  workbenches, and the timeline shows the report's versions. No hackathon, sponsor or "demo"
+  wording in the clinician's path; the hackathon story lives in `README.md`,
+  `docs/submission.md` and `docs/video.md`. Methods, validation and data sources get their own
+  page. Provenance lines (data source, method, model and version) and the labels above are
+  not demo talk and stay.
 
 ## Data rules
 - TCGA-BRCA (open tier, GDC / UCSC Xena) is the multi-omic cohort; format in the docstring of

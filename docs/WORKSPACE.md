@@ -7,6 +7,24 @@ what ships before the Oct 28 freeze (scope B, decided 2026-10-19). It is researc
 support for qualified clinicians: every finding is labeled observed, model inference or
 hypothesis, and treatment content is evidence for clinician review, never a recommendation.
 
+## Product framing
+The app is a clinician's application, not a hackathon demo (decision 2026-10-19). A pathologist
+opens it on their patient list, opens a file on its latest report, looks at the AI's analysis of
+each test from there, and sees how the report changed over time. Nothing in that path mentions
+the hackathon, its sponsors or a "demo"; that story lives in `README.md`, `docs/submission.md`
+and `docs/video.md`. What stays in the app, in product language:
+- the product name and a short tagline, and one line "Research and decision support for
+  clinicians; not a diagnosis or a prescription";
+- provenance everywhere a result appears: data source, method or rule, model and version, and
+  the service that produced a note ("note by Nemotron 3 Ultra on Nebius Token Factory");
+- the honesty labels: synthetic patient, simulated hospitals, observed / model inference /
+  hypothesis, placeholder thresholds, and each module's status;
+- one page, "Methods and validation", that holds what the demo's "Federation" and "How it works"
+  tabs held: model cards (the risk model with its C-index and calibration, the MSK-CHORD landmark
+  models with their AUROC, the rules with their thresholds), data sources and licenses, how the
+  case note is produced and checked, and federated training as the way the model was trained
+  across simulated sites.
+
 ## Screens
 
 ### 1. Patients (home)
