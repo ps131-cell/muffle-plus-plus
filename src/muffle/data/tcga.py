@@ -37,8 +37,17 @@ SOURCES = {
     "rna": "{project}.star_tpm.tsv.gz",
     "methylation": "{project}.methylation450.tsv.gz",
     "protein": "{project}.protein.tsv.gz",
+    # GDC open-access "Ensemble Somatic Variant (WXS)" calls (masked: germline removed)
+    "mutations": "{project}.somaticmutation_wxs.tsv.gz",
 }
 STREAMED = {"methylation"}  # ~3 GB for BRCA: read straight from the hub, never stored
+
+# breast-cancer driver panel for the observed-mutation findings (not a model input)
+DRIVERS = ["PIK3CA", "TP53", "CDH1", "GATA3", "MAP3K1", "KMT2C", "PTEN", "AKT1", "ERBB2",
+           "ESR1", "NF1", "RUNX1", "CBFB", "TBX3", "MAP2K4", "ARID1A"]
+PROTEIN_ALTERING = {"missense_variant", "stop_gained", "frameshift_variant", "inframe_deletion",
+                    "inframe_insertion", "splice_acceptor_variant", "splice_donor_variant",
+                    "start_lost", "stop_lost", "protein_altering_variant"}
 
 CLINICAL_FEATURES = [
     "age", "stage", "pathologic_t", "pathologic_n", "metastasis", "ductal", "lobular",
@@ -229,6 +238,36 @@ def clinical_features(clinical: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     return feats, stage.fillna(stage.median()).round()
 
 
+# --- observed mutations ---------------------------------------------------------------------
+
+def driver_mutations(table: pd.DataFrame, patients: list[str],
+                     genes: list[str] = DRIVERS) -> tuple[np.ndarray, np.ndarray]:
+    """Somatic calls (Xena columns sample, gene, Amino_Acid_Change, effect) -> per patient:
+    status [N, G] (1 = protein-altering mutation in that gene, 0 = sequenced without one,
+    NaN = not sequenced: absent from the calls, which is never read as wild type) and the
+    observed changes as "GENE p.X" strings joined by ";". Primary tumour (01A) samples only."""
+    t = table[table["sample"].map(is_primary_a)].assign(patient=lambda d: d["sample"].str[:12])
+    sequenced = set(t["patient"])
+    first = t["effect"].astype(str).str.split(";").str[0]  # most severe consequence first
+    hits = t[t["gene"].isin(genes) & first.isin(PROTEIN_ALTERING)]
+    status = np.full((len(patients), len(genes)), np.nan, np.float32)
+    changes = np.full(len(patients), "", dtype=object)
+    by_patient = {p: g for p, g in hits.groupby("patient")}
+    col = {g: j for j, g in enumerate(genes)}
+    for i, p in enumerate(patients):
+        if p not in sequenced:
+            continue
+        status[i] = 0
+        if p in by_patient:
+            rows = by_patient[p]
+            for g in rows["gene"].unique():
+                status[i, col[g]] = 1
+            changes[i] = ";".join(sorted({f"{g} {c}" for g, c in
+                                          zip(rows["gene"], rows["Amino_Acid_Change"].astype(str),
+                                              strict=True)}))
+    return status, changes.astype(str)
+
+
 # --- assembly -----------------------------------------------------------------------------
 
 def assemble_cohort(
@@ -236,6 +275,7 @@ def assemble_cohort(
     clinical: pd.DataFrame,
     blocks: dict[str, pd.DataFrame],
     dims: dict[str, int],
+    mutations: pd.DataFrame | None = None,
 ) -> dict[str, np.ndarray]:
     """Merge per-patient survival, clinical fields and transformed omic blocks.
 
@@ -272,6 +312,9 @@ def assemble_cohort(
     out["stage"] = stage.to_numpy(np.float32)
     out["tss"] = np.array([tissue_source_site(p) for p in patients])
     out["age"] = age_years(clinical.loc[patients]).to_numpy(np.float32)  # evaluation slices only
+    if mutations is not None:  # observed findings for the case agent, not a model input
+        out["mut_genes"] = np.array(DRIVERS)
+        out["mut_status"], out["mut_changes"] = driver_mutations(mutations, patients)
     out["patient"] = np.array(patients)
     return out
 
@@ -349,4 +392,9 @@ def build_cohort(
             block.columns = [symbol.get(c, c) for c in block.columns]
         blocks[m] = block
         log(f"{m}: {block.shape[0]} patients x {block.shape[1]} features")
-    return assemble_cohort(survival, clinical, blocks, dims)
+    mutations = None
+    if "mutations" not in skip:
+        mutations = pd.read_csv(locate("mutations", project, raw_dir), sep="\t",
+                                usecols=["sample", "gene", "Amino_Acid_Change", "effect"])
+        log(f"mutations: {mutations['sample'].nunique()} sequenced samples")
+    return assemble_cohort(survival, clinical, blocks, dims, mutations)

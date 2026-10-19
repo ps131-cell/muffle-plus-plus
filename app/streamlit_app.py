@@ -36,6 +36,7 @@ import torch  # noqa: E402
 
 from muffle.demo import build_demo, fetch_bundle, load_bundle, ordinal  # noqa: E402
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
+from muffle.report import civic  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
 from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
@@ -90,6 +91,8 @@ demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args
             args.bundle)
 LIVE = bool(os.getenv("NEBIUS_API_KEY"))
 SEARCH = tavily_search if os.getenv("TAVILY_API_KEY") else None
+# CIViC treatment evidence, only where its table is already cached (the hosted bundle has none)
+EVIDENCE = civic.evidence if civic.load_table(download=False) is not None else None
 CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION", "5"))
 st.session_state.setdefault("live_used", 0)
 st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, source)
@@ -183,7 +186,7 @@ with case_tab:
 
     if write:
         with st.status("Nemotron is working on the case…", expanded=True) as status:
-            report = run_case_agent(demo.tools(case, SEARCH), on_step=status.write)
+            report = run_case_agent(demo.tools(case, SEARCH, EVIDENCE), on_step=status.write)
             status.update(label="Note ready", state="complete", expanded=False)
         if report.mode != "offline":
             st.session_state.live_used += 1

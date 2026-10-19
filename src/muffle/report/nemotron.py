@@ -61,7 +61,8 @@ AGENT_SYSTEM = (
     "survival model. You cannot see patient data; use the tools to get the model's outputs for "
     "this case. Call only the tools you need; several tools can be called in one turn. Usually: "
     "observed_findings, predict_risk and modality_contributions together, then top_features of "
-    "the most influential layer(s), then, if search_literature is offered, literature on up to "
+    "the most influential layer(s); if treatment_evidence is offered, call it once; then, if "
+    "search_literature is offered, literature on up to "
     "3 named "
     "genes among those features, best known first (skip unnamed ids such as AC138356.2); for a "
     "gene that is a drug target you may also search topic clinical_trials.\n"
@@ -85,7 +86,8 @@ WRITER_SYSTEM = (
     "- Summary: one or two sentences: the patient's risk as a cohort percentile (write '81st "
     "percentile', not '81%') and the risk group, marked as a model estimate.\n"
     "- Observed: what observed_findings returned: measured and missing data layers, recorded "
-    "stage, age band.\n"
+    "stage, age band, sequenced driver mutations (or that the tumor was not sequenced, which "
+    "is unknown, not normal).\n"
     "- Model inferences: the risk (percentile, group) with its uncertainty; then every layer in "
     "log_risk_added_by_layer, largest effect first, clinical "
     "included. For each, say whether it raises or lowers the predicted risk compared with "
@@ -96,8 +98,11 @@ WRITER_SYSTEM = (
     "ratios or probabilities.\n"
     "- Name only genes and features that tools returned; if top_features returned none for a "
     "layer, name none from it.\n"
-    "- Hypotheses and evidence: only URLs returned by search_literature, with their titles and "
-    "the gene each is about, framed as leads to review, not findings about this patient; if the "
+    "- Hypotheses and evidence: first any treatment_evidence items (CIViC): the variant, the "
+    "therapies, the evidence level and significance, and the item's url, as evidence for "
+    "clinician review, never as a recommendation; then only URLs returned by "
+    "search_literature, with their titles and the gene each is about, framed as leads to "
+    "review, not findings about this patient; if the "
     "search returned nothing, say no relevant publications were found; if no search was run, say "
     "so. Never invent papers.\n"
     "- Caveats: the missing data layers, the model's validation C-index, and that this is a "
@@ -299,6 +304,8 @@ def fixed_plan(tools: CaseTools, search: bool = True) -> list[ToolCall]:
     strongest = max(contrib, key=lambda m: abs(contrib[m])) if contrib else tools.available[0]
     args = {"modality": strongest, "k": 5}
     trace.append(ToolCall(0, "top_features", args, tools.call("top_features", args)))
+    if "treatment_evidence" in {s["function"]["name"] for s in tools.specs()}:
+        trace.append(ToolCall(0, "treatment_evidence", {}, tools.call("treatment_evidence", {})))
     if search and tools.can_search and trace[3].result.get("features"):
         args = {"genes": [f["name"] for f in trace[3].result["features"][:3]]}
         trace.append(ToolCall(0, "search_literature", args, tools.call("search_literature", args)))
@@ -336,6 +343,7 @@ def _facts(tools: CaseTools, trace: list[ToolCall]) -> dict:
                         [(f["name"], f["score"]) for f in r["top_features"]["features"]],
                         tools.c_index)
     facts["observed"] = r.get("observed_findings", {})
+    facts["evidence"] = r.get("treatment_evidence", {}).get("variants", [])
     return facts
 
 
@@ -454,12 +462,19 @@ def offline_summary(facts: dict,
                      + (f"; not measured: {', '.join(obs['not_measured'])}"
                         if obs.get("not_measured") else "")
                      + f"\n- [Observed] Stage: {obs.get('recorded_stage', 'not recorded')}; "
-                     f"age band: {obs.get('age_band', 'not recorded')}")
+                     f"age band: {obs.get('age_band', 'not recorded')}"
+                     + "\n- [Observed] Driver mutations: " + (
+                         ", ".join(muts) if isinstance(muts := obs.get(
+                             "sequenced_driver_mutations", "not sequenced"), list) else muts))
     lines.append("**Model inferences**\n- [Model inference] Drivers: "
                  + ", ".join(f"{m} ({v:+.2f})" for m, v in drivers)
                  + (f" (validation C-index {c:.2f})" if c else ""))
-    lines.append("**Hypotheses and evidence**\n- [Hypothesis] No literature search in the "
-                 "offline template.")
+    items = [(v["variant"], i) for v in facts.get("evidence", []) for i in v["civic_items"][:1]]
+    lines.append("**Hypotheses and evidence**\n" + "".join(
+        f"- [Hypothesis] CIViC, level {i['evidence_level']} ({i['significance']}): "
+        f"{i['therapies']} for {i['molecular_profile']} ({var}); for clinician review, not a "
+        f"recommendation. {i['url']}\n" for var, i in items)
+        + "- [Hypothesis] No literature search in the offline template.")
     lines.append(f"**Caveats** Offline template — {why}. Research prototype for clinician "
                  "review, not a diagnosis.")
     return "\n\n".join(lines)  # blank lines so st.markdown keeps them as separate paragraphs
@@ -480,7 +495,8 @@ def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
     import torch
 
     from muffle.data.dataset import MultiOmicDataset, feature_names
-    from muffle.demo import STAGES
+    from muffle.demo import STAGES, sequenced_mutations
+    from muffle.report import civic
     from muffle.explain import cohort_offsets
     from muffle.train_local import heldout_c_index, load_model
 
@@ -496,12 +512,14 @@ def _agent_cli(ckpt: str, data: str, patient: int, cancer: str, n_clients: int,
                    and f["x_clinical"][patient, clin.index("stage_unknown")] > 0)
         stage = None if unknown or "stage" not in f.files else STAGES.get(int(f["stage"][patient]))
         age = float(f["age"][patient]) if "age" in f.files else None
+        muts = sequenced_mutations({k: f[k] for k in ("mut_status", "mut_changes")
+                                    if k in f.files}, patient)
     search = tavily_search if os.getenv("TAVILY_API_KEY") else None
     c = float(np.mean(list(heldout_c_index(model, Path(data), n_clients, cfg).values())))
     report = run_case_agent(CaseTools(model, x, ds.mask[patient : patient + 1], risks, cancer,
                                       feature_names(cohort, cfg["modalities"]), c, search,
                                       cohort_offsets(model, ds.x, ds.mask),
-                                      observed_facts(stage, age)),
+                                      observed_facts(stage, age, muts), civic.evidence),
                             writer=writer)
     print(f"mode={report.mode} planner={report.model} writer={report.writer} "
           f"tokens={report.tokens} revised={report.revised} notes={report.notes}")
