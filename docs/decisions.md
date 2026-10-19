@@ -2,6 +2,27 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-19 — CIViC evidence: compound profiles count, strongest level first; the hosted app downloads the table
+- **What:** `civic.evidence` (#56) matches a variant inside CIViC's "OR" compound profiles
+  ("PIK3CA H1047R OR PIK3CA H1047Y OR PIK3CA H1047L") and gene-level profiles ("PIK3CA
+  Mutation"), never profiles joined with AND or NOT, and ranks every match by evidence level (A
+  before E), then the curators' rating, then specificity (the variant, a disjunction covering it,
+  the gene) before cutting to `k`. `scripts/save_demo_notes.py` passes the evidence function, so
+  regenerated saved notes carry CIViC items. The hosted app (#57) loads CIViC's nightly table
+  itself (CC0, ~4 MB, downloaded once per process into the git-ignored cache) behind a quiet
+  fallback: if the download or the parse fails, the agent runs without the `treatment_evidence`
+  tool and the sidebar says so.
+- **Why:** for PIK3CA H1047R in breast cancer the old exact-match-first order showed level C and
+  D items and never the level-A fulvestrant + alpelisib item, which CIViC files under the compound
+  profile; the `k=3` cut also dropped the level-A gene-level items. On the hosted app the tool
+  never existed, because the container has no cached table. Shipping rows inside the bundle would
+  freeze the evidence at build time and tie it to the bundled cases; the download keeps one code
+  path for local and hosted runs and needs no bundle format change.
+- **Consequence:** `make demo-timeline` must be rerun to refresh the CIViC items in
+  `app/timeline_synthetic.json` (its scores don't change), and `make demo-notes` regenerates the
+  8 saved notes in the labeled format with evidence (about $0.12). Bundle v2 follows
+  (`make demo-bundle`, release `demo-bundle-v2`, bump `BUNDLE_RELEASE` in `app/streamlit_app.py`).
+
 ## 2026-10-19 — Before the freeze: the workspace slice on existing data (scope B)
 - **What:** by the Oct 28 freeze, the app gains the patient record from `docs/WORKSPACE.md`:
   - a patient list, a patient file with an SOS tile, tests and a report timeline;
