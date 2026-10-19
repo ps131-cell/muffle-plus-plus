@@ -1,4 +1,4 @@
-"""MuFFLe++ demo: milestone 1 of a cancer intelligence platform (breast cancer).
+"""MuFFLe++: the clinician app of a breast cancer intelligence platform (milestone 1).
 
 streamlit run app/streamlit_app.py -- --ckpt outputs/tcga_fedavg.pt --data data/tcga_brca
 streamlit run app/streamlit_app.py -- --ckpt outputs/centralized.pt --data data/synthetic
@@ -8,14 +8,17 @@ Without the checkpoint and cohort (the hosted demo), it loads a demo bundle inst
 MUFFLE_BUNDLE (a path or URL; default: the GitHub release asset). For a private repo's release,
 set GITHUB_TOKEN to a token that can read the repo.
 
-Four tabs: Patient timeline (a synthetic patient whose 12-month risk is re-predicted at each
-event by the MSK-CHORD models; app/timeline_synthetic.json from `make demo-timeline`), Case
-review (one held-out patient: risk, what drives it, a what-if for missing data layers, and the
-Nemotron case agent's note), Federation (the simulated hospitals and the results), How it works.
-Live notes are capped per session (DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes
-(app/saved_notes.json, scripts/save_demo_notes.py) show without a key or once the cap is reached.
-CIViC's evidence table (CC0, ~4 MB) is downloaded once per process into data/raw/civic/; if that
-fails, the agent runs without the treatment_evidence tool and the sidebar says so.
+Two pages (docs/WORKSPACE.md, "Product framing"). Patients is the clinician workspace: a list of
+patient files, the synthetic timeline patient first (its 12-month risk re-predicted at each event
+by the MSK-CHORD models; app/timeline_synthetic.json from `make demo-timeline`), then the held-out
+TCGA cases. A file opens on its latest report, with an SOS tile, its tests and their workbenches,
+and a timeline of report versions; ?patient=<id> opens one. Methods and validation holds the model
+cards, alert rules, how the case note is made, federated training and the data sources. No
+hackathon or "demo" wording in the app's text. Live notes are capped per session
+(DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes (app/saved_notes.json,
+scripts/save_demo_notes.py) show without a key or once the cap is reached. CIViC's evidence table
+(CC0, ~4 MB) is downloaded once per process into data/raw/civic/; if that fails, the agent runs
+without the treatment_evidence tool and the sidebar says so.
 """
 
 from __future__ import annotations
@@ -26,7 +29,6 @@ import json
 import os
 import sys
 import tempfile
-from datetime import date
 from pathlib import Path
 
 APP = Path(__file__).parent
@@ -52,6 +54,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
 
 import charts  # noqa: E402
 
+from muffle import workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
     evidence_lookup,
@@ -60,6 +63,7 @@ from muffle.demo import (  # noqa: E402
     ordinal,
 )
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
+from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
 from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
@@ -69,12 +73,23 @@ from muffle.report.nemotron import (  # noqa: E402
     run_case_agent,
     tavily_search,
 )
+from muffle.timeline import EVENTS  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
 BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}
+EVIDENCE_COLORS = {OBSERVED: "blue", INFERENCE: "violet", HYPOTHESIS: "orange"}
+STATUS_COLORS = {workspace.IMPLEMENTED: "blue", workspace.VALIDATED: "green",
+                 workspace.PLANNED: "gray"}
+PLANNED_WORKBENCHES = {
+    "imaging": "Radiology workbench: a slice viewer with window and level, lesion contours, size "
+               "and volume, and the same lesion tracked across scans.",
+    "slides": "Pathology workbench: a zoomable H&E slide with tile overlays (tissue class, tumor "
+              "regions and invasive front, flags with a trust level), at the depth of the team's "
+              "colon tumor front analyzer; breast tissue needs its own tissue heads.",
+}
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", default="outputs/tcga_fedavg.pt")
@@ -137,8 +152,18 @@ def secrets_to_env() -> None:
             os.environ[key] = str(value)
 
 
-st.set_page_config(page_title="MuFFLe++ · cancer intelligence platform, milestone 1",
-                   page_icon="🧬", layout="wide")
+def tags(text: str) -> str:
+    """Badges for the evidence types ``text`` names ("observed (mutation), hypothesis (...)")."""
+    return " ".join(f":{c}-badge[{e}]" for e, c in EVIDENCE_COLORS.items() if e in text)
+
+
+def badge(status: str) -> str:
+    return f":{STATUS_COLORS[status]}-badge[{status}]"
+
+
+st.set_page_config(page_title="MuFFLe++ · breast cancer intelligence", page_icon="🧬",
+                   layout="wide")
+DISCLAIMER = "Research and decision support for clinicians; not a diagnosis or a prescription."
 secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
             args.bundle)
@@ -148,12 +173,22 @@ EVIDENCE = evidence()
 CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION") or 5)  # "" (an empty .env line) = default
 st.session_state.setdefault("live_used", 0)
 st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, source)
+st.session_state.setdefault("list_n", 0)    # a new patient-list key drops its old selection
+
+TL = timeline()
+FILES, CASES = {}, {}  # patient id -> PatientFile; and for a TCGA file, its held-out case
+if TL:
+    synthetic = workspace.synthetic_file(TL)
+    FILES[synthetic.id] = synthetic
+for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile)):
+    pf = workspace.case_file(c, demo.c_index)
+    FILES[pf.id], CASES[pf.id] = pf, c
 
 # --- sidebar: what is running ----------------------------------------------------------------
 with st.sidebar:
     st.markdown("### MuFFLe++")
-    st.caption("Cancer intelligence platform, milestone 1: an evidence-linked patient profile "
-               "that updates along the timeline, learned across simulated hospitals.")
+    st.caption("Breast cancer intelligence: an evidence-linked patient profile that updates as "
+               "the record grows.")
     st.markdown(
         f"**Model** · FedAvg across {len(demo.sites)} simulated hospitals (NVIDIA FLARE)  \n"
         f"**Held-out C-index** · {demo.c_index:.3f}  \n"
@@ -164,119 +199,223 @@ with st.sidebar:
         f"{'CIViC (CC0), for clinician review' if EVIDENCE else 'off (CIViC table unavailable)'}"
         f"  \n**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
     budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
-    st.caption(f"[Source code]({REPO}) · research prototype on public TCGA data, not for "
-               "clinical use.")
+    st.caption(f"{DISCLAIMER} [Source code]({REPO})")
 
-st.title("MuFFLe++ · cancer intelligence platform, milestone 1 (breast cancer)")
-st.markdown(
-    "One evidence-linked picture of a patient's disease, updated as the record grows, that keeps "
-    "what was **observed** apart from what a model **inferred** and what is only a "
-    f"**hypothesis**. A multi-omic survival model is trained across {len(demo.sites)} simulated "
-    "hospitals **without sharing patient data** (NVIDIA FLARE); an NVIDIA Nemotron case agent on "
-    "Nebius Token Factory calls it as a tool, adds CIViC treatment evidence and literature, and "
-    "writes a note that cites only what its tools returned. Research support for clinician "
-    "review, not a diagnosis.")
 
-timeline_tab, case_tab, fed_tab, how_tab = st.tabs(
-    ["Patient timeline (synthetic)", "Case review", "Federation", "How it works"])
-
-# --- Patient timeline (synthetic) ------------------------------------------------------------
-with timeline_tab:
-    tl = timeline()
-    if tl is None:
-        st.info("The timeline patient isn't built here (`make demo-timeline`, needs MSK-CHORD).")
+# --- Patients: the list -----------------------------------------------------------------------
+def patients_page():
+    top = st.container()  # the list's title goes above the picker
+    pid = st.selectbox(
+        "Patient file", list(FILES), index=None, key="patient", bind="query-params",
+        placeholder="Type a patient ID to open the file (the list below searches everything)",
+        help="Every patient file has its own address (…?patient=<id>).")
+    if pid is None:
+        with top:
+            st.title("MuFFLe++")
+            st.markdown("An evidence-linked picture of each patient's breast cancer, updated as "
+                        "the record grows. Every finding is marked **observed**, **model "
+                        "inference** or **hypothesis**.")
+            st.caption(DISCLAIMER)
+        patient_list()
     else:
-        st.warning(f"**{tl['patient_id']} is synthetic.** {tl['notice']}", icon="🧪")
-        events, updates = tl["events"], tl["updates"]
-        i = st.select_slider(
-            "Record up to", options=list(range(len(events))), value=len(events) - 1,
-            format_func=lambda k: f"month {events[k]['month']} · {events[k]['kind']}",
-            help="Months after the first tumor sequencing. Move back to see the record grow.")
-        st.markdown(f"**Latest event (observed):** month {events[i]['month']} · "
-                    f"{events[i]['text']}")
-        scored = [u for u in updates[: i + 1] if "risk" in u]
-        if not scored:
-            st.caption("No risk estimate yet: the models' clock starts at the first tumor "
-                       "sequencing (month 0).")
+        patient_file(FILES[pid])
+
+
+def open_selected():
+    """Row click in the patient list: open that file (with a fresh list for next time)."""
+    rows = st.session_state[f"list-{st.session_state.list_n}"].selection.rows
+    if rows:
+        st.session_state.patient = st.session_state.list_ids[rows[0]]
+        st.session_state.list_n += 1
+
+
+def patient_list():
+    rows = []
+    for pid, pf in FILES.items():
+        case = CASES.get(pid)
+        rows.append({
+            "Patient": pid,
+            "Kind": "Synthetic (written by hand)" if case is None
+                    else f"TCGA-BRCA · simulated {case.site}",
+            "Diagnosis": pf.diagnosis,
+            "Driver mutations": dict(pf.latest.observed).get("Driver mutations"),
+            "Latest report": pf.latest.label,
+            "SOS now": len(pf.latest.alerts),
+            "SOS before": sum(len(v.alerts) for v in pf.versions[:-1]),
+            "Tests": ", ".join(dict.fromkeys(t.kind for t in pf.tests)),
+            "Saved note": "★" if case and case.index in demo.notes else "",
+        })
+    table = pd.DataFrame(rows)
+    if st.toggle("Only files with SOS alerts"):
+        table = table[table["SOS now"] + table["SOS before"] > 0]
+    st.session_state.list_ids = table["Patient"].tolist()
+    st.dataframe(table, hide_index=True, on_select=open_selected, selection_mode="single-row",
+                 key=f"list-{st.session_state.list_n}", width="stretch")
+    st.caption(
+        "Click a row to open the file; the table's search icon filters it. SYNTHETIC-001 is a "
+        "synthetic patient, written by hand. The TCGA cases are public TCGA-BRCA patients the "
+        "risk model never trained on, each assigned to one of the simulated hospitals; TCGA holds "
+        "one tumor sample per patient, so their files have one version. ★ = a saved case note.")
+
+
+# --- Patients: one patient file ----------------------------------------------------------------
+def patient_file(pf: workspace.PatientFile):
+    st.button("← All patients",
+              on_click=lambda: st.session_state.update(patient=None, view="Report"))
+    st.header(pf.id)
+    st.caption(f"{pf.title} · {pf.diagnosis}")
+    if pf.kind == "synthetic":
+        st.warning(f"**{pf.id} is synthetic.** {pf.note}", icon="🧪")
+    last = len(pf.versions) - 1
+    i = last if not last else st.select_slider(
+        "Report version", options=range(last + 1), value=last, key=f"version-{pf.id}",
+        format_func=lambda k: pf.versions[k].label + (" (latest)" if k == last else ""),
+        help="Every new test or event adds a version; earlier versions are kept. Move back to "
+             "open the report, its tests and its timeline as they were then.")
+    view = st.segmented_control("View", ["Report", "Tests", "Timeline", "Import tests"],
+                                default="Report", required=True, key="view",
+                                bind="query-params", label_visibility="collapsed")
+    {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
+     "Import tests": import_view}[view](pf, i)
+
+
+def report_view(pf: workspace.PatientFile, i: int):
+    v, case = pf.versions[i], CASES.get(pf.id)
+    st.subheader(f"Report · {v.label}" + ("" if i == len(pf.versions) - 1 else
+                                         " (as it was then)"))
+    arrived = v.event + ("" if v.month is None else f" (month {v.month})")
+    st.markdown(f"**Summary** · {pf.diagnosis}. Latest in the record: {arrived}. "
+                f"{tags(OBSERVED)}  \n{v.summary} {tags(INFERENCE) if v.risk else ''}")
+    sos_tile(pf, i)
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown(f"**Characterization and record** {tags(OBSERVED)}")
+        st.markdown("\n".join(f"- **{k}:** {val}" for k, val in v.observed))
+    with right:
+        st.markdown(f"**Risk** {tags(INFERENCE)} {badge(pf.model['status'])}")
+        if case is None:
+            synthetic_risk(pf, i)
         else:
-            u = scored[-1]
-            m = tl["models"][str(u["landmark"])]
-            st.caption(f"**Model inference** · {tl['task']}, from the month-{u['landmark']} "
-                       "MSK-CHORD models")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("12-month risk", f"{u['risk']:.0%}",
-                      None if "previous" not in u else
-                      f"{100 * (u['risk'] - u['previous']):+.0f} points",
-                      delta_color="inverse", help=tl["task"].capitalize() + ".")
-            c2.metric("Range, 5 models", "{:.0%}–{:.0%}".format(*u["risk_range"]),
-                      help="The same model trained on five different 80% splits (seeds 0–4).")
-            c3.metric("Diagnosis only", f"{u['baseline']:.0%}",
-                      help="Baseline: stage, HR and HER2 alone, same patients and learner.")
-            c4.metric("Model AUROC", f"{m['auroc'][0]:.2f}",
-                      help=f"Held-out AUROC of the month-{u['landmark']} model on MSK-CHORD, "
-                           f"mean of 5 seeds (diagnosis only: {m['baseline_auroc'][0]:.2f}; "
-                           f"{m['n']:,} patients, event rate {m['event_rate']:.0%}).")
-            st.altair_chart(charts.risk_timeline(updates[: i + 1], events, u["month"]),
-                            width="stretch")
+            case_risk(case)
 
-        obs_col, inf_col = st.columns(2)
-        with obs_col:
-            st.markdown("**Observed** · what the record says so far")
-            st.markdown("\n".join(f"- **{k}:** {v}" for k, v in updates[i]["observed"]))
-        with inf_col:
-            st.markdown("**Model inference** · what changed and why")
-            if scored:
-                st.markdown(scored[-1]["summary"])
-                if scored[-1].get("changes"):
-                    st.altair_chart(charts.contributions(
-                        {c["what"]: c["points"] for c in scored[-1]["changes"]},
-                        title="change in risk (points)", fmt="+.0f"), width="stretch")
-                    st.caption("One change at a time against the previous record, scored by "
-                               "the current model; changes interact, so the rest is shown.")
-        with st.container(border=True):
-            st.markdown("**Hypotheses and evidence** · for clinician review")
-            drivers = [g for g in tl["evidence"] if events[i]["month"] >= 0]
-            for name in drivers:
-                for e in tl["evidence"][name]:
-                    st.markdown(f"- **{name}** · {e['therapies']} · CIViC level "
-                                f"{e['evidence_level']} ({e['level_meaning']}), "
-                                f"{e['significance'].lower()} · [{e['citation']}]({e['url']})")
-            st.caption("CIViC (CC0) evidence for the observed driver, not a recommendation."
-                       if drivers else "No sequenced drivers yet, so no treatment evidence.")
+    if case is None:
+        st.markdown(f"**What changed since the last version, and why** {tags(INFERENCE)}")
+        if v.changes:
+            st.altair_chart(charts.contributions(
+                {c["what"]: c["points"] for c in v.changes}, title="change in risk (points)",
+                fmt="+.0f"), width="stretch")
+            st.caption("One change at a time against the previous record, scored by the current "
+                       "model; changes interact, so the rest is shown.")
+        else:
+            st.caption(v.summary)
+        sites = dict(v.observed).get("Metastatic sites", "none")
+        st.markdown(f"**Areas of risk** {tags(OBSERVED)} · metastatic sites: {sites}")
+    else:
+        case_why(case)
 
-        with st.expander("Event log (observed)"):
-            st.dataframe(pd.DataFrame(events[: i + 1]), hide_index=True, width="stretch")
-        st.caption(tl["model_note"] + " Some features reflect care, not only biology (how "
-                   "often labs and treatments are recorded); see docs/longitudinal.md.")
+    st.markdown(f"**Mutations** {tags(OBSERVED)} **and treatment evidence for clinician "
+                f"review** {tags(HYPOTHESIS)}")
+    seq = sequencing(pf, i)
+    if not seq:
+        st.caption("Not sequenced: driver mutations are unknown, not wild type.")
+    for t in seq:
+        st.markdown(f"- {t.name}" + ("" if t.month is None else f", month {t.month}")
+                    + f": {t.result}")
+    variants = [var for t in seq for var in t.details["variants"]]
+    quiet = [var for var in variants if civic_items(pf, var) == []]
+    for var in variants:
+        if var not in quiet:
+            civic_block(pf, var, k=3)
+    if quiet:
+        st.caption("No CIViC breast cancer evidence for " + ", ".join(quiet) + ".")
 
-# --- Case review -----------------------------------------------------------------------------
-with case_tab:
-    cases = sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile))
-    shown = (f"{len(cases)} patients" if len(cases) == demo.heldout_patients
-             else f"{len(cases)} of the {demo.heldout_patients} patients")
-    case = st.selectbox(
-        f"Held-out patient ({shown} the model never trained on)", cases,
-        format_func=lambda c: ("★ " if c.index in demo.notes else "") + c.label,
-        help="Each hospital's validation split. ★ = a saved note is available.")
+    st.markdown(f"**Evolutionary hypotheses** {badge(workspace.PLANNED)} · the likely next "
+                "alterations and escape routes, with their confidence (docs/VISION.md).")
+    st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
+    st.markdown("\n".join(f"- {line}" for line in missing(pf, i)))
+    with st.expander("Caveats, data sources and model versions"):
+        st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
+                    f"{pf.model['endpoint']}.\n" + "\n".join(f"- {s}" for s in sources(pf)))
+    if case is not None:
+        case_note(case)
 
-    x, mask = demo.inputs(case)
-    c1, c2, c3, c4 = st.columns(4)
+
+def sos_tile(pf: workspace.PatientFile, i: int):
+    now = pf.versions[i].alerts
+    before = [a for v in pf.versions[:i] for a in v.alerts]
+    with st.container(border=True):
+        if now:
+            st.markdown(f"**:red[SOS] · {len(now)} alarming finding"
+                        f"{'s' if len(now) > 1 else ''} in this version**")
+            for a in now:
+                alert_line(a)
+        else:
+            st.markdown("**SOS** · nothing alarming in this version")
+            if len(pf.versions) == 1:
+                st.caption(pf.note)
+        if before:
+            with st.expander(f"Earlier alerts ({len(before)})"):
+                for a in reversed(before):
+                    alert_line(a)
+
+
+def alert_line(a: workspace.Alert):
+    flag = " :orange-badge[placeholder threshold]" if "placeholder" in a.threshold else ""
+    st.markdown(f"- **{a.what}** {tags(a.evidence)}{flag}  \n"
+                f"  Source: {a.source} · rule: {a.rule} · threshold: {a.threshold}")
+
+
+def synthetic_risk(pf: workspace.PatientFile, i: int):
+    r = pf.versions[i].risk
+    if r is None:
+        st.caption(pf.versions[i].summary)
+        return
+    prev = next((v.risk["value"] for v in reversed(pf.versions[:i]) if v.risk), None)
+    m = TL["models"][str(r["landmark"])]
+    c1, c2 = st.columns(2)
+    c1.metric("12-month risk", f"{r['value']:.0%}",
+              None if prev is None else f"{100 * (r['value'] - prev):+.0f} points",
+              delta_color="inverse", help=pf.model["endpoint"].capitalize() + ".")
+    c2.metric("Range, 5 models", "{:.0%}–{:.0%}".format(*r["range"]),
+              help="The same model trained on five different 80% splits (seeds 0–4).")
+    c3, c4 = st.columns(2)
+    c3.metric("Diagnosis only", f"{r['baseline']:.0%}",
+              help="Baseline: stage, HR and HER2 alone, same patients and learner.")
+    c4.metric("Model AUROC", f"{r['auroc']:.2f}",
+              help=f"Held-out AUROC of the month-{r['landmark']} model on MSK-CHORD, mean of 5 "
+                   f"seeds (diagnosis only: {r['baseline_auroc']:.2f}; {m['n']:,} patients, "
+                   f"event rate {m['event_rate']:.0%}).")
+    st.caption(f"{pf.model['endpoint'].capitalize()}, from the month-{r['landmark']} "
+               f"{pf.model['name']}. Whether these probabilities are calibrated has not been "
+               "checked.")
+
+
+def case_risk(case):
+    c1, c2 = st.columns(2)
     c1.metric("Risk percentile", ordinal(case.percentile),
               help="Share of all patients with a lower predicted risk.")
     c2.metric("Risk group", case.group.capitalize(), help="Cohort tertiles of predicted risk.")
+    c3, c4 = st.columns(2)
     c3.metric("Simulated hospital", case.site,
               help="The FL client this patient belongs to: a group of TCGA tissue source sites.")
     c4.metric("Data layers", f"{len(case.layers)} of {len(demo.model.names)}",
               help="Missing: " + (", ".join(case.missing) or "none"))
+    st.caption(f"Overall survival, ranked against all {len(demo.cohort_risks):,} patients by the "
+               f"federated model (held-out C-index {demo.c_index:.3f}). It ranks patients; its "
+               "absolute risks are only roughly calibrated.")
 
+
+def case_why(case):
+    x, mask = demo.inputs(case)
     left, right = st.columns(2)
     with left:
-        st.markdown("**Where this patient sits among all patients**")
+        st.markdown(f"**Where this patient sits among all patients** {tags(INFERENCE)}")
         st.altair_chart(charts.risk_position(demo.cohort_risks, case.log_risk,
                                              f"{ordinal(case.percentile)} percentile"),
                         width="stretch")
     with right:
-        st.markdown("**What drives this patient's risk**")
+        st.markdown(f"**What drives this patient's risk** {tags(INFERENCE)}")
         _, contrib = modality_contributions(demo.model, x, mask, demo.offsets)
         st.altair_chart(charts.contributions(
             {LAYER_NAMES.get(m, m): v for m, v in contrib.items()}), width="stretch")
@@ -299,6 +438,71 @@ with case_tab:
                       ordinal(pct), f"{int(pct) - int(case.percentile):+d} percentile points",
                       delta_color="inverse")
 
+
+def sequencing(pf: workspace.PatientFile, i: int) -> list[workspace.Test]:
+    return [t for v in pf.versions[: i + 1] for t in v.tests if t.workbench == "mutations"]
+
+
+def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
+    """CIViC items for a variant: frozen with the timeline file for the synthetic patient, else
+    from the live table (None if it couldn't load)."""
+    if pf.kind == "synthetic":
+        return TL["evidence"].get(variant, [])
+    if EVIDENCE is None:
+        return None
+    gene, change = variant.split(maxsplit=1)
+    return EVIDENCE(gene, change)
+
+
+def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
+    items = civic_items(pf, variant)
+    with st.container(border=True):
+        st.markdown(f"**{variant}** · CIViC treatment evidence, for clinician review "
+                    f"{tags(HYPOTHESIS)}")
+        if items is None:
+            st.caption("The CIViC table could not be loaded here.")
+        elif not items:
+            st.caption("No CIViC breast cancer evidence for this variant.")
+        for e in (items or [])[:k]:
+            st.markdown(f"- Level **{e['evidence_level']}** ({e['level_meaning']}) · "
+                        f"{e['therapies'].replace(',', ', ')} · "
+                        f"{str(e['significance']).lower()} · matches "
+                        f"{e.get('match', 'this variant')} · [{e['citation']}]({e['url']})")
+
+
+def missing(pf: workspace.PatientFile, i: int) -> list[str]:
+    v = pf.versions[i]
+    obs = dict(v.observed)
+    out = [f"{k}: {val}" for k, val in v.observed if val.startswith("not ")]
+    if obs.get("Not measured", "none") != "none":
+        out.append(f"Not measured: {obs['Not measured']} (the model masks a missing layer; it is "
+                   "unknown, not normal)")
+    seq = sequencing(pf, i)
+    if seq and seq[-1].month is not None and v.month > seq[-1].month:
+        out.append(f"Not sequenced since month {seq[-1].month}: mutations that arose under later "
+                   "treatment would not show")
+    if any(t.status == workspace.PLANNED for w in pf.versions[: i + 1] for t in w.tests):
+        out.append("Imaging and pathology reports are text only: their workbenches are planned")
+    if len(pf.versions) == 1:
+        out.append(pf.note)
+    return out or ["Nothing recorded as missing."]
+
+
+def sources(pf: workspace.PatientFile) -> list[str]:
+    if pf.kind == "synthetic":
+        return [pf.model["note"],
+                "Record: written by hand (src/muffle/timeline.py); not a real person.",
+                "Treatment evidence: CIViC (CC0), as of the timeline file's build.",
+                "These scores never go to a language model, so this file has no case note."]
+    return ["Data: TCGA-BRCA open access (GDC, UCSC Xena); mutations from GDC's open-access "
+            "masked somatic calls.",
+            "Treatment evidence: CIViC (CC0), nightly table.",
+            f"Case note: {model_name(DEFAULT_MODEL)} plans and {model_name(WRITER_MODEL)} "
+            "writes, on Nebius Token Factory; a grounding check verifies it.",
+            DISCLAIMER]
+
+
+def case_note(case):
     st.subheader("Tumor-board note")
     saved = demo.notes.get(case.index)
     can_live = LIVE and st.session_state.live_used < CAP
@@ -308,7 +512,7 @@ with case_tab:
                                                   else "This session's live notes are used up."))
     show_saved = b2.button("Show the saved note", disabled=saved is None)
     if not can_live:
-        st.caption("Live notes are off here; ★ patients have a saved note from the live agent."
+        st.caption("Live notes are off here; ★ patients have a saved case note."
                    if saved is None or not LIVE else
                    "This session's live notes are used up; showing saved notes.")
 
@@ -337,16 +541,16 @@ with case_tab:
                                "from the tool outputs" + (" (rewritten once after the check)."
                                                           if report.revised else "."))
             header = (f"# MuFFLe++ tumor-board note: case {case.index}\n\n"
-                      f"_{case.label} · {source} · written by {model_name(report.writer)}; "
-                      "research prototype, not a diagnosis._\n\n")
+                      f"_{case.label} · {source} · written by {model_name(report.writer)} on "
+                      f"Nebius Token Factory. {DISCLAIMER}_\n\n")
             st.download_button("Download the note (Markdown)", header + report.text,
                                file_name=f"muffle_case_{case.index}.md", mime="text/markdown")
         with trace:
             st.markdown("**How the agent got there**")
             st.caption({
                 "agent": f"{model_name(report.model)} chose these tool calls; "
-                         f"{model_name(report.writer)} wrote the note · {report.tokens:,} tokens "
-                         f"· {source}",
+                         f"{model_name(report.writer)} wrote the note, on Nebius Token Factory "
+                         f"· {report.tokens:,} tokens · {source}",
                 "fixed plan": f"Tool calling unavailable: the tools ran in a fixed order and "
                               f"{model_name(report.writer)} wrote the note · {source}",
                 "offline": "Offline: the tools ran in a fixed order and a template wrote the "
@@ -362,9 +566,310 @@ with case_tab:
             st.caption("Only these derived numbers and gene names were sent to Token Factory; "
                        "the patient's omics never leave the hospital.")
 
-# --- Federation ------------------------------------------------------------------------------
-with fed_tab:
-    st.subheader(f"{len(demo.sites)} simulated hospitals, one model, no shared patient data")
+
+def tests_view(pf: workspace.PatientFile, i: int):
+    tests = [t for v in pf.versions[: i + 1] for t in v.tests]
+    kinds = st.pills("Type", list(dict.fromkeys(t.kind for t in tests)), selection_mode="multi",
+                     key=f"kinds-{pf.id}")
+    shown = [t for t in tests if not kinds or t.kind in kinds]
+    table = pd.DataFrame([{"Type": t.kind, "Month": t.month, "Test": t.name, "Result": t.result,
+                           "Workbench": t.workbench, "Status": t.status} for t in shown])
+    rows = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
+                        key=f"tests-{pf.id}-{i}-{'.'.join(kinds)}", width="stretch").selection.rows
+    st.caption("Select a test to open its workbench. " + (
+        "Months count from the first tumor sequencing." if pf.kind == "synthetic" else
+        "TCGA holds one sample per patient, so its tests carry no dates."))
+    if not shown:
+        return
+    t = shown[rows[0]] if rows else next(
+        (t for w in ("labs", "mutations", "omics", "record") for t in shown if t.workbench == w),
+        shown[0])
+    st.divider()
+    if t.workbench == "labs":
+        lab_workbench(pf, i, t.details["marker"])
+    elif t.workbench == "mutations":
+        mutation_workbench(pf, i)
+    elif t.workbench in ("omics", "record"):
+        layer_workbench(CASES[pf.id], t.details["layer"], pf.versions[i])
+    else:
+        st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
+        st.markdown(f"**Report text** {tags(OBSERVED)}: {t.result}")
+        st.info(PLANNED_WORKBENCHES[t.workbench] + " Planned, pending the model and dataset "
+                "survey's shortlist (docs/WORKSPACE.md).", icon="🧭")
+
+
+def lab_workbench(pf: workspace.PatientFile, i: int, key: str):
+    name, unit = workspace.MARKERS[key]
+    events = [e for e in EVENTS if e["month"] <= pf.versions[i].month]
+    rows = workspace.lab_series(events, key)
+    limit = workspace.REFERENCE_LIMITS.get(key)
+    flags = {a.month: a for v in pf.versions[: i + 1] for a in v.alerts
+             if a.source.startswith(name)}
+    st.markdown(f"#### Lab workbench · {name} {badge(workspace.IMPLEMENTED)} {tags(OBSERVED)}")
+    treatments = [{"month": e["month"], "text": e["text"]} for e in events
+                  if e.get("treatments") and e["month"] >= rows[0]["month"]]
+    st.altair_chart(charts.lab_trend(rows, name, unit, limit[0] if limit else None, treatments,
+                                     {m: a.what for m, a in flags.items()}), width="stretch")
+    st.caption("Hover a value for its change from the previous value and from the lowest so far, "
+               "the rate per month and its source. Red: a flagged value. Dashed vertical lines: "
+               "treatment starts.")
+    st.dataframe(pd.DataFrame(rows).reindex(
+        columns=["month", "value", "change", "from_nadir", "per_month", "event"]),
+        hide_index=True, width="stretch", column_config={
+            "month": st.column_config.NumberColumn("Month"),
+            "value": st.column_config.NumberColumn(f"{name} ({unit})", format="%.0f"),
+            "change": st.column_config.NumberColumn("vs previous", format="percent"),
+            "from_nadir": st.column_config.NumberColumn("vs lowest so far", format="percent"),
+            "per_month": st.column_config.NumberColumn(f"{unit} per month", format="%+.1f"),
+            "event": st.column_config.TextColumn("Source")})
+    for m, a in flags.items():
+        st.markdown(f"- :red[**Flag, month {m}:**] {a.what} {tags(a.evidence)}  \n"
+                    f"  Rule: {a.rule}. Threshold: {a.threshold}.")
+    unmeasured = [n for k, (n, _) in workspace.MARKERS.items()
+                  if k != key and not workspace.lab_series(events, k)]
+    st.caption(" ".join([
+        f"Reference limit from {limit[1]}." if limit else "No reference limit in the record.",
+        "Out of range is not evidence of progression by itself: read a marker with imaging and "
+        "the clinical picture. A change of assay method breaks the series (EGTM).",
+        *(f"{n}: not measured in this record." for n in unmeasured)]))
+
+
+def mutation_workbench(pf: workspace.PatientFile, i: int):
+    st.markdown(f"#### Mutation workbench {badge(workspace.IMPLEMENTED)}")
+    seq = sequencing(pf, i)
+    if not seq:
+        st.info("Not sequenced yet: driver mutations are unknown, not wild type.")
+    for t in seq:
+        found = t.details["variants"]
+        st.markdown(f"**{t.name}" + ("" if t.month is None else f", month {t.month}")
+                    + f"** {tags(OBSERVED)}")
+        if found:
+            st.dataframe(pd.DataFrame([dict(zip(("Gene", "Change"), var.split(maxsplit=1),
+                                                strict=True)) for var in found]),
+                         hide_index=True)
+        else:
+            st.caption("No driver in the panel mutated.")
+        genes = {var.split()[0] for var in found}
+        st.caption("Sequenced, not found: " + ", ".join(
+            g for g in t.details["panel"] if g not in genes) + ". One sample is one place and one "
+            "time; tumor purity and sequencing depth limit what it can show.")
+        for var in found:
+            civic_block(pf, var)
+    st.info(f"**ctDNA monitoring** {badge(workspace.PLANNED)} {tags(HYPOTHESIS)} · Serial blood "
+            "tests could catch resistance mutations as they emerge, such as ESR1 under endocrine "
+            "therapy (PADA-1, SERENA-6; docs/VISION.md). No open serial breast ctDNA data was "
+            "found, so this workbench is planned.")
+
+
+def layer_workbench(case, layer: str, v: workspace.Version):
+    tools = demo.tools(case)
+    effect = tools.modality_contributions()["log_risk_added_by_layer"].get(layer)
+    st.markdown(f"#### {'Clinical record' if layer == 'clinical' else LAYER_NAMES[layer]} "
+                f"{badge(workspace.IMPLEMENTED)}")
+    st.markdown(f"Measured {tags(OBSERVED)}: {workspace.ASSAYS[layer]}.")
+    if layer == "clinical":
+        st.markdown("\n".join(f"- **{k}:** {val}" for k, val in v.observed))
+    if effect is not None:
+        st.markdown(f"Effect on this patient's predicted log-risk compared with a typical patient: "
+                    f"**{effect:+.3f}** {tags(INFERENCE)}")
+    feats = tools.top_features(layer, 10)["features"]
+    if feats:
+        st.altair_chart(charts.contributions({f["name"]: f["score"] for f in feats},
+                                             title="effect on log-risk (gradient × input)",
+                                             fmt="+.4f"), width="stretch")
+        st.caption("The features that move this patient's predicted risk most: an inference "
+                   "about the model, not a biological finding about the tumor.")
+    else:
+        st.caption("No single feature in this layer moves this patient's risk measurably.")
+    st.info(f"{badge(workspace.PLANNED)} " + (
+        "Clinical documents with their source sentences highlighted: extracted diagnoses, "
+        "procedures, drugs and dates." if layer == "clinical" else
+        "Expression distributions and ranked genes against the cohort, pathway and subtype "
+        "scores (PAM50) with their reference definitions, batch and quality checks."))
+
+
+def timeline_view(pf: workspace.PatientFile, i: int):
+    if len(pf.versions) == 1:
+        st.info(pf.note)
+    else:
+        month = pf.versions[i].month
+        updates = TL["updates"][: i + 1]
+        if any("risk" in u for u in updates):
+            treatments = [{"month": e["month"], "text": e["text"]} for e in EVENTS
+                          if e.get("treatments") and e["month"] <= month]
+            st.altair_chart(charts.risk_timeline(updates, TL["events"], month, treatments),
+                            width="stretch")
+            st.caption(f"{tags(INFERENCE)} {TL['task'].capitalize()} at each version from the "
+                       "first tumor sequencing (month 0) on: the record-so-far models (the band "
+                       "is the range of 5 models) and the diagnosis-only baseline. Dashed "
+                       "vertical lines: treatment starts. Move the report version above to open "
+                       "any version.")
+    st.dataframe(pd.DataFrame([{
+        "Month": v.month, "Version": v.label, "What arrived": v.event,
+        "12-month risk": v.risk.get("value") if v.risk else None, "SOS": len(v.alerts),
+        "Tests added": ", ".join(t.name for t in v.tests),
+        "Treatment started": ", ".join(v.treatments)} for v in pf.versions[: i + 1]]),
+        hide_index=True, width="stretch",
+        column_config={"12-month risk": st.column_config.NumberColumn(format="percent")})
+    if i:
+        compare(pf, i)
+
+
+def compare(pf: workspace.PatientFile, i: int):
+    st.markdown("**Compare two versions** · what changed and why")
+    a, b = st.columns(2)
+    ia = a.selectbox("From", range(i + 1), index=i - 1, key=f"from-{pf.id}-{i}",
+                     format_func=lambda k: pf.versions[k].label)
+    ib = b.selectbox("To", range(i + 1), index=i, key=f"to-{pf.id}-{i}",
+                     format_func=lambda k: pf.versions[k].label)
+    lo, hi = sorted((ia, ib))
+    then, now = dict(pf.versions[lo].observed), dict(pf.versions[hi].observed)
+    rows = [{"Finding": k, "Then": then.get(k, "—"), "Now": now.get(k, "—")}
+            for k in dict.fromkeys([*then, *now]) if then.get(k) != now.get(k)]
+    if rows:
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", column_config={
+            "Then": pf.versions[lo].label, "Now": pf.versions[hi].label})
+    else:
+        st.caption("Nothing observed changed between these versions.")
+    for v in pf.versions[lo + 1: hi + 1]:
+        if v.changes:
+            st.markdown(f"- **{v.label}** · {v.summary} {tags(INFERENCE)}")
+        for al in v.alerts:
+            st.markdown(f"- **{v.label}** · :red[SOS] {al.what}")
+
+
+def import_view(pf: workspace.PatientFile, i: int):
+    st.markdown(f"#### Import tests {badge(workspace.PLANNED)}")
+    st.info("Each test type will come in through its own input adapter (slide images, DICOM scan "
+            "series, lab results, VCF or MAF sequencing reports, expression data, text reports), "
+            "with quality control on intake that shows what was accepted or rejected and why. An "
+            "imported test adds a report version; earlier versions are never overwritten. For "
+            "now only public or synthetic data can be imported (docs/WORKSPACE.md).")
+
+
+# --- Methods and validation ------------------------------------------------------------------
+def methods_page():
+    st.title("Methods and validation")
+    st.markdown(
+        "How each result in a patient file is produced, how well it holds up, and where the data "
+        "come from. In a file, every finding is marked **observed** (measured or recorded), "
+        "**model inference** (a prediction, with its uncertainty) or **hypothesis** (evidence "
+        "and literature leads); every module is marked implemented, experimentally validated or "
+        "planned; every alert names its rule and where its threshold comes from.")
+    res = results()
+    by = {m["method"]: m for m in res["methods"]} if res else None
+
+    st.header("Model cards")
+    st.subheader("Multi-omic survival model")
+    st.markdown(f"{badge(workspace.VALIDATED)} · overall survival, ranked by cohort percentile · "
+                "TCGA patient files")
+    st.markdown(
+        f"- **Training data:** TCGA-BRCA open access ({len(demo.cohort_risks):,} patients, "
+        "overall survival): copy number, RNA expression, methylation, protein and clinical "
+        f"data, split across {len(demo.sites)} simulated hospitals (groups of TCGA tissue source "
+        "sites, so their data gaps are real).\n"
+        "- **Design:** a clinical risk first, which the omic layers then correct by an amount "
+        "chosen on hospitals the model wasn't trained on. A layer a hospital never measured is "
+        "masked, not imputed, and training hides layers at random so the model copes. Trained "
+        "with FedAvg in NVIDIA FLARE: only model weights leave a hospital.\n"
+        f"- **Held-out performance:** C-index {demo.c_index:.3f}, the mean over hospitals ("
+        + ", ".join(f"{s} {c:.3f}" for s, c in demo.c_index_by_site.items()) + ").\n"
+        "- **Calibration:** the model ranks patients; its absolute risks are only roughly "
+        "calibrated, and it is weaker for patients under 50 and within a single stage.")
+    if res and demo.names:  # real data (synthetic cohorts have no gene names)
+        st.markdown("**Leave one hospital out:** train on two hospitals, test on the third.")
+        main = [m for m in res["methods"] if m["group"] == "main"]
+        st.altair_chart(charts.results(main), width="stretch")
+        st.markdown(
+            f"- **Federated ≈ pooled.** FedAvg reaches {by['fedavg_residual']['mean']:.3f} on "
+            f"a hospital it never saw, against {by['residual']['mean']:.3f} when the other "
+            "hospitals' patients are pooled in one place, without moving any patient data.\n"
+            f"- **Better than one hospital alone**, which scores "
+            f"{by['local_only']['mean']:.3f}.\n"
+            f"- **The omic layers don't add signal yet.** Clinical data alone (stage, age, "
+            f"T/N/M) scores {by['only_clinical']['mean']:.3f} on overall survival, so the model "
+            "anchors on clinical data and lets the omics correct it.")
+        st.caption(res["protocol"] + ".")
+        with st.expander("Each omic layer on its own"):
+            single = [m for m in res["methods"] if m["group"] == "single layer"]
+            st.dataframe(pd.DataFrame(single)[["label", "mean", "sd"]].rename(
+                columns={"label": "Layer", "mean": "C-index", "sd": "sd"}), hide_index=True)
+            st.caption("Copy number alone ranks patients worse than chance across hospitals "
+                       "(below 0.5): a sign of site and batch effects.")
+    left, right = st.columns([3, 2])
+    with left:
+        st.altair_chart(charts.survival_by_group(demo.km), width="stretch")
+    with right:
+        st.markdown("**Risk groups on the held-out patients**")
+        st.caption(f"{demo.heldout_patients} held-out patients, {demo.heldout_deaths} deaths. "
+                   "Curves stop at 5 years, where fewer than 20 patients per group remain. The "
+                   "risk groups rank patients well; they are not calibrated probabilities of "
+                   "death.")
+
+    if TL:
+        st.subheader("MSK-CHORD landmark models")
+        st.markdown(f"{badge(workspace.VALIDATED)} · {TL['task']} · the synthetic patient's file")
+        st.dataframe(pd.DataFrame([{
+            "From month": int(k), "Patients": m["n"], "Event rate": m["event_rate"],
+            "AUROC, record so far": f"{m['auroc'][0]:.3f} ± {m['auroc'][1]:.3f}",
+            "AUROC, diagnosis only": f"{m['baseline_auroc'][0]:.3f} ± "
+                                     f"{m['baseline_auroc'][1]:.3f}"}
+            for k, m in sorted(TL["models"].items(), key=lambda kv: int(kv[0]))]),
+            hide_index=True, column_config={
+                "From month": st.column_config.NumberColumn(
+                    help="Landmark: months after the first tumor sequencing"),
+                "Event rate": st.column_config.NumberColumn(format="percent")})
+        st.caption(
+            "Gradient boosting on the record so far, against the same learner on the diagnosis "
+            "alone (stage, HR, HER2); held-out AUROC, mean ± sd over 5 seeds. "
+            + TL["model_note"] + " Some features reflect care, not only biology (how often labs "
+            "and treatments are recorded). Whether the probabilities are calibrated has not "
+            "been checked.")
+
+    st.subheader("Alert rules")
+    st.dataframe(pd.DataFrame([
+        ("Progression on imaging", OBSERVED, "the imaging report reads progression",
+         "recorded"),
+        ("New metastatic site", OBSERVED, "a site not in the record before", "recorded"),
+        ("Tumor marker rise", OBSERVED,
+         f"above the reference limit and at least {workspace.RISE:.0%} above the previous "
+         "value; to be confirmed with a second specimen within a month",
+         workspace.EGTM + "; the limit from the patient's lab report"),
+        ("Risk jump", INFERENCE,
+         f"12-month risk up at least {workspace.RISK_JUMP} points since the previous result",
+         "placeholder, not validated"),
+        ("Newly sequenced driver", f"{OBSERVED} (mutation), {HYPOTHESIS} (evidence)",
+         "level A or B CIViC treatment evidence", "CIViC evidence levels"),
+    ], columns=["Alert", "Evidence", "Rule", "Threshold source"]), hide_index=True,
+        width="stretch")
+    st.caption("A tumor marker out of range is not evidence of progression by itself.")
+
+    st.subheader("Case note")
+    st.markdown(f"""
+- **{model_name(DEFAULT_MODEL)} plans** on Nebius Token Factory: it decides which tools to call.
+  The tools run locally and label what they return: `observed_findings` (*observed*: measured
+  and missing data layers, recorded stage, age band, the sequenced driver mutations from GDC
+  open-access somatic calls, or "not sequenced"), `predict_risk`, `modality_contributions` and
+  `top_features` (*model inference*, with the model's validation C-index as its uncertainty),
+  `treatment_evidence` (*hypothesis*: CIViC items for the observed mutations) and
+  `search_literature` (*hypothesis*: Tavily search for papers or trials on up to 3 named genes).
+- **{model_name(WRITER_MODEL)} writes** the note from the tool outputs, in five sections:
+  Summary, Observed, Model inferences, Hypotheses and evidence, Caveats. Every bullet starts
+  with [Observed], [Model inference] or [Hypothesis]. If it fails, {model_name(DEFAULT_MODEL)}
+  writes.
+- **A grounding check** (plain code, no language model) looks for any number, gene or link in
+  the note that no tool returned. The writer gets one rewrite; anything left is shown with the
+  note.
+- **Treatment content is evidence, not advice.** Each CIViC (CC0) item keeps its evidence level
+  (A validated … E inferential), significance, citation and link, for clinician review, never
+  a recommendation.
+- Only derived numbers (risk, percentile, contributions, attribution scores) and gene or
+  mutation names go to Token Factory and Tavily, never a patient's omics values, and nothing
+  from MSK-CHORD. Every call counts against a hard spending cap; once it is reached, or without
+  a key, the same tools run in a fixed order and a template writes the note.
+""")
+
+    st.header("Federated training across simulated hospitals")
     left, right = st.columns([2, 3])
     with left:
         dot = ["digraph { rankdir=LR; bgcolor=transparent; size=\"5,3\"; node [shape=box, "
@@ -388,130 +893,42 @@ with fed_tab:
                 LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
             for m in demo.model.names if m != "clinical"})
         st.caption("Bars: share of each hospital's patients with that data layer. The hospitals "
-                   "are simulated: TCGA tissue source sites grouped into three FL clients, so "
-                   "the data gaps are real.")
+                   "are simulated: TCGA tissue source sites grouped into three clients of the "
+                   "NVFlare simulator, so the data gaps are real but no real site took part.")
 
-    res = results()
-    if res and demo.names:  # real data (synthetic cohorts have no gene names)
-        st.subheader("Does federated training work?")
-        main = [m for m in res["methods"] if m["group"] == "main"]
-        st.altair_chart(charts.results(main), width="stretch")
-        by = {m["method"]: m for m in res["methods"]}
-        st.markdown(
-            f"- **Federated ≈ pooled.** FedAvg reaches {by['fedavg_residual']['mean']:.3f} on "
-            f"a hospital it never saw, against {by['residual']['mean']:.3f} when the other "
-            "hospitals' patients are pooled in one place, without moving any patient data.\n"
-            f"- **Better than going it alone.** A model trained at one hospital scores "
-            f"{by['local_only']['mean']:.3f}.\n"
-            f"- **Honest baseline.** Clinical data alone (stage, age, T/N/M) scores "
-            f"{by['only_clinical']['mean']:.3f}: on overall survival in breast cancer the "
-            "omic layers don't add signal beyond it yet, so the model anchors on clinical data "
-            "and lets omics correct it.")
-        st.caption(res["protocol"] + ".")
-        with st.expander("Each omic layer on its own"):
-            single = [m for m in res["methods"] if m["group"] == "single layer"]
-            st.dataframe(pd.DataFrame(single)[["label", "mean", "sd"]].rename(
-                columns={"label": "Layer", "mean": "C-index", "sd": "sd"}), hide_index=True)
-            st.caption("Copy number alone ranks patients worse than chance across hospitals "
-                       "(below 0.5): a sign of site and batch effects.")
+    st.header("Data sources and licenses")
+    st.dataframe(pd.DataFrame([
+        ("TCGA-BRCA (GDC open access, UCSC Xena)", "the survival model and the TCGA patient files",
+         "open access; cite the TCGA Research Network"),
+        ("GDC masked somatic mutations (open access)", "observed driver mutations", "as TCGA"),
+        ("MSK-CHORD (Jee et al., Nature 2024)",
+         "the landmark models behind the synthetic patient's risk; used on this machine only, "
+         "aggregate results", "CC BY-NC-ND 4.0"),
+        ("CIViC clinical evidence summaries", "treatment evidence for clinician review", "CC0"),
+        ("Tavily search", "literature leads in case notes", "Tavily API terms"),
+        ("NVIDIA Nemotron 3 Super and Ultra on Nebius Token Factory", "the case note",
+         "NVIDIA open model license; Token Factory terms"),
+        ("EGTM breast cancer recommendations", "the tumor-marker rise rule", "cited"),
+    ], columns=["Source", "Used for", "License or terms"]), hide_index=True, width="stretch")
+    st.caption("SYNTHETIC-001's record is written by hand and labeled synthetic; it is not a "
+               "real person and was not taken from any dataset.")
 
-    st.subheader("Risk groups on the held-out patients")
-    left, right = st.columns([3, 2])
-    with left:
-        st.altair_chart(charts.survival_by_group(demo.km), width="stretch")
-    with right:
-        st.metric("Held-out C-index (mean of hospitals)", f"{demo.c_index:.3f}")
-        st.caption(" · ".join(f"{s} {c:.3f}" for s, c in demo.c_index_by_site.items()))
-        st.caption(f"{demo.heldout_patients} held-out patients, "
-                   f"{demo.heldout_deaths} deaths. Curves stop at 5 years, where "
-                   "fewer than 20 patients per group remain. The risk groups rank patients "
-                   "well; they are not calibrated probabilities of death.")
+    st.header("Limits")
+    st.markdown(
+        "- On overall survival in TCGA-BRCA the omic layers don't beat clinical data yet; "
+        "federation matches pooling and beats a single hospital.\n"
+        "- TCGA holds one tumor sample per patient, so its files have one version and no "
+        "alerts.\n"
+        "- Only the lab, mutation and data-layer workbenches are built; imaging, pathology, "
+        "ctDNA and test import are planned and labeled so.\n"
+        "- The hospitals are simulated, and SYNTHETIC-001 is synthetic.\n"
+        "- Research and decision support for clinicians; not a diagnosis or a prescription.")
 
-# --- How it works ----------------------------------------------------------------------------
-with how_tab:
-    res, tl = results(), timeline()
-    by = {m["method"]: m for m in res["methods"]} if res else None
-    signal = (
-        f"- **The omics do not yet add signal.** Leave one hospital out, mean C-index over 5 "
-        f"seeds: clinical data alone (stage, age, T/N/M) {by['only_clinical']['mean']:.3f}; "
-        f"FedAvg, clinical-anchored residual {by['fedavg_residual']['mean']:.3f}; the same model "
-        f"on pooled data {by['residual']['mean']:.3f}; one hospital alone "
-        f"{by['local_only']['mean']:.3f}. Federation matches pooling and beats a single hospital, "
-        "but on overall survival in TCGA-BRCA the omic layers don't beat clinical data yet."
-        if by else
-        "- The leave-one-hospital-out results on TCGA-BRCA appear in the Federation tab when the "
-        "app runs on real data.")
-    patient = tl["patient_id"] if tl else "The timeline patient"
-    st.markdown(f"""
-MuFFLe++ is milestone 1 of a multimodal, longitudinal cancer intelligence platform for breast
-cancer: an **evidence-linked patient profile** (multi-omic risk model, observed driver mutations,
-CIViC evidence, literature) that **updates along the patient's timeline**, written up by a
-Nemotron case agent, with one model **learned across hospitals** without moving patient data.
-Every finding is labeled **observed** (measured or recorded), **model inference** (a prediction,
-with its uncertainty) or **hypothesis** (evidence and literature leads).
 
-#### The four tabs
-- **Patient timeline (synthetic).** {patient} is made up by hand for the demo and labeled as
-  such. From the first tumor sequencing on, every event re-scores the risk of progression or
-  death in the next 12 months with models trained locally on real MSK-CHORD timelines (Jee et
-  al., Nature 2024; CC BY-NC-ND 4.0): only aggregate metrics and this synthetic patient's scores
-  are published, no MSK-CHORD patient leaves the machine, and these scores never go to an LLM.
-  Observed events, the model's inferences and CIViC evidence for the observed driver sit apart.
-- **Case review.** One held-out TCGA-BRCA patient the federated model never trained on: risk
-  percentile and group, how much each data layer moves the risk compared with a typical
-  patient, a what-if for missing layers, and the case agent's note with its tool trace.
-- **Federation.** The {len(demo.sites)} simulated hospitals (TCGA tissue source sites grouped
-  into FL clients), their data gaps, and the leave-one-hospital-out results against baselines.
-- **How it works.** This page.
-
-#### The case agent (NVIDIA Nemotron on Nebius Token Factory)
-- **{model_name(DEFAULT_MODEL)} plans.** It decides which tools to call. The tools run locally
-  and label what they return: `observed_findings` (*observed*: measured and missing data layers,
-  recorded stage, age band, the sequenced driver mutations from GDC open-access somatic calls,
-  or "not sequenced"), `predict_risk`, `modality_contributions` and `top_features` (*model
-  inference*, with the model's validation C-index as its uncertainty), `treatment_evidence`
-  (*hypothesis*: CIViC items for the observed mutations) and `search_literature` (*hypothesis*:
-  Tavily search for papers or trials on up to 3 named genes).
-- **{model_name(WRITER_MODEL)} writes** the note from the tool outputs, in five sections:
-  Summary, Observed, Model inferences, Hypotheses and evidence, Caveats. Every bullet starts
-  with [Observed], [Model inference] or [Hypothesis]. If Ultra fails, Super writes.
-- **A grounding check** (plain code, no LLM) looks for any number, gene or link in the note
-  that no tool returned. The writer gets one rewrite; anything left is shown with the note.
-- **Treatment content is evidence, not advice.** Each CIViC (CC0) item keeps its evidence level
-  (A validated … E inferential), significance, citation and link, for clinician review, never
-  a recommendation.
-- Without a key the same tools run in a fixed order and a template writes the note; ★ patients
-  have a saved note from the live agent.
-
-#### Federated training (NVIDIA FLARE, simulated hospitals)
-Each simulated hospital trains on its own patients' copy number, RNA expression, methylation,
-protein and clinical data; only model weights go to the FLARE server, which averages them
-(FedAvg) and sends the global model back. A hospital that never measured a layer still takes
-part: the layer is masked, and training randomly hides layers so the model copes. The model
-first learns a clinical risk, then lets the omic layers correct it by an amount chosen on
-hospitals it wasn't trained on. The hospitals run in the NVFlare simulator, not at real sites.
-
-#### Limits
-{signal}
-- The model ranks patients; its absolute risks are only roughly calibrated, and it is weaker
-  for patients under 50 and within a single stage.
-- The timeline patient is synthetic. The MSK-CHORD models' held-out AUROC is shown next to each
-  estimate; some of their features reflect care (how often labs and treatments are recorded),
-  not only biology.
-- Research prototype on public TCGA-BRCA data (1,064 patients, overall survival). Not for
-  clinical use.
-
-#### Privacy
-- Only derived numbers (risk, percentile, contributions, attribution scores) and gene or
-  mutation names go to Token Factory and Tavily, never a patient's omics values, and nothing
-  from MSK-CHORD. The hosted demo loads a bundle: the model weights and a few dozen held-out
-  patients' processed features, nothing else patient-level.
-- Every Token Factory call counts against a hard spending cap; once reached, notes fall back to
-  the offline template.
-
-[Source code, results and decisions]({REPO}) · built for the Nebius × NVIDIA Global AI
-Hackathon, {date.today().year}.
-""")
+st.navigation([
+    st.Page(patients_page, title="Patients", icon="🗂️", default=True),
+    st.Page(methods_page, title="Methods and validation", icon="📖", url_path="methods"),
+]).run()
 
 if LIVE:
     notes_left = max(0, CAP - st.session_state.live_used)

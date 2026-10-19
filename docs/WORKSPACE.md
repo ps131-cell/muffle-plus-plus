@@ -203,20 +203,23 @@ is in [`registry.md`](registry.md). Gated models need access requests.
 - **Clinical text:** biomedical language models.
 
 ## Status today (2026-10-19)
+The app has two pages: Patients (the workspace below) and Methods and validation (model cards,
+alert rules, how the case note is made, federated training, data sources and licenses).
+
 | Spec | Today |
 |---|---|
-| Patients list with search | Not built; Case review has a selector over held-out TCGA patients |
-| Patient file and report | Partly: Case review shows risk, layer contributions, a what-if for missing layers, and the case agent's labeled note with its grounding check and tool trace |
-| SOS tile | Not built |
-| Import tests | Not built |
-| Tests browser | Not built; the timeline tab has an event log |
-| Report versions and timeline | Partly: the synthetic patient's timeline re-scores the risk at each event and says what changed and why |
-| Pathology workbench | Not built for breast; the colon analyzer is a separate project |
-| Radiology workbench | Not built |
-| Labs workbench | Partly: the synthetic patient's CA 15-3 and CEA values in its timeline |
-| Genomics workbench | Partly: observed driver mutations (TCGA) with CIViC evidence, whose matching misses compound profiles |
-| Expression, methylation, protein | Used by the risk model; per-layer top features only |
-| Status labels on modules | Not built |
+| Patients list with search | Built: SYNTHETIC-001 and the held-out TCGA cases, with search, an SOS filter and a row click that opens the file; `?patient=<id>` addresses a file |
+| Patient file and report | Built: the latest report first (summary, SOS tile, observed record, risk with its model and uncertainty, why, mutations with CIViC evidence, missing data, sources); TCGA files keep the case agent's note with its grounding check and tool trace |
+| SOS tile | Built: progression, new metastatic site, tumor-marker rise (EGTM rule, unconfirmed until a second specimen), 12-month risk jump (placeholder threshold), new driver with level A or B CIViC evidence; each alert names its rule and threshold source, with earlier alerts kept |
+| Import tests | Planned, and shown as planned |
+| Tests browser | Built: every test with type, month, result and workbench status, a filter by type; a selected test opens its workbench |
+| Report versions and timeline | Built for SYNTHETIC-001: a version slider re-opens the report, tests and timeline as they were; the risk timeline marks treatments; any two versions can be compared. TCGA files have one version |
+| Pathology workbench | Planned; pathology reports show as text |
+| Radiology workbench | Planned; imaging reports show as text |
+| Labs workbench | Basic: CA 15-3 trend with the reference limit, treatments, change from the previous value and from the lowest, rate per month, and flags with their rule; CEA "not measured". A deeper lab workbench is in progress |
+| Genomics workbench | Basic: observed variants, panel genes not found, CIViC items per variant for clinician review; ctDNA monitoring planned. A deeper genomics workbench is in progress |
+| Expression, methylation, protein | Basic: each layer's effect on the risk and its strongest features; distributions, pathway and subtype scores planned |
+| Status labels on modules | Built: every section shows its evidence labels and its status (implemented, experimentally validated, planned) |
 
 ### What ships before the Oct 28 freeze (scope B, decided 2026-10-19)
 Starting with the pathology workbench would reuse the most existing work, but the colon

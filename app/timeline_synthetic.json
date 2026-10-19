@@ -1,7 +1,7 @@
 {
  "synthetic": true,
  "patient_id": "SYNTHETIC-001",
- "notice": "Synthetic patient: made up by hand for this demo, not a real person and not taken from any dataset. Its record follows the structure of MSK-CHORD timelines so the MSK-CHORD risk models can score it.",
+ "notice": "Synthetic patient: written by hand to show how a record grows, not a real person and not taken from any dataset. Its record follows the structure of MSK-CHORD timelines so the MSK-CHORD risk models can score it.",
  "model_note": "Risk models trained locally on MSK-CHORD breast cancer timelines (Jee et al., Nature 2024; CC BY-NC-ND 4.0). Only this synthetic patient's scores and aggregate test metrics are published; no MSK-CHORD patient or model leaves the machine.",
  "task": "risk of progression or death in the next 12 months",
  "events": [
