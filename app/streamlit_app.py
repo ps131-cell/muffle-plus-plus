@@ -29,6 +29,7 @@ import json
 import os
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 APP = Path(__file__).parent
@@ -163,7 +164,7 @@ def badge(status: str) -> str:
 
 st.set_page_config(page_title="MuFFLe++ · breast cancer intelligence", page_icon="🧬",
                    layout="wide")
-DISCLAIMER = "Research and decision support for clinicians; not a diagnosis or a prescription."
+DISCLAIMER = workspace.DISCLAIMER
 secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
             args.bundle)
@@ -174,6 +175,9 @@ CAP = int(os.getenv("DEMO_LIVE_NOTES_PER_SESSION") or 5)  # "" (an empty .env li
 st.session_state.setdefault("live_used", 0)
 st.session_state.setdefault("reports", {})  # cohort index -> (CaseReport, source)
 st.session_state.setdefault("list_n", 0)    # a new patient-list key drops its old selection
+st.session_state.setdefault("tests_n", 0)   # likewise for the tests table after "open the test"
+st.session_state.setdefault("reviews", {})  # finding key -> {"what", "mark", "by", "at"}
+st.session_state.setdefault("pins", {})     # finding key -> what it is
 
 TL = timeline()
 FILES, CASES = {}, {}  # patient id -> PatientFile; and for a TCGA file, its held-out case
@@ -199,6 +203,9 @@ with st.sidebar:
         f"{'CIViC (CC0), for clinician review' if EVIDENCE else 'off (CIViC table unavailable)'}"
         f"  \n**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
     budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
+    st.text_input("Reviewer initials", key="reviewer", max_chars=5,
+                  help="Saved with each review mark. Marks and pins stay in this browser "
+                       "session and go into the report export.")
     st.caption(f"{DISCLAIMER} [Source code]({REPO})")
 
 
@@ -287,13 +294,17 @@ def report_view(pf: workspace.PatientFile, i: int):
     st.markdown(f"**Summary** · {pf.diagnosis}. Latest in the record: {arrived}. "
                 f"{tags(OBSERVED)}  \n{v.summary} {tags(INFERENCE) if v.risk else ''}")
     sos_tile(pf, i)
+    review_panel(pf)
 
     left, right = st.columns(2)
     with left:
         st.markdown(f"**Characterization and record** {tags(OBSERVED)}")
         st.markdown("\n".join(f"- **{k}:** {val}" for k, val in v.observed))
     with right:
-        st.markdown(f"**Risk** {tags(INFERENCE)} {badge(pf.model['status'])}")
+        head, box = st.columns([4, 1])
+        head.markdown(f"**Risk** {tags(INFERENCE)} {badge(pf.model['status'])}")
+        with box:
+            review_box(workspace.finding_key(pf, "risk", v.month), f"Risk estimate, {v.label}")
         if case is None:
             synthetic_risk(pf, i)
         else:
@@ -316,7 +327,7 @@ def report_view(pf: workspace.PatientFile, i: int):
 
     st.markdown(f"**Mutations** {tags(OBSERVED)} **and treatment evidence for clinician "
                 f"review** {tags(HYPOTHESIS)}")
-    seq = sequencing(pf, i)
+    seq = workspace.sequencing_tests(pf, i)
     if not seq:
         st.caption("Not sequenced: driver mutations are unknown, not wild type.")
     for t in seq:
@@ -333,37 +344,132 @@ def report_view(pf: workspace.PatientFile, i: int):
     st.markdown(f"**Evolutionary hypotheses** {badge(workspace.PLANNED)} · the likely next "
                 "alterations and escape routes, with their confidence (docs/VISION.md).")
     st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
-    st.markdown("\n".join(f"- {line}" for line in missing(pf, i)))
+    st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
     with st.expander("Caveats, data sources and model versions"):
         st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
                     f"{pf.model['endpoint']}.\n" + "\n".join(f"- {s}" for s in sources(pf)))
+    page = workspace.report_markdown(pf, i, {var: civic_items(pf, var) for var in variants},
+                                     st.session_state.reviews, sources(pf))
+    when = "baseline" if v.month is None else f"month{v.month}"
+    st.download_button("Download this report version (Markdown)", page,
+                       file_name=f"{pf.id.replace(' ', '_')}_{when}.md", mime="text/markdown",
+                       help="One page: numbers, sources, placeholders, model versions and your "
+                            "review marks.")
     if case is not None:
         case_note(case)
 
 
+TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
+MARKS = ["agree", "disagree", "second look"]
+
+
 def sos_tile(pf: workspace.PatientFile, i: int):
-    now = pf.versions[i].alerts
-    before = [a for v in pf.versions[:i] for a in v.alerts]
+    """The alert queue: this version's alerts, then earlier ones (latest first), each list ordered
+    by consequence × trust. One alert at a time is open, with its actions; next / previous step
+    through the queue."""
+    v = pf.versions[i]
+    queue = v.alerts + [a for w in reversed(pf.versions[:i]) for a in w.alerts]
     with st.container(border=True):
-        if now:
-            st.markdown(f"**:red[SOS] · {len(now)} alarming finding"
-                        f"{'s' if len(now) > 1 else ''} in this version**")
-            for a in now:
-                alert_line(a)
-        else:
+        if not queue:
             st.markdown("**SOS** · nothing alarming in this version")
             if len(pf.versions) == 1:
                 st.caption(pf.note)
-        if before:
-            with st.expander(f"Earlier alerts ({len(before)})"):
-                for a in reversed(before):
-                    alert_line(a)
+            return
+        earlier = len(queue) - len(v.alerts)
+        head = (f"**:red[SOS]** · {len(v.alerts)} alarming in this version" if v.alerts
+                else "**SOS** · nothing new in this version")
+        st.markdown(head + (f", {earlier} earlier" if earlier else ""))
+        pos = f"sos-{pf.id}-{i}"
+        k = st.session_state.get(pos, 0) % len(queue)
+        a = queue[k]
+        key = workspace.finding_key(pf, "alert", a.month, a.what)
+        done = st.session_state.reviews.get(key)
+        flag = " :orange-badge[placeholder threshold]" if "placeholder" in a.threshold else ""
+        st.markdown(f"**{k + 1}/{len(queue)} · {a.what}** {tags(a.evidence)} "
+                    f":{TRUST_COLORS[a.trust]}-badge[trust: {a.trust}]{flag}")
+        since = f"month {a.month}" + ("" if a.month == v.month or v.month is None
+                                      else f", {v.month - a.month} months before this version")
+        st.caption(f"Since {since} · source: {a.source} · rule: {a.rule} · threshold: "
+                   f"{a.threshold} · trust {a.trust}: {a.why_trust}"
+                   + (f" · {done['mark']} by {done['by'] or 'no initials'}, {done['at']}"
+                      if done else ""))
+        c = st.columns([3, 3, 2, 2, 3])
+        if a.opens:
+            c[0].button("Open the test" if a.opens[0] == "Tests" else "Open the timeline",
+                        key=f"open-{key}", on_click=open_evidence, args=(pf, a))
+        c[1].button("Mark reviewed", key=f"reviewed-{key}", disabled=done is not None,
+                    on_click=mark, args=(key, a.what, "reviewed"))
+        c[2].button("◀", key=f"prev-{pos}", help="Previous alert",
+                    on_click=lambda: st.session_state.update({pos: k - 1}))
+        c[3].button("▶", key=f"next-{pos}", help="Next alert",
+                    on_click=lambda: st.session_state.update({pos: k + 1}))
+        with c[4]:
+            review_box(key, a.what)
+        lines = []
+        for n, b in enumerate(queue):
+            line = f"{b.what} · month {b.month} · trust {b.trust}"
+            seen = st.session_state.reviews.get(workspace.finding_key(pf, "alert", b.month, b.what))
+            lines.append(f"{n + 1}. " + (f"**{line}**" if n == k else line)
+                         + (f" · ✓ {seen['mark']}" if seen else ""))
+        st.markdown("\n".join(lines))
+        st.caption("Ordered by consequence × trust, this version first: a fixed ordering rule "
+                   "with placeholder weights, not a validated score.")
 
 
-def alert_line(a: workspace.Alert):
-    flag = " :orange-badge[placeholder threshold]" if "placeholder" in a.threshold else ""
-    st.markdown(f"- **{a.what}** {tags(a.evidence)}{flag}  \n"
-                f"  Source: {a.source} · rule: {a.rule} · threshold: {a.threshold}")
+def open_evidence(pf: workspace.PatientFile, a: workspace.Alert):
+    """"Open the test": switch the file to the view that holds the alert's evidence."""
+    if a.opens[0] == "Tests":
+        st.session_state[f"picked-{pf.id}"] = a.opens[1:]
+        st.session_state.tests_n += 1  # a fresh tests table, so no old row selection wins
+    st.session_state.view = a.opens[0]
+
+
+def mark(key: str, what: str, value: str | None):
+    """Store (or, with None, clear) a reviewer's mark on one finding."""
+    if value is None:
+        st.session_state.reviews.pop(key, None)
+    else:
+        st.session_state.reviews[key] = {"what": what, "mark": value,
+                                         "by": st.session_state.get("reviewer") or "",
+                                         "at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+
+
+def toggle_pin(key: str, what: str):
+    if st.session_state.pins.pop(key, None) is None:
+        st.session_state.pins[key] = what
+
+
+def review_box(key: str, what: str):
+    """Agree / disagree / second look and a pin for one finding, in a small popover."""
+    h = hashlib.sha1(key.encode()).hexdigest()[:10]
+    done = st.session_state.reviews.get(key)
+    with st.popover(f"✓ {done['mark']}" if done else "Review",
+                    help="Mark this finding; marks go into the report export"):
+        st.segmented_control(
+            "Your mark", MARKS, key=f"mark-{h}",
+            default=done["mark"] if done and done["mark"] in MARKS else None,
+            on_change=lambda: mark(key, what, st.session_state[f"mark-{h}"]))
+        st.checkbox("Pin to the top of the report", key=f"pin-{h}",
+                    value=key in st.session_state.pins, on_change=toggle_pin, args=(key, what))
+        if done:
+            st.caption(f"{done['mark']} · {done['by'] or 'no initials'} · {done['at']}")
+
+
+def review_panel(pf: workspace.PatientFile):
+    """Pinned findings and every review mark in this file, with a filter."""
+    marks = {k: r for k, r in st.session_state.reviews.items() if k.startswith(pf.id + "|")}
+    pins = {k: w for k, w in st.session_state.pins.items() if k.startswith(pf.id + "|")}
+    if not marks and not pins:
+        return
+    with st.expander(f"Pinned and reviewed: {len(pins)} pinned, {len(marks)} marked",
+                     expanded=bool(pins)):
+        show = st.pills("Show", ["pinned", "reviewed", *MARKS], selection_mode="multi",
+                        key=f"review-filter-{pf.id}")
+        rows = [("pinned", w, "", "") for w in pins.values()] + [
+            (r["mark"], r["what"], r["by"], r["at"]) for r in marks.values()]
+        st.dataframe(pd.DataFrame([r for r in rows if not show or r[0] in show],
+                                  columns=["Mark", "Finding", "By", "When"]),
+                     hide_index=True, width="stretch")
 
 
 def synthetic_risk(pf: workspace.PatientFile, i: int):
@@ -439,10 +545,6 @@ def case_why(case):
                       delta_color="inverse")
 
 
-def sequencing(pf: workspace.PatientFile, i: int) -> list[workspace.Test]:
-    return [t for v in pf.versions[: i + 1] for t in v.tests if t.workbench == "mutations"]
-
-
 def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
     """CIViC items for a variant: frozen with the timeline file for the synthetic patient, else
     from the live table (None if it couldn't load)."""
@@ -464,28 +566,15 @@ def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
         elif not items:
             st.caption("No CIViC breast cancer evidence for this variant.")
         for e in (items or [])[:k]:
-            st.markdown(f"- Level **{e['evidence_level']}** ({e['level_meaning']}) · "
-                        f"{e['therapies'].replace(',', ', ')} · "
-                        f"{str(e['significance']).lower()} · matches "
-                        f"{e.get('match', 'this variant')} · [{e['citation']}]({e['url']})")
-
-
-def missing(pf: workspace.PatientFile, i: int) -> list[str]:
-    v = pf.versions[i]
-    obs = dict(v.observed)
-    out = [f"{k}: {val}" for k, val in v.observed if val.startswith("not ")]
-    if obs.get("Not measured", "none") != "none":
-        out.append(f"Not measured: {obs['Not measured']} (the model masks a missing layer; it is "
-                   "unknown, not normal)")
-    seq = sequencing(pf, i)
-    if seq and seq[-1].month is not None and v.month > seq[-1].month:
-        out.append(f"Not sequenced since month {seq[-1].month}: mutations that arose under later "
-                   "treatment would not show")
-    if any(t.status == workspace.PLANNED for w in pf.versions[: i + 1] for t in w.tests):
-        out.append("Imaging and pathology reports are text only: their workbenches are planned")
-    if len(pf.versions) == 1:
-        out.append(pf.note)
-    return out or ["Nothing recorded as missing."]
+            text, box = st.columns([6, 1])
+            text.markdown(f"- Level **{e['evidence_level']}** ({e['level_meaning']}) · "
+                          f"{e['therapies'].replace(',', ', ')} · "
+                          f"{str(e['significance']).lower()} · matches "
+                          f"{e.get('match', 'this variant')} · [{e['citation']}]({e['url']})")
+            with box:
+                review_box(workspace.finding_key(pf, "civic", variant, e["url"]),
+                           f"{variant}: CIViC level {e['evidence_level']}, "
+                           f"{e['therapies'].replace(',', ', ')} ({e['citation']})")
 
 
 def sources(pf: workspace.PatientFile) -> list[str]:
@@ -575,15 +664,19 @@ def tests_view(pf: workspace.PatientFile, i: int):
     table = pd.DataFrame([{"Type": t.kind, "Month": t.month, "Test": t.name, "Result": t.result,
                            "Workbench": t.workbench, "Status": t.status} for t in shown])
     rows = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
-                        key=f"tests-{pf.id}-{i}-{'.'.join(kinds)}", width="stretch").selection.rows
+                        key=f"tests-{pf.id}-{i}-{'.'.join(kinds)}-{st.session_state.tests_n}",
+                        width="stretch").selection.rows
     st.caption("Select a test to open its workbench. " + (
         "Months count from the first tumor sequencing." if pf.kind == "synthetic" else
         "TCGA holds one sample per patient, so its tests carry no dates."))
     if not shown:
         return
-    t = shown[rows[0]] if rows else next(
-        (t for w in ("labs", "mutations", "omics", "record") for t in shown if t.workbench == w),
-        shown[0])
+    picked = f"picked-{pf.id}"  # the last test opened here or from an alert
+    if rows:
+        st.session_state[picked] = (shown[rows[0]].kind, shown[rows[0]].month, shown[rows[0]].name)
+    t = next((t for t in shown if (t.kind, t.month, t.name) == st.session_state.get(picked)),
+             None) or next((t for w in ("labs", "mutations", "omics", "record") for t in shown
+                            if t.workbench == w), shown[0])
     st.divider()
     if t.workbench == "labs":
         lab_workbench(pf, i, t.details["marker"])
@@ -636,7 +729,7 @@ def lab_workbench(pf: workspace.PatientFile, i: int, key: str):
 
 def mutation_workbench(pf: workspace.PatientFile, i: int):
     st.markdown(f"#### Mutation workbench {badge(workspace.IMPLEMENTED)}")
-    seq = sequencing(pf, i)
+    seq = workspace.sequencing_tests(pf, i)
     if not seq:
         st.info("Not sequenced yet: driver mutations are unknown, not wild type.")
     for t in seq:

@@ -33,6 +33,10 @@ REFERENCE_LIMITS = {"ca153": (30.0, "the record's lab report (month -2)")}
 RISE = 0.25
 EGTM = "literature: EGTM breast cancer recommendations (egtm.eu; Molina et al., Tumour Biol 2005)"
 RISK_JUMP = 20  # PLACEHOLDER: a rise in 12-month risk (points) worth an alert, not validated
+# ponytail: alerts are ordered by consequence × these weights, a fixed rule (placeholder), not a
+# validated score; a triage model calibrated on outcomes would replace it
+TRUST = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
+DISCLAIMER = "Research and decision support for clinicians; not a diagnosis or a prescription."
 
 ASSAYS = {"clinical": "Clinical record (stage, T/N/M, age, histology)",
           "genomic": "Copy number (ASCAT3, gene level)",
@@ -49,6 +53,14 @@ class Alert:
     evidence: str    # observed / model inference / hypothesis
     rule: str        # how it was decided
     threshold: str   # where the threshold comes from
+    trust: str = "strong"  # strong / moderate / weak (TRUST)
+    why_trust: str = ""    # what the trust rests on
+    consequence: int = 2   # 3 changes the picture of the disease, 2 may change care, 1 worth a look
+    opens: tuple = ()      # where its evidence is: ("Tests", kind, month, name) or ("Timeline",)
+
+    @property
+    def priority(self) -> float:
+        return self.consequence * TRUST[self.trust]
 
 
 @dataclass
@@ -122,14 +134,17 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
     for e, u in zip(events, tl["updates"], strict=True):
         m, alerts = e["month"], []
         source = f"{e['kind']}, month {m}"
+        imaging = ("Tests", "Imaging", m, "Imaging report")
         if e.get("progression"):
             alerts.append(Alert(f"Progression on imaging: {e['text']}", m, source, OBSERVED,
-                                "the imaging report reads progression", "none: recorded"))
+                                "the imaging report reads progression", "none: recorded",
+                                "strong", "recorded in the imaging report", 3, imaging))
         for site in e.get("sites", []):
             if site not in seen_sites:
                 seen_sites.add(site)
                 alerts.append(Alert(f"New metastatic site: {site.lower()}", m, source, OBSERVED,
-                                    "a site not in the record before", "none: recorded"))
+                                    "a site not in the record before", "none: recorded",
+                                    "strong", "recorded in the imaging report", 3, imaging))
         for key, (name, unit) in MARKERS.items():
             if key not in e:
                 continue
@@ -142,7 +157,9 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
                     f" above the reference limit of {limit[0]:g}", m, f"{name}, month {m}",
                     OBSERVED, f"above the reference limit and at least {RISE:.0%} above the "
                     "previous value; unconfirmed until a second specimen within a month",
-                    f"limit from {limit[1]}; the {RISE:.0%} rise from {EGTM}"))
+                    f"limit from {limit[1]}; the {RISE:.0%} rise from {EGTM}", "moderate",
+                    "measured values, but no confirming second specimen yet", 2,
+                    ("Tests", "Lab", m, name)))
         for gene, change in e.get("mutations", []):
             variant = f"{gene} {change}"
             if variant in seen_drivers:
@@ -155,7 +172,9 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
                     "evidence, for clinician review", m, f"Sequencing, month {m}",
                     f"{OBSERVED} (mutation), {HYPOTHESIS} (treatment evidence)",
                     "a sequenced driver with level A or B CIViC evidence",
-                    "CIViC curated evidence levels"))
+                    "CIViC curated evidence levels", "strong",
+                    "a sequenced variant; the evidence level is CIViC's", 2,
+                    ("Tests", "Sequencing", m, "Tumor sequencing")))
         risk = None
         if "risk" in u:
             model = tl["models"][str(u["landmark"])]
@@ -168,7 +187,9 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
                     f"({u['previous']:.0%} → {u['risk']:.0%})", m,
                     f"month-{u['landmark']} MSK-CHORD models", INFERENCE,
                     f"the 12-month risk rose at least {RISK_JUMP} points since the previous "
-                    "result", "placeholder"))
+                    "result", "placeholder", "weak",
+                    "a model estimate, judged by a placeholder threshold", 2, ("Timeline",)))
+        alerts.sort(key=lambda a: -a.priority)  # stable: ties keep the record's order
         versions.append(Version(
             m, f"month {m} · {e['kind']}", e["text"], u["observed"], risk,
             u.get("summary") or "No risk estimate yet: the models start at the first tumor "
@@ -238,3 +259,95 @@ def lab_series(events: list[dict], key: str) -> list[dict]:
         rows.append(row)
         prev, nadir = row, value if nadir is None else min(nadir, value)
     return rows
+
+
+def sequencing_tests(pf: PatientFile, i: int) -> list[Test]:
+    """The sequencing tests in the record up to report version ``i``."""
+    return [t for v in pf.versions[: i + 1] for t in v.tests if t.workbench == "mutations"]
+
+
+def missing_data(pf: PatientFile, i: int) -> list[str]:
+    """What the record lacks at report version ``i``, and what that limits."""
+    v = pf.versions[i]
+    obs = dict(v.observed)
+    out = [f"{k}: {val}" for k, val in v.observed if val.startswith("not ")]
+    if obs.get("Not measured", "none") != "none":
+        out.append(f"Not measured: {obs['Not measured']} (the model masks a missing layer; it is "
+                   "unknown, not normal)")
+    seq = sequencing_tests(pf, i)
+    if seq and seq[-1].month is not None and v.month > seq[-1].month:
+        out.append(f"Not sequenced since month {seq[-1].month}: mutations that arose under later "
+                   "treatment would not show")
+    if any(t.status == PLANNED for w in pf.versions[: i + 1] for t in w.tests):
+        out.append("Imaging and pathology reports are text only: their workbenches are planned")
+    if len(pf.versions) == 1:
+        out.append(pf.note)
+    return out or ["Nothing recorded as missing."]
+
+
+def finding_key(pf: PatientFile, kind: str, *parts) -> str:
+    """A stable name for one finding (an alert, a CIViC item, a risk estimate), for review marks
+    and pins: "SYNTHETIC-001|alert|11|CA 15-3 rose ..."."""
+    return "|".join([pf.id, kind, *map(str, parts)])
+
+
+def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
+                    reviews: dict | None = None, sources: list[str] | tuple = ()) -> str:
+    """Report version ``i`` as one Markdown page: summary, alerts, the three kinds of finding,
+    missing data, every placeholder, model and sources, and the reviewers' marks. ``evidence``
+    maps "GENE CHANGE" to its CIViC items (None: the table couldn't load); ``reviews`` maps
+    ``finding_key`` names to {"what", "mark", "by", "at"}."""
+    v, evidence, reviews = pf.versions[i], evidence or {}, reviews or {}
+    when = "" if v.month is None else f" (month {v.month})"
+    out = [f"# {pf.id} · report {v.label}", "", f"_{pf.title} · {pf.diagnosis}_", "",
+           f"_{DISCLAIMER}_", ""]
+    if pf.kind == "synthetic":
+        out += [f"> {pf.note}", ""]
+    out += ["## Summary", f"Latest in the record: {v.event}{when} [{OBSERVED}]", "",
+            f"{v.summary}" + (f" [{INFERENCE}]" if v.risk else ""), "",
+            "## SOS alerts in this version"]
+    out += [f"- {a.what} [{a.evidence}; trust {a.trust}: {a.why_trust}]. Rule: {a.rule}. "
+            f"Threshold: {a.threshold}." for a in v.alerts] or ["- none"]
+    out += ["", f"## Observed [{OBSERVED}]"] + [f"- {k}: {val}" for k, val in v.observed]
+    out += ["", f"## Model inference [{INFERENCE}]"]
+    r = v.risk or {}
+    if "value" in r:
+        out.append(f"- 12-month risk {r['value']:.0%} (5 models: {r['range'][0]:.0%}–"
+                   f"{r['range'][1]:.0%}); diagnosis only {r['baseline']:.0%}; month-"
+                   f"{r['landmark']} {pf.model['name']}, held-out AUROC {r['auroc']:.2f}; "
+                   "calibration not checked")
+        out += [f"  - {c['what']}: {c['points']:+.0f} points" for c in v.changes]
+    elif "percentile" in r:
+        out.append(f"- Risk at the {ordinal(r['percentile'])} percentile ({r['group']} risk "
+                   f"group); {pf.model['name']}"
+                   + ("" if r.get("c_index") is None else f", held-out C-index "
+                      f"{r['c_index']:.3f}") + "; it ranks patients and is only roughly "
+                   "calibrated")
+    else:
+        out.append(f"- {v.summary}")
+    out += ["", f"## Hypotheses and evidence [{HYPOTHESIS}; for clinician review, not a "
+            "recommendation]"]
+    for var in [var for t in sequencing_tests(pf, i) for var in t.details["variants"]]:
+        items = evidence.get(var)
+        if not items:
+            out.append(f"- {var}: " + ("CIViC not available here" if items is None else
+                                       "no CIViC breast cancer evidence"))
+        out += [f"- {var} · CIViC level {e['evidence_level']} ({e['level_meaning']}) · "
+                f"{e['therapies'].replace(',', ', ')} · {str(e['significance']).lower()} · "
+                f"{e['citation']} {e['url']}" for e in items or []]
+    if not sequencing_tests(pf, i):
+        out.append("- Not sequenced: no treatment evidence")
+    out += ["", "## Missing data and what it limits"]
+    out += [f"- {m}" for m in missing_data(pf, i)]
+    placeholders = [  # the rules this file's alerts use; a TCGA file has no alerts
+        f"An alert when the 12-month risk rises at least {RISK_JUMP} points",
+        "Alert order: consequence × trust, with trust weights "
+        + ", ".join(f"{k} {w:g}" for k, w in TRUST.items())] if pf.kind == "synthetic" else []
+    out += ["", "## Placeholders (not validated)"] + [f"- {p}" for p in placeholders or ["none"]]
+    out += ["", "## Model and sources",
+            f"- {pf.model['name']} ({pf.model['status']}); endpoint: {pf.model['endpoint']}"]
+    out += [f"- {s}" for s in sources]
+    marks = [r for k, r in reviews.items() if k.startswith(pf.id + "|")]
+    out += ["", "## Review marks"] + ([f"- {r['what']}: {r['mark']} ({r['by'] or 'no initials'}, "
+                                       f"{r['at']})" for r in marks] or ["- none"])
+    return "\n".join(out) + "\n"

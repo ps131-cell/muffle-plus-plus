@@ -210,7 +210,7 @@ alert rules, how the case note is made, federated training, data sources and lic
 |---|---|
 | Patients list with search | Built: SYNTHETIC-001 and the held-out TCGA cases, with search, an SOS filter and a row click that opens the file; `?patient=<id>` addresses a file |
 | Patient file and report | Built: the latest report first (summary, SOS tile, observed record, risk with its model and uncertainty, why, mutations with CIViC evidence, missing data, sources); TCGA files keep the case agent's note with its grounding check and tool trace |
-| SOS tile | Built: progression, new metastatic site, tumor-marker rise (EGTM rule, unconfirmed until a second specimen), 12-month risk jump (placeholder threshold), new driver with level A or B CIViC evidence; each alert names its rule and threshold source, with earlier alerts kept |
+| SOS tile | Built: progression, new metastatic site, tumor-marker rise (EGTM rule, unconfirmed until a second specimen), 12-month risk jump (placeholder threshold), new driver with level A or B CIViC evidence. A triage queue (this version first, then earlier), ordered by consequence × trust (placeholder weights); each alert says since when, its rule, threshold source and trust, with "open the test" (lands on the evidence), "mark reviewed" and next / previous |
 | Import tests | Planned, and shown as planned |
 | Tests browser | Built: every test with type, month, result and workbench status, a filter by type; a selected test opens its workbench |
 | Report versions and timeline | Built for SYNTHETIC-001: a version slider re-opens the report, tests and timeline as they were; the risk timeline marks treatments; any two versions can be compared. TCGA files have one version |
@@ -220,6 +220,7 @@ alert rules, how the case note is made, federated training, data sources and lic
 | Genomics workbench | Basic: observed variants, panel genes not found, CIViC items per variant for clinician review; ctDNA monitoring planned. A deeper genomics workbench is in progress |
 | Expression, methylation, protein | Basic: each layer's effect on the risk and its strongest features; distributions, pathway and subtype scores planned |
 | Status labels on modules | Built: every section shows its evidence labels and its status (implemented, experimentally validated, planned) |
+| Review tools and export | Built in the patient file: agree / disagree / second-look marks with initials and time and pins on alerts, CIViC items and the risk estimate, a filterable list of them, and a one-page Markdown export per report version (numbers, sources, placeholders, model versions, marks). Marks live in the browser session |
 
 ### What ships before the Oct 28 freeze (scope B, decided 2026-10-19)
 Starting with the pathology workbench would reuse the most existing work, but the colon

@@ -24,6 +24,10 @@ def shown(at) -> str:
                                          "info") for e in getattr(at, kind))
 
 
+def button(at, label: str):
+    return next(b for b in at.button if b.label == label)
+
+
 def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeypatch):
     np.savez(tmp_path / "cohort.npz", **cohort)
     torch.manual_seed(0)
@@ -53,8 +57,22 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
     at.select_slider(key="version-SYNTHETIC-001").set_value(11).run()  # month 12
-    assert "New metastatic site: liver" in shown(at) and "placeholder threshold" in shown(at)
+    assert "1/7 · Progression on imaging" in shown(at)  # 3 alerts now, 4 earlier; strongest first
+    assert "New metastatic site: liver" in shown(at)
+    button(at, "Open the test").click().run()  # lands on the imaging report behind the alert
+    assert at.segmented_control(key="view").value == "Tests"
+    assert "Imaging report, month 12" in shown(at)
+    at.segmented_control(key="view").set_value("Report").run()
+    button(at, "▶").click().run()
+    button(at, "▶").click().run()
+    assert "3/7 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
+    button(at, "Mark reviewed").click().run()
+    assert "✓ reviewed" in shown(at) and not at.exception
+    assert [b.label for b in at.get("download_button")] == [
+        "Download this report version (Markdown)"]
     at.segmented_control(key="view").set_value("Tests").run()
+    at.session_state["picked-SYNTHETIC-001"] = ("Lab", 11, "CA 15-3")
+    at.run()
     assert "Lab workbench" in shown(at) and "Flag, month 11" in shown(at)
 
     at.selectbox(key="patient").select(case).run()
