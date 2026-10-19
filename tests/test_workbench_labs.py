@@ -1,5 +1,7 @@
 """Blood and lab workbench: rules over the synthetic record and over small hand-made records."""
 
+import pytest
+
 from muffle.timeline import EVENTS
 from muffle.workbench.labs import (
     ABOVE,
@@ -10,10 +12,19 @@ from muffle.workbench.labs import (
     PLANNED_PANELS,
     RISING,
     WITHIN,
+    baseline_band,
+    confirmation_tracker,
+    cross_marker,
+    kinetics,
+    lead_lag,
     look_here,
     quality_checks,
+    report_markdown,
     results_table,
     rules_card,
+    search,
+    spot,
+    therapy_windows,
     treatment_intervals,
 )
 from muffle.workspace import PLANNED
@@ -109,6 +120,155 @@ def test_rules_card_has_no_model_and_every_threshold_a_source():
     assert all(status == PLANNED for _, _, status in PLANNED_PANELS)
 
 
+def test_pointers_are_shared_by_the_table_and_the_queue():
+    rows = results_table(EVENTS)
+    assert [(r["month"], r["pointer"]) for r in rows] == [
+        (-2, "L1"), (1, "L2"), (4, "L3"), (7, ""), (11, "L4"), (16, "L5"), (19, "L6"), (24, "L7")]
+    assert {i["month"]: i["pointer"] for i in look_here(EVENTS)}[11] == "L4"
+
+
+def test_spot_panel_lists_the_rules_the_events_around_and_what_to_check():
+    rows = results_table(EVENTS)
+    s = spot(rows[4], rows, EVENTS)  # month 11
+    assert [f["flag"] for f in s["fired"]] == [ABOVE, RISING]
+    assert [e["month"] for e in s["events_around"]] == [11, 12, 13]
+    assert len(s["check_by_eye"]) == 3 and "not a concern" in s["check_by_eye"][2]
+    assert len(s["history"]) == 8 and s["evidence"] == "observed"
+    high = [{"month": 0, "ca153": 20, "text": "a"}, {"month": 1, "ca153": 400, "text": "b"}]
+    hr = results_table(high)
+    assert "over 10x the limit" in spot(hr[1], hr, high)["check_by_eye"][2]
+
+
+def test_kinetics_is_a_labeled_extrapolation_over_the_last_three_values():
+    k = kinetics(results_table(EVENTS), "ca153")  # 41 at 16, 34 at 19, 31 at 24
+    assert k["evidence"] == "model inference" and "placeholder" in k["method"]
+    assert k["months"] == (16, 24) and k["direction"] == "falling"
+    assert round(k["rate_per_month"], 4) == -0.0333 and round(k["halving_months"]) == 21
+    assert tuple(round(x) for x in k["halving_months_range"]) == (11, 38)
+    assert k["crossing"]["direction"] == "below" and round(k["crossing"]["months"], 1) == 1.0
+    assert k["crossing"]["text"].endswith("would be crossed in about 1 month")
+    assert tuple(round(x, 1) for x in k["crossing"]["range_months"]) == (0.5, 1.8)
+    assert k["band"][0]["month"] == 24 and k["band"][0]["value"] == 31
+    assert k["band"][-1]["lo"] <= k["band"][-1]["value"] <= k["band"][-1]["hi"]
+    assert "not a prediction of progression" in k["caveat"]
+    short = [{"month": 0, "ca153": 20, "text": "a"}, {"month": 3, "ca153": 25, "text": "b"}]
+    assert kinetics(results_table(short), "ca153")["note"] == "needs at least 3 values, 2 recorded"
+    rising = [{"month": m, "ca153": v, "text": "x"} for m, v in ((0, 10), (3, 14), (6, 20))]
+    k = kinetics(results_table(rising), "ca153")
+    assert k["direction"] == "rising" and k["crossing"]["direction"] == "above"
+    assert round(k["doubling_months"]) == 6 and 0 < k["crossing"]["months"] < 6
+
+
+def test_confirmation_tracker_follows_the_egtm_second_specimen_rule():
+    t = confirmation_tracker(results_table(EVENTS))
+    assert len(t) == 1 and t[0]["pointer"] == "L4" and t[0]["due_by"] == 12
+    assert t[0]["outcome"] == "unconfirmed" and "month 16" in t[0]["detail"]
+    assert t[0]["status"] == LITERATURE and t[0]["evidence"] == "observed"
+
+    def record(third):
+        return [{"month": 0, "ca153": 20, "text": "a"}, {"month": 2, "ca153": 30, "text": "b"},
+                {"month": 3, "ca153": third, "text": "c"}]
+    assert confirmation_tracker(results_table(record(28)))[0]["outcome"] == "confirmed"
+    assert confirmation_tracker(results_table(record(22)))[0]["outcome"] == "withdrawn"
+    open_rise = confirmation_tracker(results_table(record(28)[:2]))[0]
+    assert open_rise["outcome"] == "unconfirmed" and open_rise["detail"].endswith("month 3")
+
+
+def test_therapy_windows_mark_values_early_after_a_systemic_therapy_change():
+    rows, intervals = results_table(EVENTS), treatment_intervals(EVENTS)
+    w = therapy_windows(rows, intervals)
+    assert [(x["month"], x["therapy"], x["months_after"]) for x in w] == [
+        (1, "palbociclib + fulvestrant", 0)]
+    assert "doi:10.1007/BF00311583" in w[0]["source"] and "placeholder" in w[0]["window"]
+    assert [x["month"] for x in therapy_windows(rows, intervals, months=3)] == [1, 4, 16]
+
+
+def test_baseline_band_is_the_longest_stable_run_labeled_by_its_months():
+    band = baseline_band(results_table(EVENTS), "ca153")
+    assert (band["months"], band["n"]) == ((16, 24), 3)
+    assert (band["median"], band["lo"], band["hi"]) == (34, 31, 41)
+    assert band["status"] == PLACEHOLDER and "placeholder" in band["method"]
+    assert baseline_band(results_table(EVENTS[:9]), "ca153") is None  # runs of 2 only
+
+
+def test_lead_lag_states_the_observed_order_against_imaging():
+    out = lead_lag(results_table(EVENTS), EVENTS)
+    assert [(x["imaging_month"], x["marker_month"], x["lead_months"]) for x in out] == [
+        (-1, -2, 1), (7, 7, 0), (12, 11, 1), (19, 19, 0)]
+    month12 = out[2]
+    assert month12["pointer"] == "L4" and month12["progression"]
+    assert month12["what"] == ("CA 15-3 above limit, rising at month 11 came 1 month before "
+                               "the progression on imaging at month 12: concordant")
+    assert out[3]["what"].endswith("discordant") and out[1]["what"].endswith("concordant")
+    assert all(x["evidence"] == "observed" and "not a validated" in x["caveat"] for x in out)
+
+
+def test_cross_marker_names_concordant_and_discordant_rises():
+    view = cross_marker(results_table(EVENTS))
+    assert view["pairs"] == [] and view["note"].startswith("CEA has no values")
+    assert view["status"] == PLANNED and "correlation is not causation" in view["caveat"]
+    both = [{"month": 0, "ca153": 20, "cea": 2, "text": "a"},
+            {"month": 3, "ca153": 30, "cea": 2.1, "text": "b"},
+            {"month": 6, "ca153": 40, "cea": 4, "text": "c"},
+            {"month": 9, "ca153": 41, "cea": 4.1, "text": "d"}]
+    pairs = cross_marker(results_table(both))["pairs"]
+    assert [p["relation"] for p in pairs] == [
+        "neither rising", "discordant: CA 15-3 rising, CEA not", "concordant rise",
+        "neither rising"]
+    assert pairs[2]["ca153_flag"] == "above limit, rising" and pairs[2]["cea_flag"] == RISING
+
+
+@pytest.mark.parametrize("query, understood, n, answer", [
+    ("above the limit", True, 7, "7 results above limit"),
+    ("rising", True, 1, "1 result rising"),
+    ("after palbociclib", True, 7, "7 results after palbociclib (started month 1)"),
+    ("before letrozole", True, 0, "0 results before letrozole (started month -33) (none in "
+                                  "the record)"),
+    ("month 11", True, 1, "1 result at month 11"),
+    ("L4", True, 1, "1 pointer L4"),
+    ("ca 15-3", True, 8, "8 CA 15-3 results"),
+    ("liver lesions", False, 0, "this panel can't see that. It searches flags (above the limit, "
+                                "rising, falling, within limit), treatments (after palbociclib, "
+                                "before letrozole), months (month 11), pointers (L5) and marker "
+                                "names."),
+])
+def test_search_in_plain_words_with_an_honest_cant_answer(query, understood, n, answer):
+    hit = search(query, results_table(EVENTS), treatment_intervals(EVENTS))
+    assert (hit["understood"], len(hit["rows"]), hit["answer"]) == (understood, n, answer)
+
+
+def test_search_names_an_unknown_treatment():
+    hit = search("after bevacizumab", results_table(EVENTS), treatment_intervals(EVENTS))
+    assert not hit["understood"] and hit["answer"].startswith("no treatment called bevacizumab")
+
+
+def test_report_markdown_lists_numbers_flags_placeholders_and_review_marks():
+    rows, iv = results_table(EVENTS), treatment_intervals(EVENTS)
+    md = report_markdown("SYNTHETIC-001", rows, look_here(EVENTS), quality_checks(EVENTS),
+                         rules_card(), kinetics(rows, "ca153"), confirmation_tracker(rows),
+                         therapy_windows(rows, iv), baseline_band(rows, "ca153"),
+                         lead_lag(rows, EVENTS),
+                         {"L4 rising": {"mark": "agree", "initials": "ab", "time": "12:00"}})
+    assert "| L4 | CA 15-3 | 11 | 52 U/mL | below 30 U/mL | above limit, rising | +73% |" in md
+    assert "- L4 month 11, CA 15-3 52 U/mL: rising" in md and "European Group" in md
+    assert "halving months: 21 (range 11 to 38)" in md
+    assert "would be crossed in about 1 month" in md
+    assert "## Placeholders" in md and "- fall:" in md and "- gap:" in md
+    assert "- kinetics method:" in md and "- therapy caution window:" in md
+    assert "- L4 rising: agree (ab, 12:00)" in md
+    assert "recommend" not in md.replace("Nothing here is a recommendation", "")
+    assert report_markdown("X", rows, [], [], rules_card()).endswith("- none\n\n"
+        "Rules: Lab result rules (blood and lab workbench); validation: none here: no cohort, "
+        "no outcome, no assay study; the rise criterion is the EGTM guidance, not validated on "
+        "this record.\n")
+
+
+def results_of(at):
+    """The results table: the first dataframe whose columns start with pointer and review."""
+    return next(d.value for d in at.dataframe
+                if list(d.value.columns)[:3] == ["pointer", "review", "marker"])
+
+
 def test_the_page_renders_both_file_kinds_and_its_filter_works():
     from pathlib import Path
 
@@ -119,12 +279,37 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
                            default_timeout=60).run()
     assert not at.exception
     assert "Synthetic patient" in at.warning[0].value
-    assert len(at.expander) == 7 and len(at.dataframe[0].value) == 8
+    assert len(at.expander) == 7 and len(results_of(at)) == 8
     at.checkbox[0].check().run()
-    assert len(at.dataframe[0].value) == 7  # the month-7 value within the limit drops out
+    assert len(results_of(at)) == 7  # the month-7 value within the limit drops out
     text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.warning, *at.info]
                     + [*at.subheader]).lower()
     assert "synthetic" in text and not any(w in text for w in ("demo", "hackathon"))
+    assert "L4: the rise at month 11 is **unconfirmed**" in at.markdown[0].value
+    assert "halving time about 21 months" in at.markdown[0].value
+    headings = [m.value for m in at.markdown if m.value.startswith("#### ")]
+    assert headings == ["#### Trends", "#### Spot panel", "#### Marker kinetics",
+                        "#### Rise confirmation (EGTM)", "#### Early after a therapy change",
+                        "#### Within-person baseline", "#### Markers against imaging",
+                        "#### Cross-marker view", "#### Search", "#### Results",
+                        "#### Flagged results: why, and your review", "#### Look here",
+                        "#### Quality checks", "#### Planned", "#### Rules card", "#### Export"]
+    # the spot panel opens on the latest flagged value
+    assert at.selectbox(key="SYNTHETIC-001_spot").value.startswith("L7 · month 24")
+    # plain-word search
+    at.text_input(key="SYNTHETIC-001_search").set_value("after palbociclib").run()
+    assert "7 results after palbociclib" in " ".join(m.value for m in at.markdown)
+    at.text_input(key="SYNTHETIC-001_search").set_value("liver lesions").run()
+    assert at.warning[-1].value.startswith("this panel can't see that")
+    # a review mark lands in the file's marks, the table and the queue
+    at.text_input(key="SYNTHETIC-001_initials").set_value("ab").run()
+    at.selectbox(key="SYNTHETIC-001_mark_L4 rising").select("agree").run()
+    marks = at.session_state["SYNTHETIC-001_labs_reviews"]
+    assert marks["L4 rising"]["mark"] == "agree" and marks["L4 rising"]["initials"] == "ab"
+    at.selectbox(key="SYNTHETIC-001_labs_reviewed").select("reviewed").run()
+    shown = results_of(at)
+    assert list(shown["pointer"]) == ["L4"] and shown["review"].iloc[0] == "rising: agree (ab)"
+    assert "1 review mark." in at.markdown[0].value
 
     as_of = AppTest.from_string(f"""
 import json, sys
@@ -136,7 +321,7 @@ render(synthetic_file(tl), version=9)  # month 7: CA 15-3 30, within limit
 """, default_timeout=60).run()
     assert not as_of.exception
     assert as_of.caption[1].value.startswith("As of month 7 (month 7 · Imaging): 6 later events")
-    assert len(as_of.dataframe[0].value) == 4 and len(as_of.expander) == 3
+    assert len(results_of(as_of)) == 4 and len(as_of.expander) == 3
 
     tcga = AppTest.from_string(f"""
 import sys
