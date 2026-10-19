@@ -1,8 +1,11 @@
 """Run the live case agent on a few held-out patients and save the notes for the demo.
 
 The demo shows these when there is no Token Factory key, or once a session has used its live
-notes. Notes hold only what the agent produced (derived numbers, gene names, links), so the file
-is committed. Costs about $0.015 of Token Factory credit and up to 3 Tavily searches per case.
+notes. The agent gets the same tools as the app: the model's risk and contributions, the
+observed stage, age and sequenced driver mutations, CIViC treatment evidence for those
+mutations (for clinician review) and, with a Tavily key, literature search. Notes hold only
+what the agent produced (derived numbers, gene names, links), so the file is committed. Costs
+about $0.015 of Token Factory credit and up to 3 Tavily searches per case.
 
 python scripts/save_demo_notes.py                      # 8 cases spread over the risk range
 python scripts/save_demo_notes.py --cases 463 334      # these cohort indices (added/replaced)
@@ -19,6 +22,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from muffle.demo import build_demo
+from muffle.report import civic
 from muffle.report.nemotron import run_case_agent, tavily_search
 
 load_dotenv()
@@ -50,7 +54,7 @@ def main(argv=None):
     saved = json.loads(a.out.read_text()) if a.out.exists() else {}
     search = tavily_search if os.getenv("TAVILY_API_KEY") else None
     for case in picks:
-        report = run_case_agent(demo.tools(case, search),
+        report = run_case_agent(demo.tools(case, search, civic.evidence),
                                 on_step=lambda s, i=case.index: print(f"  [{i}] {s}"))
         if report.mode == "offline":
             print(f"case {case.index}: agent unavailable ({report.notes}); not saved")
