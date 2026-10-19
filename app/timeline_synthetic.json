@@ -1,0 +1,1112 @@
+{
+ "synthetic": true,
+ "patient_id": "SYNTHETIC-001",
+ "notice": "Synthetic patient: made up by hand for this demo, not a real person and not taken from any dataset. Its record follows the structure of MSK-CHORD timelines so the MSK-CHORD risk models can score it.",
+ "model_note": "Risk models trained locally on MSK-CHORD breast cancer timelines (Jee et al., Nature 2024; CC BY-NC-ND 4.0). Only this synthetic patient's scores and aggregate test metrics are published; no MSK-CHORD patient or model leaves the machine.",
+ "task": "risk of progression or death in the next 12 months",
+ "events": [
+  {
+   "month": -40,
+   "kind": "Diagnosis",
+   "text": "Invasive ductal carcinoma, stage II, hormone-receptor positive, HER2 negative"
+  },
+  {
+   "month": -39,
+   "kind": "Treatment",
+   "text": "Adjuvant chemotherapy: doxorubicin + cyclophosphamide"
+  },
+  {
+   "month": -36,
+   "kind": "Treatment",
+   "text": "Adjuvant chemotherapy: paclitaxel"
+  },
+  {
+   "month": -33,
+   "kind": "Treatment",
+   "text": "Adjuvant endocrine therapy: letrozole"
+  },
+  {
+   "month": -2,
+   "kind": "Lab",
+   "text": "CA 15-3 48 U/mL (reference below 30)"
+  },
+  {
+   "month": -1,
+   "kind": "Imaging",
+   "text": "Imaging: new bone lesions, read as progression (metastatic recurrence)"
+  },
+  {
+   "month": 0,
+   "kind": "Sequencing",
+   "text": "Tumor sequencing of the bone biopsy: PIK3CA H1047R"
+  },
+  {
+   "month": 1,
+   "kind": "Clinic visit",
+   "text": "ECOG 1; CA 15-3 46 U/mL; starts palbociclib + fulvestrant"
+  },
+  {
+   "month": 4,
+   "kind": "Lab",
+   "text": "CA 15-3 35 U/mL"
+  },
+  {
+   "month": 7,
+   "kind": "Imaging",
+   "text": "Imaging: stable disease; CA 15-3 30 U/mL; ECOG 0"
+  },
+  {
+   "month": 11,
+   "kind": "Lab",
+   "text": "CA 15-3 52 U/mL (rising)"
+  },
+  {
+   "month": 12,
+   "kind": "Imaging",
+   "text": "Imaging: new liver lesions, read as progression"
+  },
+  {
+   "month": 13,
+   "kind": "Clinic visit",
+   "text": "ECOG 1; adds alpelisib to fulvestrant"
+  },
+  {
+   "month": 16,
+   "kind": "Lab",
+   "text": "CA 15-3 41 U/mL"
+  },
+  {
+   "month": 19,
+   "kind": "Imaging",
+   "text": "Imaging: stable disease; CA 15-3 34 U/mL"
+  },
+  {
+   "month": 24,
+   "kind": "Clinic visit",
+   "text": "Imaging stable; CA 15-3 31 U/mL; ECOG 1"
+  }
+ ],
+ "updates": [
+  {
+   "event": 0,
+   "month": -40,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "not sequenced yet (unknown, not wild type)"
+    ],
+    [
+     "Metastatic sites",
+     "none"
+    ],
+    [
+     "Progressions on imaging",
+     "0"
+    ],
+    [
+     "Latest CA 15-3",
+     "not measured"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "none"
+    ]
+   ]
+  },
+  {
+   "event": 1,
+   "month": -39,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "not sequenced yet (unknown, not wild type)"
+    ],
+    [
+     "Metastatic sites",
+     "none"
+    ],
+    [
+     "Progressions on imaging",
+     "0"
+    ],
+    [
+     "Latest CA 15-3",
+     "not measured"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39)"
+    ]
+   ]
+  },
+  {
+   "event": 2,
+   "month": -36,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "not sequenced yet (unknown, not wild type)"
+    ],
+    [
+     "Metastatic sites",
+     "none"
+    ],
+    [
+     "Progressions on imaging",
+     "0"
+    ],
+    [
+     "Latest CA 15-3",
+     "not measured"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36)"
+    ]
+   ]
+  },
+  {
+   "event": 3,
+   "month": -33,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "not sequenced yet (unknown, not wild type)"
+    ],
+    [
+     "Metastatic sites",
+     "none"
+    ],
+    [
+     "Progressions on imaging",
+     "0"
+    ],
+    [
+     "Latest CA 15-3",
+     "not measured"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33)"
+    ]
+   ]
+  },
+  {
+   "event": 4,
+   "month": -2,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "not sequenced yet (unknown, not wild type)"
+    ],
+    [
+     "Metastatic sites",
+     "none"
+    ],
+    [
+     "Progressions on imaging",
+     "0"
+    ],
+    [
+     "Latest CA 15-3",
+     "48 U/mL (month -2)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33)"
+    ]
+   ]
+  },
+  {
+   "event": 5,
+   "month": -1,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "not sequenced yet (unknown, not wild type)"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1)"
+    ],
+    [
+     "Progressions on imaging",
+     "1, last at month -1"
+    ],
+    [
+     "Latest CA 15-3",
+     "48 U/mL (month -2)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33)"
+    ]
+   ]
+  },
+  {
+   "event": 6,
+   "month": 0,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1)"
+    ],
+    [
+     "Progressions on imaging",
+     "1, last at month -1"
+    ],
+    [
+     "Latest CA 15-3",
+     "48 U/mL (month -2)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "not recorded"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33)"
+    ]
+   ],
+   "landmark": 0,
+   "risk": 0.3784211117637494,
+   "risk_range": [
+    0.3545528095935396,
+    0.4023891884196268
+   ],
+   "baseline": 0.43829163403840743,
+   "baseline_range": [
+    0.4301409859178905,
+    0.4493612251187195
+   ],
+   "summary": "First estimate, at the first tumor sequencing: 38% (diagnosis-only baseline 44%)."
+  },
+  {
+   "event": 7,
+   "month": 1,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1)"
+    ],
+    [
+     "Progressions on imaging",
+     "1, last at month -1"
+    ],
+    [
+     "Latest CA 15-3",
+     "46 U/mL (month 1)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "1 (month 1)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1)"
+    ]
+   ],
+   "landmark": 0,
+   "risk": 0.5161800553474432,
+   "risk_range": [
+    0.441050686676906,
+    0.5848000669180713
+   ],
+   "baseline": 0.43829163403840743,
+   "baseline_range": [
+    0.4301409859178905,
+    0.4493612251187195
+   ],
+   "previous": 0.3784211117637494,
+   "changes": [
+    {
+     "what": "performance status (ECOG)",
+     "points": 15.48742373895241
+    },
+    {
+     "what": "interactions between changes",
+     "points": -4.356881382332624
+    },
+    {
+     "what": "CA 15-3",
+     "points": 1.4412308866174117
+    },
+    {
+     "what": "treatments so far",
+     "points": 1.2146664454458
+    },
+    {
+     "what": "progression history",
+     "points": -0.010545330313621593
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 38% → 52% (+14 points): performance status (ECOG) +15, interactions between changes -4, CA 15-3 +1."
+  },
+  {
+   "event": 8,
+   "month": 4,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1)"
+    ],
+    [
+     "Progressions on imaging",
+     "1, last at month -1"
+    ],
+    [
+     "Latest CA 15-3",
+     "35 U/mL (month 4)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "1 (month 1)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1)"
+    ]
+   ],
+   "landmark": 0,
+   "risk": 0.4952202020662205,
+   "risk_range": [
+    0.4235356516378567,
+    0.5890442205581957
+   ],
+   "baseline": 0.43829163403840743,
+   "baseline_range": [
+    0.4301409859178905,
+    0.4493612251187195
+   ],
+   "previous": 0.5161800553474432,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": -1.6291828098142391
+    },
+    {
+     "what": "interactions between changes",
+     "points": -0.6128728680075468
+    },
+    {
+     "what": "CA 15-3",
+     "points": 0.14607034969952304
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 52% → 50% (-2 points): progression history -2, interactions between changes -1."
+  },
+  {
+   "event": 9,
+   "month": 7,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1)"
+    ],
+    [
+     "Progressions on imaging",
+     "1, last at month -1"
+    ],
+    [
+     "Latest CA 15-3",
+     "30 U/mL (month 7)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "0 (month 7)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1)"
+    ]
+   ],
+   "landmark": 6,
+   "risk": 0.23752693586005727,
+   "risk_range": [
+    0.2096608914992878,
+    0.27298075671738803
+   ],
+   "baseline": 0.42650887308136676,
+   "baseline_range": [
+    0.4190728433581742,
+    0.4406304590507586
+   ],
+   "previous": 0.4952202020662205,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": -16.450389119848214
+    },
+    {
+     "what": "performance status (ECOG)",
+     "points": -3.6225406956231
+    },
+    {
+     "what": "month-6 model takes over",
+     "points": -2.889142897454483
+    },
+    {
+     "what": "CA 15-3",
+     "points": -2.462484504366058
+    },
+    {
+     "what": "interactions between changes",
+     "points": -0.3447694033244737
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 50% → 24% (-26 points): progression history -16, performance status (ECOG) -4, month-6 model takes over -3."
+  },
+  {
+   "event": 10,
+   "month": 11,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1)"
+    ],
+    [
+     "Progressions on imaging",
+     "1, last at month -1"
+    ],
+    [
+     "Latest CA 15-3",
+     "52 U/mL (month 11)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "0 (month 7)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1)"
+    ]
+   ],
+   "landmark": 6,
+   "risk": 0.374214467957412,
+   "risk_range": [
+    0.31717329009561085,
+    0.44843540978988305
+   ],
+   "baseline": 0.42650887308136676,
+   "baseline_range": [
+    0.4190728433581742,
+    0.4406304590507586
+   ],
+   "previous": 0.23752693586005727,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": 8.80696612135499
+    },
+    {
+     "what": "CA 15-3",
+     "points": 4.127656460776405
+    },
+    {
+     "what": "interactions between changes",
+     "points": 0.7341306276040775
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 24% → 37% (+14 points): progression history +9, CA 15-3 +4, interactions between changes +1."
+  },
+  {
+   "event": 11,
+   "month": 12,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1), Liver (month 12)"
+    ],
+    [
+     "Progressions on imaging",
+     "2, last at month 12"
+    ],
+    [
+     "Latest CA 15-3",
+     "52 U/mL (month 11)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "0 (month 7)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1)"
+    ]
+   ],
+   "landmark": 12,
+   "risk": 0.883879872537249,
+   "risk_range": [
+    0.8141259457139455,
+    0.9345305139941096
+   ],
+   "baseline": 0.3981763202488125,
+   "baseline_range": [
+    0.3894305519365077,
+    0.4126478257129549
+   ],
+   "previous": 0.374214467957412,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": 55.33742645271753
+    },
+    {
+     "what": "month-12 model takes over",
+     "points": -9.951593235674212
+    },
+    {
+     "what": "metastatic sites",
+     "points": 9.617482187144116
+    },
+    {
+     "what": "interactions between changes",
+     "points": -4.036774946203735
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 37% → 88% (+51 points): progression history +55, month-12 model takes over -10, metastatic sites +10."
+  },
+  {
+   "event": 12,
+   "month": 13,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1), Liver (month 12)"
+    ],
+    [
+     "Progressions on imaging",
+     "2, last at month 12"
+    ],
+    [
+     "Latest CA 15-3",
+     "52 U/mL (month 11)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "1 (month 13)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1), alpelisib (month 13)"
+    ]
+   ],
+   "landmark": 12,
+   "risk": 0.7806546928715704,
+   "risk_range": [
+    0.6716791522888041,
+    0.8794506714453308
+   ],
+   "baseline": 0.3981763202488125,
+   "baseline_range": [
+    0.3894305519365077,
+    0.4126478257129549
+   ],
+   "previous": 0.883879872537249,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": -12.637981206679838
+    },
+    {
+     "what": "interactions between changes",
+     "points": 1.0166190800365627
+    },
+    {
+     "what": "performance status (ECOG)",
+     "points": 0.7181648610157021
+    },
+    {
+     "what": "treatments so far",
+     "points": 0.5806792990597165
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 88% → 78% (-10 points): progression history -13, interactions between changes +1, performance status (ECOG) +1."
+  },
+  {
+   "event": 13,
+   "month": 16,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1), Liver (month 12)"
+    ],
+    [
+     "Progressions on imaging",
+     "2, last at month 12"
+    ],
+    [
+     "Latest CA 15-3",
+     "41 U/mL (month 16)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "1 (month 13)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1), alpelisib (month 13)"
+    ]
+   ],
+   "landmark": 12,
+   "risk": 0.6150601955334005,
+   "risk_range": [
+    0.5228449318006066,
+    0.7179447176621564
+   ],
+   "baseline": 0.3981763202488125,
+   "baseline_range": [
+    0.3894305519365077,
+    0.4126478257129549
+   ],
+   "previous": 0.7806546928715704,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": -11.181454414919212
+    },
+    {
+     "what": "CA 15-3",
+     "points": -6.120114684801359
+    },
+    {
+     "what": "interactions between changes",
+     "points": 0.7421193659035801
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 78% → 62% (-17 points): progression history -11, CA 15-3 -6, interactions between changes +1."
+  },
+  {
+   "event": 14,
+   "month": 19,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1), Liver (month 12)"
+    ],
+    [
+     "Progressions on imaging",
+     "2, last at month 12"
+    ],
+    [
+     "Latest CA 15-3",
+     "34 U/mL (month 19)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "1 (month 13)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1), alpelisib (month 13)"
+    ]
+   ],
+   "landmark": 12,
+   "risk": 0.46014731090250577,
+   "risk_range": [
+    0.40299526041013184,
+    0.5171413965547154
+   ],
+   "baseline": 0.3981763202488125,
+   "baseline_range": [
+    0.3894305519365077,
+    0.4126478257129549
+   ],
+   "previous": 0.6150601955334005,
+   "changes": [
+    {
+     "what": "progression history",
+     "points": -15.155772422352264
+    },
+    {
+     "what": "CA 15-3",
+     "points": -0.3104444262062911
+    },
+    {
+     "what": "interactions between changes",
+     "points": -0.025071614530919106
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 62% → 46% (-15 points): progression history -15."
+  },
+  {
+   "event": 15,
+   "month": 24,
+   "observed": [
+    [
+     "Diagnosis",
+     "stage II, HR+, HER2− (month -40)"
+    ],
+    [
+     "Driver mutations",
+     "PIK3CA H1047R (month 0)"
+    ],
+    [
+     "Sequenced, not found",
+     "ESR1, TP53, ERBB2, AKT1, CDH1, GATA3, PTEN"
+    ],
+    [
+     "Metastatic sites",
+     "Bone (month -1), Liver (month 12)"
+    ],
+    [
+     "Progressions on imaging",
+     "2, last at month 12"
+    ],
+    [
+     "Latest CA 15-3",
+     "31 U/mL (month 24)"
+    ],
+    [
+     "Latest CEA",
+     "not measured"
+    ],
+    [
+     "Latest ECOG",
+     "1 (month 24)"
+    ],
+    [
+     "Treatments so far",
+     "doxorubicin (month -39), cyclophosphamide (month -39), paclitaxel (month -36), letrozole (month -33), palbociclib (month 1), fulvestrant (month 1), alpelisib (month 13)"
+    ]
+   ],
+   "landmark": 24,
+   "risk": 0.5998691628581427,
+   "risk_range": [
+    0.5423293428502813,
+    0.6612649590156578
+   ],
+   "baseline": 0.33451675144709175,
+   "baseline_range": [
+    0.32457355677568134,
+    0.3430589054769647
+   ],
+   "previous": 0.46014731090250577,
+   "changes": [
+    {
+     "what": "month-24 model takes over",
+     "points": 23.74313779408534
+    },
+    {
+     "what": "progression history",
+     "points": -7.083393819182337
+    },
+    {
+     "what": "CA 15-3",
+     "points": -2.9494554021459507
+    },
+    {
+     "what": "interactions between changes",
+     "points": 0.2618966228066455
+    }
+   ],
+   "summary": "Risk of progression or death in the next 12 months 46% → 60% (+14 points): month-24 model takes over +24, progression history -7, CA 15-3 -3."
+  }
+ ],
+ "models": {
+  "0": {
+   "n": 5137,
+   "event_rate": 0.4383881642982285,
+   "auroc": [
+    0.8795171010108408,
+    0.0031260881132022253
+   ],
+   "baseline_auroc": [
+    0.6625952458682083,
+    0.009890656095233673
+   ]
+  },
+  "6": {
+   "n": 4610,
+   "event_rate": 0.42125813449023863,
+   "auroc": [
+    0.9124884658249464,
+    0.009279405069805709
+   ],
+   "baseline_auroc": [
+    0.6651749303226936,
+    0.010020498967184084
+   ]
+  },
+  "12": {
+   "n": 4051,
+   "event_rate": 0.40212293260923226,
+   "auroc": [
+    0.928229651086537,
+    0.006953008647352854
+   ],
+   "baseline_auroc": [
+    0.6720223629205437,
+    0.014223601667636141
+   ]
+  },
+  "24": {
+   "n": 3105,
+   "event_rate": 0.3413848631239936,
+   "auroc": [
+    0.9312472064486391,
+    0.014247878023533264
+   ],
+   "baseline_auroc": [
+    0.7062018368626067,
+    0.031232050791463937
+   ]
+  }
+ },
+ "evidence": {
+  "PIK3CA H1047R": [
+   {
+    "molecular_profile": "PIK3CA H1047R",
+    "match": "this variant",
+    "therapies": "Fulvestrant,Everolimus",
+    "evidence_level": "C",
+    "level_meaning": "case study",
+    "significance": "Sensitivity/Response",
+    "direction": "Supports",
+    "disease": "HER2 Positive Breast Cancer",
+    "citation": "Sun et al., 2016",
+    "url": "https://civicdb.org/links/evidence_items/1623"
+   },
+   {
+    "molecular_profile": "PIK3CA H1047R",
+    "match": "this variant",
+    "therapies": "Izorlisib",
+    "evidence_level": "D",
+    "level_meaning": "preclinical",
+    "significance": "Sensitivity/Response",
+    "direction": "Supports",
+    "disease": "Breast Cancer",
+    "citation": "Tanaka et al., 2011",
+    "url": "https://civicdb.org/links/evidence_items/314"
+   },
+   {
+    "molecular_profile": "PIK3CA H1047R",
+    "match": "this variant",
+    "therapies": "Pictilisib",
+    "evidence_level": "D",
+    "level_meaning": "preclinical",
+    "significance": "Sensitivity/Response",
+    "direction": "Supports",
+    "disease": "HER2 Positive Breast Cancer",
+    "citation": "O'Brien et al., 2010",
+    "url": "https://civicdb.org/links/evidence_items/2096"
+   }
+  ]
+ }
+}

@@ -2,6 +2,23 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-18 — The demo's timeline patient: hand-written, scored by the MSK-CHORD models
+- **What:** the synthetic patient (`muffle.timeline`) is written by hand (stage II HR+/HER2−,
+  bone recurrence, PIK3CA H1047R, a liver progression at month 12), not sampled from MSK-CHORD
+  distributions, so no real patient can be reproduced. At each event from month 0 on it is scored
+  by the evaluated landmark models (latest landmark at or before the event, seeds 0–4 as the
+  uncertainty range) next to the diagnosis-only baseline; the change since the previous event is
+  attributed one change at a time. Only these scores, aggregate metrics and CIViC items are
+  committed (`app/timeline_synthetic.json`); the models stay local, since sharing a model trained
+  on CC BY-NC-ND data could count as sharing adapted material.
+- **Why:** it shows the vision's longitudinal profile on real-data models without hosting or
+  showing any MSK-CHORD patient, and the hosted demo needs no MSK-CHORD files.
+- **No MSK-CHORD-model output goes to Token Factory** (team decision, 2026-10-19): the timeline's
+  risk scores, ranges and attributions come from models trained on MSK-CHORD, so they stay out
+  of every LLM call, like MSK-CHORD itself. If the Nemotron agent ever narrates the timeline, it
+  gets only the synthetic patient's own events (diagnosis, treatments, labs, imaging,
+  sequencing), never the scores; narration is optional, and the demo does without it.
+
 ## 2026-10-18 — MuFFLe++ becomes milestone 1 of a cancer intelligence platform
 - **What:** the project is reframed around the team's vision (`docs/VISION.md`): a multimodal,
   longitudinal cancer intelligence platform for one cancer. The submission presents MuFFLe++ as

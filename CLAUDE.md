@@ -16,7 +16,8 @@ another session.
 
 ## Commands
 `make setup` · `make test` · `make lint` · `make tcga` · `make experiment-tcga` ·
-`make calibration-tcga` · `make fl-tcga` · `make agent-tcga` · `make demo-tcga` (all use `.venv`).
+`make calibration-tcga` · `make msk-chord` · `make experiment-msk` ·
+`make demo-timeline` · `make fl-tcga` · `make agent-tcga` · `make demo-tcga` (all use `.venv`).
 
 ## Rules
 - Work on a branch `<area>/<topic>`, open a PR with `gh pr create`; never commit to `main`.
@@ -31,7 +32,8 @@ another session.
 - Every Token Factory call goes through `src/muffle/report/budget.py` (hard $25.50 cap). Never
   raise the cap or route around it; ask the user.
 - Only derived numbers (risk, contributions, gene and mutation names) may go to Token Factory or
-  Tavily — never raw patient-level omics, and nothing at all from MSK-CHORD.
+  Tavily — never raw patient-level omics, and nothing at all from MSK-CHORD, including the
+  outputs of models trained on it (the synthetic timeline patient's risk scores).
 
 ## Science rules (from the vision)
 - Label every finding the system shows as **observed** (measured: recorded stage, a sequenced
