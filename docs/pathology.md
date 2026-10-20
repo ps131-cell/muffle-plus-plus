@@ -135,6 +135,7 @@ Measured under the load average quoted (`uptime`), 4 threads, `nice -n 10`:
 | TCGA-AN-A0AS-DX1 | 5,745 | 5,745 | whole slide | 34 min at 3.09 tiles/s (load average 10.9 8.6 7.1) | 400 tiles, 0.41 s each (load average 3.0 7.4 9.8) | 15.69 | 24.08 | 6/12 | 41 | 19 | 27% | 1.08 |
 | TCGA-EW-A1J2-DX1 | 6,270 | 6,270 | whole slide | 8 min at 16.13 tiles/s (load average 2.5 7.0 9.6) | 400 tiles, 0.41 s each (load average 8.2 6.1 7.5) | 2.83 | 2.58 | 5/12 | 33 | 26 | 30% | 0.96 |
 | TCGA-PL-A8LZ-DX1 | 1,378 | 1,378 | whole slide | 7 min at 3.98 tiles/s (load average 4.7 7.5 6.7) | 300 tiles, 1.2 s each (load average 11.5 9.5 6.9) | 0.08 | 0.22 | 0/2 | 32 | 3 | 30% | 0.33 |
+| TCGA-PL-A8LZ-DX2 | 3,107 | 3,107 | whole slide | 10 min at 5.73 tiles/s (load average 12.2 13.0 11.2) | 0 tiles, ? s each () | 0.0 | 0.0 | 0/0 | None | 0 | 17% | 0.26 |
 | TCGA-PL-A8LZ-DX3 | 4,146 | 4,146 | whole slide | 8 min at 10.22 tiles/s (load average 5.8 9.6 9.4) | 400 tiles, 0.31 s each (load average 4.6 7.5 8.6) | 0.75 | 1.23 | 0/10 | 147 | 14 | 54% | 0.66 |
 
 The encoder ran between 3 and 16 tiles/s depending on the other sessions' load (the spike
