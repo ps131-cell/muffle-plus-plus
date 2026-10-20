@@ -75,6 +75,12 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.run()  # the lab page as of month 12: the month-11 rise is a flagged result
     assert "Blood and lab workbench" in shown(at) and not at.exception
     assert any("month 11: CA 15-3 52" in e.label for e in at.expander)
+    at.segmented_control(key="view").set_value("Timeline").run()  # compare month 11 with 12
+    assert "~ Metastatic sites" in shown(at) and "12-month risk" in shown(at)
+    at.segmented_control(key="view").set_value("Report").run()
+    at.select_slider(key="version-SYNTHETIC-001").set_value(10).run()  # month 11
+    assert "CA 15-3 rising while the latest imaging read stable" in shown(at)
+    assert "Repeat CA 15-3 specimen within a month" in shown(at) and not at.exception
 
     at.selectbox(key="patient").select(case).run()
     at.segmented_control(key="view").set_value("Tests").run()
