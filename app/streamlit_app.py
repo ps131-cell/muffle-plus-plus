@@ -380,7 +380,7 @@ def report_view(pf: workspace.PatientFile, i: int):
 
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
-MARKS = ["agree", "disagree", "second look"]
+MARKS = workspace.MARKS[1:]  # "reviewed" comes from the "Mark reviewed" button
 
 
 def sos_tile(pf: workspace.PatientFile, i: int):

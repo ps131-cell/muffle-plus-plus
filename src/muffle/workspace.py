@@ -285,9 +285,25 @@ def missing_data(pf: PatientFile, i: int) -> list[str]:
     return out or ["Nothing recorded as missing."]
 
 
+# Review marks: one store per browser session, ``st.session_state.reviews``, shared by the patient
+# file and every workbench and carried by ``report_markdown``. Key: ``finding_key(pf, kind,
+# *parts)``. Value: {"what": the finding in words, "mark": one of MARKS, "by": the reviewer's
+# initials ("" if none), "at": "YYYY-MM-DD HH:MM"}. Pins: ``st.session_state.pins``, key -> what.
+MARKS = ("reviewed", "agree", "disagree", "second look")
+FINDING_KINDS = {  # kind -> the parts that follow it in the key
+    "alert": "the alert's month, its what",
+    "civic": "the variant ('PIK3CA H1047R'), the CIViC item's url",
+    "risk": "the report version's month",
+    "lab": "the marker key ('ca153'), the value's month",
+    "variant": "the variant ('PIK3CA H1047R'), the sequencing test's month",
+}
+
+
 def finding_key(pf: PatientFile, kind: str, *parts) -> str:
-    """A stable name for one finding (an alert, a CIViC item, a risk estimate), for review marks
-    and pins: "SYNTHETIC-001|alert|11|CA 15-3 rose ..."."""
+    """A stable name for one finding, for review marks and pins (see MARKS and FINDING_KINDS):
+    "SYNTHETIC-001|alert|11|CA 15-3 rose ..."."""
+    if kind not in FINDING_KINDS:
+        raise ValueError(f"finding kind must be one of {list(FINDING_KINDS)}")
     return "|".join([pf.id, kind, *map(str, parts)])
 
 
