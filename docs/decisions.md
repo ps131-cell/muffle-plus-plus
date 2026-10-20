@@ -2,6 +2,25 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-19 — Slide workbench spike: a minimal breast tissue map on an open encoder
+- **What:** `app/workbenches/slides.py` shows one precomputed BCSS-annotated TCGA-BRCA region
+  (tissue map with hover probabilities, certainty map, quality exclusions, tumor front and
+  zones, the head's measured accuracy, what a tile map cannot see). The head is a logistic
+  regression on frozen tile embeddings from an ungated MIT encoder, trained on BCSS (CC0) tiles
+  with a patient-disjoint held-out set (`scripts/slide_spike.py`). The hosted app runs no
+  encoder; it reads the small result folder.
+- **Why:** the permissive encoders the survey preferred (Path Foundation, GigaPath-Flash,
+  Hibou, H-optimus-0) are gated behind a Hugging Face login, which this session cannot do;
+  Midnight-12k (MIT, ungated, ViT-g) and QuiltNet-B-32 (MIT, ungated, ViT-B/32) are the open
+  ones. On this PC's CPU (quiet machine) Midnight-12k embeds 0.19 tiles/s at 5.3 GB and
+  QuiltNet-B-32 about 10 tiles/s at 1.2 GB; a median TCGA-BRCA slide here has ~5,500 tissue
+  tiles, so QuiltNet takes ~10 min per slide and Midnight ~8 h: only the small model fits
+  without a GPU. The head: 5 classes, 87.7% accuracy on 3 held-out slides (357 tiles).
+- **Consequence:** the encoder's cutoffs carried from the colon analyzer stay placeholders; a
+  pathologist has not reviewed the map; the go / no-go for the freeze is in the PR body
+  (`app/slide-spike`). Normal breast and DCIS are not in the head: too few labeled BCSS tiles at
+  this tile size.
+
 ## 2026-10-19 — The app is a clinician application, not a hackathon demo
 - **What:** the app's clinician path (patient list, patient file, tests and their workbenches,
   timeline) carries no hackathon, sponsor or "demo" wording. The demo's "Federation" and "How it
