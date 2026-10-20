@@ -248,14 +248,16 @@ def test_report_markdown_lists_numbers_flags_placeholders_and_review_marks():
                          rules_card(), kinetics(rows, "ca153"), confirmation_tracker(rows),
                          therapy_windows(rows, iv), baseline_band(rows, "ca153"),
                          lead_lag(rows, EVENTS),
-                         {"L4 rising": {"mark": "agree", "initials": "ab", "time": "12:00"}})
+                         {"SYNTHETIC-001|lab|CA 15-3|11": {
+                             "what": "CA 15-3 52 U/mL at month 11: above limit, rising (L4)",
+                             "mark": "agree", "by": "ab", "at": "12:00"}})
     assert "| L4 | CA 15-3 | 11 | 52 U/mL | below 30 U/mL | above limit, rising | +73% |" in md
     assert "- L4 month 11, CA 15-3 52 U/mL: rising" in md and "European Group" in md
     assert "halving months: 21 (range 11 to 38)" in md
     assert "would be crossed in about 1 month" in md
     assert "## Placeholders" in md and "- fall:" in md and "- gap:" in md
     assert "- kinetics method:" in md and "- therapy caution window:" in md
-    assert "- L4 rising: agree (ab, 12:00)" in md
+    assert "- CA 15-3 52 U/mL at month 11: above limit, rising (L4): agree (ab, 12:00)" in md
     assert "recommend" not in md.replace("Nothing here is a recommendation", "")
     assert report_markdown("X", rows, [], [], rules_card()).endswith("- none\n\n"
         "Rules: Lab result rules (blood and lab workbench); validation: none here: no cohort, "
@@ -301,15 +303,18 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     assert "7 results after palbociclib" in " ".join(m.value for m in at.markdown)
     at.text_input(key="SYNTHETIC-001_search").set_value("liver lesions").run()
     assert at.warning[-1].value.startswith("this panel can't see that")
-    # a review mark lands in the file's marks, the table and the queue
-    at.text_input(key="SYNTHETIC-001_initials").set_value("ab").run()
-    at.selectbox(key="SYNTHETIC-001_mark_L4 rising").select("agree").run()
-    marks = at.session_state["SYNTHETIC-001_labs_reviews"]
-    assert marks["L4 rising"]["mark"] == "agree" and marks["L4 rising"]["initials"] == "ab"
+    # a review mark lands in the workspace's store under finding_key, the table and the queue
+    at.text_input(key="labs_reviewer").set_value("ab").run()
+    at.selectbox(key="mark_SYNTHETIC-001|lab|CA 15-3|11").select("agree").run()
+    done = at.session_state["reviews"]["SYNTHETIC-001|lab|CA 15-3|11"]
+    assert done == {"what": "CA 15-3 52 U/mL at month 11: above limit, rising (L4)",
+                    "mark": "agree", "by": "ab", "at": done["at"]} and len(done["at"]) == 16
     at.selectbox(key="SYNTHETIC-001_labs_reviewed").select("reviewed").run()
     shown = results_of(at)
-    assert list(shown["pointer"]) == ["L4"] and shown["review"].iloc[0] == "rising: agree (ab)"
+    assert list(shown["pointer"]) == ["L4"] and shown["review"].iloc[0] == "agree (ab)"
     assert "1 review mark." in at.markdown[0].value
+    at.selectbox(key="mark_SYNTHETIC-001|lab|CA 15-3|11").select("not reviewed").run()
+    assert "SYNTHETIC-001|lab|CA 15-3|11" not in at.session_state["reviews"]
 
     as_of = AppTest.from_string(f"""
 import json, sys
