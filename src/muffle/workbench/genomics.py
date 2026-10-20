@@ -23,6 +23,7 @@ from pathlib import Path
 from muffle.data.tcga import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, OBSERVED
 from muffle.report.civic import CACHE, LEVELS
+from muffle.workspace import finding_key
 
 IMPLEMENTED, PLANNED = "implemented", "planned"
 FOUND, NOT_FOUND = "found", "tested and not found"
@@ -33,7 +34,7 @@ NO_ALLELE_FRACTION = "allele fraction: not available in the open masked calls"
 NO_ALLELE_FRACTION_RECORD = "allele fraction: not stated in the record"
 CIVIC = "CIViC clinical evidence summaries (civicdb.org, CC0)"
 SYNTHETIC_JSON = Path(__file__).resolve().parents[3] / "app" / "timeline_synthetic.json"
-AGREE, DISAGREE, SECOND_LOOK = "agree", "disagree", "needs a second look"
+AGREE, DISAGREE, SECOND_LOOK = "agree", "disagree", "second look"  # the report page's marks
 VERDICTS = (AGREE, DISAGREE, SECOND_LOOK)
 AROMATASE_INHIBITORS = {"letrozole", "anastrozole", "exemestane"}
 DETECT = "serial ctDNA (planned), or a repeat biopsy"
@@ -450,21 +451,45 @@ def provenance(file, events=None) -> list[tuple[str, str]]:
 
 # ------------------------------------------------------------------ review marks and export
 
-def add_mark(marks: dict, target: str, verdict: str, initials: str,
+def variant_key(file, variant: dict) -> str:
+    """The shared review key of a variant: ``finding_key(file, "variant", gene, change)``."""
+    return finding_key(file, "variant", variant["gene"], variant["change"])
+
+
+def item_key(file, variant: dict, item: dict, n: int = 0) -> str:
+    """The shared review key of a CIViC item, the same one the report page uses."""
+    return finding_key(file, "civic", variant["variant"], item.get("url") or f"item-{n}")
+
+
+def add_mark(reviews: dict, key: str, what: str, verdict: str | None, initials: str = "",
              when: str | None = None) -> dict:
-    """Append a review mark (agree / disagree / needs a second look) to ``marks[target]``;
-    ``target`` is a variant name or an evidence item's URL. Returns ``marks``."""
+    """Store (or, with None, clear) one reviewer's mark in the shared store
+    (``st.session_state.reviews``): {"what", "mark", "by", "at"} under a finding key, so the
+    report page's one-file export carries it too. Returns ``reviews``."""
+    if verdict is None:
+        reviews.pop(key, None)
+        return reviews
     if verdict not in VERDICTS:
         raise ValueError(f"verdict must be one of {VERDICTS}")
-    when = when or datetime.now().strftime("%Y-%m-%d %H:%M")
-    marks.setdefault(target, []).append({"verdict": verdict, "initials": initials.strip() or "?",
-                                         "time": when})
-    return marks
+    reviews[key] = {"what": what, "mark": verdict, "by": initials.strip(),
+                    "at": when or datetime.now().strftime("%Y-%m-%d %H:%M")}
+    return reviews
+
+
+def marks_of(reviews: dict, file) -> dict:
+    """This file's marks from the shared store, whatever page made them."""
+    return {k: r for k, r in reviews.items() if k.startswith(file.id + "|")}
+
+
+def mark_text(review: dict | None) -> str:
+    return (f"{review['mark']} ({review['by'] or 'no initials'}, {review['at']})" if review
+            else "")
 
 
 def report_markdown(file, variants: list[dict], ladders: dict[str, list[dict]],
-                    watch: dict, marks: dict, strip: list[tuple[str, str]]) -> str:
-    """A Markdown report: sample strip, variant table, ladders with sources, watchlist, marks."""
+                    watch: dict, reviews: dict, strip: list[tuple[str, str]]) -> str:
+    """A Markdown report: sample strip, variant table, ladders with sources, watchlist, and
+    this file's marks from the shared ``reviews`` store."""
     out = [f"# Genomics workbench · {file.id}", "", file.title, ""]
     if file.kind == "synthetic":
         out += [f"**{file.note}**", ""]
@@ -492,18 +517,16 @@ def report_markdown(file, variants: list[dict], ladders: dict[str, list[dict]],
     if watch["note"]:
         out.append(f"- {watch['note']}")
     out += ["", "## Review marks", ""]
-    for target, ms in marks.items():
-        for m in ms:
-            out.append(f"- {target}: {m['verdict']} ({m['initials']}, {m['time']})")
-    if not marks:
-        out.append("- none")
+    mine = marks_of(reviews, file)
+    out += [f"- {r['what']}: {mark_text(r)}" for r in mine.values()] or ["- none"]
     out += ["", "CIViC items (civicdb.org, CC0) are evidence for clinician review, never a "
             "recommendation. Not tested means unknown, not wild type.", ""]
     return "\n".join(out)
 
 
-def report_csv(variants: list[dict], marks: dict) -> str:
-    """One row per variant and CIViC item (a variant without items gets one row)."""
+def report_csv(file, variants: list[dict], reviews: dict) -> str:
+    """One row per variant and CIViC item (a variant without items gets one row), with the
+    item's mark, or the variant's when the row has no item."""
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
     w.writerow(["variant", "gene", "change", "sample", "when", "assay", "allele_fraction",
@@ -513,11 +536,10 @@ def report_csv(variants: list[dict], marks: dict) -> str:
         d, items = v["detection"], v["interpretation"]["items"]
         base = [v["variant"], v["gene"], v["change"], v["sample"], d["when"], d["assay"],
                 d["allele_fraction"], v["strongest_level"] or "", len(items)]
-        for i in items or [{}]:
-            target = i.get("url") or v["variant"]
+        for n, i in enumerate(items or [{}]):
+            key = item_key(file, v, i, n) if items else variant_key(file, v)
             w.writerow(base + [i.get(k, "") for k in ("evidence_level", "therapies",
                                                       "significance", "direction", "disease",
                                                       "citation", "url")]
-                       + ["; ".join(f"{m['verdict']} ({m['initials']}, {m['time']})"
-                                    for m in marks.get(target, []))])
+                       + [mark_text(reviews.get(key))])
     return buf.getvalue()
