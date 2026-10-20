@@ -165,36 +165,3 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float,
     now = alt.Chart(pd.DataFrame({"month": [month]})).mark_rule(opacity=0.5).encode(x="month:Q")
     return (band + line + baseline + _treatments(treatments) + dots + names + now).properties(
         height=280).configure_axis(**GRID)
-
-
-def lab_trend(rows: list[dict], name: str, unit: str, limit: float | None = None,
-              treatments: list[dict] = (), flags: dict | None = None) -> alt.Chart:
-    """One tumor marker over time (``muffle.workspace.lab_series`` rows). Hovering a value shows
-    its change from the previous value and from the lowest so far, the rate per month, its source
-    and any flag; flagged values are red. The reference limit is dashed, as are treatment starts."""
-    flags = flags or {}
-    df = pd.DataFrame(rows).reindex(
-        columns=["month", "value", "event", "change", "from_nadir", "per_month"])
-    df["flag"] = df["month"].map(flags).fillna("none")
-    df["reference"] = f"below {limit:g} {unit}" if limit is not None else "none in the record"
-    x = alt.X("month:Q", title="months since the first tumor sequencing",
-              scale=alt.Scale(domain=[df["month"].min() - 1, df["month"].max() + 1]))
-    y = alt.Y("value:Q", title=f"{name} ({unit})", scale=alt.Scale(zero=True))
-    tip = [alt.Tooltip("month:Q"), alt.Tooltip("value:Q", title=f"{name} ({unit})"),
-           alt.Tooltip("change:Q", format="+.0%", title="vs previous value"),
-           alt.Tooltip("from_nadir:Q", format="+.0%", title="vs lowest so far"),
-           alt.Tooltip("per_month:Q", format="+.1f", title=f"{unit} per month"),
-           alt.Tooltip("reference:N", title="reference"), alt.Tooltip("event:N", title="source"),
-           alt.Tooltip("flag:N")]
-    base = alt.Chart(df).encode(x=x)
-    layers = [_treatments(treatments), base.mark_line(color=BLUE, strokeWidth=2).encode(y=y)]
-    if limit is not None:
-        ref = pd.DataFrame({"y": [limit], "label": [f"reference limit {limit:g} {unit}"]})
-        rule = alt.Chart(ref).mark_rule(strokeDash=[6, 4], color=AQUA, strokeWidth=2)
-        layers += [rule.encode(y="y:Q", tooltip=[alt.Tooltip("label:N", title="reference")]),
-                   alt.Chart(ref).mark_text(align="left", dx=4, dy=-8).encode(
-                       x=alt.value(0), y="y:Q", text="label:N")]
-    layers.append(base.mark_circle(size=90, opacity=1).encode(
-        y=y, tooltip=tip, color=alt.condition(alt.datum.flag != "none", alt.value(RED),
-                                              alt.value(BLUE))))
-    return alt.layer(*layers).properties(height=280).configure_axis(**GRID)
