@@ -58,8 +58,10 @@ from muffle.workspace import (  # noqa: E402
     PLANNED,
     REFERENCE_LIMITS,
     PatientFile,
+    finding_key,
     synthetic_file,
 )
+from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, f"{ABOVE}, {RISING}": RED, f"{ABOVE}, {FALLING}": ORANGE,
@@ -67,7 +69,8 @@ COLORS = {WITHIN: BLUE, ABOVE: RED, f"{ABOVE}, {RISING}": RED, f"{ABOVE}, {FALLI
 GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
 PLACEHOLDER_CHIP, LITERATURE_CHIP = "placeholder threshold", "literature threshold"
 INFERENCE_CHIP, PLACEHOLDER_METHOD_CHIP = "model inference", "placeholder method"
-MARKS = ["not reviewed", "agree", "disagree", "needs a second look"]
+NO_MARK = "no mark"
+MARKS = (NO_MARK, *WORKSPACE_MARKS)  # the workspace's marks, plus none
 PROVENANCE = ("Data: the patient record's lab results (observed). Method: rules, version 1, "
               "plain arithmetic, no model; kinetics are a log-linear extrapolation (model "
               "inference, placeholder method). Thresholds: the reference limit from the "
@@ -200,7 +203,8 @@ def trend(rows: list[dict], intervals: list[dict], unit: str, limit: tuple | Non
     return alt.layer(*layers).properties(height=340).configure_axis(**GRID)
 
 
-def _table(rows: list[dict], reviews: dict | None = None) -> pd.DataFrame:
+def _table(rows: list[dict], reviews: dict | None = None,
+           file: PatientFile | None = None) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     out = pd.DataFrame({
         "pointer": df["pointer"], "marker": df["marker"], "month": df["month"],
@@ -211,29 +215,35 @@ def _table(rows: list[dict], reviews: dict | None = None) -> pd.DataFrame:
         "change from nadir": df["from_nadir"].map(pct), "evidence": df["evidence"],
         "source event": df["event"]})
     if reviews is not None:
-        out.insert(1, "review", [_marks_of(r, reviews) for r in rows])
+        out.insert(1, "review", [_marks_of(file, r, reviews) for r in rows])
     return out
 
 
-def _marks_of(r: dict, reviews: dict) -> str:
-    marks = [f"{f}: {reviews[k]['mark']} ({reviews[k]['initials']})"
-             for f in r["flags"] if (k := f"{r['pointer']} {f}") in reviews]
-    return "; ".join(marks)
+def _key(file: PatientFile, r: dict) -> str:
+    """The workspace's name for this result's finding, shared with the shell's review store."""
+    return finding_key(file, "lab", r["key"], r["month"])
 
 
-def _sync_reviews(file_id: str, flagged: list[dict], reviews: dict) -> None:
-    """Read the review widgets' state into the file's review marks (with initials and time)
-    before anything that shows them is drawn, so filters never lag a click."""
-    initials = st.session_state.get(f"{file_id}_initials", "") or "no initials"
+def _marks_of(file: PatientFile, r: dict, reviews: dict) -> str:
+    done = reviews.get(_key(file, r)) if r["flags"] else None
+    return f"{done['mark']} ({done['by'] or 'no initials'})" if done else ""
+
+
+def _sync_reviews(file: PatientFile, flagged: list[dict], reviews: dict) -> None:
+    """Read the review widgets' state into the workspace's review store, in its shape
+    ({"what", "mark", "by", "at"} under ``finding_key``), before anything that shows the marks
+    is drawn, so filters never lag a click."""
+    by = st.session_state.get("reviewer", "") or ""  # the shell's sidebar field
     for r in flagged:
-        for flag in r["flags"]:
-            key = f"{r['pointer']} {flag}"
-            choice = st.session_state.get(f"{file_id}_mark_{key}", MARKS[0])
-            if choice == MARKS[0]:
-                reviews.pop(key, None)
-            elif key not in reviews or reviews[key]["mark"] != choice:
-                reviews[key] = {"mark": choice, "initials": initials,
-                                "time": datetime.now().strftime("%Y-%m-%d %H:%M")}
+        key = _key(file, r)
+        choice = st.session_state.get(f"mark_{key}", NO_MARK)
+        if choice == NO_MARK:
+            reviews.pop(key, None)
+        elif key not in reviews or reviews[key]["mark"] != choice:
+            reviews[key] = {"what": f"{r['marker']} {r['value']:g} {r['unit']} at month "
+                                    f"{r['month']}: {r['flag']} ({r['pointer']})",
+                            "mark": choice, "by": by,
+                            "at": datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 
 def render(file: PatientFile, events: list[dict] | None = None,
@@ -270,8 +280,9 @@ def render(file: PatientFile, events: list[dict] | None = None,
     bands = {key: baseline_band(rows, key) for key in MARKERS}
     tracker, windows = confirmation_tracker(rows), therapy_windows(rows, intervals)
     lag, cross = lead_lag(rows, events), cross_marker(rows)
-    reviews = st.session_state.setdefault(f"{file.id}_labs_reviews", {})
-    _sync_reviews(file.id, flagged, reviews)
+    reviews = st.session_state.setdefault("reviews", {})  # the workspace's one store per file
+    _sync_reviews(file, flagged, reviews)
+    mine = {k: v for k, v in reviews.items() if k.startswith(f"{file.id}|lab|")}
     chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP, "synthetic patient")
     st.warning("Synthetic patient: this record was written by hand and is not a real person. "
                "Its values exist to show how the workbench reads a series.")
@@ -291,7 +302,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
         + (f" ({flagged[0]['pointer']} to {flagged[-1]['pointer']})" if flagged else "")
         + f", {n_of(len(queue), 'open item')} in the look-here queue, "
         f"{n_of(sum(not c['ok'] for c in checks), 'quality check')} failing, "
-        f"{n_of(len(reviews), 'review mark')}."]
+        f"{n_of(len(mine), 'review mark')}."]
     for t in tracker:
         lines.append(f"{t['pointer']}: the rise at month {t['month']} is **{t['outcome']}** "
                      f"({t['detail']}).")
@@ -449,7 +460,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
         hit = search(query, rows, intervals)
         (st.markdown if hit["understood"] else st.warning)(hit["answer"])
         if hit["rows"]:
-            st.dataframe(_table(hit["rows"], reviews), hide_index=True, width="stretch")
+            st.dataframe(_table(hit["rows"], reviews, file), hide_index=True, width="stretch")
 
     # results table with filters
     st.markdown("#### Results")
@@ -460,16 +471,16 @@ def render(file: PatientFile, events: list[dict] | None = None,
     reviewed = c3.selectbox("Reviewed", ["all", "reviewed", "not reviewed"],
                             key=f"{file.id}_labs_reviewed")
     shown = [r for r in rows if r["marker"] in pick and (r["flags"] or not only)
-             and (reviewed == "all" or (reviewed == "reviewed") == bool(_marks_of(r, reviews)))]
+             and (reviewed == "all"
+                  or (reviewed == "reviewed") == bool(_marks_of(file, r, reviews)))]
     if shown:
-        st.dataframe(_table(shown, reviews), hide_index=True, width="stretch")
+        st.dataframe(_table(shown, reviews, file), hide_index=True, width="stretch")
     else:
         st.caption("No results match the filters.")
 
     # more info: one expander per flagged result, with review marks
     st.markdown("#### Flagged results: why, and your review")
     chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    st.text_input("Your initials for review marks", key=f"{file.id}_initials", max_chars=8)
     for r in reversed(flagged):
         with st.expander(f"{r['pointer']} · month {r['month']}: {r['marker']} {r['value']:g} "
                          f"{r['unit']}, {r['flag']}"):
@@ -477,12 +488,13 @@ def render(file: PatientFile, events: list[dict] | None = None,
             for f in s["fired"]:
                 st.markdown(f"**{f['flag']}** · rule: {f['rule']} · threshold: "
                             f"{f['threshold']} · evidence: observed · status: {f['status']}")
-                st.selectbox(f"Review mark for {f['flag']}", MARKS,
-                             key=f"{file.id}_mark_{r['pointer']} {f['flag']}")
+            st.selectbox("Your review mark for this result", MARKS,
+                         key=f"mark_{_key(file, r)}",
+                         help="Marks go into this file's report export")
             st.markdown(f"Change from previous {pct(r['change'])}, from nadir "
                         f"{pct(r['from_nadir'])}; source: {r['event']}.")
             st.caption(f"Full {r['marker']} history (this result at month {r['month']}):")
-            st.dataframe(_table(s["history"], reviews), hide_index=True, width="stretch")
+            st.dataframe(_table(s["history"], reviews, file), hide_index=True, width="stretch")
 
     # look here
     st.markdown("#### Look here")
@@ -492,8 +504,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
                "threshold.")
     if queue:
         q = pd.DataFrame(queue)
-        q.insert(1, "review", [reviews.get(f"{i['pointer']} {i['flag']}", {}).get("mark", "")
-                               for i in queue])
+        q.insert(1, "review", [reviews.get(_key(file, i), {}).get("mark", "") for i in queue])
         st.dataframe(q[["pointer", "review", "month", "marker", "value", "unit", "flag", "rule",
                         "threshold", "evidence", "status", "event"]],
                      hide_index=True, width="stretch")
@@ -515,11 +526,12 @@ def render(file: PatientFile, events: list[dict] | None = None,
     chips(IMPLEMENTED)
     main_key = next((k for k in MARKERS if "rate_per_month" in kin[k]), next(iter(MARKERS)))
     md = report_markdown(file.id, rows, queue, checks, card, kin[main_key], tracker, windows,
-                         bands[main_key], lag, reviews)
+                         bands[main_key], lag, mine)
     e1, e2 = st.columns(2)
     e1.download_button("Download the Markdown report", md, file_name=f"{file.id}_labs.md",
                        mime="text/markdown", key=f"{file.id}_labs_md")
-    e2.download_button("Download the results as CSV", _table(rows, reviews).to_csv(index=False),
+    e2.download_button("Download the results as CSV",
+                       _table(rows, reviews, file).to_csv(index=False),
                        file_name=f"{file.id}_labs.csv", mime="text/csv",
                        key=f"{file.id}_labs_csv")
     st.caption(CAVEAT)
@@ -546,4 +558,5 @@ def _card() -> dict:
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Blood and lab workbench", layout="wide")
+    st.text_input("Reviewer initials", key="reviewer", max_chars=5)  # the shell's field
     render(synthetic_file(json.loads((APP / "timeline_synthetic.json").read_text("utf-8"))))

@@ -157,7 +157,8 @@ def look_here(events: list[dict], markers: dict = MARKERS,
             rule, threshold, status = RULES[flag]
             if flag == ABOVE:
                 threshold = f"{r['reference']}, from {r['reference_source']}"
-            queue.append({"pointer": r["pointer"], "marker": r["marker"], "month": r["month"],
+            queue.append({"pointer": r["pointer"], "marker": r["marker"], "key": r["key"],
+                          "month": r["month"],
                           "value": r["value"], "unit": r["unit"], "flag": flag, "rule": rule,
                           "threshold": threshold, "evidence": OBSERVED, "status": status,
                           "event": r["event"]})
@@ -438,7 +439,8 @@ def report_markdown(file_id: str, rows: list[dict], queue: list[dict], checks: l
                     windows: list[dict] | None = None, band: dict | None = None,
                     lag: list[dict] | None = None, reviews: dict | None = None) -> str:
     """A Markdown report: the figures' numbers, the flags with their sources, every placeholder,
-    and the review marks. Plain text for the clinician's record, nothing recommended."""
+    and the review marks (``reviews`` maps ``muffle.workspace.finding_key`` names to
+    {"what", "mark", "by", "at"}). Plain text for the clinician's record, nothing recommended."""
     L = [f"# Blood and lab workbench report: {file_id}", "",
          "All values observed; flags are plain arithmetic; kinetics are model inference with a "
          "placeholder method. Nothing here is a recommendation.", "", "## Results", "",
@@ -497,8 +499,8 @@ def report_markdown(file_id: str, rows: list[dict], queue: list[dict], checks: l
     if band:
         L.append(f"- baseline band: {band['method']}")
     L += ["", "## Review marks", ""]
-    L += [f"- {k}: {v['mark']} ({v['initials']}, {v['time']})"
-          for k, v in (reviews or {}).items()] or ["- none"]
+    L += [f"- {v['what']}: {v['mark']} ({v['by'] or 'no initials'}, {v['at']})"
+          for v in (reviews or {}).values()] or ["- none"]
     L += ["", f"Rules: {card['name']}; validation: {card['validation']}."]
     return "\n".join(L) + "\n"
 
