@@ -54,7 +54,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
     sys._muffle_code_digest = CODE_DIGEST
 
 import charts  # noqa: E402
-from workbenches import genomics, labs, slides  # noqa: E402
+from workbenches import genomics, labs  # noqa: E402
 
 from muffle import crosstest, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
@@ -727,6 +727,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
         genomics.render(pf, version=i, lookup=EVIDENCE,
                         table=civic.load_table() if EVIDENCE else None)
     elif t.workbench == "slides":  # a public example region; the page says it isn't this patient
+        from workbenches import slides  # here, so a missing scipy can't break the whole app
+
         slides.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
         layer_workbench(CASES[pf.id], t.details["layer"], pf.versions[i])
