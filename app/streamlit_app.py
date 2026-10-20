@@ -48,12 +48,13 @@ from muffle.hotreload import purge_modules, source_digest  # noqa: E402
 # from what this process last ran, drop those modules and the caches their old code built.
 CODE_DIGEST = source_digest([APP, APP.parent / "src" / "muffle"])
 if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
-    purge_modules(("charts", "muffle"))
+    purge_modules(("charts", "muffle", "workbenches"))
     st.cache_resource.clear()
     st.cache_data.clear()
     sys._muffle_code_digest = CODE_DIGEST
 
 import charts  # noqa: E402
+from workbenches import genomics, labs  # noqa: E402
 
 from muffle import workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
@@ -65,6 +66,7 @@ from muffle.demo import (  # noqa: E402
 )
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
+from muffle.report import civic  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
 from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
@@ -279,9 +281,11 @@ def patient_file(pf: workspace.PatientFile):
         format_func=lambda k: pf.versions[k].label + (" (latest)" if k == last else ""),
         help="Every new test or event adds a version; earlier versions are kept. Move back to "
              "open the report, its tests and its timeline as they were then.")
+    if "view" not in st.session_state and "view" not in st.query_params:
+        st.session_state.view = "Report"  # no default=: "open the test" sets the view in code
     view = st.segmented_control("View", ["Report", "Tests", "Timeline", "Import tests"],
-                                default="Report", required=True, key="view",
-                                bind="query-params", label_visibility="collapsed")
+                                required=True, key="view", bind="query-params",
+                                label_visibility="collapsed")
     {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
      "Import tests": import_view}[view](pf, i)
 
@@ -679,9 +683,10 @@ def tests_view(pf: workspace.PatientFile, i: int):
                             if t.workbench == w), shown[0])
     st.divider()
     if t.workbench == "labs":
-        lab_workbench(pf, i, t.details["marker"])
-    elif t.workbench == "mutations":
-        mutation_workbench(pf, i)
+        labs.render(pf, version=i)
+    elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
+        genomics.render(pf, version=i, lookup=EVIDENCE,
+                        table=civic.load_table() if EVIDENCE else None)
     elif t.workbench in ("omics", "record"):
         layer_workbench(CASES[pf.id], t.details["layer"], pf.versions[i])
     else:
@@ -689,69 +694,6 @@ def tests_view(pf: workspace.PatientFile, i: int):
         st.markdown(f"**Report text** {tags(OBSERVED)}: {t.result}")
         st.info(PLANNED_WORKBENCHES[t.workbench] + " Planned, pending the model and dataset "
                 "survey's shortlist (docs/WORKSPACE.md).", icon="🧭")
-
-
-def lab_workbench(pf: workspace.PatientFile, i: int, key: str):
-    name, unit = workspace.MARKERS[key]
-    events = [e for e in EVENTS if e["month"] <= pf.versions[i].month]
-    rows = workspace.lab_series(events, key)
-    limit = workspace.REFERENCE_LIMITS.get(key)
-    flags = {a.month: a for v in pf.versions[: i + 1] for a in v.alerts
-             if a.source.startswith(name)}
-    st.markdown(f"#### Lab workbench · {name} {badge(workspace.IMPLEMENTED)} {tags(OBSERVED)}")
-    treatments = [{"month": e["month"], "text": e["text"]} for e in events
-                  if e.get("treatments") and e["month"] >= rows[0]["month"]]
-    st.altair_chart(charts.lab_trend(rows, name, unit, limit[0] if limit else None, treatments,
-                                     {m: a.what for m, a in flags.items()}), width="stretch")
-    st.caption("Hover a value for its change from the previous value and from the lowest so far, "
-               "the rate per month and its source. Red: a flagged value. Dashed vertical lines: "
-               "treatment starts.")
-    st.dataframe(pd.DataFrame(rows).reindex(
-        columns=["month", "value", "change", "from_nadir", "per_month", "event"]),
-        hide_index=True, width="stretch", column_config={
-            "month": st.column_config.NumberColumn("Month"),
-            "value": st.column_config.NumberColumn(f"{name} ({unit})", format="%.0f"),
-            "change": st.column_config.NumberColumn("vs previous", format="percent"),
-            "from_nadir": st.column_config.NumberColumn("vs lowest so far", format="percent"),
-            "per_month": st.column_config.NumberColumn(f"{unit} per month", format="%+.1f"),
-            "event": st.column_config.TextColumn("Source")})
-    for m, a in flags.items():
-        st.markdown(f"- :red[**Flag, month {m}:**] {a.what} {tags(a.evidence)}  \n"
-                    f"  Rule: {a.rule}. Threshold: {a.threshold}.")
-    unmeasured = [n for k, (n, _) in workspace.MARKERS.items()
-                  if k != key and not workspace.lab_series(events, k)]
-    st.caption(" ".join([
-        f"Reference limit from {limit[1]}." if limit else "No reference limit in the record.",
-        "Out of range is not evidence of progression by itself: read a marker with imaging and "
-        "the clinical picture. A change of assay method breaks the series (EGTM).",
-        *(f"{n}: not measured in this record." for n in unmeasured)]))
-
-
-def mutation_workbench(pf: workspace.PatientFile, i: int):
-    st.markdown(f"#### Mutation workbench {badge(workspace.IMPLEMENTED)}")
-    seq = workspace.sequencing_tests(pf, i)
-    if not seq:
-        st.info("Not sequenced yet: driver mutations are unknown, not wild type.")
-    for t in seq:
-        found = t.details["variants"]
-        st.markdown(f"**{t.name}" + ("" if t.month is None else f", month {t.month}")
-                    + f"** {tags(OBSERVED)}")
-        if found:
-            st.dataframe(pd.DataFrame([dict(zip(("Gene", "Change"), var.split(maxsplit=1),
-                                                strict=True)) for var in found]),
-                         hide_index=True)
-        else:
-            st.caption("No driver in the panel mutated.")
-        genes = {var.split()[0] for var in found}
-        st.caption("Sequenced, not found: " + ", ".join(
-            g for g in t.details["panel"] if g not in genes) + ". One sample is one place and one "
-            "time; tumor purity and sequencing depth limit what it can show.")
-        for var in found:
-            civic_block(pf, var)
-    st.info(f"**ctDNA monitoring** {badge(workspace.PLANNED)} {tags(HYPOTHESIS)} · Serial blood "
-            "tests could catch resistance mutations as they emerge, such as ESR1 under endocrine "
-            "therapy (PADA-1, SERENA-6; docs/VISION.md). No open serial breast ctDNA data was "
-            "found, so this workbench is planned.")
 
 
 def layer_workbench(case, layer: str, v: workspace.Version):

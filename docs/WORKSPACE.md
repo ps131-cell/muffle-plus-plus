@@ -216,8 +216,8 @@ alert rules, how the case note is made, federated training, data sources and lic
 | Report versions and timeline | Built for SYNTHETIC-001: a version slider re-opens the report, tests and timeline as they were; the risk timeline marks treatments; any two versions can be compared. TCGA files have one version |
 | Pathology workbench | Planned; pathology reports show as text |
 | Radiology workbench | Planned; imaging reports show as text |
-| Labs workbench | Basic: CA 15-3 trend with the reference limit, treatments, change from the previous value and from the lowest, rate per month, and flags with their rule; CEA "not measured". A deeper lab workbench is in progress |
-| Genomics workbench | Basic: observed variants, panel genes not found, CIViC items per variant for clinician review; ctDNA monitoring planned. A deeper genomics workbench is in progress |
+| Labs workbench | Built (`app/workbenches/labs.py`, opened from a lab test as of the report version): pointers, trends with the baseline band and treatment spans, the spot panel, kinetics (placeholder method), the EGTM confirmation tracker, therapy windows, markers against imaging, search, flags with review marks, quality checks and exports |
+| Genomics workbench | Built (`app/workbenches/genomics.py`, opened from a sequencing test): provenance strip, variants with detection, interpretation and predicted effect apart, the CIViC evidence ladder with resistance items, panel coverage, the resistance watchlist, review queue and marks; ctDNA planned |
 | Expression, methylation, protein | Basic: each layer's effect on the risk and its strongest features; distributions, pathway and subtype scores planned |
 | Status labels on modules | Built: every section shows its evidence labels and its status (implemented, experimentally validated, planned) |
 | Review tools and export | Built in the patient file: agree / disagree / second-look marks with initials and time and pins on alerts, CIViC items and the risk estimate, a filterable list of them, and a one-page Markdown export per report version (numbers, sources, placeholders, model versions, marks). Marks live in the browser session |

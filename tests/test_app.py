@@ -72,11 +72,13 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         "Download this report version (Markdown)"]
     at.segmented_control(key="view").set_value("Tests").run()
     at.session_state["picked-SYNTHETIC-001"] = ("Lab", 11, "CA 15-3")
-    at.run()
-    assert "Lab workbench" in shown(at) and "Flag, month 11" in shown(at)
+    at.run()  # the lab page as of month 12: the month-11 rise is a flagged result
+    assert "Blood and lab workbench" in shown(at) and not at.exception
+    assert any("month 11: CA 15-3 52" in e.label for e in at.expander)
 
     at.selectbox(key="patient").select(case).run()
-    assert "Mutation workbench" in shown(at) and "PIK3CA H1047R" in shown(at)
+    at.segmented_control(key="view").set_value("Tests").run()
+    assert "Genomics workbench" in shown(at) and "PIK3CA H1047R" in shown(at)
     for view in VIEWS:
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
