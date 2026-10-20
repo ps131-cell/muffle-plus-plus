@@ -7,7 +7,8 @@ The workspace pages call ``render(file, version=None)`` with a ``muffle.workspac
 it draws inside the current container only. No file in the app holds a slide image yet, so the
 page says so and shows the pipeline on a public example: a BCSS-annotated region of a TCGA-BRCA
 diagnostic slide scored by the tissue head (``scripts/slide_spike.py result``). The folder holds
-only derived numbers (tile positions, class probabilities, quality measures) and a thumbnail.
+only derived numbers (tile positions, class probabilities, quality measures, as tiles.json) and
+a thumbnail.
 
 Tissue map with probabilities on hover, the certainty map (top probability below a placeholder
 cutoff = unsure here), the quality exclusions, the tumor region with its front and zones, what

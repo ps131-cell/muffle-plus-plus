@@ -85,9 +85,9 @@ def test_every_cutoff_names_a_source_and_placeholders_are_tagged():
 
 
 def test_example_result_holds_only_derived_numbers():
-    if not (EXAMPLE / "tiles.csv").exists():
+    if not (EXAMPLE / "tiles.json").exists():
         return
-    tiles = pd.read_csv(EXAMPLE / "tiles.csv")
+    tiles = pd.read_json(EXAMPLE / "tiles.json", orient="records")
     assert {"row", "col", "qc", "edges", "blur"} <= set(tiles.columns)
     probs = tiles[[c for c in tiles.columns if c.startswith("p_")]]
     assert np.allclose(probs.sum(axis=1), 1, atol=0.01)
@@ -105,7 +105,7 @@ def test_slides_page_renders_for_both_file_kinds():
     text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.info, *at.warning]).lower()
     assert "nothing below is this patient's tissue" in text
     assert not any(w in text for w in ("demo", "hackathon"))
-    if (EXAMPLE / "tiles.csv").exists():
+    if (EXAMPLE / "tiles.json").exists():
         assert "placeholder" in text and "what this map cannot see" in text
         assert "held out" in text and "not reviewed by a pathologist" in text
 

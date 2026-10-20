@@ -228,12 +228,12 @@ def analyze(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
 
 
 def load_result(folder: str | Path) -> dict | None:
-    """A precomputed slide result folder: ``tiles.csv``, ``summary.json`` (slide, region, head
-    card) and ``thumbnail.png``; None if it isn't there."""
+    """A precomputed slide result folder: ``tiles.json`` (records), ``summary.json`` (slide,
+    region, head card) and ``thumbnail.jpg``; None if it isn't there."""
     folder = Path(folder)
-    if not (folder / "tiles.csv").exists():
+    if not (folder / "tiles.json").exists():
         return None
     meta_path = folder / "summary.json"
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
-    return {"tiles": pd.read_csv(folder / "tiles.csv"), "meta": meta,
+    return {"tiles": pd.read_json(folder / "tiles.json", orient="records"), "meta": meta,
             "thumbnail": folder / "thumbnail.jpg" if (folder / "thumbnail.jpg").exists() else None}

@@ -17,8 +17,8 @@ app only reads the small result folder this writes. Subcommands, in order:
       and WORK/head_metrics.json.
   python scripts/slide_spike.py result --work WORK --slide SLIDE \
       --out app/workbenches/slides_example
-      Score one held-out slide with the head and write the folder the workbench reads: tiles.csv
-      (positions, class probabilities, quality measures), thumbnail.png, summary.json. Only
+      Score one held-out slide with the head and write the folder the workbench reads: tiles.json
+      (positions, class probabilities, quality measures), thumbnail.jpg, summary.json. Only
       derived numbers on public TCGA tiles; no pixels beyond the thumbnail, no embeddings.
   python scripts/slide_spike.py requality --work WORK
       Recompute texture measures and quality verdicts from the saved tiles (after a rule change).
@@ -326,7 +326,7 @@ def cmd_result(a):
     out.mkdir(parents=True, exist_ok=True)
     tiles = df[cols].copy()
     res = analyze(tiles, classes)
-    tiles.to_csv(out / "tiles.csv", index=False)
+    tiles.to_json(out / "tiles.json", orient="records")  # .csv is git-ignored by repo rule
     region = json.load(open(work / a.slide / "region.json"))
     from PIL import Image
 
