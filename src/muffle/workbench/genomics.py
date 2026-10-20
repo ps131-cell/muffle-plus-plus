@@ -23,7 +23,7 @@ from pathlib import Path
 from muffle.data.tcga import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, OBSERVED
 from muffle.report.civic import CACHE, LEVELS
-from muffle.workspace import finding_key
+from muffle.workspace import MARKS, finding_key
 
 IMPLEMENTED, PLANNED = "implemented", "planned"
 FOUND, NOT_FOUND = "found", "tested and not found"
@@ -34,8 +34,8 @@ NO_ALLELE_FRACTION = "allele fraction: not available in the open masked calls"
 NO_ALLELE_FRACTION_RECORD = "allele fraction: not stated in the record"
 CIVIC = "CIViC clinical evidence summaries (civicdb.org, CC0)"
 SYNTHETIC_JSON = Path(__file__).resolve().parents[3] / "app" / "timeline_synthetic.json"
-AGREE, DISAGREE, SECOND_LOOK = "agree", "disagree", "second look"  # the report page's marks
-VERDICTS = (AGREE, DISAGREE, SECOND_LOOK)
+VERDICTS = MARKS  # the report page's marks: reviewed, agree, disagree, second look
+REVIEWED, AGREE, DISAGREE, SECOND_LOOK = MARKS
 AROMATASE_INHIBITORS = {"letrozole", "anastrozole", "exemestane"}
 DETECT = "serial ctDNA (planned), or a repeat biopsy"
 # Resistance literature already cited in docs/VISION.md; nothing beyond it is claimed here.
@@ -452,8 +452,9 @@ def provenance(file, events=None) -> list[tuple[str, str]]:
 # ------------------------------------------------------------------ review marks and export
 
 def variant_key(file, variant: dict) -> str:
-    """The shared review key of a variant: ``finding_key(file, "variant", gene, change)``."""
-    return finding_key(file, "variant", variant["gene"], variant["change"])
+    """The shared review key of a variant: ``finding_key(file, "variant", "GENE CHANGE", the
+    sequencing test's month)`` (``workspace.FINDING_KINDS``)."""
+    return finding_key(file, "variant", variant["variant"], variant["month"])
 
 
 def item_key(file, variant: dict, item: dict, n: int = 0) -> str:

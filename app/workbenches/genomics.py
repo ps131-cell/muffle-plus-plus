@@ -14,9 +14,10 @@ current container only: no page config, no sidebar. Standalone page, with two ex
 Everything shown is observed (a sequenced mutation) or a hypothesis (a CIViC item or a
 literature lead, for clinician review, never a recommendation); planned parts are shown as
 planned rows, never as results. Review marks go to the shared ``st.session_state.reviews``
-store under ``muffle.workspace.finding_key`` names (kind "variant" with gene and change, kind
-"civic" with the item's URL), so the report page's export carries them; initials come from
-``st.session_state.reviewer``.
+store under ``muffle.workspace.finding_key`` names (kind "variant" with the variant and the
+sequencing month, kind "civic" with the variant and the item's URL), so the report page's export
+carries them; initials come from ``st.session_state.reviewer`` (the shell's sidebar field), with
+the page's own field only as a fallback when that key is absent.
 """
 
 from __future__ import annotations
@@ -103,7 +104,8 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
     c1.markdown(f"**The panel's view of {v['gene']}**  \n{badge(cov.get(v['gene'], 'outside'))}"
                 f" · {'in' if v['gene'] in cov else 'not in'} the 16-gene panel")
     c2.markdown("**Sample**  \n" + " → ".join(f"{k}: {val}" for k, val in strip[:4]))
-    vkey, by = wb.variant_key(file, v), st.session_state.get("reviewer") or ""
+    vkey = wb.variant_key(file, v)
+    by = st.session_state.get("reviewer") or st.session_state.get("genomics-reviewer", "")
     st.markdown(f"**Review marks** · {wb.mark_text(reviews.get(vkey)) or 'no mark yet'}")
     cols = st.columns(len(wb.VERDICTS) + 2)
     for col, verdict in zip(cols, wb.VERDICTS, strict=False):
@@ -189,6 +191,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         mark_options = [*wb.VERDICTS, "unmarked"]
         marked = c3.multiselect("Review mark", mark_options, default=mark_options,
                                 key=f"{key}-marked")
+        if "reviewer" not in st.session_state:  # fallback: the shell's sidebar field is absent
+            c3.text_input("Reviewer initials", key="genomics-reviewer", max_chars=5)
 
         def mark_of(v):
             return (reviews.get(wb.variant_key(file, v)) or {}).get("mark", "unmarked")
@@ -318,7 +322,6 @@ def main() -> None:
     choice = st.radio("Example file", ["SYNTHETIC-001 (synthetic patient)",
                                        f"Case {EXAMPLE_CASE.index} (TCGA-BRCA public data)"],
                       horizontal=True)
-    st.text_input("Reviewer initials", key="reviewer", max_chars=5)  # the report page's field
     table = _civic_table()
     if table is None:
         st.caption("CIViC table not available on this machine: evidence items and resistance "
