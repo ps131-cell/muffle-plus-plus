@@ -1,0 +1,958 @@
+{
+ "slide": "TCGA-PL-A8LZ-DX3",
+ "patient": "TCGA-PL-A8LZ",
+ "source": "TCGA-BRCA diagnostic slide (GDC, open access); the patient's own section",
+ "base_mpp": 0.2525,
+ "slide_dimensions": [
+  117528,
+  34870
+ ],
+ "tile_px": 224,
+ "mpp": 0.5,
+ "step_base_px": 444,
+ "scored": {
+  "mode": "whole slide",
+  "origin_tile": [
+   0,
+   0
+  ],
+  "window_side_tiles": null,
+  "tissue_tiles_total": 4146,
+  "scored_tiles": 4146,
+  "skipped_tiles": 0,
+  "why": "the whole slide fits the budget",
+  "coarse_pass": null
+ },
+ "grid_shape": [
+  66,
+  248
+ ],
+ "encoder": {
+  "name": "wisdomik/QuiltNet-B-32",
+  "license": "MIT",
+  "access": "open, ungated",
+  "kind": "hf_clip",
+  "dim": 512,
+  "tiles_per_s_cpu": 10.22,
+  "threads": 4,
+  "peak_rss_gb": 1.17
+ },
+ "head": {
+  "kind": "logistic regression on frozen embeddings",
+  "classes": [
+   "tumor",
+   "stroma",
+   "lymphocytes",
+   "necrosis",
+   "fat"
+  ],
+  "training_data": "BCSS tiles from 8 TCGA-BRCA slides (1052 tiles)",
+  "held_out": "3 slides, 357 tiles, patient-disjoint",
+  "accuracy": 0.877,
+  "balanced_accuracy": 0.854,
+  "per_class": {
+   "tumor": {
+    "n_test": 90,
+    "recall": 0.889,
+    "n_train": 548
+   },
+   "stroma": {
+    "n_test": 149,
+    "recall": 0.919,
+    "n_train": 346
+   },
+   "lymphocytes": {
+    "n_test": 72,
+    "recall": 0.736,
+    "n_train": 27
+   },
+   "necrosis": {
+    "n_test": 11,
+    "recall": 0.727,
+    "n_train": 77
+   },
+   "fat": {
+    "n_test": 35,
+    "recall": 1.0,
+    "n_train": 54
+   }
+  },
+  "confusion": {
+   "labels": [
+    "tumor",
+    "stroma",
+    "lymphocytes",
+    "necrosis",
+    "fat"
+   ],
+   "rows_true_cols_pred": [
+    [
+     80,
+     10,
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     137,
+     3,
+     0,
+     6
+    ],
+    [
+     3,
+     14,
+     53,
+     2,
+     0
+    ],
+    [
+     3,
+     0,
+     0,
+     8,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     35
+    ]
+   ]
+  },
+  "accuracy_below_cutoff": 0.607,
+  "accuracy_at_or_above_cutoff": 0.927,
+  "share_below_cutoff": 0.157,
+  "not_learned": {
+   "normal_breast": "too few labeled tiles in BCSS at this tile size",
+   "dcis": "one BCSS slide only; cannot be held out"
+  },
+  "this_patient_in_training": false
+ },
+ "nuclei": {
+  "model": "StarDist 2D_versatile_he",
+  "tiles": 400,
+  "nuclei": 22968,
+  "s_per_tile": 0.31,
+  "run_mpp": 0.2525,
+  "threads": 4,
+  "uptime": "load average 4.6 7.5 8.6"
+ },
+ "analysis": {
+  "tiles": 4146,
+  "usable_tiles": 4146,
+  "excluded": {},
+  "tissue_fractions": {
+   "fat": 0.047,
+   "lymphocytes": 0.01,
+   "necrosis": 0.578,
+   "stroma": 0.328,
+   "tumor": 0.037
+  },
+  "unsure_share": 0.536,
+  "tumor_mm2": 0.75,
+  "main_tumor_mm2": 0.19,
+  "satellite_pieces": 14,
+  "front_length_mm": 1.23,
+  "zone_tiles": {
+   "core": 0,
+   "front band": 125,
+   "peritumoral": 774,
+   "outside": 3247
+  },
+  "facing": {
+   "necrosis": 1.0
+  }
+ },
+ "numbers": {
+  "tumor_mm2": 0.75,
+  "front_length_mm": 1.23,
+  "infiltrative_arcs": 0,
+  "arcs": 10,
+  "buds_in_field": 147,
+  "islands": 14,
+  "immune_pattern": "desert (no core: front band only)",
+  "tsr": "stroma-low",
+  "faces_top": "necrosis",
+  "unsure_share": 0.536,
+  "counted_tiles": 400
+ },
+ "arcs": [
+  {
+   "arc": "A1",
+   "from_deg": 30,
+   "to_deg": 60,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 26.0,
+   "push": 0.311,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 51.0,
+   "col": 37.0
+  },
+  {
+   "arc": "A2",
+   "from_deg": 60,
+   "to_deg": 90,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 50.0,
+   "push": 0.384,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 50.0,
+   "col": 37.0
+  },
+  {
+   "arc": "A3",
+   "from_deg": 90,
+   "to_deg": 120,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 90.0,
+   "push": 0.449,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 49.0,
+   "col": 36.0
+  },
+  {
+   "arc": "A4",
+   "from_deg": 120,
+   "to_deg": 150,
+   "tiles": 2,
+   "length_mm": 0.22,
+   "direction_deg": 140.0,
+   "push": 0.314,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 50.5,
+   "col": 35.0
+  },
+  {
+   "arc": "A5",
+   "from_deg": 180,
+   "to_deg": 210,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 194.0,
+   "push": 0.334,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 52.0,
+   "col": 35.0
+  },
+  {
+   "arc": "A6",
+   "from_deg": 210,
+   "to_deg": 240,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 222.0,
+   "push": 0.374,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 53.0,
+   "col": 35.0
+  },
+  {
+   "arc": "A7",
+   "from_deg": 240,
+   "to_deg": 270,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 265.0,
+   "push": 0.381,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 54.0,
+   "col": 36.0
+  },
+  {
+   "arc": "A8",
+   "from_deg": 270,
+   "to_deg": 300,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 298.0,
+   "push": 0.399,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 54.0,
+   "col": 37.0
+  },
+  {
+   "arc": "A9",
+   "from_deg": 300,
+   "to_deg": 330,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 315.0,
+   "push": 0.373,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 53.0,
+   "col": 37.0
+  },
+  {
+   "arc": "A10",
+   "from_deg": 330,
+   "to_deg": 360,
+   "tiles": 1,
+   "length_mm": 0.11,
+   "direction_deg": 348.0,
+   "push": 0.336,
+   "roughness": 0.0,
+   "pattern": "pushing",
+   "faces": {
+    "necrosis": 1.0
+   },
+   "faces_top": "necrosis",
+   "row": 52.0,
+   "col": 37.0
+  }
+ ],
+ "rose": [
+  {
+   "from_deg": 0.0,
+   "to_deg": 30.0,
+   "tiles": 1,
+   "push_sum": 0.31,
+   "push_mean": 0.311
+  },
+  {
+   "from_deg": 30.0,
+   "to_deg": 60.0,
+   "tiles": 1,
+   "push_sum": 0.38,
+   "push_mean": 0.384
+  },
+  {
+   "from_deg": 60.0,
+   "to_deg": 90.0,
+   "tiles": 0,
+   "push_sum": 0.0,
+   "push_mean": 0.0
+  },
+  {
+   "from_deg": 90.0,
+   "to_deg": 120.0,
+   "tiles": 1,
+   "push_sum": 0.45,
+   "push_mean": 0.449
+  },
+  {
+   "from_deg": 120.0,
+   "to_deg": 150.0,
+   "tiles": 1,
+   "push_sum": 0.4,
+   "push_mean": 0.399
+  },
+  {
+   "from_deg": 150.0,
+   "to_deg": 180.0,
+   "tiles": 1,
+   "push_sum": 0.23,
+   "push_mean": 0.229
+  },
+  {
+   "from_deg": 180.0,
+   "to_deg": 210.0,
+   "tiles": 1,
+   "push_sum": 0.33,
+   "push_mean": 0.334
+  },
+  {
+   "from_deg": 210.0,
+   "to_deg": 240.0,
+   "tiles": 1,
+   "push_sum": 0.37,
+   "push_mean": 0.374
+  },
+  {
+   "from_deg": 240.0,
+   "to_deg": 270.0,
+   "tiles": 1,
+   "push_sum": 0.38,
+   "push_mean": 0.381
+  },
+  {
+   "from_deg": 270.0,
+   "to_deg": 300.0,
+   "tiles": 1,
+   "push_sum": 0.4,
+   "push_mean": 0.399
+  },
+  {
+   "from_deg": 300.0,
+   "to_deg": 330.0,
+   "tiles": 1,
+   "push_sum": 0.37,
+   "push_mean": 0.373
+  },
+  {
+   "from_deg": 330.0,
+   "to_deg": 360.0,
+   "tiles": 1,
+   "push_sum": 0.34,
+   "push_mean": 0.336
+  }
+ ],
+ "islands": [
+  {
+   "island": "S10",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 19061,
+   "row": 42.0,
+   "col": 207.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.6,
+    "stroma": 0.4
+   }
+  },
+  {
+   "island": "S1",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 18915,
+   "row": 14.0,
+   "col": 203.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.58,
+    "stroma": 0.38,
+    "tumor": 0.04
+   }
+  },
+  {
+   "island": "S8",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 18849,
+   "row": 40.0,
+   "col": 205.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.62,
+    "stroma": 0.38
+   }
+  },
+  {
+   "island": "S2",
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 3390,
+   "row": 18.0,
+   "col": 40.9,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.7,
+    "tumor": 0.22,
+    "stroma": 0.09
+   }
+  },
+  {
+   "island": "S3",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 3369,
+   "row": 19.5,
+   "col": 44.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.83,
+    "stroma": 0.08,
+    "tumor": 0.08
+   }
+  },
+  {
+   "island": "S4",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 3172,
+   "row": 27.3,
+   "col": 54.7,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.55,
+    "tumor": 0.3,
+    "stroma": 0.15
+   }
+  },
+  {
+   "island": "S6",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 1981,
+   "row": 37.0,
+   "col": 49.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.5,
+    "tumor": 0.5
+   }
+  },
+  {
+   "island": "S5",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 1615,
+   "row": 37.0,
+   "col": 44.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.55,
+    "tumor": 0.45
+   }
+  },
+  {
+   "island": "S7",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 1507,
+   "row": 38.7,
+   "col": 45.3,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.56,
+    "tumor": 0.44
+   }
+  },
+  {
+   "island": "S9",
+   "tiles": 13,
+   "area_mm2": 0.163,
+   "distance_um": 903,
+   "row": 41.8,
+   "col": 43.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.83,
+    "tumor": 0.17
+   }
+  },
+  {
+   "island": "S14",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 571,
+   "row": 59.0,
+   "col": 38.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 0.5,
+    "tumor": 0.5
+   }
+  },
+  {
+   "island": "S13",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 560,
+   "row": 53.5,
+   "col": 42.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 1.0
+   }
+  },
+  {
+   "island": "S11",
+   "tiles": 4,
+   "area_mm2": 0.05,
+   "distance_um": 336,
+   "row": 45.0,
+   "col": 35.5,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 1.0
+   }
+  },
+  {
+   "island": "S12",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 317,
+   "row": 47.0,
+   "col": 38.0,
+   "between": "necrosis",
+   "between_shares": {
+    "necrosis": 1.0
+   }
+  }
+ ],
+ "hotspot": {
+  "row": 48,
+  "col": 37,
+  "buds_in_field": 147,
+  "field_mm2": 0.785,
+  "coverage": 1.0,
+  "radius_tiles": 4.46
+ },
+ "immune": {
+  "zones": {
+   "core": {
+    "tiles": 0,
+    "lymph_tile_share": null,
+    "counted_tiles": 0
+   },
+   "front band": {
+    "tiles": 125,
+    "lymph_tile_share": 0.0,
+    "counted_tiles": 3,
+    "lymph_nuclei_per_mm2": 5182,
+    "tumor_contacting_share": 0.33
+   },
+   "peritumoral": {
+    "tiles": 774,
+    "lymph_tile_share": 0.001,
+    "counted_tiles": 123,
+    "lymph_nuclei_per_mm2": 4032,
+    "tumor_contacting_share": 0.08
+   }
+  },
+  "pattern": "desert (no core: front band only)",
+  "evidence": "model inference",
+  "status": "placeholder cutoffs on tile shares; nuclei counts are StarDist inferences, not validated on breast"
+ },
+ "tsr": {
+  "stroma_share": 0.079,
+  "tumor_tiles": 35,
+  "stroma_tiles": 3,
+  "verdict": "stroma-low"
+ },
+ "necrosis": {
+  "necrosis_tiles": 2395,
+  "necrosis_mm2": 30.043,
+  "touching_tumor_tiles": 47,
+  "share_touching": 0.02
+ },
+ "risk_cards": [
+  {
+   "card": "R1",
+   "level": 3,
+   "points": 5,
+   "features": [
+    "breakaway candidates",
+    "satellite island",
+    "necrosis contact",
+    "immune-poor front"
+   ],
+   "tiles": 542,
+   "mm2": 6.8,
+   "row": 51,
+   "col": 37
+  }
+ ],
+ "risk_points": [
+  {
+   "feature": "infiltrative arc",
+   "points": 2,
+   "source": "placeholder"
+  },
+  {
+   "feature": "breakaway candidates",
+   "points": 2,
+   "source": "placeholder"
+  },
+  {
+   "feature": "faces fat",
+   "points": 1,
+   "source": "placeholder"
+  },
+  {
+   "feature": "satellite island",
+   "points": 1,
+   "source": "placeholder"
+  },
+  {
+   "feature": "necrosis contact",
+   "points": 1,
+   "source": "placeholder"
+  },
+  {
+   "feature": "immune-poor front",
+   "points": 1,
+   "source": "placeholder"
+  }
+ ],
+ "queue": [
+  {
+   "pointer": "T1",
+   "what": "Risk level 3 region (R1)",
+   "why": "breakaway candidates, satellite island, necrosis contact, immune-poor front",
+   "row": 51,
+   "col": 37,
+   "evidence": "model inference",
+   "status": "placeholder points",
+   "check": "the front here at 10\u00d7 and 20\u00d7: infiltration, buds, the tissue it faces",
+   "kind": "risk"
+  },
+  {
+   "pointer": "T2",
+   "what": "Breakaway counting field: 147 candidate cluster(s) in 0.785 mm\u00b2",
+   "why": "100% of the field was counted",
+   "row": 48,
+   "col": 37,
+   "evidence": "model inference",
+   "status": "weak until validated",
+   "check": "count buds at 20\u00d7 in this field; fill in the counter",
+   "kind": "hotspot"
+  },
+  {
+   "pointer": "T3",
+   "what": "Island S10: 0.013 mm\u00b2, 19061 \u00b5m from the main tumor, necrosis or debris between",
+   "why": "a separate tumor piece in the map",
+   "row": 42,
+   "col": 207,
+   "evidence": "model inference",
+   "status": "geometry on the tile classes",
+   "check": "is it a satellite, a tangential cut of the same tumor, or in-situ disease? (DCIS is not a class of the head)",
+   "kind": "island"
+  },
+  {
+   "pointer": "T4",
+   "what": "Island S1: 0.063 mm\u00b2, 18915 \u00b5m from the main tumor, necrosis or debris between",
+   "why": "a separate tumor piece in the map",
+   "row": 14,
+   "col": 203,
+   "evidence": "model inference",
+   "status": "geometry on the tile classes",
+   "check": "is it a satellite, a tangential cut of the same tumor, or in-situ disease? (DCIS is not a class of the head)",
+   "kind": "island"
+  },
+  {
+   "pointer": "T5",
+   "what": "Most unsure spot",
+   "why": "2222 unsure tiles in the map, densest here",
+   "row": 43,
+   "col": 199,
+   "evidence": "model inference",
+   "status": "placeholder cutoff",
+   "check": "what is this tissue? the head is unsure here",
+   "kind": "unsure"
+  }
+ ],
+ "crops": [
+  {
+   "row": 51,
+   "col": 37,
+   "why": "T1"
+  },
+  {
+   "row": 48,
+   "col": 37,
+   "why": "T2"
+  },
+  {
+   "row": 42,
+   "col": 207,
+   "why": "T3"
+  },
+  {
+   "row": 14,
+   "col": 203,
+   "why": "T4"
+  },
+  {
+   "row": 43,
+   "col": 199,
+   "why": "T5"
+  },
+  {
+   "row": 49,
+   "col": 40,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 56,
+   "col": 37,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 48,
+   "col": 39,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 57,
+   "col": 35,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 54,
+   "col": 33,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 46,
+   "col": 39,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 53,
+   "col": 33,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 50,
+   "col": 40,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 49,
+   "col": 37,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 50,
+   "col": 34,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 55,
+   "col": 33,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 55,
+   "col": 32,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 49,
+   "col": 36,
+   "why": "front, highest push"
+  },
+  {
+   "row": 50,
+   "col": 35,
+   "why": "front, highest push"
+  },
+  {
+   "row": 54,
+   "col": 37,
+   "why": "front, highest push"
+  },
+  {
+   "row": 50,
+   "col": 37,
+   "why": "front, highest push"
+  },
+  {
+   "row": 54,
+   "col": 36,
+   "why": "front, highest push"
+  },
+  {
+   "row": 53,
+   "col": 35,
+   "why": "front, highest push"
+  },
+  {
+   "row": 53,
+   "col": 37,
+   "why": "front, highest push"
+  },
+  {
+   "row": 52,
+   "col": 37,
+   "why": "front, highest push"
+  },
+  {
+   "row": 52,
+   "col": 35,
+   "why": "front, highest push"
+  },
+  {
+   "row": 51,
+   "col": 35,
+   "why": "front, highest push"
+  },
+  {
+   "row": 24,
+   "col": 218,
+   "why": "unsure"
+  },
+  {
+   "row": 59,
+   "col": 27,
+   "why": "unsure"
+  },
+  {
+   "row": 40,
+   "col": 218,
+   "why": "unsure"
+  },
+  {
+   "row": 50,
+   "col": 50,
+   "why": "unsure"
+  },
+  {
+   "row": 63,
+   "col": 46,
+   "why": "unsure"
+  },
+  {
+   "row": 39,
+   "col": 37,
+   "why": "unsure"
+  }
+ ],
+ "timings": {
+  "uptime_at_start": "load average 6.4 7.3 8.4",
+  "threads": 4,
+  "grid_s": 0.0,
+  "select_s": 0.0,
+  "embed_s": 486.6,
+  "embed_uptime": "load average 5.8 9.6 9.4",
+  "nuclei_s": 124.0,
+  "nuclei_uptime": "load average 4.6 7.5 8.6",
+  "uptime_at_end": "load average 6.0 7.2 8.4"
+ },
+ "method_version": "0.2",
+ "status": "implemented; tissue head validated on held-out BCSS slides only; nuclei model pretrained, not validated on breast here; not reviewed by a pathologist"
+}

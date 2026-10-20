@@ -10,7 +10,7 @@ Newest at the top. One entry per decision: date, what, why.
   normals, push, 12 arcs, fingers, rose), satellite islands, breakaway candidates with the ITBCC
   counting field, stromal lymphocytes by TILs-WG zone, tumor–stroma ratio, necrosis contact,
   the risk map with cards, the queue, search and the two-section comparison; the page shows all
-  of it for five bundled cases (eight slides) and the example region for the rest
+  of it for three bundled cases (four slides; two more cases follow) and the example region for the rest
   (`docs/pathology.md`).
 - **Why:** the user asked for the patient's own slides and the invasion picture ("which way the
   tumor wants to expand, what parts it is targeting, arrows, breakaway cells, cell relations");

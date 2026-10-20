@@ -19,16 +19,16 @@ The bundled TCGA-BRCA cases map to patient barcodes through `cohort.npz` (`patie
 "Slide Image", experimental strategy "Diagnostic Slide") come from the GDC files endpoint, open
 access, no token. Scored on 2026-10-20 (cohort index → sections):
 
-| Case | Patient | Sections | Why this case |
-|---|---|---|---|
-| 299 | TCGA-AN-A0AS | DX1 | in the video; saved case note |
-| 926 | TCGA-EW-A1J2 | DX1 | in the video; saved case note |
-| 563 | TCGA-BH-A0H5 | DX1 | saved case note |
-| 730 | TCGA-D8-A1XF | DX1, DX2 | saved case note; two sections to compare |
-| 1043 | TCGA-PL-A8LZ | DX1, DX2, DX3 | saved case note; three small sections |
+| Case | Patient | Sections | Why this case | Status |
+|---|---|---|---|---|
+| 299 | TCGA-AN-A0AS | DX1 | in the video; saved case note | shipped |
+| 926 | TCGA-EW-A1J2 | DX1 | in the video; saved case note | shipped |
+| 1043 | TCGA-PL-A8LZ | DX1, DX3 (DX2 follows) | saved case note; small sections, two to compare | shipped |
+| 730 | TCGA-D8-A1XF | DX1, DX2 | saved case note; two large sections to compare | downloaded, scoring in WSL; follow-up PR |
+| 563 | TCGA-BH-A0H5 | DX1 | saved case note | downloaded, scoring in WSL; follow-up PR |
 
 The other saved-note cases (47, 545, 564, 601) have one DX1 slide each on the GDC and can be
-added with the same command. TCGA slides are open-access public data, so 224 px tile crops of
+added with the same command. `cases.json` names only folders that are complete. TCGA slides are open-access public data, so 224 px tile crops of
 the queue tiles may be shipped; embeddings never are.
 
 ## 2. The pipeline, step by step
@@ -130,13 +130,16 @@ validated on the page.
 
 Measured under the load average quoted (`uptime`), 4 threads, `nice -n 10`:
 
-| Slide | Tissue tiles | Scored | Mode | Embedding | Nuclei (tiles) |
-|---|---|---|---|---|---|
-| (filled from each `summary.json` by `scripts/slide_pipeline.py`'s log; see the table in the page's model card) | | | | | |
+| Slide | Tissue tiles | Scored | Mode | Embedding | Nuclei | Tumor mm² | Front mm | Infiltrative arcs | Breakaway in field | Islands | Unsure | Folder MB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| TCGA-AN-A0AS-DX1 | 5,745 | 5,745 | whole slide | 34 min at 3.09 tiles/s (load average 10.9 8.6 7.1) | 400 tiles, 0.41 s each (load average 3.0 7.4 9.8) | 15.69 | 24.08 | 6/12 | 41 | 19 | 27% | 1.08 |
+| TCGA-EW-A1J2-DX1 | 6,270 | 6,270 | whole slide | 8 min at 16.13 tiles/s (load average 2.5 7.0 9.6) | 400 tiles, 0.41 s each (load average 8.2 6.1 7.5) | 2.83 | 2.58 | 5/12 | 33 | 26 | 30% | 0.96 |
+| TCGA-PL-A8LZ-DX1 | 1,378 | 1,378 | whole slide | 7 min at 3.98 tiles/s (load average 4.7 7.5 6.7) | 300 tiles, 1.2 s each (load average 11.5 9.5 6.9) | 0.08 | 0.22 | 0/2 | 32 | 3 | 30% | 0.33 |
+| TCGA-PL-A8LZ-DX3 | 4,146 | 4,146 | whole slide | 8 min at 10.22 tiles/s (load average 5.8 9.6 9.4) | 400 tiles, 0.31 s each (load average 4.6 7.5 8.6) | 0.75 | 1.23 | 0/10 | 147 | 14 | 54% | 0.66 |
 
-Reference points from the batch log: TCGA-AN-A0AS-DX1, 5,745 tiles, 3.1 tiles/s under load
-average 8–18 (33 min); StarDist 0.5–1.2 s per 448 px tile under load 5–12 (400 tiles in 3–8
-min). On a quiet machine the round-1 measurement was ~10 tiles/s for the encoder. The WSL clock
+The encoder ran between 3 and 16 tiles/s depending on the other sessions' load (the spike
+measured ~10 tiles/s on a quiet machine with 8 threads); StarDist 0.3–1.2 s per 448 px tile at
+4 threads. TCGA-PL-A8LZ-DX1's embedding time is taken from its first run's log (421 s). The WSL clock
 jumped once during the first run (11:30 → 13:01), so `nuclei_meta.json` for TCGA-PL-A8LZ-DX1 was
 corrected from the log.
 
