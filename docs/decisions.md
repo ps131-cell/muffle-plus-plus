@@ -2,6 +2,27 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-20 — Slide workbench round 2: the patient's own sections, invasion picture, cells
+- **What:** `scripts/slide_pipeline.py` scores a patient's own TCGA diagnostic slide offline
+  (tissue grid, a 9,000-tile budget with a tumor-centred window for larger slides, QuiltNet
+  embeddings, the round-1 head, StarDist nuclei on up to 400 front-band tiles) and writes a
+  small result folder; `muffle.workbench.invasion` adds the direction of invasion (front
+  normals, push, 12 arcs, fingers, rose), satellite islands, breakaway candidates with the ITBCC
+  counting field, stromal lymphocytes by TILs-WG zone, tumor–stroma ratio, necrosis contact,
+  the risk map with cards, the queue, search and the two-section comparison; the page shows all
+  of it for three bundled cases (five slides; two more cases follow) and the example region for the rest
+  (`docs/pathology.md`).
+- **Why:** the user asked for the patient's own slides and the invasion picture ("which way the
+  tumor wants to expand, what parts it is targeting, arrows, breakaway cells, cell relations");
+  StarDist (BSD-3-Clause, pip, CPU) is the only nucleus model that runs here without a GPU or a
+  gated download, and TCGA slides are open access, so small crops may ship.
+- **Consequence:** every round-2 cutoff is a placeholder (listed on the page and in
+  `docs/pathology.md`), the direction of invasion is labeled a hypothesis about one section,
+  StarDist is "pretrained, not validated on breast here", every flag on it says "weak until
+  validated", and no pathologist has reviewed a map. Embedding at 3 tiles/s under the shared
+  CPU's load means a slide takes 30–60 min; a stronger encoder behind `HF_TOKEN` changes only
+  the `encoder` entry of the result files.
+
 ## 2026-10-20 — Stronger encoders one command away; CC BY-NC-ND encoders enforced local only
 - **What:** `scripts/slide_spike.py` gains ten encoder entries (license, gate, preprocessing,
   pooling per model card), `HF_TOKEN` from the environment or `.env` (never printed), `--device

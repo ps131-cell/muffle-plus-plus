@@ -205,13 +205,21 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
          "endpoint": tl["task"], "status": VALIDATED, "note": tl["model_note"]})
 
 
-def case_file(case, c_index: float | None = None) -> PatientFile:
+def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
+              ) -> PatientFile:
     """A held-out TCGA case (``muffle.demo.Case``): one report version, its data layers and
-    mutation panel as tests, and no alerts, since nothing earlier exists to compare with."""
+    mutation panel as tests, and no alerts, since nothing earlier exists to compare with.
+    ``slides``: the names of this patient's scored diagnostic sections, when the slide pipeline
+    ran on them (``app/workbenches/slides_results/cases.json``); they add a pathology test."""
     muts = None if case.mutations is None else [m.replace(" p.", " ") for m in case.mutations]
     tests = [Test("Clinical record" if m == "clinical" else "Data layer", None, ASSAYS[m],
                   "measured", "record" if m == "clinical" else "omics", IMPLEMENTED, {"layer": m})
              for m in case.layers]
+    if slides:
+        tests.append(Test("Pathology slide", None, "Diagnostic H&E section(s) (GDC, open access)",
+                          f"{len(slides)} section(s) scored: tissue map, front, invasion, "
+                          "cells", "slides", IMPLEMENTED,
+                          {"scope": "the patient's own slides", "slides": list(slides)}))
     if muts is not None:
         tests.append(Test("Mutation panel", None, f"Somatic mutations, {len(TCGA_PANEL)} breast "
                           "cancer drivers (exome sequencing)", ", ".join(muts) or "none of the "
@@ -283,7 +291,7 @@ def missing_data(pf: PatientFile, i: int) -> list[str]:
     planned = list(dict.fromkeys(t.kind for t in tests if t.status == PLANNED))
     if planned:
         out.append(f"{' and '.join(planned)} reports are text only: their workbench is planned")
-    if any(t.workbench == "slides" for t in tests):
+    if any(t.workbench == "slides" and not t.details.get("slides") for t in tests):
         out.append("No slide image of this tumor is on file: the pathology workbench shows a "
                    "public example region")
     if len(pf.versions) == 1:
@@ -302,6 +310,7 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "risk": "the report version's month",
     "lab": "the marker key ('ca153'), the value's month",
     "variant": "the variant ('PIK3CA H1047R'), the sequencing test's month",
+    "slide": "the slide ('TCGA-AN-A0AS-DX1'), the tile ('r12c34')",
 }
 
 
