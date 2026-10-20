@@ -5,7 +5,7 @@ from pathlib import Path
 
 from muffle.crosstest import diff_versions, discrepancies, uncertainty_reducers
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
-from muffle.workspace import IMPLEMENTED, PLANNED, VALIDATED, Alert, PatientFile, Version
+from muffle.workspace import EGTM, IMPLEMENTED, PLANNED, VALIDATED, Alert, PatientFile, Version
 from muffle.workspace import Test as WorkspaceTest
 from muffle.workspace import synthetic_file
 
@@ -100,7 +100,7 @@ def test_marker_rise_against_stable_imaging_in_the_synthetic_record():
     m = marker[0]
     assert m["sources"] == ["CA 15-3, month 11", "Imaging, month 7"]
     assert m["months"] == [11, 7] and m["evidence"] == OBSERVED
-    assert "stable" in m["why"] and "placeholder" in m["why"]
+    assert "stable" in m["why"] and "EGTM" in m["why"] and "placeholder" not in m["why"]
     assert "EGTM" in m["would_settle"] and "within a month" in m["would_settle"]
     # once imaging at month 12 read progression the disagreement is gone
     assert not [i for i in discrepancies(pf, 11) if i["what"].startswith("CA 15-3 rising")]
@@ -131,6 +131,13 @@ def test_risk_jump_while_markers_fell_and_differing_sites():
     assert not discrepancies(pf, 0)
 
 
+def test_a_placeholder_threshold_is_named_as_one_only_when_the_alert_says_so():
+    pf = handmade([version(2, tests=[imaging(2, "Imaging: stable disease")]),
+                   version(5, alerts=[rise_alert(5, 20, 40)], tests=[lab(5, 40)])])
+    why = discrepancies(pf, 1)[0]["why"]
+    assert "25% rise is a placeholder (a placeholder, not validated)" in why
+
+
 def test_a_file_with_one_version_and_no_alerts_has_nothing_to_queue():
     pf = handmade([version(None, [["Not measured", "methylation"]],
                            {"percentile": 7.0, "group": "low"})], "TCGA-BRCA")
@@ -147,7 +154,7 @@ def test_reducers_in_the_synthetic_record():
     assert tests == ["Repeat CA 15-3 specimen within a month",
                      "ctDNA sequencing for ESR1 and other endocrine-resistance alterations"]
     repeat, ctdna = items
-    assert "EGTM" in repeat["source"] and "52" in repeat["expectation"]
+    assert EGTM in repeat["source"] and "52" in repeat["expectation"]
     assert "PADA-1" in ctdna["source"] and "SERENA-6" in ctdna["source"]
     assert "fulvestrant (month 1)" in ctdna["open_question"]
     assert all(i["evidence"] == HYPOTHESIS for i in items)

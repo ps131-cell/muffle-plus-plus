@@ -14,10 +14,10 @@ from statistics import median
 
 from muffle.demo import ordinal
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
-from muffle.workspace import ASSAYS, MARKERS, RISK_JUMP, PatientFile
+from muffle.workspace import ASSAYS, EGTM, MARKERS, RISK_JUMP, PatientFile
 
-EGTM = ("EGTM guidance (literature): a marker rise is unconfirmed until a second specimen within "
-        "a month confirms it")
+CONFIRM = ("a marker rise is unconfirmed until a second specimen within a month confirms it "
+           f"({EGTM})")
 CTDNA_SOURCE = ("PADA-1 (Bidard et al., Lancet Oncol 2022) and SERENA-6 (Bidard et al., NEJM "
                 "2025): ESR1 mutations emerging in blood under aromatase inhibitors were caught "
                 "by ctDNA before progression (docs/VISION.md); hypothesis for this patient")
@@ -119,6 +119,11 @@ def _driver_alerts(pf: PatientFile, i: int) -> list[tuple[int, object, str]]:
     return out
 
 
+def _status(threshold: str) -> str:
+    """Call a threshold a placeholder only when its own source says so."""
+    return " (a placeholder, not validated)" if "placeholder" in threshold else ""
+
+
 def _sites(text: str) -> set[str]:
     low = text.lower()
     return {s for s in SITES if s in low}
@@ -143,10 +148,10 @@ def discrepancies(pf: PatientFile, i: int) -> list[dict]:
                     "months": [a.month, im_month],
                     "why": f"{a.what} at month {a.month}, but the latest imaging (month "
                            f"{im_month}) read: {im_text}. A marker can move before imaging "
-                           "shows a change, or a single rise can be transient; the rule that "
-                           f"raised the alert uses a placeholder rise threshold ({a.threshold}).",
-                    "would_settle": f"A second {name} specimen within a month ({EGTM}) and the "
-                                    "next imaging.",
+                           "shows a change, or a single rise can be transient; the alert's "
+                           f"threshold: {a.threshold}{_status(a.threshold)}.",
+                    "would_settle": f"A second {name} specimen within a month ({CONFIRM}) and "
+                                    "the next imaging.",
                     "evidence": OBSERVED})
 
     # 2. the 12-month risk jumped while every marker measured in this version fell
@@ -230,7 +235,7 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                                      "No second specimen yet.",
                     "test": f"Repeat {name} specimen within a month",
                     "expectation": expect,
-                    "source": EGTM, "evidence": HYPOTHESIS})
+                    "source": CONFIRM, "evidence": HYPOTHESIS})
 
         # not sequenced since the last tumor sequencing while on endocrine therapy
         seq = [t.month for ver in pf.versions[:i + 1] for t in ver.tests
