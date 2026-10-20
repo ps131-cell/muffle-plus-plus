@@ -23,7 +23,7 @@ access, no token. Scored on 2026-10-20 (cohort index → sections):
 |---|---|---|---|---|
 | 299 | TCGA-AN-A0AS | DX1 | in the video; saved case note | shipped |
 | 926 | TCGA-EW-A1J2 | DX1 | in the video; saved case note | shipped |
-| 1043 | TCGA-PL-A8LZ | DX1, DX3 (DX2 follows) | saved case note; small sections, two to compare | shipped |
+| 1043 | TCGA-PL-A8LZ | DX1, DX2, DX3 | saved case note; three small sections, compared on the page | shipped |
 | 730 | TCGA-D8-A1XF | DX1, DX2 | saved case note; two large sections to compare | downloaded, scoring in WSL; follow-up PR |
 | 563 | TCGA-BH-A0H5 | DX1 | saved case note | downloaded, scoring in WSL; follow-up PR |
 
