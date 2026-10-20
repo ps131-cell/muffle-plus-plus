@@ -54,7 +54,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
     sys._muffle_code_digest = CODE_DIGEST
 
 import charts  # noqa: E402
-from workbenches import genomics, labs  # noqa: E402
+from workbenches import genomics, labs, slides  # noqa: E402
 
 from muffle import crosstest, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
@@ -90,9 +90,6 @@ STATUS_COLORS = {workspace.IMPLEMENTED: "blue", workspace.VALIDATED: "green",
 PLANNED_WORKBENCHES = {
     "imaging": "Radiology workbench: a slice viewer with window and level, lesion contours, size "
                "and volume, and the same lesion tracked across scans.",
-    "slides": "Pathology workbench: a zoomable H&E slide with tile overlays (tissue class, tumor "
-              "regions and invasive front, flags with a trust level), at the depth of the team's "
-              "colon tumor front analyzer; breast tissue needs its own tissue heads.",
 }
 
 p = argparse.ArgumentParser()
@@ -706,7 +703,9 @@ def tests_view(pf: workspace.PatientFile, i: int):
                      key=f"kinds-{pf.id}")
     shown = [t for t in tests if not kinds or t.kind in kinds]
     table = pd.DataFrame([{"Type": t.kind, "Month": t.month, "Test": t.name, "Result": t.result,
-                           "Workbench": t.workbench, "Status": t.status} for t in shown])
+                           "Workbench": t.workbench, "Status": t.status + (
+                               f": {t.details['scope']}" if "scope" in t.details else "")}
+                          for t in shown])
     rows = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
                         key=f"tests-{pf.id}-{i}-{'.'.join(kinds)}-{st.session_state.tests_n}",
                         width="stretch").selection.rows
@@ -727,6 +726,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
         genomics.render(pf, version=i, lookup=EVIDENCE,
                         table=civic.load_table() if EVIDENCE else None)
+    elif t.workbench == "slides":  # a public example region; the page says it isn't this patient
+        slides.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
         layer_workbench(CASES[pf.id], t.details["layer"], pf.versions[i])
     else:
