@@ -207,19 +207,28 @@ report-driven and honest about it.
 
 ## 7. Expression, methylation and protein workbench
 
-Partly implemented through the risk model (per-layer top features, layer contributions against a
-typical patient, what-if for missing layers).
+Built 2026-10-20 (`app/workbenches/omics.py`, method and numbers in [`omics.md`](omics.md)).
 
-- **Layer cards** [now]: for each measured layer, the top features with cohort percentiles, the
-  contribution to the risk compared with a typical patient, the layer's own validation (the
+- **Layer cards** [now, built]: for each measured layer, the top features with cohort percentiles,
+  the contribution to the risk compared with a typical patient, the layer's own validation (the
   single-layer C-index, including the copy-number layer's failure across sites), and the
   normalization used.
-- **What-if** [now]: hide a layer and see the risk move, labeled model inference.
-- **Signatures and subtype calls** [model]: only from a validated model with a named reference
-  population; otherwise shown as planned.
-- **Batch and site effects** [now]: the known anti-predictive copy-number layer is stated as a
-  known failure, with the numbers.
-- **RNA is not protein** [now]: the panel says which layer each claim comes from.
+- **What-if** [now, built]: hide a layer and see the risk move, labeled model inference.
+- **PAM50 subtype call** [now, built]: Parker centroids with a named reference population (this
+  TCGA-BRCA cohort, ER-balanced), validated against TCGA's published calls; the correlation to
+  every centroid, the margin, and agreement per patient.
+- **Pathway, proliferation and immune scores** [now, built]: MSigDB Hallmark sets, the PAM50
+  proliferation genes and cytolytic activity, as cohort z-scores (model inference, relative to
+  this cohort).
+- **Receptor consistency** [now, built]: recorded IHC against RNA, ERBB2 copy number and RPPA,
+  one labeled line each, with calibrated cutoffs.
+- **Other signatures** (recurrence-score-like, immune deconvolution) [model]: only from a
+  validated model with a named reference population; shown as planned.
+- **Batch and site effects** [now, built]: the known anti-predictive copy-number layer is stated
+  as a known failure, with the numbers.
+- **RNA is not protein** [now, built]: the panel says which layer each claim comes from.
+- **Spot panel, search, marks, export** [now, built]: per feature, pathway, receptor line and
+  subtype; JSON and CSV.
 
 ## 8. Clinical documents workbench
 
