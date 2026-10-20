@@ -1,0 +1,151 @@
+{
+ "slide": "TCGA-C8-A26X-DX1",
+ "source": "TCGA-BRCA diagnostic slide (GDC, open access), region annotated by BCSS (CC0); this patient is not in the head's training slides",
+ "region_base_px": [
+  8990,
+  27544,
+  6123,
+  8275
+ ],
+ "base_mpp": 0.2456,
+ "slide_dimensions": [
+  50456,
+  60051
+ ],
+ "tile_px": 224,
+ "mpp": 0.5,
+ "grid_shape": [
+  18,
+  13
+ ],
+ "encoder": {
+  "name": "wisdomik/QuiltNet-B-32",
+  "license": "MIT",
+  "access": "open, ungated",
+  "kind": "clip",
+  "tiles_per_s_cpu": 10.129,
+  "peak_rss_gb": 1.17
+ },
+ "head": {
+  "kind": "logistic regression on frozen embeddings",
+  "classes": [
+   "fat",
+   "lymphocytes",
+   "necrosis",
+   "stroma",
+   "tumor"
+  ],
+  "training_data": "BCSS tiles from 8 TCGA-BRCA slides (1052 tiles)",
+  "held_out": "3 slides, 357 tiles, patient-disjoint",
+  "accuracy": 0.877,
+  "balanced_accuracy": 0.854,
+  "per_class": {
+   "tumor": {
+    "n_test": 90,
+    "recall": 0.889,
+    "n_train": 548
+   },
+   "stroma": {
+    "n_test": 149,
+    "recall": 0.919,
+    "n_train": 346
+   },
+   "lymphocytes": {
+    "n_test": 72,
+    "recall": 0.736,
+    "n_train": 27
+   },
+   "necrosis": {
+    "n_test": 11,
+    "recall": 0.727,
+    "n_train": 77
+   },
+   "fat": {
+    "n_test": 35,
+    "recall": 1.0,
+    "n_train": 54
+   }
+  },
+  "confusion": {
+   "labels": [
+    "tumor",
+    "stroma",
+    "lymphocytes",
+    "necrosis",
+    "fat"
+   ],
+   "rows_true_cols_pred": [
+    [
+     80,
+     10,
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     137,
+     3,
+     0,
+     6
+    ],
+    [
+     3,
+     14,
+     53,
+     2,
+     0
+    ],
+    [
+     3,
+     0,
+     0,
+     8,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     35
+    ]
+   ]
+  },
+  "accuracy_below_cutoff": 0.607,
+  "accuracy_at_or_above_cutoff": 0.927,
+  "share_below_cutoff": 0.157,
+  "not_learned": {
+   "normal_breast": "too few labeled tiles in BCSS at this tile size",
+   "dcis": "one BCSS slide only; cannot be held out"
+  }
+ },
+ "analysis": {
+  "tiles": 234,
+  "usable_tiles": 234,
+  "excluded": {},
+  "tissue_fractions": {
+   "fat": 0.0,
+   "lymphocytes": 0.154,
+   "necrosis": 0.009,
+   "stroma": 0.107,
+   "tumor": 0.731
+  },
+  "unsure_share": 0.235,
+  "tumor_mm2": 2.06,
+  "main_tumor_mm2": 2.06,
+  "satellite_pieces": 0,
+  "front_length_mm": 2.35,
+  "zone_tiles": {
+   "core": 22,
+   "front band": 195,
+   "peritumoral": 17,
+   "outside": 0
+  },
+  "facing": {
+   "lymphocytes": 0.778,
+   "necrosis": 0.222
+  }
+ },
+ "status": "implemented, experimentally validated on held-out BCSS slides only; not reviewed by a pathologist"
+}

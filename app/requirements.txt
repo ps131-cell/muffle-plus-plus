@@ -4,6 +4,7 @@
 torch==2.14.1+cpu ; sys_platform == "linux"
 torch==2.14.1 ; sys_platform != "linux"
 numpy>=1.26
+scipy>=1.11            # slide workbench geometry (labels, distances)
 pandas>=2.1
 pyyaml>=6.0
 streamlit==1.66.0
