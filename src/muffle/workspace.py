@@ -110,8 +110,9 @@ class PatientFile:
 def _event_tests(e: dict) -> list[Test]:
     """The tests one event of the synthetic record adds; treatments are events, not tests."""
     m, out = e["month"], []
-    if e["kind"] == "Diagnosis":
-        out.append(Test("Pathology report", m, "Diagnosis", e["text"], "slides", PLANNED))
+    if e["kind"] == "Diagnosis":  # the slide workbench runs on a public example region for now
+        out.append(Test("Pathology report", m, "Diagnosis", e["text"], "slides", IMPLEMENTED,
+                        {"scope": "example region, first version"}))
     if e["kind"] == "Imaging":
         out.append(Test("Imaging", m, "Imaging report", e["text"], "imaging", PLANNED))
     if "mutations" in e:
@@ -278,25 +279,48 @@ def missing_data(pf: PatientFile, i: int) -> list[str]:
     if seq and seq[-1].month is not None and v.month > seq[-1].month:
         out.append(f"Not sequenced since month {seq[-1].month}: mutations that arose under later "
                    "treatment would not show")
-    if any(t.status == PLANNED for w in pf.versions[: i + 1] for t in w.tests):
-        out.append("Imaging and pathology reports are text only: their workbenches are planned")
+    tests = [t for w in pf.versions[: i + 1] for t in w.tests]
+    planned = list(dict.fromkeys(t.kind for t in tests if t.status == PLANNED))
+    if planned:
+        out.append(f"{' and '.join(planned)} reports are text only: their workbench is planned")
+    if any(t.workbench == "slides" for t in tests):
+        out.append("No slide image of this tumor is on file: the pathology workbench shows a "
+                   "public example region")
     if len(pf.versions) == 1:
         out.append(pf.note)
     return out or ["Nothing recorded as missing."]
 
 
+# Review marks: one store per browser session, ``st.session_state.reviews``, shared by the patient
+# file and every workbench and carried by ``report_markdown``. Key: ``finding_key(pf, kind,
+# *parts)``. Value: {"what": the finding in words, "mark": one of MARKS, "by": the reviewer's
+# initials ("" if none), "at": "YYYY-MM-DD HH:MM"}. Pins: ``st.session_state.pins``, key -> what.
+MARKS = ("reviewed", "agree", "disagree", "second look")
+FINDING_KINDS = {  # kind -> the parts that follow it in the key
+    "alert": "the alert's month, its what",
+    "civic": "the variant ('PIK3CA H1047R'), the CIViC item's url",
+    "risk": "the report version's month",
+    "lab": "the marker key ('ca153'), the value's month",
+    "variant": "the variant ('PIK3CA H1047R'), the sequencing test's month",
+}
+
+
 def finding_key(pf: PatientFile, kind: str, *parts) -> str:
-    """A stable name for one finding (an alert, a CIViC item, a risk estimate), for review marks
-    and pins: "SYNTHETIC-001|alert|11|CA 15-3 rose ..."."""
+    """A stable name for one finding, for review marks and pins (see MARKS and FINDING_KINDS):
+    "SYNTHETIC-001|alert|11|CA 15-3 rose ..."."""
+    if kind not in FINDING_KINDS:
+        raise ValueError(f"finding kind must be one of {list(FINDING_KINDS)}")
     return "|".join([pf.id, kind, *map(str, parts)])
 
 
 def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
-                    reviews: dict | None = None, sources: list[str] | tuple = ()) -> str:
+                    reviews: dict | None = None, sources: list[str] | tuple = (),
+                    disagree: list[dict] | tuple = (), reducers: list[dict] | tuple = ()) -> str:
     """Report version ``i`` as one Markdown page: summary, alerts, the three kinds of finding,
-    missing data, every placeholder, model and sources, and the reviewers' marks. ``evidence``
-    maps "GENE CHANGE" to its CIViC items (None: the table couldn't load); ``reviews`` maps
-    ``finding_key`` names to {"what", "mark", "by", "at"}."""
+    missing data, tests that disagree, what would reduce uncertainty, every placeholder, model
+    and sources, and the reviewers' marks. ``evidence`` maps "GENE CHANGE" to its CIViC items
+    (None: the table couldn't load); ``reviews`` maps ``finding_key`` names to {"what", "mark",
+    "by", "at"}; ``disagree`` and ``reducers`` are ``muffle.crosstest``'s lists."""
     v, evidence, reviews = pf.versions[i], evidence or {}, reviews or {}
     when = "" if v.month is None else f" (month {v.month})"
     out = [f"# {pf.id} · report {v.label}", "", f"_{pf.title} · {pf.diagnosis}_", "",
@@ -339,6 +363,14 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
         out.append("- Not sequenced: no treatment evidence")
     out += ["", "## Missing data and what it limits"]
     out += [f"- {m}" for m in missing_data(pf, i)]
+    if disagree:
+        out += ["", "## Tests that disagree"] + [
+            f"- {d['what']} [{d['evidence']}]: {d['why']} What would settle it: "
+            f"{d['would_settle']}" for d in disagree]
+    if reducers:
+        out += ["", f"## What would reduce uncertainty [{HYPOTHESIS}; evidence, not an order]"]
+        out += [f"- {r['open_question']} → {r['test']}: {r['expectation']} (source: "
+                f"{r['source']})" for r in reducers]
     placeholders = [  # the rules this file's alerts use; a TCGA file has no alerts
         f"An alert when the 12-month risk rises at least {RISK_JUMP} points",
         "Alert order: consequence × trust, with trust weights "

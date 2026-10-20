@@ -13,7 +13,10 @@ current container only: no page config, no sidebar. Standalone page, with two ex
 
 Everything shown is observed (a sequenced mutation) or a hypothesis (a CIViC item or a
 literature lead, for clinician review, never a recommendation); planned parts are shown as
-planned rows, never as results. Review marks live in ``st.session_state`` for the session.
+planned rows, never as results. Review marks go to the shared ``st.session_state.reviews``
+store under ``muffle.workspace.finding_key`` names (kind "variant" with gene and change, kind
+"civic" with the item's URL), so the report page's export carries them; initials come from
+``st.session_state.reviewer``.
 """
 
 from __future__ import annotations
@@ -62,12 +65,7 @@ def _items_table(items: list[dict]) -> None:
                  column_config=LINK)
 
 
-def _marks_of(marks: dict, target: str) -> str:
-    return ", ".join(f"{m['verdict']} ({m['initials']}, {m['time']})"
-                     for m in marks.get(target, [])) or "no mark yet"
-
-
-def _spot(v: dict, rungs: list[dict], cov: dict[str, str], strip: list, marks: dict,
+def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, reviews: dict,
           key: str) -> None:
     """The Spot panel of one variant: ladder, CIViC table, the panel's view of the gene, the
     sample, the review marks."""
@@ -105,25 +103,31 @@ def _spot(v: dict, rungs: list[dict], cov: dict[str, str], strip: list, marks: d
     c1.markdown(f"**The panel's view of {v['gene']}**  \n{badge(cov.get(v['gene'], 'outside'))}"
                 f" · {'in' if v['gene'] in cov else 'not in'} the 16-gene panel")
     c2.markdown("**Sample**  \n" + " → ".join(f"{k}: {val}" for k, val in strip[:4]))
-    st.markdown(f"**Review marks** · {_marks_of(marks, v['variant'])}")
-    initials = st.session_state.get(f"{key}-initials", "")
+    vkey, by = wb.variant_key(file, v), st.session_state.get("reviewer") or ""
+    st.markdown(f"**Review marks** · {wb.mark_text(reviews.get(vkey)) or 'no mark yet'}")
     cols = st.columns(len(wb.VERDICTS) + 2)
     for col, verdict in zip(cols, wb.VERDICTS, strict=False):
         if col.button(verdict.capitalize(), key=f"{key}-{v['variant']}-{verdict}"):
-            wb.add_mark(marks, v["variant"], verdict, initials)
+            wb.add_mark(reviews, vkey, f"{v['variant']} ({v['sample']})", verdict, by)
             st.rerun()
+    if reviews.get(vkey) and cols[-1].button("Clear mark", key=f"{key}-{v['variant']}-clear"):
+        wb.add_mark(reviews, vkey, "", None)
+        st.rerun()
     if items:
         with st.expander("Mark one evidence item"):
             labels = {f"{i.get('evidence_level', '?')} · {i.get('therapies', '')} · "
-                      f"{i.get('citation', '')}": i.get("url") or f"{v['variant']}#{n}"
+                      f"{i.get('citation', '')}": (wb.item_key(file, v, i, n), i)
                       for n, i in enumerate(items)}
             picked = st.selectbox("Evidence item", list(labels), key=f"{key}-{v['variant']}-item")
+            ikey, item = labels[picked]
             verdict = st.radio("Mark", wb.VERDICTS, horizontal=True,
                                key=f"{key}-{v['variant']}-item-verdict")
             if st.button("Mark this item", key=f"{key}-{v['variant']}-item-go"):
-                wb.add_mark(marks, labels[picked], verdict, initials)
+                wb.add_mark(reviews, ikey, f"{v['variant']}: CIViC level "
+                            f"{item.get('evidence_level', '?')}, {item.get('therapies', '')} "
+                            f"({item.get('citation', '')})", verdict, by)
                 st.rerun()
-            st.caption(_marks_of(marks, labels[picked]))
+            st.caption(wb.mark_text(reviews.get(ikey)) or "no mark yet")
 
 
 def render(file, events=None, evidence: dict | None = None, version: int | None = None,
@@ -137,7 +141,7 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     cov = {c["gene"]: c["status"] for c in coverage}
     ladders = {v["variant"]: wb.ladder(v, wb.variant_resistance(v, table)) for v in vs}
     watch = wb.watchlist(file, version, table)
-    marks = st.session_state.setdefault(f"genomics-{file.id}-marks", {})  # per file
+    reviews = st.session_state.setdefault("reviews", {})  # shared with the report page
     levels = sorted(v["strongest_level"] for v in vs if v["strongest_level"])
 
     st.subheader(f"Genomics workbench · {file.id}"
@@ -175,19 +179,26 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     st.markdown("#### Variant browser")
     shown = []
     if vs:
-        c1, c2, c3 = st.columns([2, 2, 1])
+        c1, c2, c3 = st.columns([2, 2, 2])
         query = c1.text_input("Search: a gene, \"level A\", \"resistance\", a therapy",
                               key=f"{key}-search")
         options = [_level_text(lv) for lv in dict.fromkeys(levels)] + (
             ["none"] if any(v["strongest_level"] is None for v in vs) else [])
         chosen = c2.multiselect("Strongest evidence level", options, default=options,
                                 key=f"{key}-levels")
-        c3.text_input("Reviewer initials", key=f"{key}-initials", max_chars=6)
+        mark_options = [*wb.VERDICTS, "unmarked"]
+        marked = c3.multiselect("Review mark", mark_options, default=mark_options,
+                                key=f"{key}-marked")
+
+        def mark_of(v):
+            return (reviews.get(wb.variant_key(file, v)) or {}).get("mark", "unmarked")
+
         hits = wb.search(vs, coverage, query)
         if hits["note"]:
             st.info(hits["note"][0].upper() + hits["note"][1:] + ": nothing is said about it, "
                     "not that it is wild type.")
-        shown = [v for v in hits["variants"] if _level_text(v["strongest_level"]) in chosen]
+        shown = [v for v in hits["variants"] if _level_text(v["strongest_level"]) in chosen
+                 and mark_of(v) in marked]
         rows = [{"Gene": v["gene"], "Change": v["change"], "Sample": v["sample"],
                  "Month": "—" if v["month"] is None else v["month"],
                  "Strongest level": _level_text(v["strongest_level"]),
@@ -195,16 +206,15 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
                  "Resistance leads": sum(1 for r in ladders[v["variant"]][4]["items"])
                  + len(ladders[v["variant"]][4]["literature"]),
                  "Queue": next(q for q, names in queue.items() if v["variant"] in names),
-                 "Marks": len(marks.get(v["variant"], []))} for v in shown]
+                 "Mark": "" if mark_of(v) == "unmarked" else mark_of(v)} for v in shown]
         if rows:
             picked = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
                                   on_select="rerun", selection_mode="single-row",
                                   key=f"{key}-table")
             sel = picked.selection.rows
             st.caption("Click a row to open its Spot panel below.")
-            _spot(shown[sel[0]] if sel else shown[0], ladders[(shown[sel[0]] if sel
-                                                               else shown[0])["variant"]],
-                  cov, strip, marks, key)
+            v = shown[sel[0]] if sel else shown[0]
+            _spot(file, v, ladders[v["variant"]], cov, strip, reviews, key)
         else:
             st.caption("No variant matches.")
     else:
@@ -241,7 +251,9 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     for col, (name, names) in zip(st.columns(3), queue.items(), strict=True):
         col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
         for n in names:
-            col.markdown(f"- {n} · {_marks_of(marks, n)}")
+            v = next(x for x in vs if x["variant"] == n)
+            col.markdown(f"- {n} · "
+                         f"{wb.mark_text(reviews.get(wb.variant_key(file, v))) or 'no mark yet'}")
         if not names:
             col.caption("none")
 
@@ -258,10 +270,10 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     st.markdown("#### Export")
     e1, e2 = st.columns(2)
     e1.download_button("Report (Markdown)",
-                       wb.report_markdown(file, vs, ladders, watch, marks, strip),
+                       wb.report_markdown(file, vs, ladders, watch, reviews, strip),
                        f"genomics_{file.id.replace(' ', '_')}.md", "text/markdown",
                        key=f"{key}-md")
-    e2.download_button("Variants and items (CSV)", wb.report_csv(vs, marks),
+    e2.download_button("Variants and items (CSV)", wb.report_csv(file, vs, reviews),
                        f"genomics_{file.id.replace(' ', '_')}.csv", "text/csv", key=f"{key}-csv")
 
     # limits, data card, planned
@@ -306,6 +318,7 @@ def main() -> None:
     choice = st.radio("Example file", ["SYNTHETIC-001 (synthetic patient)",
                                        f"Case {EXAMPLE_CASE.index} (TCGA-BRCA public data)"],
                       horizontal=True)
+    st.text_input("Reviewer initials", key="reviewer", max_chars=5)  # the report page's field
     table = _civic_table()
     if table is None:
         st.caption("CIViC table not available on this machine: evidence items and resistance "
