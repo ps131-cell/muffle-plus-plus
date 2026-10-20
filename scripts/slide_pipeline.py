@@ -458,8 +458,11 @@ def cmd_run(a):
         log("no tumor front in the map: nuclei not counted")
     timing_path = Path(a.work) / "timing.json"
     timing = json.load(open(timing_path)) if timing_path.exists() else {}
-    encoder_info = {"name": a.model, "license": "MIT", "access": "open, ungated",
-                    "kind": ENCODERS[a.model]["kind"], "tiles_per_s_cpu": round(rate, 2),
+    spec = ENCODERS[a.model]
+    encoder_info = {"name": a.model, "license": spec.get("license", "?"),
+                    "access": "open, ungated" if spec.get("gate", "none") == "none"
+                    else f"gated: {spec['gate']}", "kind": spec.get("loader", "?"),
+                    "dim": spec.get("dim"), "tiles_per_s_cpu": round(rate, 2),
                     "threads": a.threads, "peak_rss_gb": timing.get("peak_rss_gb")}
     timings["uptime_at_end"] = uptime()
     write_result(slide, region, sel, tiles, nuclei, nuc_meta, res, head_metrics, encoder_info,
