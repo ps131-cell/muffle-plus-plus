@@ -2,6 +2,21 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-20 — Stronger encoders one command away; CC BY-NC-ND encoders enforced local only
+- **What:** `scripts/slide_spike.py` gains ten encoder entries (license, gate, preprocessing,
+  pooling per model card), `HF_TOKEN` from the environment or `.env` (never printed), `--device
+  auto` (CUDA, XPU, CPU), per-encoder run folders (`embed --tiles`) and `compare`, which writes the
+  table in `docs/encoders.md`. A gated model without access stops with one line naming the URL.
+  UNI2-h and CONCH are marked local only: `embed` and `result` refuse any path inside the
+  repository for them. User checklist: `docs/model_access.md`; GPU runbook: `docs/gpu.md`.
+- **Why:** the strongest permissive encoders (Hibou, GigaPath-Flash, Path Foundation, H-optimus-0,
+  Virchow) are behind Hugging Face click-throughs only the account owners can do; with the
+  plumbing in place each one is a single command after the click.
+- **Consequence:** the workbench keeps QuiltNet-B-32 (held-out accuracy 0.877, reproduced through
+  the new code) until a measured row beats it. Midnight-12k was not trained on (~3 h on this CPU);
+  it waits for the GPU run with the gated models. Whether a prize-eligible entry counts as
+  non-commercial research stays open (`docs/model_access.md` has the note for the organisers).
+
 ## 2026-10-19 — Slide workbench spike: a minimal breast tissue map on an open encoder
 - **What:** `app/workbenches/slides.py` shows one precomputed BCSS-annotated TCGA-BRCA region
   (tissue map with hover probabilities, certainty map, quality exclusions, tumor front and
