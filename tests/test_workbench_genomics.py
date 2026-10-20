@@ -251,29 +251,61 @@ def test_provenance_strip_for_both_file_kinds():
     assert tcga["date"] == "not in the open data" and "masked" in tcga["assay"]
 
 
-def test_marks_and_exports():
+def test_marks_use_the_report_pages_finding_keys_and_store():
+    pf = synthetic_file(timeline())
+    v = g.variants(pf, evidence={"PIK3CA H1047R": [A]})[0]
+    assert g.variant_key(pf, v) == "SYNTHETIC-001|variant|PIK3CA|H1047R"
+    assert g.item_key(pf, v, A) == "SYNTHETIC-001|civic|PIK3CA H1047R|https://civicdb.org/e/6"
+    assert g.item_key(pf, v, {}, 2) == "SYNTHETIC-001|civic|PIK3CA H1047R|item-2"
+    reviews = {"OTHER-1|alert|0|x": {"what": "x", "mark": "agree", "by": "zz", "at": "t"}}
+    g.add_mark(reviews, g.variant_key(pf, v), "PIK3CA H1047R (bone biopsy)", g.AGREE, " ab ",
+               "2026-10-19 10:00")
+    assert reviews["SYNTHETIC-001|variant|PIK3CA|H1047R"] == {
+        "what": "PIK3CA H1047R (bone biopsy)", "mark": "agree", "by": "ab",
+        "at": "2026-10-19 10:00"}
+    g.add_mark(reviews, g.item_key(pf, v, A), "PIK3CA H1047R: CIViC level A", g.SECOND_LOOK, "",
+               "2026-10-19 10:01")
+    assert g.marks_of(reviews, pf).keys() == {
+        "SYNTHETIC-001|variant|PIK3CA|H1047R",
+        "SYNTHETIC-001|civic|PIK3CA H1047R|https://civicdb.org/e/6"}
+    assert g.mark_text(reviews[g.item_key(pf, v, A)]) == \
+        "second look (no initials, 2026-10-19 10:01)"
+    assert g.mark_text(None) == ""
+    with pytest.raises(ValueError):
+        g.add_mark(reviews, "x", "x", "maybe")
+    g.add_mark(reviews, g.variant_key(pf, v), "", None)  # clears
+    assert g.variant_key(pf, v) not in reviews and len(reviews) == 2
+    assert g.VERDICTS == ("agree", "disagree", "second look")  # the report page's MARKS
+
+
+def test_exports_carry_this_files_marks_from_the_shared_store():
     pf = synthetic_file(timeline())
     vs = g.variants(pf, evidence={"PIK3CA H1047R": [A]})
-    marks = g.add_mark({}, "PIK3CA H1047R", g.AGREE, " ab ", "2026-10-19 10:00")
-    g.add_mark(marks, A["url"], g.SECOND_LOOK, "", "2026-10-19 10:01")
-    assert marks["PIK3CA H1047R"] == [{"verdict": "agree", "initials": "ab",
-                                       "time": "2026-10-19 10:00"}]
-    assert marks[A["url"]][0]["initials"] == "?"
-    with pytest.raises(ValueError):
-        g.add_mark(marks, "x", "maybe", "ab")
-    ladders = {v["variant"]: g.ladder(v) for v in vs}
-    md = g.report_markdown(pf, vs, ladders, g.watchlist(pf), marks, g.provenance(pf))
+    v = vs[0]
+    reviews = {"OTHER-1|alert|0|x": {"what": "x", "mark": "agree", "by": "zz", "at": "t"}}
+    g.add_mark(reviews, g.variant_key(pf, v), "PIK3CA H1047R (bone biopsy)", g.AGREE, "ab",
+               "2026-10-19 10:00")
+    g.add_mark(reviews, g.item_key(pf, v, A), "PIK3CA H1047R: CIViC level A", g.SECOND_LOOK, "",
+               "2026-10-19 10:01")
+    g.add_mark(reviews, "SYNTHETIC-001|alert|11|CA 15-3 rose", "CA 15-3 rose", g.DISAGREE, "cd",
+               "2026-10-19 10:02")
+    ladders = {x["variant"]: g.ladder(x) for x in vs}
+    md = g.report_markdown(pf, vs, ladders, g.watchlist(pf), reviews, g.provenance(pf))
     assert md.startswith("# Genomics workbench · SYNTHETIC-001")
     assert "Synthetic patient" in md and "| PIK3CA H1047R | bone biopsy |" in md
     assert "### 1. detected [observed]" in md and "### 5. resistance mechanisms [hypothesis]" in md
-    assert "PADA-1" in md and "agree (ab, 2026-10-19 10:00)" in md
-    assert "never a recommendation" in md
-    rows = list(csv_rows(g.report_csv(vs, marks)))
+    assert "PADA-1" in md and "never a recommendation" in md
+    assert "- PIK3CA H1047R (bone biopsy): agree (ab, 2026-10-19 10:00)" in md
+    assert "- PIK3CA H1047R: CIViC level A: second look (no initials, 2026-10-19 10:01)" in md
+    assert "- CA 15-3 rose: disagree (cd, 2026-10-19 10:02)" in md  # another page, same file
+    assert "zz" not in md  # another file's mark stays out
+    rows = list(csv_rows(g.report_csv(pf, vs, reviews)))
     assert rows[0][:3] == ["variant", "gene", "change"] and rows[0][-1] == "marks"
     assert rows[1][0] == "PIK3CA H1047R" and rows[1][9] == "A"
-    assert rows[1][-1] == "needs a second look (?, 2026-10-19 10:01)"
-    assert len(list(csv_rows(g.report_csv(g.variants(pf, evidence={"PIK3CA H1047R": []}),
-                                          {})))) == 2  # a variant without items keeps one row
+    assert rows[1][-1] == "second look (no initials, 2026-10-19 10:01)"  # the item's own mark
+    bare = list(csv_rows(g.report_csv(pf, g.variants(pf, evidence={"PIK3CA H1047R": []}),
+                                      reviews)))
+    assert len(bare) == 2 and bare[1][-1] == "agree (ab, 2026-10-19 10:00)"  # the variant's
 
 
 def csv_rows(text: str):
