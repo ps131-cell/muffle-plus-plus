@@ -254,19 +254,21 @@ def test_provenance_strip_for_both_file_kinds():
 def test_marks_use_the_report_pages_finding_keys_and_store():
     pf = synthetic_file(timeline())
     v = g.variants(pf, evidence={"PIK3CA H1047R": [A]})[0]
-    assert g.variant_key(pf, v) == "SYNTHETIC-001|variant|PIK3CA|H1047R"
+    assert g.variant_key(pf, v) == "SYNTHETIC-001|variant|PIK3CA H1047R|0"
+    tcga = case_file(SimpleNamespace(**CASE))
+    assert g.variant_key(tcga, g.variants(tcga, EVENTS)[1]) == "Case 926|variant|TP53 R175H|None"
     assert g.item_key(pf, v, A) == "SYNTHETIC-001|civic|PIK3CA H1047R|https://civicdb.org/e/6"
     assert g.item_key(pf, v, {}, 2) == "SYNTHETIC-001|civic|PIK3CA H1047R|item-2"
     reviews = {"OTHER-1|alert|0|x": {"what": "x", "mark": "agree", "by": "zz", "at": "t"}}
     g.add_mark(reviews, g.variant_key(pf, v), "PIK3CA H1047R (bone biopsy)", g.AGREE, " ab ",
                "2026-10-19 10:00")
-    assert reviews["SYNTHETIC-001|variant|PIK3CA|H1047R"] == {
+    assert reviews["SYNTHETIC-001|variant|PIK3CA H1047R|0"] == {
         "what": "PIK3CA H1047R (bone biopsy)", "mark": "agree", "by": "ab",
         "at": "2026-10-19 10:00"}
     g.add_mark(reviews, g.item_key(pf, v, A), "PIK3CA H1047R: CIViC level A", g.SECOND_LOOK, "",
                "2026-10-19 10:01")
     assert g.marks_of(reviews, pf).keys() == {
-        "SYNTHETIC-001|variant|PIK3CA|H1047R",
+        "SYNTHETIC-001|variant|PIK3CA H1047R|0",
         "SYNTHETIC-001|civic|PIK3CA H1047R|https://civicdb.org/e/6"}
     assert g.mark_text(reviews[g.item_key(pf, v, A)]) == \
         "second look (no initials, 2026-10-19 10:01)"
@@ -275,7 +277,9 @@ def test_marks_use_the_report_pages_finding_keys_and_store():
         g.add_mark(reviews, "x", "x", "maybe")
     g.add_mark(reviews, g.variant_key(pf, v), "", None)  # clears
     assert g.variant_key(pf, v) not in reviews and len(reviews) == 2
-    assert g.VERDICTS == ("agree", "disagree", "second look")  # the report page's MARKS
+    assert g.VERDICTS == ("reviewed", "agree", "disagree", "second look")  # workspace.MARKS
+    g.add_mark(reviews, g.variant_key(pf, v), "PIK3CA H1047R", g.REVIEWED, "ab", "t")
+    assert reviews[g.variant_key(pf, v)]["mark"] == "reviewed"
 
 
 def test_exports_carry_this_files_marks_from_the_shared_store():
