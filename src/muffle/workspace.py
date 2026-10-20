@@ -292,11 +292,13 @@ def finding_key(pf: PatientFile, kind: str, *parts) -> str:
 
 
 def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
-                    reviews: dict | None = None, sources: list[str] | tuple = ()) -> str:
+                    reviews: dict | None = None, sources: list[str] | tuple = (),
+                    disagree: list[dict] | tuple = (), reducers: list[dict] | tuple = ()) -> str:
     """Report version ``i`` as one Markdown page: summary, alerts, the three kinds of finding,
-    missing data, every placeholder, model and sources, and the reviewers' marks. ``evidence``
-    maps "GENE CHANGE" to its CIViC items (None: the table couldn't load); ``reviews`` maps
-    ``finding_key`` names to {"what", "mark", "by", "at"}."""
+    missing data, tests that disagree, what would reduce uncertainty, every placeholder, model
+    and sources, and the reviewers' marks. ``evidence`` maps "GENE CHANGE" to its CIViC items
+    (None: the table couldn't load); ``reviews`` maps ``finding_key`` names to {"what", "mark",
+    "by", "at"}; ``disagree`` and ``reducers`` are ``muffle.crosstest``'s lists."""
     v, evidence, reviews = pf.versions[i], evidence or {}, reviews or {}
     when = "" if v.month is None else f" (month {v.month})"
     out = [f"# {pf.id} · report {v.label}", "", f"_{pf.title} · {pf.diagnosis}_", "",
@@ -339,6 +341,14 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
         out.append("- Not sequenced: no treatment evidence")
     out += ["", "## Missing data and what it limits"]
     out += [f"- {m}" for m in missing_data(pf, i)]
+    if disagree:
+        out += ["", "## Tests that disagree"] + [
+            f"- {d['what']} [{d['evidence']}]: {d['why']} What would settle it: "
+            f"{d['would_settle']}" for d in disagree]
+    if reducers:
+        out += ["", f"## What would reduce uncertainty [{HYPOTHESIS}; evidence, not an order]"]
+        out += [f"- {r['open_question']} → {r['test']}: {r['expectation']} (source: "
+                f"{r['source']})" for r in reducers]
     placeholders = [  # the rules this file's alerts use; a TCGA file has no alerts
         f"An alert when the 12-month risk rises at least {RISK_JUMP} points",
         "Alert order: consequence × trust, with trust weights "

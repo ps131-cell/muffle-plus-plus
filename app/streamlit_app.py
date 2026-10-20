@@ -56,7 +56,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
 import charts  # noqa: E402
 from workbenches import genomics, labs  # noqa: E402
 
-from muffle import workspace  # noqa: E402
+from muffle import crosstest, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
     evidence_lookup,
@@ -67,6 +67,7 @@ from muffle.demo import (  # noqa: E402
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.report import civic  # noqa: E402
+from muffle.report.evidence_chain import note_chain  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
 from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
@@ -349,11 +350,26 @@ def report_view(pf: workspace.PatientFile, i: int):
                 "alterations and escape routes, with their confidence (docs/VISION.md).")
     st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
     st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
+    disagree = crosstest.discrepancies(pf, i)
+    if disagree:
+        st.markdown(f"**Tests that disagree** · {len(disagree)}")
+        for d in disagree:
+            with st.container(border=True):
+                st.markdown(f"**{d['what']}** {tags(d['evidence'])}")
+                st.caption(" · ".join(d["sources"]) + f" · {d['why']}")
+                st.markdown(f"What would settle it: {d['would_settle']}")
+    reducers = crosstest.uncertainty_reducers(pf, i)
+    if reducers:
+        st.markdown(f"**What would reduce uncertainty** {tags(HYPOTHESIS)} · evidence for your "
+                    "judgment, not an order")
+        st.markdown("\n".join(
+            f"- **{r['open_question']}** → {r['test']}: {r['expectation']} "
+            f"{tags(r['evidence'])}  \n  Source: {r['source']}" for r in reducers))
     with st.expander("Caveats, data sources and model versions"):
         st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
                     f"{pf.model['endpoint']}.\n" + "\n".join(f"- {s}" for s in sources(pf)))
     page = workspace.report_markdown(pf, i, {var: civic_items(pf, var) for var in variants},
-                                     st.session_state.reviews, sources(pf))
+                                     st.session_state.reviews, sources(pf), disagree, reducers)
     when = "baseline" if v.month is None else f"month{v.month}"
     st.download_button("Download this report version (Markdown)", page,
                        file_name=f"{pf.id.replace(' ', '_')}_{when}.md", mime="text/markdown",
@@ -633,6 +649,7 @@ def case_note(case):
                     st.success("Grounding check: every number, gene and link in this note comes "
                                "from the tool outputs" + (" (rewritten once after the check)."
                                                           if report.revised else "."))
+            evidence_chain(case, report)
             header = (f"# MuFFLe++ tumor-board note: case {case.index}\n\n"
                       f"_{case.label} · {source} · written by {model_name(report.writer)} on "
                       f"Nebius Token Factory. {DISCLAIMER}_\n\n")
@@ -658,6 +675,29 @@ def case_note(case):
                     st.json(call.result)
             st.caption("Only these derived numbers and gene names were sent to Token Factory; "
                        "the patient's omics never leave the hospital.")
+
+
+def evidence_chain(case, report: CaseReport):
+    """Each sentence of the note → the tool output behind it → the field → its value, with how
+    exactly they match (strong: exact; weak: rounded or part of a word)."""
+    chain = note_chain(report, demo.names, header=demo.tools(case).case_header())
+    rows = [{"#": n, "Sentence": c["sentence"], "Says": c["evidence_type"] or "",
+             "Item": link["item"], "Tool": link["tool"], "Field": link["path"],
+             "Value": str(link["value"]), "Match": link["trust"]}
+            for n, c in enumerate(chain, 1) for link in c["links"]]
+    loose = [(n, c) for n, c in enumerate(chain, 1) if not c["links"] and c["evidence_type"]]
+    unsupported = [(n, u) for n, c in enumerate(chain, 1) for u in c["unsupported"]]
+    with st.expander(f"Evidence chain: {len(rows)} links from {len(chain)} sentences to the "
+                     "tool outputs" + (f", {len(unsupported)} unsupported" if unsupported else "")):
+        if unsupported:
+            st.warning("Not in the tool outputs: " + "; ".join(
+                f"sentence {n}: {u}" for n, u in unsupported))
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        if loose:
+            st.caption("Labeled sentences with no number, gene or link to check: "
+                       + ", ".join(str(n) for n, _ in loose) + ".")
+        st.caption("Match: strong = the exact value; weak = rounded, or part of a longer word. "
+                   "The same check as the grounding check above, sentence by sentence.")
 
 
 def tests_view(pf: workspace.PatientFile, i: int):
@@ -758,19 +798,23 @@ def compare(pf: workspace.PatientFile, i: int):
     ib = b.selectbox("To", range(i + 1), index=i, key=f"to-{pf.id}-{i}",
                      format_func=lambda k: pf.versions[k].label)
     lo, hi = sorted((ia, ib))
-    then, now = dict(pf.versions[lo].observed), dict(pf.versions[hi].observed)
-    rows = [{"Finding": k, "Then": then.get(k, "—"), "Now": now.get(k, "—")}
-            for k in dict.fromkeys([*then, *now]) if then.get(k) != now.get(k)]
-    if rows:
-        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", column_config={
-            "Then": pf.versions[lo].label, "Now": pf.versions[hi].label})
-    else:
-        st.caption("Nothing observed changed between these versions.")
-    for v in pf.versions[lo + 1: hi + 1]:
-        if v.changes:
-            st.markdown(f"- **{v.label}** · {v.summary} {tags(INFERENCE)}")
-        for al in v.alerts:
-            st.markdown(f"- **{v.label}** · :red[SOS] {al.what}")
+    diff = crosstest.diff_versions(pf, lo, hi)
+    if not diff:
+        st.caption("Nothing changed between these versions.")
+    for col, kind in zip(st.columns(3), (OBSERVED, INFERENCE, HYPOTHESIS), strict=True):
+        items = [d for d in diff if d["column"] == kind]
+        with col:
+            st.markdown(f"**{kind.capitalize()}** {tags(kind)} · {len(items)} changed")
+            for d in items:
+                st.markdown({
+                    "added": f":green[**+ {d['finding']}**]: {d['after']}",
+                    "removed": f":red[**− {d['finding']}**]: ~~{d['before']}~~",
+                    "changed": f":orange[**~ {d['finding']}**]: {d['before']} → {d['after']}",
+                }[d["status"]])
+    why = [v for v in pf.versions[lo + 1: hi + 1] if v.changes]
+    if why:
+        st.markdown(f"**Why the risk changed** {tags(INFERENCE)}")
+        st.markdown("\n".join(f"- **{v.label}** · {v.summary}" for v in why))
 
 
 def import_view(pf: workspace.PatientFile, i: int):
