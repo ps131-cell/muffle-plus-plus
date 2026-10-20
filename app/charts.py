@@ -125,9 +125,18 @@ def survival_by_group(km: dict[str, tuple[np.ndarray, np.ndarray, int]]) -> alt.
     return (lines + points + labels).properties(height=280).configure_axis(**GRID)
 
 
-def risk_timeline(updates: list[dict], events: list[dict], month: float) -> alt.Chart:
+def _treatments(treatments: list[dict]) -> alt.Chart:
+    """Dashed rules where treatments start ({"month", "text"} each), named on hover."""
+    df = pd.DataFrame(list(treatments), columns=["month", "text"])
+    return alt.Chart(df).mark_rule(strokeDash=[2, 3], opacity=0.7, clip=True).encode(
+        x="month:Q", tooltip=[alt.Tooltip("month:Q"), alt.Tooltip("text:N", title="treatment")])
+
+
+def risk_timeline(updates: list[dict], events: list[dict], month: float,
+                  treatments: list[dict] = ()) -> alt.Chart:
     """The synthetic patient's 12-month risk at each event: the record-so-far models (mean, and
-    their range over seeds as a band) and the diagnosis-only baseline; a rule marks ``month``."""
+    their range over seeds as a band) and the diagnosis-only baseline; a rule marks ``month``,
+    dashed rules the treatment starts."""
     rows = [{"month": u["month"], "risk": u["risk"], "lo": u["risk_range"][0],
              "hi": u["risk_range"][1], "baseline": u["baseline"],
              "event": events[u["event"]]["text"]} for u in updates if "risk" in u]
@@ -154,5 +163,38 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float) -> alt.
                                  last.assign(v=last["baseline"], name="diagnosis only")])
                       ).mark_text(align="left", dx=8).encode(x="month:Q", y="v:Q", text="name:N")
     now = alt.Chart(pd.DataFrame({"month": [month]})).mark_rule(opacity=0.5).encode(x="month:Q")
-    return (band + line + baseline + dots + names + now).properties(height=280).configure_axis(
-        **GRID)
+    return (band + line + baseline + _treatments(treatments) + dots + names + now).properties(
+        height=280).configure_axis(**GRID)
+
+
+def lab_trend(rows: list[dict], name: str, unit: str, limit: float | None = None,
+              treatments: list[dict] = (), flags: dict | None = None) -> alt.Chart:
+    """One tumor marker over time (``muffle.workspace.lab_series`` rows). Hovering a value shows
+    its change from the previous value and from the lowest so far, the rate per month, its source
+    and any flag; flagged values are red. The reference limit is dashed, as are treatment starts."""
+    flags = flags or {}
+    df = pd.DataFrame(rows).reindex(
+        columns=["month", "value", "event", "change", "from_nadir", "per_month"])
+    df["flag"] = df["month"].map(flags).fillna("none")
+    df["reference"] = f"below {limit:g} {unit}" if limit is not None else "none in the record"
+    x = alt.X("month:Q", title="months since the first tumor sequencing",
+              scale=alt.Scale(domain=[df["month"].min() - 1, df["month"].max() + 1]))
+    y = alt.Y("value:Q", title=f"{name} ({unit})", scale=alt.Scale(zero=True))
+    tip = [alt.Tooltip("month:Q"), alt.Tooltip("value:Q", title=f"{name} ({unit})"),
+           alt.Tooltip("change:Q", format="+.0%", title="vs previous value"),
+           alt.Tooltip("from_nadir:Q", format="+.0%", title="vs lowest so far"),
+           alt.Tooltip("per_month:Q", format="+.1f", title=f"{unit} per month"),
+           alt.Tooltip("reference:N", title="reference"), alt.Tooltip("event:N", title="source"),
+           alt.Tooltip("flag:N")]
+    base = alt.Chart(df).encode(x=x)
+    layers = [_treatments(treatments), base.mark_line(color=BLUE, strokeWidth=2).encode(y=y)]
+    if limit is not None:
+        ref = pd.DataFrame({"y": [limit], "label": [f"reference limit {limit:g} {unit}"]})
+        rule = alt.Chart(ref).mark_rule(strokeDash=[6, 4], color=AQUA, strokeWidth=2)
+        layers += [rule.encode(y="y:Q", tooltip=[alt.Tooltip("label:N", title="reference")]),
+                   alt.Chart(ref).mark_text(align="left", dx=4, dy=-8).encode(
+                       x=alt.value(0), y="y:Q", text="label:N")]
+    layers.append(base.mark_circle(size=90, opacity=1).encode(
+        y=y, tooltip=tip, color=alt.condition(alt.datum.flag != "none", alt.value(RED),
+                                              alt.value(BLUE))))
+    return alt.layer(*layers).properties(height=280).configure_axis(**GRID)

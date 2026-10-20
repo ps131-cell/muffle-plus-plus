@@ -8,7 +8,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from muffle.timeline import EVENTS
-from muffle.workspace import PLANNED, case_file, lab_series, synthetic_file
+from muffle.workspace import (
+    DISCLAIMER,
+    PLANNED,
+    case_file,
+    finding_key,
+    lab_series,
+    report_markdown,
+    synthetic_file,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,6 +52,40 @@ def test_synthetic_file_has_a_version_per_event_and_alerts_where_the_record_turn
     assert {t.status for t in imaging} == {PLANNED}
     assert [(t.month, t.workbench) for t in tests if t.kind == "Sequencing"] == [(0, "mutations")]
     assert v[1].treatments == ["palbociclib", "fulvestrant"] and v[13].treatments == ["alpelisib"]
+
+
+def test_alerts_carry_trust_and_are_ordered_by_consequence_and_trust():
+    v = {ver.month: ver for ver in synthetic_file(timeline()).versions}
+    month12 = v[12].alerts
+    assert [a.trust for a in month12] == ["strong", "strong", "weak"]  # observed before the model
+    assert month12[0].opens == ("Tests", "Imaging", 12, "Imaging report")
+    assert month12[-1].what.startswith("12-month risk up") and month12[-1].opens == ("Timeline",)
+    marker = v[11].alerts[0]
+    assert marker.trust == "moderate" and "EGTM" in marker.threshold
+    assert marker.opens == ("Tests", "Lab", 11, "CA 15-3")
+    assert month12[0].priority > marker.priority > month12[-1].priority
+
+
+def test_report_page_lists_alerts_evidence_placeholders_and_marks():
+    tl = timeline()
+    pf = synthetic_file(tl)
+    alert = pf.versions[11].alerts[0]
+    marks = {finding_key(pf, "alert", alert.month, alert.what):
+             {"what": alert.what, "mark": "agree", "by": "PS", "at": "2026-10-19 18:00"}}
+    page = report_markdown(pf, 11, {"PIK3CA H1047R": tl["evidence"]["PIK3CA H1047R"]}, marks,
+                           ["a source line"])
+    for part in ("# SYNTHETIC-001 · report month 12 · Imaging", DISCLAIMER, "Synthetic patient",
+                 "Progression on imaging", "trust strong", "CIViC level A",
+                 "An alert when the 12-month risk rises at least 20 points",
+                 "Not sequenced since month 0", "a source line", "agree (PS, 2026-10-19 18:00)"):
+        assert part in page, part
+
+    case = SimpleNamespace(index=1, site="site-1", percentile=40.0, group="medium", age=61.0,
+                           stage="II", layers=["clinical"], missing=[],
+                           mutations=["PIK3CA p.H1047R"])
+    page = report_markdown(case_file(case, 0.7), 0, {"PIK3CA H1047R": None})
+    assert "PIK3CA H1047R: CIViC not available here" in page
+    assert "## Placeholders (not validated)\n- none" in page and "40th percentile" in page
 
 
 def test_a_new_driver_raises_an_alert_only_with_level_a_or_b_evidence():
