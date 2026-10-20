@@ -143,44 +143,51 @@ panel coverage, review queue, longitudinal note, limits, data card):
 
 ## 5. Pathology workbench (H&E slides)
 
-Planned [model]. Designed now so the page shows exactly what will come and what will never be
-claimed. The colon analyzer's pipeline (tissue mask → 224 px tiles at 0.5 µm/px → embeddings →
-tissue classes → smoothed maps → front, zones, measurements, flags, risk map, certainty) carries
-over; its tissue heads do not (colon-trained). Breast needs its own classes and validation.
+Built in two rounds (2026-10-19, 2026-10-20; `pathology.md`) on the patient's own TCGA
+diagnostic sections for five cases, scored offline; the colon analyzer's pipeline (tissue mask →
+224 px tiles at 0.5 µm/px → embeddings → tissue classes → smoothed maps → front, zones,
+measurements, flags, risk map, certainty) carries over, re-implemented; its tissue heads do not
+(colon-trained): a five-class BCSS head validated on 3 held-out slides stands in. Tags below:
+**now** = built; **model** = needs a model or validation that does not exist yet.
 
-- **Tissue map** for breast: invasive carcinoma, in-situ carcinoma (DCIS), normal breast
-  (ducts and lobules), stroma, fat, lymphocytes, necrosis, vessels; probabilities on hover; a
-  second model's opinion where available. Data: BCSS (CC0 region masks on TCGA-BRCA slides) to
+- **Tissue map** for breast [now: invasive carcinoma, stroma, lymphocytes, necrosis, fat;
+  model: DCIS, normal breast, vessels (too few BCSS tiles), a second model's opinion]:
+  probabilities on hover; layers for tissue, certainty, QC, zones, immune and risk. Data: BCSS (CC0 region masks on TCGA-BRCA slides) to
   train a small head on an open encoder from the survey; TCGA-BRCA diagnostic slides for
   calibration by eye and by the pathologist.
-- **Tumor front and growth pattern**: the invasive front as a line, core / front band /
-  peritumoral zones, pushing versus infiltrative with roughness and fingers; **direction of
-  invasion** as arrows along the infiltrative arcs and a rose diagram; "what the front faces"
-  (fat, stroma, normal ducts). A 2D snapshot: where it is invading in this section, never a
-  forecast, said on the page.
-- **Breakaway cells**: tumor budding and single-cell infiltration hotspots (phrase-scored, weak
-  until validated), shown as a 0.785 mm² counting field at the hotspot with a counter the
-  pathologist fills in; the tile size cannot resolve single cells, said on the page.
-- **Satellite islands** with their distance from the main tumor and the tissue between.
-- **Immune pattern**: stromal lymphocytes by zone (core, front band, outside) and by side, with
-  the International TILs Working Group reporting as the literature source; desert, inflamed or
-  excluded pattern with calibrated cutoffs or placeholders, tagged.
-- **Necrosis** (comedo pattern in DCIS), **lymphovascular invasion candidates** (the weakest
-  flag, text match only), **in-situ versus invasive** (a known failure class, so the page says
-  "uncertain here" rather than deciding), **margins** only where the specimen type allows.
-- **What a tile map cannot do**: Nottingham grade (mitoses and nuclear pleomorphism need higher
-  resolution), receptor status (needs IHC), mutations (needs sequencing). Each stated on the page
-  with the test that can.
-- **Quality control**: blur, glass, pen ink, blood, folds, stain variation, with the tiles
-  excluded and why; a certainty map (top probability below a calibrated cutoff = unsure here).
-- **Risk map and cards**: every feature adds points within 1 mm; regions above a threshold get a
-  clickable card ("Level 3: infiltrative arc, faces fat, budding hotspot"); the points table and
+- **Tumor front and growth pattern** [now, placeholder cutoffs]: the invasive front as a line,
+  core / front band / peritumoral zones, pushing versus infiltrative with roughness and fingers;
+  **direction of invasion** as arrows per arc and a rose diagram; "what the front faces" (fat,
+  stroma, lymphocytes, necrosis). A 2D snapshot: where it is invading in this section, never a
+  forecast, said on the page and labeled a hypothesis.
+- **Breakaway cells** [now, weak until validated]: StarDist nuclei on the front band; clusters
+  of ≤ 4 tumor-candidate nuclei outside the main tumor (ITBCC), the 0.785 mm² counting field at
+  the hotspot with a counter the pathologist fills in; the nuclei model is pretrained, not
+  validated on breast, said on the page.
+- **Satellite islands** [now] with their distance from the main tumor and the tissue between.
+- **Immune pattern** [now, placeholder cutoffs; model: calibration]: stromal lymphocytes by
+  zone (core, front band, peritumoral) as tile shares and lymphocyte-like nuclei per mm², with
+  the International TILs Working Group's zones as the literature source (a count proxy, not
+  its area percentage); desert, inflamed or excluded pattern on placeholders, tagged.
+- **Necrosis** contact and **tumor–stroma ratio** [now, literature cutoff from colorectal];
+  **lymphovascular invasion**, **in-situ versus invasive** and **margins** [model / data]: the
+  page says it cannot see them and which test can.
+- **What a tile map cannot do** [now]: Nottingham grade (nuclear-area variation is shown as a
+  proxy only), receptor status (needs IHC), mutations (needs sequencing), margins,
+  lymphovascular invasion, what happens next. Each stated on the page with the test that can.
+- **Quality control** [now: blur, glass, pen ink, placeholders; data: blood, folds, stain
+  variation], with the tiles excluded and why; a certainty map (top probability below a
+  placeholder cutoff = unsure here).
+- **Risk map and cards** [now, every point a placeholder]: every feature adds points within
+  1 mm; regions at level 2 or more get a card that opens the Spot panel; the points table and
   every placeholder are visible.
-- **Spot panel per tile**: the real tile, where it sits, top class and score, certainty and why,
-  the second model's answer, zone and distance to the front, what to check by eye, all class
-  scores.
-- **Review**: search inside the slide ("lymphocytes at the border", "budding"), pointers, pins,
-  agree / disagree on flags, the "unsure" list, exports (map picture, PDF, JSON, CSV).
+- **Spot panel per tile** [now; model: a second model's answer]: the crop with nuclei dots,
+  where it sits, top class and score, certainty and why, zone and distance to the front, nuclei
+  counts, what to check by eye, all class scores, the review mark.
+- **Review** [now]: search inside the slide ("lymphocytes at the border", "budding", "T2";
+  "can't see that" for grade, receptors, mutations), pointers T1…Tn, pins, agree / disagree /
+  second look under `finding_key` kind "slide", the unsure spot in the queue, two sections
+  compared, exports (map picture, JSON, CSV; PDF is roadmap).
 
 ## 6. Radiology workbench (CT, MRI, PET, mammography)
 

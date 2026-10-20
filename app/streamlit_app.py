@@ -184,8 +184,10 @@ FILES, CASES = {}, {}  # patient id -> PatientFile; and for a TCGA file, its hel
 if TL:
     synthetic = workspace.synthetic_file(TL)
     FILES[synthetic.id] = synthetic
+SLIDE_CASES = APP / "workbenches" / "slides_results" / "cases.json"  # index -> scored slides
+SLIDE_CASES = json.loads(SLIDE_CASES.read_text()) if SLIDE_CASES.exists() else {}
 for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile)):
-    pf = workspace.case_file(c, demo.c_index)
+    pf = workspace.case_file(c, demo.c_index, slides=SLIDE_CASES.get(str(c.index), ()))
     FILES[pf.id], CASES[pf.id] = pf, c
 
 # --- sidebar: what is running ----------------------------------------------------------------
@@ -726,7 +728,7 @@ def tests_view(pf: workspace.PatientFile, i: int):
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
         genomics.render(pf, version=i, lookup=EVIDENCE,
                         table=civic.load_table() if EVIDENCE else None)
-    elif t.workbench == "slides":  # a public example region; the page says it isn't this patient
+    elif t.workbench == "slides":  # the patient's own scored sections, or a public example
         from workbenches import slides  # here, so a missing scipy can't break the whole app
 
         slides.render(pf, version=i)
