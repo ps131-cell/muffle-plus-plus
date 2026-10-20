@@ -61,6 +61,7 @@ from muffle.workspace import (  # noqa: E402
     finding_key,
     synthetic_file,
 )
+from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, f"{ABOVE}, {RISING}": RED, f"{ABOVE}, {FALLING}": ORANGE,
@@ -68,7 +69,8 @@ COLORS = {WITHIN: BLUE, ABOVE: RED, f"{ABOVE}, {RISING}": RED, f"{ABOVE}, {FALLI
 GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
 PLACEHOLDER_CHIP, LITERATURE_CHIP = "placeholder threshold", "literature threshold"
 INFERENCE_CHIP, PLACEHOLDER_METHOD_CHIP = "model inference", "placeholder method"
-MARKS = ["not reviewed", "agree", "disagree", "second look"]  # the shell's three, plus none
+NO_MARK = "no mark"
+MARKS = (NO_MARK, *WORKSPACE_MARKS)  # the workspace's marks, plus none
 PROVENANCE = ("Data: the patient record's lab results (observed). Method: rules, version 1, "
               "plain arithmetic, no model; kinetics are a log-linear extrapolation (model "
               "inference, placeholder method). Thresholds: the reference limit from the "
@@ -219,7 +221,7 @@ def _table(rows: list[dict], reviews: dict | None = None,
 
 def _key(file: PatientFile, r: dict) -> str:
     """The workspace's name for this result's finding, shared with the shell's review store."""
-    return finding_key(file, "lab", r["marker"], r["month"])
+    return finding_key(file, "lab", r["key"], r["month"])
 
 
 def _marks_of(file: PatientFile, r: dict, reviews: dict) -> str:
@@ -231,11 +233,11 @@ def _sync_reviews(file: PatientFile, flagged: list[dict], reviews: dict) -> None
     """Read the review widgets' state into the workspace's review store, in its shape
     ({"what", "mark", "by", "at"} under ``finding_key``), before anything that shows the marks
     is drawn, so filters never lag a click."""
-    by = st.session_state.get("reviewer") or st.session_state.get("labs_reviewer") or ""
+    by = st.session_state.get("reviewer", "") or ""  # the shell's sidebar field
     for r in flagged:
         key = _key(file, r)
-        choice = st.session_state.get(f"mark_{key}", MARKS[0])
-        if choice == MARKS[0]:
+        choice = st.session_state.get(f"mark_{key}", NO_MARK)
+        if choice == NO_MARK:
             reviews.pop(key, None)
         elif key not in reviews or reviews[key]["mark"] != choice:
             reviews[key] = {"what": f"{r['marker']} {r['value']:g} {r['unit']} at month "
@@ -479,8 +481,6 @@ def render(file: PatientFile, events: list[dict] | None = None,
     # more info: one expander per flagged result, with review marks
     st.markdown("#### Flagged results: why, and your review")
     chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    if "reviewer" not in st.session_state:  # the workspace shell asks for them itself
-        st.text_input("Reviewer initials", key="labs_reviewer", max_chars=5)
     for r in reversed(flagged):
         with st.expander(f"{r['pointer']} · month {r['month']}: {r['marker']} {r['value']:g} "
                          f"{r['unit']}, {r['flag']}"):
@@ -558,4 +558,5 @@ def _card() -> dict:
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Blood and lab workbench", layout="wide")
+    st.text_input("Reviewer initials", key="reviewer", max_chars=5)  # the shell's field
     render(synthetic_file(json.loads((APP / "timeline_synthetic.json").read_text("utf-8"))))

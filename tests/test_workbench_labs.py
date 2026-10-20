@@ -27,7 +27,8 @@ from muffle.workbench.labs import (
     therapy_windows,
     treatment_intervals,
 )
-from muffle.workspace import PLANNED
+from muffle.workspace import MARKS, PLANNED, finding_key, synthetic_file
+from tests.test_workspace import timeline
 
 
 def test_results_table_on_the_synthetic_record():
@@ -248,7 +249,7 @@ def test_report_markdown_lists_numbers_flags_placeholders_and_review_marks():
                          rules_card(), kinetics(rows, "ca153"), confirmation_tracker(rows),
                          therapy_windows(rows, iv), baseline_band(rows, "ca153"),
                          lead_lag(rows, EVENTS),
-                         {"SYNTHETIC-001|lab|CA 15-3|11": {
+                         {"SYNTHETIC-001|lab|ca153|11": {
                              "what": "CA 15-3 52 U/mL at month 11: above limit, rising (L4)",
                              "mark": "agree", "by": "ab", "at": "12:00"}})
     assert "| L4 | CA 15-3 | 11 | 52 U/mL | below 30 U/mL | above limit, rising | +73% |" in md
@@ -304,17 +305,20 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     at.text_input(key="SYNTHETIC-001_search").set_value("liver lesions").run()
     assert at.warning[-1].value.startswith("this panel can't see that")
     # a review mark lands in the workspace's store under finding_key, the table and the queue
-    at.text_input(key="labs_reviewer").set_value("ab").run()
-    at.selectbox(key="mark_SYNTHETIC-001|lab|CA 15-3|11").select("agree").run()
-    done = at.session_state["reviews"]["SYNTHETIC-001|lab|CA 15-3|11"]
+    key = finding_key(synthetic_file(timeline()), "lab", "ca153", 11)
+    assert key == "SYNTHETIC-001|lab|ca153|11"
+    at.text_input(key="reviewer").set_value("ab").run()
+    assert list(at.selectbox(key=f"mark_{key}").options) == ["no mark", *MARKS]
+    at.selectbox(key=f"mark_{key}").select("agree").run()
+    done = at.session_state["reviews"][key]
     assert done == {"what": "CA 15-3 52 U/mL at month 11: above limit, rising (L4)",
                     "mark": "agree", "by": "ab", "at": done["at"]} and len(done["at"]) == 16
     at.selectbox(key="SYNTHETIC-001_labs_reviewed").select("reviewed").run()
     shown = results_of(at)
     assert list(shown["pointer"]) == ["L4"] and shown["review"].iloc[0] == "agree (ab)"
     assert "1 review mark." in at.markdown[0].value
-    at.selectbox(key="mark_SYNTHETIC-001|lab|CA 15-3|11").select("not reviewed").run()
-    assert "SYNTHETIC-001|lab|CA 15-3|11" not in at.session_state["reviews"]
+    at.selectbox(key=f"mark_{key}").select("no mark").run()
+    assert key not in at.session_state["reviews"]
 
     as_of = AppTest.from_string(f"""
 import json, sys

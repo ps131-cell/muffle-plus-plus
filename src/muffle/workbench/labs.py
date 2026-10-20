@@ -157,7 +157,8 @@ def look_here(events: list[dict], markers: dict = MARKERS,
             rule, threshold, status = RULES[flag]
             if flag == ABOVE:
                 threshold = f"{r['reference']}, from {r['reference_source']}"
-            queue.append({"pointer": r["pointer"], "marker": r["marker"], "month": r["month"],
+            queue.append({"pointer": r["pointer"], "marker": r["marker"], "key": r["key"],
+                          "month": r["month"],
                           "value": r["value"], "unit": r["unit"], "flag": flag, "rule": rule,
                           "threshold": threshold, "evidence": OBSERVED, "status": status,
                           "event": r["event"]})
