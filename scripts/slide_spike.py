@@ -9,8 +9,12 @@ app only reads the small result folder this writes. Subcommands, in order:
       tiles at 0.5 µm/px, give each tile its majority BCSS class (purity >= 0.5, else "mixed"),
       measure texture (edges, structure, ink shares, blur) and save WORK/<slide>/tiles.csv,
       thumbnail.png and the 224 px tiles as a uint8 .npy stack (local only, never committed).
-  python scripts/slide_spike.py embed  --work WORK [--model kaiko-ai/midnight]
-      Embed every tile on CPU, report tiles/s and peak memory, save embeddings.npy per slide.
+  python scripts/slide_spike.py embed  --work WORK [--model ID] [--tiles TILES] [--device auto]
+      Embed every tile with one ENCODERS entry (--device auto: CUDA, then XPU, then CPU), report
+      tiles/s, load and peak memory, save embeddings.npy per slide. --tiles TILES links the tiles
+      of TILES/<slide>/ into WORK/<slide>/, so each encoder gets its own run folder. Gated models
+      read HF_TOKEN from the environment or .env (never printed) and stop with a one-line message
+      naming the click-through URL when it is missing.
   python scripts/slide_spike.py train  --work WORK --test SLIDE [SLIDE ...]
       Logistic regression on the training slides' pure tiles; accuracy per class on the held-out
       slides (patient-disjoint: one slide per patient in BCSS). Writes WORK/head.json (weights)
@@ -22,6 +26,9 @@ app only reads the small result folder this writes. Subcommands, in order:
       derived numbers on public TCGA tiles; no pixels beyond the thumbnail, no embeddings.
   python scripts/slide_spike.py requality --work WORK
       Recompute texture measures and quality verdicts from the saved tiles (after a rule change).
+  python scripts/slide_spike.py compare --runs RUNS
+      Markdown table of every encoder (license, gate, measured speed, held-out accuracy per class)
+      from RUNS/<short name>/, with the commands for the rows still pending (docs/encoders.md).
   python scripts/slide_spike.py count --slides DIR
       Tissue tiles per whole slide (saturation mask on the thumbnail), to extrapolate the timing.
 """
@@ -30,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -48,13 +56,132 @@ from muffle.workbench.slides import (  # noqa: E402
     quality,
 )
 
-# Encoders this spike can run, by Hugging Face id: how to load them, how to normalize a tile
-# and which vector is the tile's embedding. Both are MIT and ungated (docs/registry.md).
+ROOT = Path(__file__).resolve().parents[1]
+IMAGENET = {"mean": (0.485, 0.456, 0.406), "std": (0.229, 0.224, 0.225)}
+OPENAI_CLIP = {"mean": (0.48145466, 0.4578275, 0.40821073),
+               "std": (0.26862954, 0.26130258, 0.27577711)}
+
+# Tile encoders by Hugging Face id (docs/encoders.md, docs/model_access.md; every one has a row in
+# docs/registry.md). Tiles are already 224 px at 0.5 µm/px, so preprocessing is: resize to
+# `size` if it is not 224, scale to [0, 1], normalize with `mean` / `std`. `loader` says how the
+# weights load, `pool` which vector is the tile's embedding (cards read 2026-10-20). `gate` is the
+# Hugging Face access step; `local_only` marks CC BY-NC-ND models: their embeddings, heads and
+# results never leave this machine (`embed` and `result` refuse a path inside the repository).
 ENCODERS = {
-    "kaiko-ai/midnight": {"kind": "dinov2", "mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5)},
-    "wisdomik/QuiltNet-B-32": {"kind": "clip", "mean": (0.48145466, 0.4578275, 0.40821073),
-                               "std": (0.26862954, 0.26130258, 0.27577711)},
+    # MIT, ungated. Pretrained on TCGA only (12k slides): TCGA-BRCA test slides were seen
+    # without labels. ViT-g: ~0.19 tiles/s on this CPU, a GPU job for whole slides.
+    "kaiko-ai/midnight": {
+        "loader": "hf_auto", "pool": "cls+mean", "size": 224, "mean": (0.5, 0.5, 0.5),
+        "std": (0.5, 0.5, 0.5), "params_m": 1137, "dim": 3072,
+        "license": "MIT", "gate": "none", "local_only": False},
+    # MIT, ungated. Card: research output, "any deployed use case ... is out of scope": the
+    # hosted app shows precomputed results only and runs no encoder.
+    "wisdomik/QuiltNet-B-32": {
+        "loader": "hf_clip", "pool": "clip_proj", "size": 224, **OPENAI_CLIP, "params_m": 88,
+        "dim": 512, "license": "MIT", "gate": "none", "local_only": False},
+    # Health AI Developer Foundations terms (HAI-DEF): click-through, instant. Use restrictions
+    # pass on to anyone given fine-tuned weights; "Clinical Use" includes research studies on
+    # patients (ours are public TCGA slides). The HF release is a TensorFlow SavedModel (tf-keras,
+    # saved_model.pb + variables/), loaded with tf.saved_model.load; input is [0, 1] RGB, no
+    # normalization; output_0 is the 384-d embedding. Trained on TCGA only.
+    "google/path-foundation": {
+        "loader": "tf_savedmodel", "pool": "output_0", "size": 224, "mean": (0.0, 0.0, 0.0),
+        "std": (1.0, 1.0, 1.0), "params_m": 22, "dim": 384, "needs": "tensorflow-cpu",
+        "license": "HAI-DEF terms", "gate": "click-through (instant)", "local_only": False},
+    # Apache-2.0; gate: share contact information (instant). Card: research use only, "not
+    # intended to be used in clinical care", "any deployed use case ... is out of scope". The
+    # tile encoder is a DINOv2-small ViT-S/16 (SwiGLU, LayerScale) whose architecture lives in the
+    # prov-gigapath package; the arguments below copy its gigapath/tile_encoder.py so plain timm
+    # loads pytorch_model.bin. The card resizes to 256 and centre-crops 224 for arbitrary images;
+    # our tiles are already 224 px at 0.5 µm/px, so they go in as they are.
+    "prov-gigapath/prov-gigapath-flash": {
+        "loader": "timm_file", "arch": "vit_small_patch16_224", "pool": "pooled", "size": 224,
+        **IMAGENET, "params_m": 22, "dim": 384,
+        "timm_kwargs": {"img_size": 224, "patch_size": 16, "embed_dim": 384, "depth": 12,
+                        "num_heads": 6, "mlp_ratio": 2048 / 384, "mlp_layer": "SwiGLUPacked",
+                        "act_layer": "SiLU", "init_values": 1e-5, "num_classes": 0,
+                        "global_pool": "token", "class_token": True, "reg_tokens": 0},
+        "license": "Apache-2.0", "gate": "contact info (instant)", "local_only": False},
+    # Apache-2.0; gate: contact information (instant). DINOv2 with registers in the repo's own
+    # modeling code (trust_remote_code), pinned to the revision read on 2026-10-20. Preprocessing
+    # from HistAI/hibou example.ipynb; embedding is pooler_output as in that notebook.
+    "histai/hibou-b": {
+        "loader": "hf_auto", "remote_code": True,
+        "revision": "7fdc8cce365ebfd9e7e60ee6ee9a8d4d59388f3c", "pool": "pooler", "size": 224,
+        "mean": (0.7068, 0.5755, 0.7220), "std": (0.1950, 0.2316, 0.1816), "params_m": 86,
+        "dim": 768, "license": "Apache-2.0", "gate": "contact info (instant)",
+        "local_only": False},
+    "histai/hibou-L": {
+        "loader": "hf_auto", "remote_code": True,
+        "revision": "31a3b9fee16554c8552cb643d311733bce8faf7c", "pool": "pooler", "size": 224,
+        "mean": (0.7068, 0.5755, 0.7220), "std": (0.1950, 0.2316, 0.1816), "params_m": 304,
+        "dim": 1024, "license": "Apache-2.0", "gate": "contact info (instant)",
+        "local_only": False},
+    # Apache-2.0; gate: contact information (instant). Card: 224 px at 0.5 µm/px, its own
+    # mean/std, 1536-d output from the timm model; no published validation (software citation).
+    "bioptimus/H-optimus-0": {
+        "loader": "timm", "pool": "pooled", "size": 224, "mean": (0.707223, 0.578729, 0.703617),
+        "std": (0.211883, 0.230117, 0.177517), "params_m": 1100, "dim": 1536,
+        "timm_kwargs": {"init_values": 1e-5, "dynamic_img_size": False},
+        "license": "Apache-2.0", "gate": "contact info (instant)", "local_only": False},
+    # Apache-2.0 plus "additional terms": the HF primary email must match an institutional email;
+    # "not intended for use in medical diagnosis, treatment, or prevention of disease of real
+    # patients". Embedding: class token and mean patch token concatenated (card), 2560-d.
+    "paige-ai/Virchow": {
+        "loader": "timm", "pool": "cls+mean", "size": 224, **IMAGENET, "params_m": 632,
+        "dim": 2560, "timm_kwargs": {"mlp_layer": "SwiGLUPacked", "act_layer": "SiLU"},
+        "license": "Apache-2.0 (+ card terms)", "gate": "institutional email (approval)",
+        "local_only": False},
+    # CC BY-NC-ND 4.0: "non-commercial, academic research purposes"; derivatives "include models
+    # trained on outputs from the UNI 2 model or datasets created from" it; no distribution. Gate:
+    # HF primary email must be institutional (@gmail etc. denied). LOCAL ONLY.
+    "MahmoodLab/UNI2-h": {
+        "loader": "timm", "pool": "pooled", "size": 224, **IMAGENET, "params_m": 681,
+        "dim": 1536,
+        "timm_kwargs": {"img_size": 224, "patch_size": 14, "depth": 24, "num_heads": 24,
+                        "init_values": 1e-5, "embed_dim": 1536, "mlp_ratio": 2.66667 * 2,
+                        "num_classes": 0, "no_embed_class": True, "mlp_layer": "SwiGLUPacked",
+                        "act_layer": "SiLU", "reg_tokens": 8, "dynamic_img_size": True},
+        "license": "CC BY-NC-ND 4.0", "gate": "institutional email (approval)",
+        "local_only": True},
+    # CC BY-NC-ND 4.0, same terms and gate as UNI2-h. Loads through the CONCH package (open_clip
+    # fork): 448 px input, OpenAI CLIP mean/std (conch_ViT-B-16 config); embedding before the
+    # projection head, as the card recommends for linear probes. LOCAL ONLY.
+    "MahmoodLab/CONCH": {
+        "loader": "conch", "pool": "conch_image", "size": 448, **OPENAI_CLIP, "params_m": 90,
+        "dim": 512, "needs": "git+https://github.com/Mahmoodlab/CONCH.git",
+        "license": "CC BY-NC-ND 4.0", "gate": "institutional email (approval)",
+        "local_only": True},
 }
+LOCAL_ONLY = {name for name, spec in ENCODERS.items() if spec["local_only"]}
+
+
+def require_access(name: str, env_file: Path = ROOT / ".env") -> None:
+    """Exit with one line naming the click-through URL and HF_TOKEN when a gated model has no
+    token. The token is read from the environment or `.env` (never printed); huggingface_hub
+    picks HF_TOKEN up from the environment by itself."""
+    if name not in ENCODERS:
+        raise SystemExit(f"Unknown encoder {name}; known: {', '.join(ENCODERS)}")
+    spec = ENCODERS[name]
+    if spec["gate"] == "none":
+        return
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(env_file, override=False)
+    except ImportError:
+        pass
+    if not os.environ.get("HF_TOKEN"):
+        raise SystemExit(f"{name} is gated ({spec['gate']}): accept its terms at "
+                         f"https://huggingface.co/{name}, then set HF_TOKEN=<read token from "
+                         "https://huggingface.co/settings/tokens> in .env or the environment.")
+
+
+def guard_local(name: str, path: Path) -> None:
+    """A CC BY-NC-ND encoder's embeddings and results stay outside the (public) repository."""
+    path = Path(path).resolve()
+    if name in LOCAL_ONLY and (path == ROOT or ROOT in path.parents):
+        raise SystemExit(f"{name} is {ENCODERS[name]['license']}: local only; its embeddings and "
+                         f"results never go into the repository (refused: {path}; app/ never).")
 
 
 # --- tiles -----------------------------------------------------------------------------------
@@ -167,43 +294,144 @@ def cmd_tiles(a):
 
 # --- embed -----------------------------------------------------------------------------------
 
-def load_encoder(name: str):
+def pick_device(want: str) -> str:
+    """`auto`: CUDA, then Intel XPU (the Arc iGPU), then CPU."""
     import torch
-    from transformers import AutoModel, CLIPModel
 
-    torch.set_num_threads(a_threads)
+    if want != "auto":
+        return want
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch, "xpu") and torch.xpu.is_available():
+        return "xpu"
+    return "cpu"
+
+
+def _timm_kwargs(spec: dict) -> dict:
+    import timm
+    import torch
+
+    named = {"SwiGLUPacked": timm.layers.SwiGLUPacked, "SiLU": torch.nn.SiLU}
+    return {k: named.get(v, v) if isinstance(v, str) else v
+            for k, v in spec.get("timm_kwargs", {}).items()}
+
+
+def load_encoder(name: str, device: str = "cpu"):
+    """Load one ENCODERS entry. A gated model without access, or a missing extra package, ends
+    with a one-line message instead of a traceback."""
+    require_access(name)
     spec = ENCODERS[name]
-    model = (CLIPModel if spec["kind"] == "clip" else AutoModel).from_pretrained(name).eval()
-    return model, spec
+    try:
+        if spec["loader"] == "tf_savedmodel":
+            import tensorflow as tf
+            from huggingface_hub import snapshot_download
+
+            return tf.saved_model.load(snapshot_download(name)), spec, "tf"
+        import torch
+
+        torch.set_num_threads(a_threads)
+        if spec["loader"] == "hf_clip":
+            from transformers import CLIPModel
+            model = CLIPModel.from_pretrained(name)
+        elif spec["loader"] == "hf_auto":
+            from transformers import AutoModel
+            model = AutoModel.from_pretrained(name, revision=spec.get("revision"),
+                                              trust_remote_code=spec.get("remote_code", False))
+        elif spec["loader"] == "timm":
+            import timm
+            model = timm.create_model(f"hf-hub:{name}", pretrained=True, **_timm_kwargs(spec))
+        elif spec["loader"] == "timm_file":
+            import timm
+            from huggingface_hub import hf_hub_download
+            model = timm.create_model(spec["arch"], pretrained=False, **_timm_kwargs(spec))
+            state = torch.load(hf_hub_download(name, "pytorch_model.bin"), map_location="cpu")
+            missing, _ = model.load_state_dict(state.get("model", state), strict=False)
+            if missing:
+                raise SystemExit(f"{name}: weights do not fit {spec['arch']} "
+                                 f"(missing {missing[:3]})")
+        elif spec["loader"] == "conch":
+            from conch.open_clip_custom import create_model_from_pretrained
+            model, _ = create_model_from_pretrained("conch_ViT-B-16", f"hf_hub:{name}",
+                                                    hf_auth_token=os.environ.get("HF_TOKEN"))
+        else:
+            raise SystemExit(f"{name}: unknown loader {spec['loader']}")
+    except ImportError as e:
+        raise SystemExit(f"{name} needs an extra package ({e.name}): "
+                         f"pip install {spec.get('needs', e.name)}") from None
+    except OSError as e:  # transformers / huggingface_hub wrap 401, 403 and gated-repo errors
+        if spec["gate"] != "none" and any(s in str(e) for s in ("gated", "401", "403", "access")):
+            raise SystemExit(f"{name}: Hugging Face refused the download; open "
+                             f"https://huggingface.co/{name} and check it says access is granted "
+                             "to the account whose token is in HF_TOKEN.") from None
+        raise
+    return model.eval().to(device), spec, device
+
+
+def embed_batch(encoder, rgb: np.ndarray) -> np.ndarray:
+    """Embed a uint8 (n, 224, 224, 3) batch with the entry's preprocessing and pooling."""
+    model, spec, device = encoder
+    x = rgb.astype(np.float32) / 255
+    x = (x - np.array(spec["mean"], np.float32)) / np.array(spec["std"], np.float32)
+    if device == "tf":
+        import tensorflow as tf
+
+        return model.signatures["serving_default"](tf.constant(x))["output_0"].numpy()
+    import torch
+    import torch.nn.functional as F
+
+    x = torch.from_numpy(x).permute(0, 3, 1, 2).to(device)
+    if spec["size"] != x.shape[-1]:
+        x = F.interpolate(x, size=spec["size"], mode="bicubic", align_corners=False)
+    with torch.inference_mode(), torch.autocast(device_type="cuda", dtype=torch.float16,
+                                                enabled=device == "cuda"):
+        pool = spec["pool"]
+        if pool == "clip_proj":
+            f = model.visual_projection(model.vision_model(pixel_values=x).pooler_output)
+        elif pool == "pooler":
+            f = model(pixel_values=x).pooler_output
+        elif pool == "conch_image":
+            f = model.encode_image(x, proj_contrast=False, normalize=False)
+        elif pool == "pooled":  # timm with num_classes=0: the pooled class token
+            f = model(x)
+        elif pool == "cls+mean" and spec["loader"] == "hf_auto":
+            h = model(pixel_values=x).last_hidden_state
+            f = torch.cat([h[:, 0], h[:, 1:].mean(1)], -1)
+        elif pool == "cls+mean":  # timm: tokens after the prefix (class and register) tokens
+            h = model.forward_features(x)
+            f = torch.cat([h[:, 0], h[:, model.num_prefix_tokens:].mean(1)], -1)
+        else:
+            raise ValueError(f"unknown pool {pool}")
+    return f.float().cpu().numpy()
 
 
 def embed_stack(encoder, rgb: np.ndarray, batch: int = 8) -> tuple[np.ndarray, float]:
-    """Tile embeddings: for a DINOv2 model the CLS token and the mean patch token concatenated
-    (Midnight's model card); for a CLIP model the projected image features. Returns the
-    embeddings and tiles per second."""
-    import torch
-
-    model, spec = encoder
-    mean = torch.tensor(spec["mean"]).view(1, 3, 1, 1)
-    std = torch.tensor(spec["std"]).view(1, 3, 1, 1)
-    out, t = [], time.time()
-    with torch.inference_mode():
-        for i in range(0, len(rgb), batch):
-            x = torch.from_numpy(rgb[i:i + batch]).permute(0, 3, 1, 2).float() / 255
-            x = (x - mean) / std
-            if spec["kind"] == "clip":
-                f = model.visual_projection(model.vision_model(pixel_values=x).pooler_output)
-            else:
-                h = model(pixel_values=x).last_hidden_state
-                f = torch.cat([h[:, 0], h[:, 1:].mean(1)], -1)
-            out.append(f.numpy())
+    """Tile embeddings for a stack and tiles per second."""
+    t = time.time()
+    out = [embed_batch(encoder, rgb[i:i + batch]) for i in range(0, len(rgb), batch)]
     return np.concatenate(out).astype(np.float32), len(rgb) / (time.time() - t)
+
+
+def link_tiles(src: Path, work: Path) -> None:
+    """Point WORK/<slide>/ at the tiles in SRC/<slide>/ (symlinks), so each encoder gets its own
+    run folder and embeddings.npy without copying the tiles."""
+    for folder in sorted(src.iterdir()):
+        if not (folder / "tiles_rgb.npy").exists():
+            continue
+        dst = work / folder.name
+        dst.mkdir(parents=True, exist_ok=True)
+        for f in folder.iterdir():
+            if f.name != "embeddings.npy" and not (dst / f.name).exists():
+                (dst / f.name).symlink_to(f.resolve())
 
 
 def cmd_embed(a):
     import resource
 
-    encoder = load_encoder(a.model)
+    guard_local(a.model, Path(a.work))
+    if a.tiles:
+        link_tiles(Path(a.tiles), Path(a.work))
+    encoder = load_encoder(a.model, pick_device(a.device))
+    load_start = os.getloadavg()[0]
     rates = []
     for folder in sorted(Path(a.work).iterdir()):
         rgb_path = folder / "tiles_rgb.npy"
@@ -221,7 +449,9 @@ def cmd_embed(a):
         if a.limit and len(rates) >= 2:  # a timing run: two slides are enough
             break
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
-    timing = {"model": a.model, "threads": a_threads, "batch": a.batch,
+    timing = {"model": a.model, "device": encoder[2], "threads": a_threads, "batch": a.batch,
+              "nice": os.nice(0), "load_1min_start": round(load_start, 2),
+              "load_1min_end": round(os.getloadavg()[0], 2),
               "tiles_per_s_median": round(float(np.median(rates)), 3) if rates else None,
               "peak_rss_gb": round(peak, 2)}
     name = "timing.json" if not a.limit else f"timing_{a.model.split('/')[-1]}_{a.limit}.json"
@@ -308,9 +538,11 @@ def cmd_train(a):
 
 def cmd_result(a):
     work = Path(a.work)
+    timing = json.load(open(work / "timing.json"))
+    guard_local(timing["model"], Path(a.out))
+    spec = ENCODERS[timing["model"]]
     head = json.load(open(work / "head.json"))
     metrics = json.load(open(work / "head_metrics.json"))
-    timing = json.load(open(work / "timing.json"))
     df = pd.read_csv(work / a.slide / "tiles.csv")
     emb = np.load(work / a.slide / "embeddings.npy")
     z = (emb - np.array(head["scaler_mean"])) / np.array(head["scaler_scale"])
@@ -339,8 +571,10 @@ def cmd_result(a):
         "region_base_px": region["region"], "base_mpp": region["base_mpp"],
         "slide_dimensions": region["slide_dimensions"],
         "tile_px": TILE_PX, "mpp": MPP, "grid_shape": res["grid_shape"],
-        "encoder": {"name": timing["model"], "license": "MIT", "access": "open, ungated",
-                    "kind": ENCODERS[timing["model"]]["kind"],
+        "encoder": {"name": timing["model"], "license": spec["license"],
+                    "access": "open, ungated" if spec["gate"] == "none"
+                    else f"Hugging Face, gated: {spec['gate']}",
+                    "kind": spec["loader"],
                     "tiles_per_s_cpu": timing["tiles_per_s_median"],
                     "peak_rss_gb": timing["peak_rss_gb"]},
         "head": {"kind": "logistic regression on frozen embeddings", "classes": classes,
@@ -361,6 +595,57 @@ def cmd_result(a):
     }
     json.dump(summary, open(out / "summary.json", "w"), indent=1)
     print(json.dumps(summary["analysis"], indent=1))
+
+
+# --- compare ---------------------------------------------------------------------------------
+
+HEAD_CLASSES = CLASSES[:5]  # normal breast and DCIS have too few BCSS tiles for the head
+
+
+def run_dir(name: str) -> str:
+    return name.split("/")[-1]
+
+
+def compare_table(runs: Path, tiles: str = "TILES", test: str = "SLIDE ...") -> str:
+    """Markdown table of every ENCODERS entry, filled from RUNS/<short name>/timing.json and
+    head_metrics.json; entries without a head get the commands that make one."""
+    cols = ["Encoder", "License", "Gate", "Params (M)", "Tiles/s measured (device, threads, "
+            "1-min load)", "Min per 15k-tile slide", "Held-out accuracy (balanced)",
+            *HEAD_CLASSES]
+    lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
+    todo = []
+    for name, spec in ENCODERS.items():
+        run = runs / run_dir(name)
+        timing = json.load(open(run / "timing.json")) if (run / "timing.json").exists() else {}
+        metrics = (json.load(open(run / "head_metrics.json"))
+                   if (run / "head_metrics.json").exists() else {})
+        rate = timing.get("tiles_per_s_median")
+        load = timing.get("load_1min_start", "not recorded")
+        if "load_1min_end" in timing:
+            load = f"{load} → {timing['load_1min_end']}"
+        speed = (f"{rate:g} ({timing.get('device', 'cpu')}, {timing['threads']} threads, load "
+                 f"{load})" if rate else "pending access")
+        minutes = f"{15000 / rate / 60:,.0f}" if rate else "–"
+        acc = (f"{metrics['accuracy']:.3f} ({metrics['balanced_accuracy']:.3f})" if metrics
+               else "pending access" if spec["gate"] != "none" else "not run (CPU too slow)")
+        per = [f"{metrics['per_class'][c]['recall']:.2f}" if metrics
+               and metrics["per_class"].get(c, {}).get("recall") is not None else "–"
+               for c in HEAD_CLASSES]
+        lic = spec["license"] + (", **local only**" if spec["local_only"] else "")
+        lines.append(f"| `{name}` | {lic} | {spec['gate']} | {spec['params_m']:,} | {speed} | "
+                     f"{minutes} | {acc} | " + " | ".join(per) + " |")
+        if not metrics:
+            env = "HF_TOKEN=… " if spec["gate"] != "none" else ""
+            work = f"~/muffle-encoders/runs/{run_dir(name)}"
+            todo.append(f"- `{name}`:\n  `{env}python scripts/slide_spike.py embed --tiles "
+                        f"{tiles} --work {work} --model {name} && python scripts/slide_spike.py "
+                        f"train --work {work} --test {test}`")
+    return "\n".join(lines) + "\n\nTo fill a pending row (from the clone, venv active):\n\n" + \
+        "\n".join(todo)
+
+
+def cmd_compare(a):
+    print(compare_table(Path(a.runs), a.tiles, " ".join(a.test)))
 
 
 # --- count -----------------------------------------------------------------------------------
@@ -396,7 +681,9 @@ if __name__ == "__main__":
     t.add_argument("--out", required=True)
     e = sub.add_parser("embed")
     e.add_argument("--work", required=True)
-    e.add_argument("--model", default="kaiko-ai/midnight")
+    e.add_argument("--model", default="kaiko-ai/midnight", choices=list(ENCODERS))
+    e.add_argument("--tiles", help="read tiles from TILES/<slide>/ (linked into WORK/<slide>/)")
+    e.add_argument("--device", default="auto", help="auto (cuda, then xpu, then cpu), or name one")
     e.add_argument("--batch", type=int, default=8)
     e.add_argument("--threads", type=int, default=8)
     e.add_argument("--limit", type=int, default=0,
@@ -414,7 +701,12 @@ if __name__ == "__main__":
     rq.add_argument("--work", required=True)
     c = sub.add_parser("count")
     c.add_argument("--slides", required=True)
+    cp = sub.add_parser("compare")
+    cp.add_argument("--runs", required=True, help="one folder per encoder: RUNS/<short name>/")
+    cp.add_argument("--tiles", default="~/muffle-encoders/work", help="shown in the commands")
+    cp.add_argument("--test", nargs="+", default=["TCGA-C8-A26X-DX1", "TCGA-C8-A26Y-DX1",
+                                                  "TCGA-EW-A1OV-DX1"])
     args = p.parse_args()
     a_threads = getattr(args, "threads", 8)
     {"tiles": cmd_tiles, "embed": cmd_embed, "train": cmd_train, "result": cmd_result,
-     "count": cmd_count, "requality": cmd_requality}[args.cmd](args)
+     "count": cmd_count, "requality": cmd_requality, "compare": cmd_compare}[args.cmd](args)

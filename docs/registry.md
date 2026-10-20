@@ -31,6 +31,39 @@ tier and add it here **before** using it.
 
 Every Token Factory call goes through `muffle.report.budget` (hard spending cap).
 
+### Candidate models by workbench (status 2026-10-20)
+
+Checked from the model cards, gate forms and licenses, not by running them (except where a
+measurement is cited). Status: **usable now** (open, may run offline today) · **pending
+click-through** (allowed once the account owner accepts the terms; [`model_access.md`](model_access.md))
+· **local only** (non-commercial or no-derivatives terms: never in the repo, the hosted app, a
+release, Token Factory or Tavily; aggregate numbers only) · **excluded** (not to be used). Speed,
+accuracy and the per-model paragraphs: [`encoders.md`](encoders.md). None of these runs in the
+hosted app.
+
+| Model | Workbench / role | Status | Access | License / terms | Inputs it receives |
+|---|---|---|---|---|---|
+| **Path Foundation** (`google/path-foundation`, TF SavedModel) | slides: tile encoder (ViT-S, 384-d) | pending click-through | HF, HAI-DEF terms, instant | Health AI Developer Foundations terms; pass use restrictions on with any fine-tuned weights; trained on TCGA | 224 px H&E tiles, offline |
+| **GigaPath-Flash** (`prov-gigapath/prov-gigapath-flash`) | slides: tile encoder (ViT-S, 384-d) and slide encoder | pending click-through | HF, contact info, instant | Apache-2.0; card: research only, "any deployed use case ... is out of scope", not for clinical care | 224 px H&E tiles, offline |
+| **Hibou-B**, **Hibou-L** (`histai/hibou-b`, `histai/hibou-L`) | slides: tile encoders (ViT-B 768-d; ViT-L 1024-d) | pending click-through | HF, contact info, instant; repo code pinned to a revision | Apache-2.0 | 224 px H&E tiles, offline |
+| **H-optimus-0** (`bioptimus/H-optimus-0`) | slides: tile encoder (ViT-g, 1536-d) | pending click-through | HF, form (name, affiliation, email, use-case), instant | Apache-2.0; gate: not reviewed by any regulator, independent validation needed | 224 px tiles at 0.5 µm/px, GPU |
+| **Virchow** v1 (`paige-ai/Virchow`) | slides: tile encoder (ViT-H, 2560-d) | pending click-through (institutional email) | HF, primary email must be institutional | Apache-2.0 plus card terms: not for diagnosis or treatment of real patients | 224 px tiles, GPU |
+| **UNI2-h** (`MahmoodLab/UNI2-h`) | slides: reference encoder (ViT-H, 1536-d) | **local only** (after click-through, institutional email) | HF, institutional primary email | CC BY-NC-ND 4.0; derivatives include models trained on its outputs; no distribution | 224 px tiles, GPU; results never under `app/` (code-enforced) |
+| **CONCH** (`MahmoodLab/CONCH`) | slides: vision-language encoder (ViT-B/16 at 448 px, 512-d), zero-shot queries | **local only** (after click-through, institutional email) | HF, institutional primary email | CC BY-NC-ND 4.0, same terms as UNI2-h | 448 px tiles, offline |
+| **LazySlide** (rendeirolab) | slides: tiling, tissue detection, encoder calls (plumbing) | usable now | PyPI, open | MIT | slides, offline |
+| **StarDist** `2D_versatile_he` | slides: nuclei segmentation in H&E | usable now (check MoNuSeg terms before publishing masks) | PyPI + GitHub release, open | code BSD-3-Clause; weights trained on MoNuSeg 2018 (terms not re-checked) and TNBC (CC BY 4.0, Zenodo 1175282) | H&E tiles, offline CPU |
+| **CellViT** / CellViT++ (TIO-IKIM) | slides: nuclei segmentation and typing | **local only** | Google Drive checkpoints, open | code "Apache 2.0 with Commons Clause"; checkpoints trained on PanNuke (CC BY-NC-SA 4.0); CellViT-SAM-H needs a 24 GB GPU | H&E tiles, GPU |
+| **HoVer-Net** (vqdang) | slides: nuclei segmentation and typing | **local only** (PanNuke weights); other checkpoints not used | Google Drive checkpoints, open | code MIT; README: PanNuke-derived weights CC BY-NC-SA 4.0 | H&E tiles, GPU preferred |
+| **MedSAM** (`wanglab/medsam-vit-base`; mirror `flaviagiammarino/medsam-vit-base`) | radiology: promptable lesion contour (box prompt) | usable now | HF, ungated | Apache-2.0 (card and API) | one 2D image + a box, offline CPU |
+| **MedSAM2** (`wanglab/MedSAM2`) | radiology: 3D / video lesion segmentation | usable now (share-alike) | HF, ungated | CC BY-SA 4.0: attribution; modified weights shared under the same license | volumes + a prompt, offline (GPU preferred) |
+| **SAM 3** (`facebook/sam3`) | radiology / slides: text- and box-prompted segmentation (general images) | pending click-through (manual review) | HF, manual: name, date of birth, country, affiliation, job title | SAM License: royalty-free use, modification and redistribution with the license attached; trade-control and military-use exclusions; acknowledge SAM in publications. A research app is allowed | images, offline GPU |
+| **SAM 2.1** (`facebook/sam2.1-hiera-large`) | radiology: general promptable segmentation | usable now | HF, ungated | Apache-2.0 | images, offline |
+| **MedGemma 1.5 4B** (`google/medgemma-1.5-4b-it`) | documents: local extraction of receptors, stage, drugs, dates from report text | pending click-through | HF, HAI-DEF terms, instant | Health AI Developer Foundations terms; card: outputs preliminary, need independent verification | report text, **locally only** (never Token Factory) |
+| **OpenMed NER OncologyDetect** (`OpenMed/OpenMed-NER-OncologyDetect-BigMed-278M`) | documents: highlight cancer, organ, gene entities in source sentences | usable now | HF, ungated | Apache-2.0 | report text, locally only, CPU |
+| **mammoscreen** (`ianpan/mammoscreen`) + crop model `ianpan/mammo-crop` | mammography: cancer likelihood and density per exam | usable now | HF, ungated; repo code (pin revisions `b619a889`, `bec2e302`) | Apache-2.0 (both); trained on CBIS-DDSM and RSNA 2023 (RSNA terms not retrieved) | CC + MLO images, offline CPU |
+| **Mirai** (reginabarzilaygroup) | mammography: 5-year risk | usable now (needs four standard views) | GitHub, open | MIT (model and code) | four-view screening exam, offline |
+| **Pillar0-BreastMRI** (`YalaLab/Pillar0-BreastMRI`) | MRI: exam embeddings | pending click-through | HF, name and organization, instant; repo code | ECL-2.0; preprint, authors' internal evaluation only | breast MRI volumes, offline (GPU preferred) |
+
 ## Services
 
 | Service | Role | Terms | What is sent |
