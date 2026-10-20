@@ -110,8 +110,9 @@ class PatientFile:
 def _event_tests(e: dict) -> list[Test]:
     """The tests one event of the synthetic record adds; treatments are events, not tests."""
     m, out = e["month"], []
-    if e["kind"] == "Diagnosis":
-        out.append(Test("Pathology report", m, "Diagnosis", e["text"], "slides", PLANNED))
+    if e["kind"] == "Diagnosis":  # the slide workbench runs on a public example region for now
+        out.append(Test("Pathology report", m, "Diagnosis", e["text"], "slides", IMPLEMENTED,
+                        {"scope": "example region, first version"}))
     if e["kind"] == "Imaging":
         out.append(Test("Imaging", m, "Imaging report", e["text"], "imaging", PLANNED))
     if "mutations" in e:
@@ -278,8 +279,13 @@ def missing_data(pf: PatientFile, i: int) -> list[str]:
     if seq and seq[-1].month is not None and v.month > seq[-1].month:
         out.append(f"Not sequenced since month {seq[-1].month}: mutations that arose under later "
                    "treatment would not show")
-    if any(t.status == PLANNED for w in pf.versions[: i + 1] for t in w.tests):
-        out.append("Imaging and pathology reports are text only: their workbenches are planned")
+    tests = [t for w in pf.versions[: i + 1] for t in w.tests]
+    planned = list(dict.fromkeys(t.kind for t in tests if t.status == PLANNED))
+    if planned:
+        out.append(f"{' and '.join(planned)} reports are text only: their workbench is planned")
+    if any(t.workbench == "slides" for t in tests):
+        out.append("No slide image of this tumor is on file: the pathology workbench shows a "
+                   "public example region")
     if len(pf.versions) == 1:
         out.append(pf.note)
     return out or ["Nothing recorded as missing."]

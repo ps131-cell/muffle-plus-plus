@@ -14,6 +14,7 @@ from muffle.workspace import (
     case_file,
     finding_key,
     lab_series,
+    missing_data,
     report_markdown,
     synthetic_file,
 )
@@ -50,6 +51,12 @@ def test_synthetic_file_has_a_version_per_event_and_alerts_where_the_record_turn
     imaging = [t for t in tests if t.kind == "Imaging"]
     assert [t.month for t in imaging] == [-1, 7, 12, 19]
     assert {t.status for t in imaging} == {PLANNED}
+    pathology = next(t for t in tests if t.kind == "Pathology report")
+    assert (pathology.workbench, pathology.status) == ("slides", "implemented")
+    assert pathology.details["scope"] == "example region, first version"
+    gaps = missing_data(pf, len(pf.versions) - 1)
+    assert "Imaging reports are text only: their workbench is planned" in gaps
+    assert any(g.startswith("No slide image of this tumor is on file") for g in gaps)
     assert [(t.month, t.workbench) for t in tests if t.kind == "Sequencing"] == [(0, "mutations")]
     assert v[1].treatments == ["palbociclib", "fulvestrant"] and v[13].treatments == ["alpelisib"]
 
