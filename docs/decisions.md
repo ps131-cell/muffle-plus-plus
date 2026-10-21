@@ -2,6 +2,21 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — Slide workbench: a second opinion on lymphocytes from the WSInfer TIL model
+- **What:** `scripts/slide_pipeline.py til` scores the front-band and peritumoral tiles of a
+  scored section with WSInfer's TIL InceptionV4 (CC BY 4.0, TorchScript) and writes `til.json`;
+  `invasion.til_disagreement` turns the head-versus-model disagreement into a queue pointer, a
+  map layer, a TILs-by-zone column, a search and a comparison row (`docs/pathology.md` §8).
+- **Why:** lymphocytes are the head's weakest class (held-out recall 0.74); the model reaches
+  AUROC 0.955 for lymphocytes versus the rest on the head's 3 held-out BCSS slides
+  with a cutoff of 0.667 calibrated on the training slides (recall
+  97%, specificity 79%): the "two models
+  disagree" layer the workbench design asked for, at no extra data cost.
+- **Consequence:** the model was trained on TCGA, so the held-out AUROC may be optimistic and
+  the page says so; a disagreement is a place to look, never a verdict; the tumor model is not
+  wired in; the viewer rewrite (slide-viewer branch) owns the layer system, so the page edit is
+  one layer entry and one column.
+
 ## 2026-10-21 — Slide viewer: OpenSeadragon on release-hosted Deep Zoom pyramids at 1 µm/px
 - **What:** the pathology workbench draws its analysis on the patient's own section in a
   pan-and-zoom viewer (`docs/pathology.md` §7): a Streamlit component (plain JavaScript and

@@ -26,6 +26,9 @@ const ZONE_COLORS = {"core": "#8e1b1b", "front band": "#f39c12", "peritumoral": 
 const QC_COLORS = {"glass": "#74b9ff", "pen ink": "#6c5ce7", "blur": "#d63031"};
 const RISK_COLORS = [null, "#fde9c9", "#f5b041", "#c0392b"];
 const IMMUNE = [["20 or more per tile", "#1b4f72"], ["5–19", "#5dade2"], ["under 5", "#d6eaf8"]];
+const TIL = [["not lymphocytes", "#d6eaf8"], ["lymphocytes", "#1b4f72"],
+             ["lymphocytes, the head disagrees", "#e67e22"],
+             ["not lymphocytes, the head disagrees", "#c0392b"]];
 const CELL_COLORS = ["#7f8c8d", "#2e86de", "#c0392b", "#8e44ad"];
 const NUCLEI_MIN = 0.45;  // screen px per µm at which nuclei are drawn (a 7 µm nucleus ≈ 3 px)
 const HERE = window.location.href;  // source URLs are relative to this page (slide_viewer.served)
@@ -313,6 +316,7 @@ function tileColor(ov, i) {
       return T.n[i] < 0 ? null : T.ly[i] >= 20 ? IMMUNE[0][1] : T.ly[i] >= 5 ? IMMUNE[1][1]
         : IMMUNE[2][1];
     case "risk": return RISK_COLORS[T.risk[i]];
+    case "til": return T.til && T.til[i] >= 0 ? TIL[T.til[i]][1] : null;
     default: return null;
   }
 }
@@ -546,6 +550,8 @@ function tileTip(p, pos) {
   parts.push(T.n[i] < 0 ? "nuclei not counted here" :
              `${T.n[i]} nuclei, ${T.ly[i]} lymphocyte-like, ${T.bud[i]} breakaway cluster(s)`);
   if (T.pts[i]) parts.push(`risk ${T.pts[i]} points, level ${T.risk[i]} (placeholder points)`);
+  if (T.til && T.til[i] >= 0) parts.push(`second model: ${esc(TIL[T.til[i]][0])} <i>(WSInfer ` +
+                                         `TIL, model inference)</i>`);
   if (S.show.has("nuclei") && p.view.k >= NUCLEI_MIN) {
     const flat = ov.cells[r + "_" + c];
     if (flat) {
@@ -618,6 +624,7 @@ function legend() {
         .concat([["not counted: no colour", "transparent"]]),
       risk: [["level 1", RISK_COLORS[1]], ["level 2", RISK_COLORS[2]], ["level 3", RISK_COLORS[3]]]
         .map(([t, c]) => [t + " (placeholder points)", c]),
+      til: TIL.concat([["not scored: no colour", "transparent"]]),
     };
     if (fills[S.fill]) rows.push(`<b>Tiles</b>${swatches(fills[S.fill])}`);
     rows.push("<b>Marks</b>" + swatches([["front line", "#111"],
@@ -634,8 +641,10 @@ function legend() {
             "The front, zones, arcs, islands, counting field and risk points are rules on those " +
             "inferences, with placeholder cutoffs. The arrows are a hypothesis about where the " +
             "tumor is invading in this section, not a forecast. Nuclei: StarDist " +
-            "2D_versatile_he, pretrained, not validated on breast here. Not reviewed by a " +
-            "pathologist.</i>");
+            "2D_versatile_he, pretrained, not validated on breast here. The second lymphocyte " +
+            "model (WSInfer TIL InceptionV4, CC BY 4.0) is a model inference on the centre 50 " +
+            "µm of front-band and peritumoral tiles; where it disagrees with the head is a " +
+            "place to look, not a verdict. Not reviewed by a pathologist.</i>");
   $("legend").innerHTML = rows.map(r => `<div class="row">${r}</div>`).join("");
 }
 

@@ -80,6 +80,10 @@ CUTOFFS = {
     "risk_level_2": (3, PLACEHOLDER, "level 2 at 3 points"),
     "risk_level_3": (5, PLACEHOLDER, "level 3 at 5 points"),
     "nuclei_cv_min": (5, DOC, "nuclear-area variation needs at least 5 non-lymphocyte nuclei"),
+    "til_cutoff_fallback": (0.5, PLACEHOLDER, "the second lymphocyte model's cutoff when its "
+                            "result file carries none (the pipeline writes the calibrated one)"),
+    "disagree_min_tiles": (3, DOC, "the queue points at the densest disagreement only when at "
+                           "least 3 scored tiles disagree"),
 }
 RISK_POINTS = {  # feature -> points; all placeholders (docs/pathology.md)
     "infiltrative arc": 2, "breakaway candidates": 2, "faces fat": 1, "satellite island": 1,
@@ -100,6 +104,10 @@ CANNOT_SEE = [
     ("What happens next", "arrows show where the tumor is invading in this section, a 2D "
      "snapshot, not where it will go", "follow-up imaging and repeat sampling"),
 ]
+
+TIL_SECOND = ("WSInfer TIL InceptionV4 (kaczmarj/pancancer-lymphocytes-inceptionv4.tcga; "
+              "Abousamra et al., Front Oncol 2022; CC BY 4.0), the centre 50 µm of a tile, trained "
+              "on TCGA slides so the held-out BCSS slides may overlap its training set")
 
 KNOWN_FAILURES = [
     "Normal breast and in-situ carcinoma are not in the head: their tiles get one of the five "
@@ -394,9 +402,36 @@ def hotspot_field(tiles: pd.DataFrame) -> dict | None:
             "radius_tiles": round(FIELD_RADIUS_TILES, 2)}
 
 
+# --- the second opinion on lymphocytes ------------------------------------------------------
+
+def til_disagreement(tiles: pd.DataFrame, cutoff: float | None = None) -> dict:
+    """Where the tissue head and the second lymphocyte model disagree, on the tiles the second
+    model scored (``p_til``): the head says lymphocytes when its label is lymphocytes; the
+    second model when its probability reaches the cutoff. Returns the counts, the share of
+    scored tiles that disagree, Cohen's kappa, and the disagreeing rows."""
+    if "p_til" not in tiles or tiles["p_til"].notna().sum() == 0:
+        return {"scored": 0, "agree": 0, "disagree": 0, "share": None, "kappa": None,
+                "head_only": 0, "til_only": 0, "cutoff": cutoff, "rows": tiles.iloc[0:0]}
+    cutoff = CUTOFFS["til_cutoff_fallback"][0] if cutoff is None else float(cutoff)
+    t = tiles[tiles["p_til"].notna()]
+    if "qc" in t:
+        t = t[t["qc"] == QC_OK]
+    head = (t["label"] == "lymphocytes").to_numpy()
+    til = (t["p_til"] >= cutoff).to_numpy()
+    n = len(t)
+    agree = int((head == til).sum())
+    po = agree / n if n else 0.0
+    pe = (head.mean() * til.mean() + (1 - head.mean()) * (1 - til.mean())) if n else 0.0
+    kappa = round(float((po - pe) / (1 - pe)), 3) if n and pe < 1 else None
+    return {"scored": n, "agree": agree, "disagree": n - agree,
+            "share": round(float((n - agree) / n), 3) if n else None, "kappa": kappa,
+            "head_only": int((head & ~til).sum()), "til_only": int((~head & til).sum()),
+            "cutoff": cutoff, "rows": t[head != til]}
+
+
 # --- immune pattern, tumor-stroma ratio, necrosis -------------------------------------------
 
-def immune_by_zone(tiles: pd.DataFrame) -> dict:
+def immune_by_zone(tiles: pd.DataFrame, til_cutoff: float | None = None) -> dict:
     """Stromal lymphocytes by zone, two ways: the head's lymphocyte-class share of the usable
     tiles (every tile), and where nuclei were counted, lymphocyte-like nuclei per mm² of
     stroma-or-lymphocyte tiles and the share of them within 50 µm of a tumor candidate. The
@@ -418,6 +453,12 @@ def immune_by_zone(tiles: pd.DataFrame) -> dict:
                 total = counted["n_lymph"].sum()
                 rec["tumor_contacting_share"] = (
                     round(float(counted["n_lymph_near_tumor"].sum() / total), 2) if total else None)
+        if "p_til" in tz:  # the second model, where it scored
+            scored = tz[tz["p_til"].notna()]
+            rec["til_scored_tiles"] = int(len(scored))
+            if len(scored):
+                c = CUTOFFS["til_cutoff_fallback"][0] if til_cutoff is None else til_cutoff
+                rec["til_lymph_share"] = round(float((scored["p_til"] >= c).mean()), 3)
         zones[z] = rec
     core, band = zones["core"]["lymph_tile_share"], zones["front band"]["lymph_tile_share"]
     desert, excl = CUTOFFS["immune_desert"][0], CUTOFFS["immune_excluded"][0]
@@ -556,6 +597,21 @@ def look_here(res: dict) -> list[dict]:
             add("Most unsure spot", f"{len(uns)} unsure tiles in the map, densest here", r, c,
                 INFERENCE, "placeholder cutoff", "what is this tissue? the head is unsure here",
                 "unsure")
+    d = res.get("til") or {}
+    if d.get("disagree", 0) >= CUTOFFS["disagree_min_tiles"][0]:
+        mask = np.zeros(tuple(res["grid_shape"]), bool)
+        mask[d["rows"]["row"].to_numpy(int), d["rows"]["col"].to_numpy(int)] = True
+        dense = ndimage.uniform_filter(mask.astype(float), 5)
+        dense[~mask] = -1  # the pointer sits on a disagreeing tile, the densest one
+        r, c = np.unravel_index(int(np.argmax(dense)), dense.shape)
+        add(f"Models disagree on lymphocytes: {d['disagree']} of {d['scored']} scored tiles "
+            f"({d['head_only']} head only, {d['til_only']} second model only)",
+            f"kappa {d['kappa']}; the second model is {TIL_SECOND}", r, c, INFERENCE,
+            "second model: held-out AUROC in its card; cutoff " + (
+                "calibrated on the head's training slides" if d.get("cutoff_calibrated")
+                else "placeholder"),
+            "are these lymphocytes, plasma cells, stromal nuclei or tumor cells? the two models "
+            "read this tissue differently", "disagree")
     return q
 
 
@@ -604,6 +660,14 @@ def search(query: str, res: dict) -> dict:
     if "satellite" in q or "island" in q:
         rows = rows[rows["tumor"] & ~rows["main_tumor"]]
         parts.append("in satellite islands")
+    if "disagree" in q or "second model" in q or "second opinion" in q:
+        d = res.get("til") or {}
+        if not d.get("scored"):
+            return {"understood": False, "rows": t.iloc[0:0], "pointer": None,
+                    "answer": "The second lymphocyte model has not scored this section."}
+        rows = rows.merge(d["rows"][["row", "col"]], on=["row", "col"])
+        parts.append(f"where the head and the second model disagree on lymphocytes (of "
+                     f"{d['scored']} scored tiles)")
     if "arrow" in q or "direction" in q or "invad" in q:
         infil = [a for a in res["arcs"] if a["pattern"] == "infiltrative"]
         dirs = ", ".join(f"{a['arc']} {compass(a['direction_deg'])} (faces "
@@ -625,6 +689,7 @@ COMPARE = [("tumor_mm2", "Tumor area in the map (mm²)"), ("front_length_mm", "F
            ("infiltrative_arcs", "Infiltrative arcs of 12"), ("buds_in_field", "Breakaway "
             "candidates in the counting field"), ("islands", "Satellite islands"),
            ("immune_pattern", "Immune pattern"), ("tsr", "Tumor–stroma ratio"),
+           ("til_disagree_share", "Models disagree on lymphocytes (share of scored tiles)"),
            ("faces_top", "The front mostly faces"), ("unsure_share", "Unsure share")]
 
 
@@ -673,11 +738,14 @@ def map_png(tiles: pd.DataFrame, front: np.ndarray | None = None, scale: int = 6
 
 # --- everything --------------------------------------------------------------------------
 
-def analyze_slide(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
+def analyze_slide(tiles: pd.DataFrame, classes: list[str] = CLASSES,
+                  til_cutoff: float | None = None, til_calibrated: bool = False) -> dict:
     """``slides.analyze`` plus the invasion picture: normals and push per front tile, arcs with
     their pattern and what they face, the rose, fingers, satellite islands, the counting field,
     immune pattern by zone, tumor–stroma ratio, necrosis contact, the risk map with its cards,
-    the look-here queue, and a flat ``numbers`` dict for the comparison of two slides."""
+    the look-here queue, and a flat ``numbers`` dict for the comparison of two slides. A
+    ``p_til`` column (the second lymphocyte model, where it scored) adds the disagreement with
+    the head at ``til_cutoff`` (``til_calibrated`` says whether that cutoff was measured)."""
     base = analyze(tiles, classes)
     t, s = base["tiles"], base["summary"]
     h, w = base["grid_shape"]
@@ -694,7 +762,15 @@ def analyze_slide(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
     arc_list = arcs(normals, main, labels, tissue, fing["mask"])
     islands = satellite_islands(mask, main, labels)
     hotspot = hotspot_field(t)
-    immune = immune_by_zone(t)
+    immune = immune_by_zone(t, til_cutoff)
+    til = til_disagreement(t, til_cutoff)
+    til["cutoff_calibrated"] = til_calibrated
+    if til["scored"]:
+        t["til_lymph"] = (t["p_til"] >= til["cutoff"]).astype(float).where(t["p_til"].notna())
+        disagree_idx = t.set_index(["row", "col"]).index.get_indexer(
+            pd.MultiIndex.from_frame(til["rows"][["row", "col"]]))
+        t["disagree"] = False
+        t.loc[t.index[disagree_idx], "disagree"] = True
     tsr = tumor_stroma(t)
     nec = necrosis_contact(t, mask, labels)
     risk = risk_map(t, arc_list, normals, front, main, mask, labels, tissue, nec["mask"])
@@ -714,7 +790,8 @@ def analyze_slide(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
            "arcs": arc_list, "rose": rose(normals), "fingers": {"n": fing["n"],
                                                                "judged": fing["judged"]},
            "islands": islands, "hotspot": hotspot, "immune": immune, "tsr": tsr,
-           "necrosis": {k: v for k, v in nec.items() if k != "mask"}, "risk": risk}
+           "necrosis": {k: v for k, v in nec.items() if k != "mask"}, "risk": risk,
+           "til": til}
     res["queue"] = look_here(res)
     infil = sum(a["pattern"] == "infiltrative" for a in arc_list)
     res["numbers"] = {
@@ -725,5 +802,6 @@ def analyze_slide(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
         "tsr": tsr["verdict"], "faces_top": next(iter(s["facing"]), "nothing"),
         "unsure_share": s["unsure_share"],
         "counted_tiles": int(t["n_nuclei"].notna().sum()) if "n_nuclei" in t else 0,
+        "til_disagree_share": til["share"],
     }
     return res

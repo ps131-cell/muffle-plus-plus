@@ -112,6 +112,8 @@ def test_overlay_payload_from_a_shipped_section():
     res = inv.analyze_slide(result["tiles"], classes)
     cells = viewer.cells_frame(result["nuclei"])
     ov = viewer.overlay(res, classes, cells)
+    assert len(ov["tiles"]["til"]) == len(ov["tiles"]["r"])  # the second lymphocyte model
+    assert set(ov["tiles"]["til"]) <= {-1, 0, 1, 2, 3}
     n = len(res["tiles"])
     assert all(len(v) == n for v in ov["tiles"].values())
     assert ov["grid"] == {"rows": res["grid_shape"][0], "cols": res["grid_shape"][1]}

@@ -57,7 +57,7 @@ ZONE_COLORS = {"core": "#8e1b1b", "front band": "#f39c12", "peritumoral": "#f9e7
                "outside": "#dfe6e9", "": "#ffffff"}
 RISK_COLORS = ["#f4f6f7", "#fde9c9", "#f5b041", "#c0392b"]
 GRID = {"gridOpacity": 0, "domainOpacity": 0, "tickOpacity": 0, "labels": False, "title": None}
-LAYERS = ["tissue", "certainty", "QC", "zones", "immune", "risk"]
+LAYERS = ["tissue", "certainty", "QC", "zones", "immune", "lymphocytes (second model)", "risk"]
 OVERLAYS = ["front", "arrows", "breakaway", "pointers"]
 NO_MARK = "no mark"
 
@@ -156,7 +156,16 @@ def load_slide(folder: Path) -> dict | None:
     if nuc.get("tiles") and nuc["tiles"].get("data"):
         summ = pd.DataFrame(nuc["tiles"]["data"], columns=nuc["tiles"]["columns"])
         tiles = tiles.merge(summ, on=["row", "col"], how="left")
+    til = None
+    if (folder / "til.json").exists():  # the second lymphocyte model, where it scored
+        til = json.loads((folder / "til.json").read_text(encoding="utf-8"))
+        scores = til.pop("tiles", {})
+        if scores:
+            tiles["tile_id"] = "r" + tiles["row"].astype(str) + "c" + tiles["col"].astype(str)
+            tiles["p_til"] = tiles["tile_id"].map(scores)
+            tiles = tiles.drop(columns="tile_id")
     return {"tiles": tiles, "meta": meta, "points": nuc.get("points", {}), "nuclei": nuc,
+            "til": til,
             "thumbnail": folder / "thumbnail.jpg" if (folder / "thumbnail.jpg").exists()
             else None, "crops": folder / "crops", "folder": folder}
 
@@ -185,6 +194,13 @@ def frame(res: dict, classes: list[str]) -> pd.DataFrame:
                                          np.where(df["n_lymph"].fillna(0) >= 5, "some", "few")))
     else:
         df["nuclei"], df["immune"] = "not counted", "not counted"
+    if "til_lymph" in df:
+        df["second model"] = np.where(df["til_lymph"].isna(), "not scored",
+                                      np.where(df["til_lymph"] == 1, "lymphocytes",
+                                               "not lymphocytes"))
+        df.loc[df["disagree"].fillna(False).astype(bool), "second model"] += " (disagrees)"
+    else:
+        df["second model"] = "not scored"
     df["dist"] = df["dist_to_front_um"].map(lambda v: f"{v + 0.0:+.0f} µm from the front"
                                             if pd.notna(v) else "no front") \
         if "dist_to_front_um" in df else "no front"
@@ -197,6 +213,7 @@ def slide_map(df: pd.DataFrame, res: dict, layer: str, overlays: list[str], clas
     """The map on quantitative axes so arrows, markers and labels can be layered on it."""
     h, w = res["grid_shape"]
     tooltip = ["where:N", "class:N", "top:N", "scores:N", "certainty:N", "nuclei:N",
+               alt.Tooltip("second model:N", title="lymphocytes (second model)"),
                alt.Tooltip("risk_points:Q", title="risk points")]
     cls_domain = [LABELS[k] for k in classes] + sorted(
         v for v in df["class"].unique() if v.startswith("excluded"))
@@ -218,6 +235,11 @@ def slide_map(df: pd.DataFrame, res: dict, layer: str, overlays: list[str], clas
                    "Lymphocyte-like nuclei"),
         "risk": ("risk", alt.Scale(domain=["none", "level 1", "level 2", "level 3"],
                                    range=RISK_COLORS), "Risk level (placeholder points)"),
+        "lymphocytes (second model)": ("second model", alt.Scale(
+            domain=["lymphocytes", "lymphocytes (disagrees)", "not lymphocytes",
+                    "not lymphocytes (disagrees)", "not scored"],
+            range=["#1b4f72", "#e67e22", "#d6eaf8", "#f5b7b1", "#f4f6f7"]),
+            "Second model (orange and red: the head disagrees)"),
     }
     field, scale, title = scales[layer]
     x = alt.X("col:Q", scale=alt.Scale(domain=[0, w], nice=False), axis=None)
@@ -437,7 +459,10 @@ def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
     if result is None:
         return None
     classes = result["meta"]["head"]["classes"]
-    res = inv.analyze_slide(result["tiles"], classes)
+    til = result.get("til")
+    res = inv.analyze_slide(result["tiles"], classes, til_cutoff=til["cutoff"] if til else None,
+                            til_calibrated=bool(til and "calibrated" in til.get(
+                                "cutoff_source", "")))
     return result, res, frame(res, classes)
 
 
@@ -448,7 +473,7 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
     meta = result["meta"]
     classes = meta["head"]["classes"]
     s, n = res["summary"], res["numbers"]
-    sc, nuc = meta.get("scored", {}), meta.get("nuclei", {})
+    sc, nuc, til = meta.get("scored", {}), meta.get("nuclei", {}), result.get("til")
     k = f"{pf.id}|{slide}"
     chips("patient's own slide", "placeholder cutoffs", "not reviewed by a pathologist",
           "implemented, validated on held-out BCSS slides")
@@ -622,19 +647,42 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
         # numeric columns with NaN where a zone has nothing, so no mixed dtype reaches Arrow
         rows = [{"zone": z, "tiles": v["tiles"],
                  "lymphocyte-class tiles": v["lymph_tile_share"],
+                 "lymphocyte tiles (second model)": v.get("til_lymph_share"),
                  "counted stroma tiles": v.get("counted_tiles", 0),
                  "lymphocyte-like nuclei / mm²": v.get("lymph_nuclei_per_mm2"),
                  "within 50 µm of tumor": v.get("tumor_contacting_share")}
                 for z, v in im["zones"].items()]
         zones = pd.DataFrame(rows)
-        for col in ("lymphocyte-class tiles", "lymphocyte-like nuclei / mm²",
-                    "within 50 µm of tumor"):
+        for col in ("lymphocyte-class tiles", "lymphocyte tiles (second model)",
+                    "lymphocyte-like nuclei / mm²", "within 50 µm of tumor"):
             zones[col] = pd.to_numeric(zones[col], errors="coerce")
         st.dataframe(zones, hide_index=True, width="stretch", column_config={
             "lymphocyte-class tiles": st.column_config.NumberColumn(format="percent"),
+            "lymphocyte tiles (second model)": st.column_config.NumberColumn(format="percent"),
             "lymphocyte-like nuclei / mm²": st.column_config.NumberColumn(format="%d"),
             "within 50 µm of tumor": st.column_config.NumberColumn(format="percent")})
-        st.caption("An empty cell means the zone has no tiles or no counted stroma tiles.")
+        st.caption("An empty cell means the zone has no tiles, no counted stroma tiles or no "
+                   "tile scored by the second model.")
+        d = res["til"]
+        if til and d["scored"]:
+            ho = til.get("held_out", {})
+            at = ho.get("at_cutoff", {})
+            st.markdown(f"**Second opinion ({INFERENCE}).** {inv.TIL_SECOND}: scored "
+                        f"{d['scored']} front-band and peritumoral tiles; the head and it "
+                        f"disagree on {d['disagree']} ({d['share']:.0%}; kappa {d['kappa']}; "
+                        f"{d['head_only']} head only, {d['til_only']} second model only). "
+                        f"Cutoff {d['cutoff']}: {til.get('cutoff_source', 'placeholder')}. "
+                        f"Held out on the head's {len(ho.get('slides', []))} test slides "
+                        f"({ho.get('tiles', '?')} tiles): AUROC {ho.get('auroc', float('nan'))}, "
+                        f"recall {at.get('recall_lymphocytes', float('nan')):.0%}, specificity "
+                        f"{at.get('specificity', float('nan')):.0%}. "
+                        "Switch the map's layer to 'lymphocytes (second model)'; disagreeing "
+                        "tiles are in the queue.")
+        elif til is None:
+            st.caption("No second lymphocyte model has scored this section.")
+        else:
+            st.caption("The second lymphocyte model scored no tile here: the map has no front "
+                       "band or peritumoral zone to score.")
         st.markdown(f"Pattern: **{im['pattern']}** ({im['status']}).")
     t1, t2, t3 = st.columns(3)
     tsr, nec = res["tsr"], res["necrosis"]
@@ -736,6 +784,12 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
     head_card(meta, classes)
     st.markdown(f"**Nuclei.** {inv.MODEL_CARD['nuclei']}. **Geometry.** "
                 f"{inv.MODEL_CARD['geometry']}. **Review.** {inv.MODEL_CARD['review']}.")
+    if til:
+        st.markdown(f"**Second lymphocyte model.** {inv.TIL_SECOND}; normalization "
+                    f"{til.get('model', {}).get('normalization', '?')}; "
+                    f"{til.get('s_per_tile', '?')} s per tile at {til.get('threads', '?')} "
+                    f"threads ({til.get('uptime', '')}). "
+                    "Its disagreement with the head is a queue item, never a verdict.")
     tm = meta.get("timings", {})
     st.caption("Timings on this PC's CPU: " + ", ".join(
         f"{k.replace('_s', '')} {v} s" for k, v in tm.items() if k.endswith("_s"))
@@ -749,6 +803,8 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
     mine = {kk: v for kk, v in reviews.items() if kk.startswith(f"{pf.id}|slide|{slide}|")}
     export = {"patient": pf.id, "slide": slide, "summary": {kk: v for kk, v in meta.items()
                                                             if kk != "crops"},
+              "second_lymphocyte_model": {**(til or {}), "disagreement": {
+                  kk: v for kk, v in res["til"].items() if kk != "rows"}} if til else None,
               "your_bud_count": st.session_state.get(f"{k}-budcount"),
               "review_marks": mine, "pins": {kk: v for kk, v in
                                              st.session_state.get("pins", {}).items()

@@ -72,3 +72,5 @@ render(case_file(SimpleNamespace(index={idx}, site="site-0", percentile=50.0, gr
     assert any("JSON" in lab for lab in labels) and any("PNG" in lab for lab in labels)
     if len(names) > 1:
         assert "the sections compared" in text
+    if (RESULTS / names[0] / "til.json").exists():  # the second lymphocyte model scored it
+        assert "second opinion" in text and "disagree" in text and "auroc" in text

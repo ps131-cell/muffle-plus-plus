@@ -245,6 +245,52 @@ build step), the geometry in `muffle.workbench.viewer`, the tiles from `scripts/
   OUT/<slide>.zip` (`--clobber` for a rebuilt section; a server that already unzipped the old
   one keeps it until it restarts).
 
+## 8. Second opinion on lymphocytes (2026-10-21)
+
+The tissue head's weakest class is lymphocytes (held-out recall 0.74), so the WSInfer TIL model
+(`kaczmarj/pancancer-lymphocytes-inceptionv4.tcga`; Abousamra et al., *Front Oncol* 2022,
+[10.3389/fonc.2021.806603](https://doi.org/10.3389/fonc.2021.806603); CC BY 4.0; TorchScript,
+`torch.jit.load`) gives a second reading of the same tiles: the centre 50 µm (100 px at 0.5
+µm/px) of a tile, resized to 299 px, normalized with mean and std 'half' (the better of the two
+candidate normalizations on the held-out slides; 'imagenet' gave AUROC 0.945),
+softmax over its two classes.
+
+- **Measured** (`scripts/slide_pipeline.py til-measure`, on the spike's BCSS tiles): on the
+  head's 3 held-out, patient-disjoint slides (TCGA-C8-A26X-DX1, TCGA-C8-A26Y-DX1, TCGA-EW-A1OV-DX1;
+  357 usable labelled tiles) lymphocytes versus the rest **AUROC
+  0.955**; mean probability per BCSS class on those tiles: tumor 0.04, stroma 0.39, lymphocytes 0.97, necrosis 0.08, fat 0.08. Cutoff
+  **0.667**, calibrated on the 8 training slides (1052 tiles, Youden's
+  J; training-slide AUROC 0.971) and applied unchanged: held-out recall
+  97%, specificity 79%, accuracy
+  83%. Caveat: the model was trained on TCGA slides of 23 cancer types, so the
+  held-out BCSS slides (all TCGA-BRCA) may have been in its training set; the AUROC is an upper
+  bound, not an independent validation.
+- **On a patient's section** (`slide_pipeline.py til`): up to 1,500 usable front-band tiles
+  (nearest the front first) then peritumoral tiles are scored and written to `til.json` (tile id
+  → probability, the cutoff and its source, the held-out numbers); nothing else leaves the
+  machine. `invasion.til_disagreement` compares the head's label (lymphocytes or not) with the
+  second model at the cutoff on the scored tiles: counts, share, Cohen's kappa, and the
+  disagreeing tiles, which get a "models disagree" pointer at their densest spot in the look-here
+  queue, a map layer ("lymphocytes (second model)", disagreement in orange and red), a column in
+  the stromal-lymphocytes-by-zone table, a search ("where do the models disagree"), a row in the
+  two-section comparison and an entry in the export. Every number is a model inference; a
+  disagreement is a place to look, never a verdict on which model is right.
+- **Per section** (2026-10-21; a disagreement is a place to look, not a verdict; kappa near zero means the two readings barely overlap, and most disagreements are the second model calling lymphocytes where the head reads stroma, consistent with its 0.39 mean on stroma tiles):
+
+| Section | Tiles scored | Per tile (2 threads) | Front band: head lymphocyte share | Front band: second model | Disagree | Head only / model only | Kappa |
+|---|---|---|---|---|---|---|---|
+| TCGA-AN-A0AS-DX1 | 1500 | 0.34 s (load average 4.5 7.7 8.1) | 0% | 3% | 43 (3%) | 0 / 43 | 0.0 |
+| TCGA-BH-A0H5-DX1 | 0 | 0.0 s (load average 6.4 5.0 6.1) | — | — | 0 (—) | 0 / 0 | — |
+| TCGA-D8-A1XF-DX1 | 1500 | 0.35 s (load average 3.8 6.1 7.2) | 2% | 6% | 114 (8%) | 28 / 86 | -0.029 |
+| TCGA-D8-A1XF-DX2 | 1500 | 0.29 s (load average 6.8 5.0 6.2) | 0% | 4% | 60 (4%) | 12 / 48 | -0.013 |
+| TCGA-EW-A1J2-DX1 | 771 | 0.27 s (load average 7.1 6.4 7.4) | 0% | 2% | 8 (1%) | 0 / 8 | 0.0 |
+| TCGA-PL-A8LZ-DX1 | 368 | 0.22 s (load average 3.6 4.4 5.8) | 0% | 0% | 0 (0%) | 0 / 0 | — |
+| TCGA-PL-A8LZ-DX2 | 0 | 0.0 s (load average 3.3 4.3 5.8) | — | — | 0 (—) | 0 / 0 | — |
+| TCGA-PL-A8LZ-DX3 | 899 | 0.23 s (load average 3.0 3.6 5.2) | 0% | 2% | 68 (8%) | 0 / 68 | 0.026 |
+
+- Not done: the WSInfer tumor model (AUROC 0.921, balanced accuracy 0.788 at its cutoff in the
+  screening check) is not wired in.
+
 ## 8. What is left
 
 - A pathologist's review of one scored slide, and a measured error for StarDist on breast
