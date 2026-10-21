@@ -188,7 +188,11 @@ build step), the geometry in `muffle.workbench.viewer`, the tiles from `scripts/
   (git-ignored; `app/static/.gitkeep` keeps the folder) and Streamlit serves it at
   `/app/static/…` (`enableStaticServing = true` in `.streamlit/config.toml`). The analysis layers
   are written next to the tiles as one JSON file named by its content hash, from the same
-  `invasion.analyze_slide` result the page shows. A failed download is retried after 10 minutes.
+  `invasion.analyze_slide` result the page shows. Streamlit reads `enableStaticServing` when the
+  server starts, so a server that has not restarted since (a hot-updated deployment) or runs
+  without the config unpacks into the component's own folder
+  (`slide_viewer_frontend/static/slides/`, git-ignored), which Streamlit serves with the
+  component. A failed download is retried after 10 minutes.
   `MUFFLE_SLIDE_TILES` points at another folder of zips (`file:///…` for local work) or switches
   downloads off (`off`; the tests do).
 - **Sizes** (built 2026-10-20 in WSL, three processes at `nice -n 10`, the load average at the

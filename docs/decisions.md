@@ -21,7 +21,9 @@ Newest at the top. One entry per decision: date, what, why.
   open of those sections waits for the download. Nuclei are circles of their area, not
   outlines (the polygons were never kept); the side-by-side view links zoom by physical size
   and pan by distance but does not register the sections, and says so. The tile map remains
-  as the fallback, and every overlay keeps its evidence label in the viewer's legend.
+  as the fallback, and every overlay keeps its evidence label in the viewer's legend. Static
+  serving is read when the server starts, so until a hot-updated server restarts the tiles are
+  served from the component's own folder.
 
 ## 2026-10-21 — Genomics workbench: the genome as a picture; two ploidies; AlphaMissense's license
 - **What:** the genomics workbench gains, for the TCGA cases, a copy-number landscape (ASCAT3 gene

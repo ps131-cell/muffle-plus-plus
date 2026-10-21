@@ -618,11 +618,14 @@ def land(pf: workspace.PatientFile, i: int, focus: dict):
         ss[f"genomics-{pf.id}-{i}-search"] = focus["variant"]
     if "gene" in focus:  # genomics: the copy-number landscape's Spot panel on the gene
         ss[f"genomics-{pf.id}-{i}-gene"] = focus["gene"]
-    if "slide" in focus:  # slides: the section, then the pointer in its Spot panel
+    if "slide" in focus:  # slides: the section, then the pointer in its Spot panel and viewer
         ss[f"{pf.id}-section"] = focus["slide"]
         if "tile" in focus:
             k = f"{pf.id}|{focus['slide']}"
             ss[f"{k}-pick"], ss[f"{k}-spot"] = f"{focus['pointer']} · {focus['tile']}", ""
+            row, col = (int(v) for v in focus["tile"][1:].split("c"))
+            ss[f"{k}-goto"] = {"slide": focus["slide"], "row": row, "col": col,
+                               "nonce": datetime.now().timestamp()}
     if "omics" in focus:  # omics: the finding in its Spot panel
         ss[f"omics-spot-{pf.id}"] = focus["omics"]
     if "doc" in focus:  # documents: the document at the sentence

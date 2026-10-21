@@ -134,11 +134,34 @@ def test_static_serving_is_configured_and_tiles_stay_out_of_git():
     config = (ROOT / ".streamlit" / "config.toml").read_text()
     assert "enableStaticServing = true" in config
     assert (ROOT / "app" / "static" / ".gitkeep").exists()
-    assert "/app/static/slides/" in (ROOT / ".gitignore").read_text().splitlines()
+    ignored = (ROOT / ".gitignore").read_text().splitlines()
+    assert "/app/static/slides/" in ignored
+    assert "/app/workbenches/slide_viewer_frontend/static/" in ignored
     front = ROOT / "app" / "workbenches" / "slide_viewer_frontend"
     assert {"index.html", "viewer.js", "openseadragon.min.js", "openseadragon-LICENSE.txt"} <= {
         p.name for p in front.iterdir()}
     assert "openseadragon 6.1.1" in (front / "openseadragon.min.js").read_text()[:200]
+
+
+def test_tiles_go_with_the_component_until_static_serving_is_on():
+    """Streamlit reads enableStaticServing when the server starts: until then the sections are
+    unpacked into the component's own folder, which is served with the component."""
+    import sys
+
+    from streamlit import config
+
+    sys.path.insert(0, str(ROOT / "app"))
+    from workbenches import slide_viewer as sv
+
+    before = config.get_option("server.enableStaticServing")
+    try:
+        config.set_option("server.enableStaticServing", False)
+        assert sv.served() == (sv.FALLBACK, "static/slides")
+        assert sv.FALLBACK.is_relative_to(sv.FRONTEND)
+        config.set_option("server.enableStaticServing", True)
+        assert sv.served() == (sv.STATIC, "../../app/static/slides")
+    finally:
+        config.set_option("server.enableStaticServing", before)
 
 
 def page(slide_dir: str, case: str, slides: list[str]) -> str:

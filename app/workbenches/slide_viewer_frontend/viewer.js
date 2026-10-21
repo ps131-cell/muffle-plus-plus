@@ -28,7 +28,7 @@ const RISK_COLORS = [null, "#fde9c9", "#f5b041", "#c0392b"];
 const IMMUNE = [["20 or more per tile", "#1b4f72"], ["5–19", "#5dade2"], ["under 5", "#d6eaf8"]];
 const CELL_COLORS = ["#7f8c8d", "#2e86de", "#c0392b", "#8e44ad"];
 const NUCLEI_MIN = 0.45;  // screen px per µm at which nuclei are drawn (a 7 µm nucleus ≈ 3 px)
-const BASE = new URL("../../", window.location.href);  // the Streamlit server root
+const HERE = window.location.href;  // source URLs are relative to this page (slide_viewer.served)
 const PREFS = "muffle-slide-viewer";
 
 const S = {sig: null, panes: [], fill: "tissue", alpha: 0.35, link: true, gotoNonce: null,
@@ -133,7 +133,7 @@ function makePane(src) {
   p.viewer = OpenSeadragon({
     element: osd,
     tileSources: {Image: {xmlns: "http://schemas.microsoft.com/deepzoom/2008",
-                          Url: new URL(src.tiles, BASE).href, Format: src.format,
+                          Url: new URL(src.tiles, HERE).href, Format: src.format,
                           Overlap: String(src.overlap), TileSize: String(src.tile_size),
                           Size: {Width: String(src.width), Height: String(src.height)}}},
     showNavigationControl: false, showNavigator: true, navigatorPosition: "TOP_RIGHT",
@@ -168,7 +168,7 @@ function makePane(src) {
     moveHandler: ev => hover(p, ev.position, ev.originalEvent),
     leaveHandler: () => { $("tip").style.display = "none"; },
   });
-  fetch(new URL(src.overlay, BASE))
+  fetch(new URL(src.overlay, HERE))
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
     .then(ov => { p.ov = prepare(ov); jumpList(p); group(p); ready(p); legend(); })
     .catch(e => fail(p, "The analysis layers could not be loaded (" + e.message + ")."));

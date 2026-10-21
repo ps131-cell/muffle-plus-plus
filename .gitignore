@@ -5,6 +5,7 @@
 /workspaces/
 # slide viewer tile pyramids, downloaded at run time (app/workbenches/slide_viewer.py)
 /app/static/slides/
+/app/workbenches/slide_viewer_frontend/static/
 *.pt
 *.pth
 *.ckpt
