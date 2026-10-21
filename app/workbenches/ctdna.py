@@ -200,9 +200,11 @@ def render(pf: PatientFile, version: int | None = None) -> None:
     findings = ([{"variant": r["variant"], "month": r["month"], "pointer": r["pointer"],
                   "what": f"{r['variant']} {_vaf(r)} at month {r['month']}: {r['call']} "
                           f"({r['pointer']})"} for r in rows if r["call"] in (wb.NEW, wb.RISING)]
-                + [{"variant": v["variant"], "month": v["latest_month"], "pointer": "",
-                    "what": f"{v['variant']}: {v['origin']}"}
-                   for v in vs if v["origin"] == wb.POSSIBLE_CH])
+                + [{"variant": v["variant"], "pointer": "", "what": f"{v['variant']}: "
+                    f"{v['origin']}", "month": next(  # its first detection: a key every
+                        r["month"] for r in rows  # later version shares
+                        if r["variant"] == v["variant"] and r["detected"])}
+                   for v in vs if v["origin"] == wb.POSSIBLE_CH and "never" not in v["detected"]])
     reviews = st.session_state.setdefault("reviews", {})
     _sync_reviews(pf, findings, reviews)
     mine = {k: v for k, v in reviews.items() if k.startswith(f"{pf.id}|ctdna|")}
