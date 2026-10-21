@@ -46,7 +46,7 @@ tier and add it here **before** using it.
 
 Every Token Factory call goes through `muffle.report.budget` (hard spending cap).
 
-### Candidate models by workbench (status 2026-10-20)
+### Candidate models by workbench (status 2026-10-21)
 
 Checked from the model cards, gate forms and licenses, not by running them (except where a
 measurement is cited). Status: **usable now** (open, may run offline today) · **pending
@@ -59,12 +59,15 @@ hosted app.
 | Model | Workbench / role | Status | Access | License / terms | Inputs it receives |
 |---|---|---|---|---|---|
 | **Path Foundation** (`google/path-foundation`, TF SavedModel) | slides: tile encoder (ViT-S, 384-d) | pending click-through | HF, HAI-DEF terms, instant | Health AI Developer Foundations terms; pass use restrictions on with any fine-tuned weights; trained on TCGA | 224 px H&E tiles, offline |
-| **GigaPath-Flash** (`prov-gigapath/prov-gigapath-flash`) | slides: tile encoder (ViT-S, 384-d) and slide encoder | pending click-through | HF, contact info, instant | Apache-2.0; card: research only, "any deployed use case ... is out of scope", not for clinical care | 224 px H&E tiles, offline |
-| **Hibou-B**, **Hibou-L** (`histai/hibou-b`, `histai/hibou-L`) | slides: tile encoders (ViT-B 768-d; ViT-L 1024-d) | pending click-through | HF, contact info, instant; repo code pinned to a revision | Apache-2.0 | 224 px H&E tiles, offline |
+| **GigaPath-Flash** (`prov-gigapath/prov-gigapath-flash`) | slides: tile encoder (ViT-S, 384-d) and slide encoder | granted 2026-10-21 (runs once `HF_TOKEN` is in WSL) | HF, contact info, instant | Apache-2.0; card: research only, "any deployed use case ... is out of scope", not for clinical care | 224 px H&E tiles, offline |
+| **Hibou-B**, **Hibou-L** (`histai/hibou-b`, `histai/hibou-L`) | slides: tile encoders (ViT-B 768-d; ViT-L 1024-d) | granted 2026-10-21 (runs once `HF_TOKEN` is in WSL) | HF, contact info, instant; repo code pinned to a revision | Apache-2.0 | 224 px H&E tiles, offline |
 | **H-optimus-0** (`bioptimus/H-optimus-0`) | slides: tile encoder (ViT-g, 1536-d) | pending click-through | HF, form (name, affiliation, email, use-case), instant | Apache-2.0; gate: not reviewed by any regulator, independent validation needed | 224 px tiles at 0.5 µm/px, GPU |
 | **Virchow** v1 (`paige-ai/Virchow`) | slides: tile encoder (ViT-H, 2560-d) | pending click-through (institutional email) | HF, primary email must be institutional | Apache-2.0 plus card terms: not for diagnosis or treatment of real patients | 224 px tiles, GPU |
-| **UNI2-h** (`MahmoodLab/UNI2-h`) | slides: reference encoder (ViT-H, 1536-d) | **local only** (after click-through, institutional email) | HF, institutional primary email | CC BY-NC-ND 4.0; derivatives include models trained on its outputs; no distribution | 224 px tiles, GPU; results never under `app/` (code-enforced) |
-| **CONCH** (`MahmoodLab/CONCH`) | slides: vision-language encoder (ViT-B/16 at 448 px, 512-d), zero-shot queries | **local only** (after click-through, institutional email) | HF, institutional primary email | CC BY-NC-ND 4.0, same terms as UNI2-h | 448 px tiles, offline |
+| **UNI2-h** (`MahmoodLab/UNI2-h`) | slides: reference encoder (ViT-H, 1536-d) | **local only** (granted 2026-10-21) | HF, institutional primary email | CC BY-NC-ND 4.0; derivatives include models trained on its outputs; no distribution | 224 px tiles, GPU; results never under `app/` (code-enforced) |
+| **CONCH** (`MahmoodLab/CONCH`) | slides: vision-language encoder (ViT-B/16 at 448 px, 512-d), zero-shot queries | **local only** (granted 2026-10-14) | HF, institutional primary email | CC BY-NC-ND 4.0, same terms as UNI2-h | 448 px tiles, offline |
+| **WSInfer breast tumor** (`kaczmarj/breast-tumor-resnet34.tcga-brca`; Le et al., *Am J Pathol* 2020, PMID 32277893) and **WSInfer TIL** (`kaczmarj/pancancer-lymphocytes-inceptionv4.tcga`; Abousamra et al., *Front Oncol* 2022) | slides: tumor-vs-other and lymphocyte-vs-other maps that the hosted app may show (attribution) | usable now; screening check on 516 BCSS-labelled tiles (11 TCGA-BRCA slides, CPU): tumor vs rest AUROC 0.92, lymphocytes vs rest AUROC 0.98 ([`model_access.md`](model_access.md)); cutoffs not calibrated (placeholder) | HF, ungated | **CC BY 4.0** (cards and API); both trained on TCGA slides, so TCGA-BRCA test slides may overlap their training | 350 px tiles at 0.25 µm/px; 100 px at 0.5 µm/px; offline CPU |
+| **SPIDER-breast** (`histai/SPIDER-breast-model`) | slides: breast-specific multi-class tile classifier on Hibou-L | **local only** (granted 2026-10-21) | HF, contact info | CC BY-NC 4.0 | 224 px tiles, offline |
+| **KEEP** (`Astaxanthin/KEEP`; *Cancer Cell* 2026) | slides: zero-shot vision–language queries, an open-license alternative to CONCH | usable now | HF, ungated; repo code (pin a revision) | **MIT** | 224 px tiles, offline (ViT-L) |
 | **LazySlide** (rendeirolab) | slides: tiling, tissue detection, encoder calls (plumbing) | usable now | PyPI, open | MIT | slides, offline |
 | **StarDist** `2D_versatile_he` | slides: nuclei segmentation in H&E | usable now (check MoNuSeg terms before publishing masks) | PyPI + GitHub release, open | code BSD-3-Clause; weights trained on MoNuSeg 2018 (terms not re-checked) and TNBC (CC BY 4.0, Zenodo 1175282) | H&E tiles, offline CPU |
 | **CellViT** / CellViT++ (TIO-IKIM) | slides: nuclei segmentation and typing | **local only** | Google Drive checkpoints, open | code "Apache 2.0 with Commons Clause"; checkpoints trained on PanNuke (CC BY-NC-SA 4.0); CellViT-SAM-H needs a 24 GB GPU | H&E tiles, GPU |
@@ -77,6 +80,7 @@ hosted app.
 | **OpenMed NER OncologyDetect** (`OpenMed/OpenMed-NER-OncologyDetect-BigMed-278M`) | documents: highlight cancer, organ, gene entities in source sentences | usable now | HF, ungated | Apache-2.0 | report text, locally only, CPU |
 | **mammoscreen** (`ianpan/mammoscreen`) + crop model `ianpan/mammo-crop` | mammography: cancer likelihood and density per exam | usable now | HF, ungated; repo code (pin revisions `b619a889`, `bec2e302`) | Apache-2.0 (both); trained on CBIS-DDSM and RSNA 2023 (RSNA terms not retrieved) | CC + MLO images, offline CPU |
 | **Mirai** (reginabarzilaygroup) | mammography: 5-year risk | usable now (needs four standard views) | GitHub, open | MIT (model and code) | four-view screening exam, offline |
+| **MONAI breast density** (`MONAI/breast_density_classification`; Mayo Clinic, arXiv:2202.08238) | mammography: BI-RADS density A–D, a second opinion next to mammoscreen's | usable now | HF, ungated (MONAI bundle) | **Apache-2.0** (bundle LICENSE); trained on Mayo Clinic data | one 299 px mammogram, offline CPU |
 | **Pillar0-BreastMRI** (`YalaLab/Pillar0-BreastMRI`) | MRI: exam embeddings | pending click-through | HF, name and organization, instant; repo code | ECL-2.0; preprint, authors' internal evaluation only | breast MRI volumes, offline (GPU preferred) |
 
 ## Services
