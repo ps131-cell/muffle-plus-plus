@@ -72,8 +72,8 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.text_input(key="list-search").set_value("pik3ca").run()
     assert set(at.dataframe[0].value["Patient"]) == {"SYNTHETIC-001", case}
     at.text_input(key="list-search").set_value("").run()
-    at.pills(key="list-holds").set_value(["Imaging"]).run()
-    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    at.pills(key="list-holds").set_value(["Imaging"]).run()  # reports, and the case's MRI
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001", case]
     at.pills(key="list-holds").set_value([]).run()
     at.toggle(key="list-sos").set_value(True).run()
     assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
