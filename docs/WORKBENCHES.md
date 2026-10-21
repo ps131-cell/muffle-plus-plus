@@ -204,8 +204,8 @@ it; three held-out TCGA cases have public TCIA studies, which open the image vie
   seed rule's box; no reader contours exist), measurements with method and uncertainty (longest
   diameter ± a pixel, volume with a one-pixel range), DCE kinetics in the BI-RADS lexicon's terms
   with literature cutoffs as placeholders. [planned] multiplanar views, registration between
-  dates with "unreliable here" marks, RECIST-style sums labeled as computed, mammography contours
-  and a screening score.
+  dates with "unreliable here" marks, RECIST-style sums labeled as computed, mammography contours.
+  [built for one study] a mammoscreen screening score and density per breast (model inference).
 - **Protocol and scanner differences** [data] flagged before any "larger" or "smaller": no
   processed patient has two study dates yet (20 TCIA patients do; none is in the held-out set).
 - **Spot panel per lesion** [built for one study]: size, volume, kinetics curve, how its box was

@@ -22,7 +22,7 @@
     "study": "2002-10-26",
     "modality": "MG",
     "name": "Mammography (four standard views), public TCIA study (2002-10-26)",
-    "result": "4 views; dense-pixel share (placeholder rule) 27% on the CC views",
+    "result": "4 views; screening score (model inference) L 0.0046, R 0.42; dense-pixel share 27% on the CC views (placeholder rule)",
     "folder": "TCGA-EW-A1J2"
    }
   ],

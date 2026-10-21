@@ -422,6 +422,86 @@ def mri(args) -> None:
 
 
 # --- mammography --------------------------------------------------------------------------------
+MAMMO_ID, MAMMO_REV = "ianpan/mammoscreen", "b619a889a8214f3b3f9e7427c2603608a44e6d0a"
+MAMMO_SIZES, MAMMO_PAD = [(2048, 1024), (1920, 1280), (1536, 1536)], [True, True, False]
+
+
+def screen(images: dict[tuple[str, str], np.ndarray]) -> dict:
+    """mammoscreen (Apache-2.0) per breast from its CC and MLO views. The three nets are
+    re-built from the model's published code (timm tf_efficientnetv2_s, one channel, average
+    pooling, a 5-way linear head: cancer, then density A-D) and the pinned weights loaded strictly,
+    so no remote code runs. Images: uint8 after the VOI LUT, cropped to the breast's bounding box
+    (the authors use a separate crop model). Padding is constant zero."""
+    import torch
+    import torch.nn.functional as F
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
+    from timm import create_model
+
+    class Net(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.backbone = create_model("tf_efficientnetv2_s", pretrained=False, num_classes=0,
+                                         global_pool="", in_chans=1)
+            self.pooling = torch.nn.AdaptiveAvgPool2d(1)
+            self.dropout = torch.nn.Dropout(0.1)
+            self.linear = torch.nn.Linear(1280, 5)
+
+    def prep(img: np.ndarray, size: tuple[int, int], pad: bool):
+        h, w = img.shape
+        if pad and h / w > size[0] / size[1]:
+            nw = round(h * size[1] / size[0])
+            img = np.pad(img, ((0, 0), ((nw - w) // 2, nw - w - (nw - w) // 2)))
+        t = torch.from_numpy(np.ascontiguousarray(img)).float()[None, None]
+        if pad:
+            t = F.interpolate(t, size=size, mode="bilinear", align_corners=False)
+        else:
+            s = size[0] / max(h, w)
+            t = F.interpolate(t, size=(round(h * s), round(w * s)), mode="bilinear",
+                              align_corners=False)
+            ph, pw = size[0] - t.shape[2], size[1] - t.shape[3]
+            t = F.pad(t, (pw // 2, pw - pw // 2, ph // 2, ph - ph // 2))
+        return (t / 255.0 - 0.5) * 2.0
+
+    start = time.time()
+    sd = load_file(hf_hub_download(MAMMO_ID, "model.safetensors", revision=MAMMO_REV))
+    nets = []
+    for i in range(len(MAMMO_SIZES)):
+        net = Net().eval()
+        net.load_state_dict({k[len(f"net{i}."):]: v for k, v in sd.items()
+                             if k.startswith(f"net{i}.")}, strict=True)
+        nets.append(net)
+    loaded, out = time.time() - start, {}
+    with torch.inference_mode():
+        for side in sorted({s for s, _ in images}):
+            views = [v for v in ("CC", "MLO") if (side, v) in images]
+            cancer, density = [], []
+            for net, size, pad in zip(nets, MAMMO_SIZES, MAMMO_PAD, strict=True):
+                x = torch.cat([prep(images[(side, v)], size, pad) for v in views])
+                logits = net.linear(net.pooling(net.backbone(x)).flatten(1))
+                cancer.append(float(logits[:, 0].sigmoid().mean()))
+                density.append(logits[:, 1:].softmax(1).mean(0).numpy())
+            dens = np.mean(density, 0)
+            out[side] = {"views": views, "cancer": round(float(np.mean(cancer)), 4),
+                         "cancer_per_net": [round(c, 4) for c in cancer],
+                         "density": {k: round(float(p), 3) for k, p in zip("ABCD", dens,
+                                                                            strict=True)},
+                         "density_class": "ABCD"[int(np.argmax(dens))]}
+    return {"status": "implemented", "model": MAMMO_ID, "revision": MAMMO_REV,
+            "license": "Apache-2.0", "breasts": out,
+            "card": {"auroc": "0.945 (mean of 3 splits, sd 0.002) on 10% held-out splits of the "
+                              "RSNA 2023 screening challenge data, the model card's numbers",
+                     "thresholds": {"98.1% sensitivity": 0.0072, "94.3% sensitivity": 0.0127,
+                                    "90.5% sensitivity": 0.0184},
+                     "training": "CBIS-DDSM, then RSNA 2023 (the RSNA data terms not retrieved)"},
+            "how": "the published architecture re-built with timm and the pinned weights, no "
+                   "remote code; crops from the breast mask instead of the authors' crop model; "
+                   "constant-zero padding",
+            "seconds_load": round(loaded, 0), "seconds_inference": round(time.time() - start
+                                                                        - loaded, 0),
+            "threads": int(torch.get_num_threads()), "uptime": uptime()}
+
+
 def mammo(args) -> None:
     from scipy import ndimage
 
@@ -430,7 +510,7 @@ def mammo(args) -> None:
     base = Path(args.dicom).expanduser() / args.barcode
     out = OUT / args.barcode
     out.mkdir(parents=True, exist_ok=True)
-    views = []
+    views, crops = [], {}
     for num in args.series.split(","):
         d = dicoms(base / num)[0]
         try:
@@ -445,13 +525,18 @@ def mammo(args) -> None:
         sizes = ndimage.sum(np.ones_like(lab), lab, range(1, n + 1)) if n else []
         breast = lab == (int(np.argmax(sizes)) + 1) if n else np.ones_like(img, bool)
         dense = rad.dense_fraction(np.where(breast, img, 0), background=0.5)
+        rows, cols = np.where(breast.any(1))[0], np.where(breast.any(0))[0]
+        u8 = ((img - img.min()) / max(float(img.max() - img.min()), 1e-6) * 255).astype(np.uint8)
+        crops[(str(d.ImageLaterality), str(d.ViewPosition))] = \
+            u8[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
         scale = max(img.shape) / MAMMO_PX
-        small = resize2d(img, (int(round(img.shape[0] / scale)), int(round(img.shape[1] / scale))))
+        small = resize2d(img, (round(img.shape[0] / scale), round(img.shape[1] / scale)))
         lo, hi = np.percentile(img[breast], [0.5, 99.8])
         key = f"{d.ImageLaterality}-{d.ViewPosition}"
         from PIL import Image
 
-        Image.fromarray(to8(small, lo, hi)).save(out / f"{key}.jpg", quality=JPEG_Q, optimize=True)
+        Image.fromarray(to8(small, lo, hi)).save(out / f"{key}.jpg", quality=JPEG_Q,
+                                                 optimize=True)
         views.append({"key": key, "laterality": str(d.ImageLaterality),
                       "view": str(d.ViewPosition), "series": int(num), "image": f"{key}.jpg",
                       "native": [int(v) for v in img.shape],
@@ -470,9 +555,9 @@ def mammo(args) -> None:
                   "presentation": str(getattr(d0, "PresentationIntentType", ""))},
         "source": SOURCE, "report": report_facts(base / "sr"), "views": views,
         "dense_cc_mean": round(float(np.mean(cc)), 3) if cc else None,
-        "screening_score": {"status": "planned",
-                            "why": "mammoscreen (Apache-2.0) not run yet: its weights need "
-                                   "remote code and a crop model; see docs/radiology.md"},
+        "screening_score": screen(crops) if args.screen else {
+            "status": "planned", "why": "run with --screen (mammoscreen, Apache-2.0, minutes on "
+                                        "the CPU); see docs/radiology.md"},
         "pipeline": {"script": "scripts/radiology_pipeline.py mammo", "version": "1",
                      "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
     }
@@ -493,9 +578,13 @@ def index() -> None:
                           f"{c1['kinetics'].get('delayed', '?')} delayed phase (model inference)"
                           if c1 else "no candidate proposed"))
         else:
-            result = f"{len(s['views'])} views; dense-pixel share (placeholder rule) " + (
-                f"{s['dense_cc_mean']:.0%} on the CC views" if s["dense_cc_mean"] is not None
-                else "not computed")
+            score = s["screening_score"]
+            result = f"{len(s['views'])} views; " + (
+                "screening score (model inference) " + ", ".join(
+                    f"{side} {b['cancer']:.2g}" for side, b in score["breasts"].items()) + "; "
+                if score["status"] == "implemented" else "") + (
+                f"dense-pixel share {s['dense_cc_mean']:.0%} on the CC views (placeholder rule)"
+                if s["dense_cc_mean"] is not None else "no dense-pixel share")
         cases.setdefault(str(s["cohort_index"]), []).append({
             "barcode": s["barcode"], "study": s["study"]["date"], "modality": s["modality"],
             "name": f"{s['kind']}, public TCIA study ({s['study']['date']})", "result": result,
@@ -522,6 +611,8 @@ if __name__ == "__main__":
         if name == "mri":
             s.add_argument("--times", default=None, help="seconds per phase, if not in headers")
             s.add_argument("--medsam-input", choices=("sub", "early"), default="sub")
+        else:
+            s.add_argument("--screen", action="store_true", help="add mammoscreen's score")
     sub.add_parser("index")
     a = p.parse_args()
     os.environ.setdefault("OMP_NUM_THREADS", "2")

@@ -518,6 +518,38 @@ def model_card(study: dict) -> None:
                    "are literature values used as placeholders until calibrated here.")
 
 
+DENSITY = {"A": "almost entirely fatty", "B": "scattered fibroglandular density",
+           "C": "heterogeneously dense", "D": "extremely dense"}  # the BI-RADS categories
+
+
+def screening_text(score: dict) -> str:
+    """mammoscreen's per-breast score and density, with what they are and are not."""
+    if score.get("status") != "implemented":
+        return f"**Screening score**: planned ({score.get('why', '')})."
+    card = score["card"]
+    per = "; ".join(
+        f"{'right' if side == 'R' else 'left'} breast {b['cancer']:.2g} (density "
+        f"{b['density_class']}, {DENSITY[b['density_class']]}, "
+        f"{b['density'][b['density_class']]:.0%})" for side, b in score["breasts"].items())
+    return (f"**Screening score** (model inference: mammoscreen, {score['license']}, revision "
+            f"{score['revision'][:7]}; CC and MLO per breast): {per}. An uncalibrated model "
+            "output, not a probability for this population; on its own held-out data the card "
+            "puts 98%, 94% and 91% sensitivity at "
+            + ", ".join(f"{v:g}" for v in card["thresholds"].values())
+            + f" and reports AUROC {card['auroc']}. The structured report records a biopsy-proven "
+            "cancer (BI-RADS 6) without its side, so the score cannot be checked against the "
+            "record here and adds nothing to a known diagnosis. Not validated here; "
+            f"{score['how']}; {score['seconds_inference']:.0f} CPU seconds ({score['threads']} "
+            f"threads; {score['uptime'].split('load average:')[-1].strip()} load).")
+
+
+def breast_score(study: dict, view: dict) -> str:
+    """The screening score of the breast a view shows, for its tooltip."""
+    b = study["screening_score"].get("breasts", {}).get(view["laterality"])
+    return (f"{b['cancer']:.2g} for this breast, density {b['density_class']} (model inference, "
+            "not validated here)" if b else "planned")
+
+
 def mammo_page(pf: PatientFile, study: dict) -> None:
     rep = study.get("report", {})
     key0 = f"rad-{pf.id}-{study['barcode']}"
@@ -531,9 +563,8 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
         f"**Model inference** (placeholder rule): dense-pixel share "
         f"{study['dense_cc_mean']:.0%} on the CC views; a pixel share above an Otsu threshold "
         "inside the breast, not a BI-RADS density category and not validated.  \n"
-        f"**Screening score**: {study['screening_score']['status']} "
-        f"({study['screening_score']['why']}). Lesion contours on mammograms: planned (no seed "
-        "rule for mammograms here).")
+        + screening_text(study["screening_score"])
+        + " Lesion contours on mammograms: planned (no seed rule for mammograms here).")
     level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
     width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
     order = {"R-CC": 0, "L-CC": 1, "R-MLO": 2, "L-MLO": 3}
@@ -554,11 +585,12 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
                 alt.Chart(pd.DataFrame([{"x": 0, "y": 0, "x2": w, "y2": h, "view": v["key"],
                                          "dense-pixel share": f"{dense['dense_fraction']:.0%} "
                                                               "(placeholder rule)",
+                                         "screening score": breast_score(study, v),
                                          "pixel": f"{v['pixel_mm']:g} mm shown, native "
                                                   f"{v['native_pixel_mm'][0]:g} mm"}])).mark_rect(
                     fillOpacity=0.01, fill="white").encode(
                     x="x:Q", y="y:Q", x2="x2:Q", y2="y2:Q",
-                    tooltip=["view:N", "dense-pixel share:N", "pixel:N"])
+                    tooltip=["view:N", "dense-pixel share:N", "screening score:N", "pixel:N"])
             ).properties(width=w * 0.75, height=h * 0.75).configure_view(strokeWidth=0)
             with col:
                 st.altair_chart(chart, width="content")
@@ -572,9 +604,32 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
     st.caption("Shown at 0.46 mm per pixel, downsampled from the 0.07 mm original: "
                "microcalcifications are not visible at this size.")
     _cannot_see(rad.CANNOT_SEE)
+    score = study["screening_score"]
+    if score.get("status") == "implemented":
+        with st.expander("Model and validation card: mammoscreen"):
+            card = score["card"]
+            st.dataframe(pd.DataFrame([
+                ("Training data", card["training"]),
+                ("Design", "an ensemble of three EfficientNetV2-S nets (2048×1024, 1920×1280, "
+                           "1536×1536), CC and MLO averaged per breast; outputs a cancer score "
+                           "and BI-RADS density A–D"),
+                ("Performance", f"the card's: AUROC {card['auroc']}; nothing measured here"),
+                ("External validity", "not checked on this collection or this vendor"),
+                ("Calibration", "none: the score is not a probability for this population"),
+                ("Robustness", score["how"]),
+                ("Uncertainty", "per-net cancer scores: " + "; ".join(
+                    f"{s} {', '.join(f'{c:.2g}' for c in b['cancer_per_net'])}"
+                    for s, b in score["breasts"].items())),
+                ("Known failures", "one study only, a known cancer (BI-RADS 6) without its side "
+                                   "in the record: nothing to check the score against"),
+                ("Reproducibility", f"{score['model']} revision {score['revision']}; "
+                                    f"{score['seconds_inference']:.0f} CPU seconds, "
+                                    f"{score['threads']} threads; {score['uptime']}"),
+            ], columns=["field", "what it records"]), hide_index=True, width="stretch")
     _search(pf, study, [], [], rad.CANNOT_SEE)
     _export(pf, study, [{"view": v["key"], "dense-pixel share": v["dense"]["dense_fraction"],
-                         "rule": "placeholder", "evidence": INFERENCE} for v in views])
+                         "dense rule": "placeholder", "screening score (breast)":
+                         breast_score(study, v), "evidence": INFERENCE} for v in views])
 
 
 def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[dict],
@@ -764,5 +819,5 @@ if __name__ == "__main__":
         case = SimpleNamespace(index=index, mutations=None, layers=["clinical"], missing=[],
                                stage=None, age=None, percentile=50.0, group="intermediate",
                                site="(not loaded on this page)")
-        files[f"Case {index}"] = case_file(case, None, studies)
+        files[f"Case {index}"] = case_file(case, None, imaging=studies)
     render(files[st.selectbox("File", list(files))])

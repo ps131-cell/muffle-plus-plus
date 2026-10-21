@@ -132,6 +132,29 @@ strip along the chest wall just in front of the heart, 3 mm from the search limi
 out as vessels do; the page flags it as near the chest wall. Mammography (926): dense-pixel share
 26–32% per view (27% on the CC views).
 
+### Mammography (case 926)
+
+The four views at 512 px with window and level, the structured report (BI-RADS 6, invasive
+lobular carcinoma, ER+ / PR+ / HER2−), the dense-pixel share (placeholder rule) and a **screening
+score from mammoscreen** (`ianpan/mammoscreen`, revision `b619a88`, Apache-2.0): an ensemble of
+three EfficientNetV2-S nets (2048×1024, 1920×1280, 1536×1536) that averages the CC and MLO views
+of a breast and returns a cancer score and BI-RADS density A–D. The architecture is re-built from
+the model's published code with timm and the pinned weights are loaded strictly (every key
+matched), so no remote code runs. Two departures from the authors' recipe, said on the page: the
+views are cropped to the breast's bounding box from the threshold mask instead of the authors'
+crop model, and padding is constant zero.
+
+Result (model inference, not validated here): right breast **0.42** (the three nets 0.47, 0.37,
+0.42), left **0.005** (0.002, 0.002, 0.010); density **C**, heterogeneously dense, in both (93%
+and 98%). On its own held-out data the card puts 98%, 94% and 91% sensitivity at 0.0072, 0.0127
+and 0.0184. The score is uncalibrated, and this study is a known biopsy-proven cancer whose
+structured report does not record the side, so the score cannot be checked against the record
+and adds nothing to the diagnosis; it shows what the model would say on a screening exam. It
+also moves with the crop: a first run whose breast mask was taken on the 8-bit image instead of
+the VOI-LUT values gave right 0.37 and left 0.006. 143 CPU seconds for the four views in the
+pipeline run (4 threads, load 8.6); the first run took 537 s at load 8–12 plus 131 s to fetch
+the weights.
+
 **Timings** (WSL, 8 shared cores, 4 threads, `nice -n 10`): MedSAM's image encoder took 21 s per
 1024² slice on a quiet machine (load 0.3, random input) and a median 12–17 s per slice in the
 runs (load 7–15 from other sessions); case 937 took 468 s for 32 slices, case 563 164 s for 13.
@@ -156,8 +179,8 @@ The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes.
   TCGA-AR-A1AQ 2001-11 / 2003-05); none is in the current held-out bundle. A comparison would
   align by slice index only, say "registration not done" and flag protocol differences first.
 - **Mammography**: no contours (no seed rule for mammograms); the pectoral muscle counts as dense
-  on MLO views; a screening score (mammoscreen, Apache-2.0) is planned: its weights need remote
-  code and a separate crop model, not run yet.
+  on MLO views; the screening score runs on crops from a threshold mask rather than the authors'
+  crop model, is uncalibrated, and has nothing in this record to be checked against.
 
 ## 4. Reproducing
 
@@ -165,9 +188,10 @@ The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes.
 python scripts/radiology_pipeline.py fetch TCGA-EW-A1P3:10,11,14,22 TCGA-BH-A0H5:4 TCGA-EW-A1J2:1,2,3,4
 python scripts/radiology_pipeline.py mri --barcode TCGA-EW-A1P3 --index 937 --series 10,11,14,22
 python scripts/radiology_pipeline.py mri --barcode TCGA-BH-A0H5 --index 563 --series 4
-python scripts/radiology_pipeline.py mammo --barcode TCGA-EW-A1J2 --index 926 --series 1,2,3,4
+python scripts/radiology_pipeline.py mammo --barcode TCGA-EW-A1J2 --index 926 --series 1,2,3,4 --screen
 python scripts/radiology_pipeline.py index
 ```
 
-Needs `pydicom`, `scikit-image`, `transformers` and CPU `torch` (not in the app's requirements);
-the DICOM files stay in `~/muffle-radiology/dicom`, outside the repo.
+Needs `pydicom`, `scikit-image`, `transformers`, `timm` and CPU `torch` (not in the app's
+requirements; `timm` from PyPI pulls a CUDA `torchvision`, so reinstall the CPU build of the
+matching version); the DICOM files stay in `~/muffle-radiology/dicom`, outside the repo.

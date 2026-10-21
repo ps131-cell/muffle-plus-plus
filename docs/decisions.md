@@ -9,7 +9,8 @@ Newest at the top. One entry per decision: date, what, why.
   held-out TCGA cases with a public TCIA study (563 and 937 breast MRI, 926 mammography) get an
   imaging test that opens an image viewer on small 8-bit copies, with MedSAM contours drawn
   offline from a seed rule's top three boxes, longest diameter, volume and DCE kinetics
-  (`scripts/radiology_pipeline.py`, `docs/radiology.md`).
+  (`scripts/radiology_pipeline.py`, `docs/radiology.md`); the mammogram gets a mammoscreen score
+  and density per breast (Apache-2.0, re-built with timm so no remote code runs).
 - **Why:** TCGA-BRCA radiology (CC BY 3.0) is the only imaging that joins the omics cohort, and
   5 of the 40 held-out cases have a study; MedSAM ViT-B is Apache-2.0, ungated and runs on this
   CPU at 12–21 s per slice, so contours can be precomputed. The best-annotated breast MRI sets and

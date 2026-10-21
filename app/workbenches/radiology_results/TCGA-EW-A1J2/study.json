@@ -121,12 +121,68 @@
  ],
  "dense_cc_mean": 0.266,
  "screening_score": {
-  "status": "planned",
-  "why": "mammoscreen (Apache-2.0) not run yet: its weights need remote code and a crop model; see docs/radiology.md"
+  "status": "implemented",
+  "model": "ianpan/mammoscreen",
+  "revision": "b619a889a8214f3b3f9e7427c2603608a44e6d0a",
+  "license": "Apache-2.0",
+  "breasts": {
+   "L": {
+    "views": [
+     "CC",
+     "MLO"
+    ],
+    "cancer": 0.0046,
+    "cancer_per_net": [
+     0.0015,
+     0.002,
+     0.0102
+    ],
+    "density": {
+     "A": 0.0,
+     "B": 0.006,
+     "C": 0.975,
+     "D": 0.019
+    },
+    "density_class": "C"
+   },
+   "R": {
+    "views": [
+     "CC",
+     "MLO"
+    ],
+    "cancer": 0.4179,
+    "cancer_per_net": [
+     0.4655,
+     0.3696,
+     0.4185
+    ],
+    "density": {
+     "A": 0.003,
+     "B": 0.047,
+     "C": 0.925,
+     "D": 0.025
+    },
+    "density_class": "C"
+   }
+  },
+  "card": {
+   "auroc": "0.945 (mean of 3 splits, sd 0.002) on 10% held-out splits of the RSNA 2023 screening challenge data, the model card's numbers",
+   "thresholds": {
+    "98.1% sensitivity": 0.0072,
+    "94.3% sensitivity": 0.0127,
+    "90.5% sensitivity": 0.0184
+   },
+   "training": "CBIS-DDSM, then RSNA 2023 (the RSNA data terms not retrieved)"
+  },
+  "how": "the published architecture re-built with timm and the pinned weights, no remote code; crops from the breast mask instead of the authors' crop model; constant-zero padding",
+  "seconds_load": 6.0,
+  "seconds_inference": 143.0,
+  "threads": 4,
+  "uptime": "22:48:48 up  4:09,  1 user,  load average: 8.57, 8.99, 9.15"
  },
  "pipeline": {
   "script": "scripts/radiology_pipeline.py mammo",
   "version": "1",
-  "run_at": "2026-10-20 18:06 UTC"
+  "run_at": "2026-10-21 03:48 UTC"
  }
 }
