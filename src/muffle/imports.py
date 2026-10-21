@@ -7,6 +7,12 @@ its file at the boundary and turns what it accepts into tests for ``workspace.ad
   canonical unit, others are kept as reported under a ``lab:<name>`` key.
 * A report as text or PDF (pypdf's text layer; no OCR) and a clinician's note: a document test,
   read by the documents rules (``muffle.workbench.documents``).
+* Sequencing results, an annotated VCF (VEP's CSQ or SnpEff's ANN) or a MAF: one Sequencing test
+  with the protein-altering variants in the file's breast driver panel; other rows are rejected
+  with the reason.
+* An imaging report as text or PDF: an Imaging test with the read its sentences state
+  (``imaging_read``: progression, response or stable, and the metastatic sites named new),
+  negated and hedged sentences set aside.
 * A slide region image (PNG or JPEG) and a DICOM file (header only, never the pixels or the
   patient's identifiers): tests queued for the local pipeline, since the hosted app runs no
   models.
@@ -19,9 +25,12 @@ public or synthetic data may be imported (docs/WORKSPACE.md). Pure functions; th
 from __future__ import annotations
 
 import csv
+import gzip
 import io
+import re
 from datetime import date
 
+from muffle.data.tcga import PROTEIN_ALTERING
 from muffle.longitudinal import DAYS_PER_MONTH
 from muffle.workbench import documents
 from muffle.workbench import labs_reference as ref
@@ -62,9 +71,10 @@ LAB_EXAMPLE = """month,marker,value,unit,reference interval
 27,LDH,260,U/L,
 27,Glucose,8.1,mmol/L,3.9-5.5
 """
-MAX_TEXT = 5 * 2**20    # bytes: a CSV, a text report or a PDF
+MAX_TEXT = 5 * 2**20    # bytes: a CSV, a text report, a PDF, or a VCF or MAF once unzipped
 MAX_IMAGE = 20 * 2**20  # bytes: a slide region image or a DICOM file
 MAX_ROWS = 500
+MAX_RECORDS = 20_000    # variant records in a VCF or MAF
 MAX_CHARS = 200_000     # characters of document text
 COLUMNS = {"month": "month", "date": "date", "marker": "marker", "test": "marker",
            "analyte": "marker", "value": "value", "result": "value", "unit": "unit",
@@ -333,3 +343,286 @@ def dicom_test(name: str, data: bytes, month: int) -> Test:
     return Test("Scan (DICOM)", month, name, QUEUED, "intake", QUEUED,
                 {"file": name, "bytes": len(data), "header": header,
                  "identifiers_present": ids, "pipeline": "imaging"})
+
+
+# --- sequencing results: an annotated VCF or a MAF --------------------------------------------
+AA3 = {"Ala": "A", "Arg": "R", "Asn": "N", "Asp": "D", "Cys": "C", "Gln": "Q", "Glu": "E",
+       "Gly": "G", "His": "H", "Ile": "I", "Leu": "L", "Lys": "K", "Met": "M", "Phe": "F",
+       "Pro": "P", "Ser": "S", "Thr": "T", "Trp": "W", "Tyr": "Y", "Val": "V", "Ter": "*",
+       "Sec": "U", "Xaa": "X"}
+MAF_ALTERING = {"Missense_Mutation", "Nonsense_Mutation", "Frame_Shift_Del", "Frame_Shift_Ins",
+                "In_Frame_Del", "In_Frame_Ins", "Splice_Site", "Translation_Start_Site",
+                "Nonstop_Mutation"}
+ANN_FIELDS = {"gene": 3, "consequence": 1, "hgvsp": 10}  # SnpEff's fixed ANN layout
+CSQ_NEEDS = ("SYMBOL", "Consequence", "HGVSp")
+VCF_COLUMNS = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO"]
+MSK_SAMPLE = re.compile(r"P-\d{7}-T\d{2}-IM\d")  # an MSK-IMPACT sample id, as in MSK-CHORD
+NO_VAF_VCF = "allele fraction: not read from a VCF (callers store it differently)"
+NO_VAF_MAF = "allele fraction: not in the file (no t_alt_count and t_depth)"
+
+
+def _unzip(data: bytes, what: str) -> str:
+    """A text file, gunzipped when it is gzip (read no further than the size limit)."""
+    _size(data, MAX_TEXT, what)
+    if data[:2] == b"\x1f\x8b":
+        try:
+            data = gzip.GzipFile(fileobj=io.BytesIO(data)).read(MAX_TEXT + 1)
+        except (OSError, EOFError):
+            raise IntakeError(f"The {what} is not a readable gzip file.") from None
+        _size(data, MAX_TEXT, f"{what} (unzipped)")
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise IntakeError(f"The {what} is not UTF-8 text.") from None
+
+
+def short_change(hgvsp: str) -> str | None:
+    """A protein change in the app's short form: "ENSP…:p.His1047Arg" → "H1047R",
+    "p.(Lys103AsnfsTer5)" → "K103Nfs*5", "p.E545K" → "E545K"; None for a synonymous, unknown
+    or empty change."""
+    p = hgvsp.split(":")[-1].strip().removeprefix("p.").strip("()")
+    if p in ("", ".", "-", "?", "0") or "=" in p or "%3D" in p:
+        return None
+    return re.sub("|".join(AA3), lambda m: AA3[m.group()], p)
+
+
+def _reject_msk(samples) -> None:
+    if any(MSK_SAMPLE.search(s or "") for s in samples):
+        raise IntakeError("The file names MSK-IMPACT samples (MSK-CHORD): that data stays local "
+                          "under its license and may not be imported. Only public or synthetic "
+                          "data may be imported.")
+
+
+def parse_variants(data: bytes, panel) -> tuple[list[dict], list[dict], dict]:
+    """A VCF (annotated by VEP or SnpEff, plain or gzip) or a MAF → (accepted, rejected, meta).
+    Accepted: {"row", "gene", "change", "variant", "consequence", "allele_fraction"}; rejected:
+    {"row", "reason"}, row = the line in the file; meta: {"format", "sample"}. Kept:
+    protein-altering variants in ``panel`` (the genes the file's genomics workbench reads). A VCF
+    keeps PASS calls only; a MAF is taken as filtered by its pipeline, as the TCGA files are.
+    Raises ``IntakeError`` for a file that can't be read at all."""
+    lines = _unzip(data, "sequencing file").splitlines()
+    vcf = bool(lines) and lines[0].startswith("##fileformat=VCF")
+    sample, rows = (_vcf if vcf else _maf)(lines, set(panel))
+    accepted, rejected, seen = [], [], {}
+    for r in rows:
+        if "reason" in r:
+            rejected.append(r)
+        elif r["variant"] in seen:
+            rejected.append({"row": r["row"], "reason": f"{r['variant']} repeats row "
+                                                        f"{seen[r['variant']]}"})
+        else:
+            seen[r["variant"]] = r["row"]
+            accepted.append(r)
+    if not accepted and not rejected:
+        raise IntakeError("The file has a header but no variant records.")
+    return accepted, rejected, {"format": "VCF" if vcf else "MAF", "sample": sample}
+
+
+def _vcf(lines: list[str], panel: set[str]) -> tuple[str | None, list[dict]]:
+    csq = next((ln for ln in lines if ln.startswith("##INFO=<ID=CSQ,")), None)
+    if csq:
+        fmt = csq.split("Format: ")[-1].split('"')[0].split("|")
+        missing = [f for f in CSQ_NEEDS if f not in fmt]
+        if missing:
+            raise IntakeError(f"The VCF's CSQ annotation lacks {', '.join(missing)}: run VEP with "
+                              "--symbol and --hgvs.")
+        key, idx = "CSQ", {"gene": fmt.index("SYMBOL"), "consequence": fmt.index("Consequence"),
+                           "hgvsp": fmt.index("HGVSp")}
+        canonical = fmt.index("CANONICAL") if "CANONICAL" in fmt else None
+    elif any(ln.startswith("##INFO=<ID=ANN,") for ln in lines):
+        key, idx, canonical = "ANN", ANN_FIELDS, None
+    else:
+        raise IntakeError("The VCF carries no gene annotation: annotate it with VEP (INFO CSQ "
+                          "with SYMBOL and HGVSp) or SnpEff (INFO ANN) first. Genes and protein "
+                          "changes are not called on intake.")
+    head = next((n for n, ln in enumerate(lines) if ln.startswith("#CHROM")), None)
+    if head is None or lines[head].split("\t")[:8] != VCF_COLUMNS:
+        raise IntakeError("The VCF has no tab-separated header line " + " ".join(VCF_COLUMNS)
+                          + ".")
+    samples = lines[head].split("\t")[9:]
+    _reject_msk(samples)
+    out = []
+    for n, line in enumerate(lines[head + 1:], start=head + 2):
+        if not line.strip():
+            continue
+        if len(out) >= MAX_RECORDS:
+            raise IntakeError(f"More than {MAX_RECORDS:,} variant records: filter the file to the "
+                              "panel's genes first.")
+        f = line.split("\t")
+        if len(f) < 8:
+            out.append({"row": n, "reason": "fewer than the 8 VCF columns"})
+            continue
+        if f[6] not in ("PASS", "."):
+            out.append({"row": n, "reason": f"FILTER is {f[6]}: only PASS calls are kept"})
+            continue
+        info = dict(kv.partition("=")[::2] for kv in f[7].split(";"))
+        if key not in info:
+            out.append({"row": n, "reason": f"no {key} annotation on this record"})
+            continue
+        anns = [{"gene": p[idx["gene"]], "consequence": p[idx["consequence"]],
+                 "hgvsp": p[idx["hgvsp"]],
+                 "canonical": canonical is not None and p[canonical:canonical + 1] == ["YES"]}
+                for p in (a.split("|") for a in info[key].split(","))
+                if len(p) > max(idx.values())]
+        out.append(_pick(n, anns, panel, NO_VAF_VCF))
+    return ", ".join(samples) or None, out
+
+
+def _pick(n: int, anns: list[dict], panel: set[str], vaf: str) -> dict:
+    """A record's variant: its first protein-altering panel annotation with a protein change,
+    the canonical transcript first; else the reason it is not kept."""
+    genes = list(dict.fromkeys(a["gene"] for a in anns if a["gene"])) or ["no gene"]
+    on = [a for a in anns if a["gene"] in panel]
+    if not on:
+        return {"row": n, "reason": f"{', '.join(genes)}: not on the breast panel the genomics "
+                                    f"workbench reads ({', '.join(sorted(panel))})"}
+    altering = [a for a in on if set(a["consequence"].split("&")) & PROTEIN_ALTERING]
+    if not altering:
+        return {"row": n, "reason": f"{on[0]['gene']} {on[0]['consequence'] or 'no consequence'}"
+                                    ": not protein-altering"}
+    named = sorted((a for a in altering if short_change(a["hgvsp"])),
+                   key=lambda a: not a["canonical"])
+    if not named:
+        return {"row": n, "reason": f"{altering[0]['gene']}: no protein change (HGVSp) in the "
+                                    "annotation"}
+    a, change = named[0], short_change(named[0]["hgvsp"])
+    return {"row": n, "gene": a["gene"], "change": change, "variant": f"{a['gene']} {change}",
+            "consequence": a["consequence"], "allele_fraction": vaf}
+
+
+def _maf(lines: list[str], panel: set[str]) -> tuple[str | None, list[dict]]:
+    body = [(n, ln) for n, ln in enumerate(lines, start=1) if ln.strip() and ln[0] != "#"]
+    head = body[0][1].split("\t") if body else []
+    hgvsp = "HGVSp_Short" if "HGVSp_Short" in head else "HGVSp"
+    missing = [c for c in ("Hugo_Symbol", "Variant_Classification", hgvsp) if c not in head]
+    if missing:
+        raise IntakeError("Neither a VCF (its first line is ##fileformat=VCF) nor a MAF: missing "
+                          f"column(s) {', '.join(missing)} (a tab-separated GDC or cBioPortal "
+                          "MAF).")
+    if len(body) - 1 > MAX_RECORDS:
+        raise IntakeError(f"More than {MAX_RECORDS:,} variant records: filter the file to the "
+                          "panel's genes first.")
+    records = [(n, dict(zip(head, ln.split("\t"), strict=False))) for n, ln in body[1:]]
+    samples = sorted({r.get("Tumor_Sample_Barcode", "") for _, r in records} - {""})
+    _reject_msk(samples)
+    if len(samples) > 1:
+        raise IntakeError(f"The MAF holds {len(samples)} tumor samples ({', '.join(samples[:3])}"
+                          f"{'…' if len(samples) > 3 else ''}): import one sample's calls at a "
+                          "time.")
+    out = []
+    for n, r in records:
+        cls, gene = r.get("Variant_Classification", ""), r.get("Hugo_Symbol", "")
+        try:
+            alt, depth = int(r["t_alt_count"]), int(r["t_depth"])
+            vaf = f"allele fraction {alt / depth:.2f} ({alt} of {depth} reads)"
+        except (KeyError, ValueError, ZeroDivisionError):
+            vaf = NO_VAF_MAF
+        # a MAF classifies the variant itself: map its protein-altering classes onto one
+        # protein-altering consequence, so _pick applies the same panel and HGVSp checks
+        row = _pick(n, [{"gene": gene, "hgvsp": r.get(hgvsp, ""), "canonical": True,
+                         "consequence": "missense_variant" if cls in MAF_ALTERING else cls}],
+                    panel, vaf)
+        out.append(row | {"consequence": cls} if "variant" in row else row)
+    return (samples[0] if samples else None), out
+
+
+def sequencing_test(rows: list[dict], meta: dict, month: int, name: str, panel,
+                    source: str) -> Test:
+    """Accepted variants → one Sequencing test, read by the genomics workbench and the
+    newly-sequenced-driver alert (``workspace.add_version``)."""
+    found = [r["variant"] for r in rows]
+    return Test("Sequencing", month, f"Tumor sequencing ({meta['format']}, imported)",
+                ", ".join(found) or "no panel driver in the file", "mutations", IMPLEMENTED,
+                {"variants": found, "panel": list(panel), "file": name,
+                 "sample": meta["sample"] or "sample not named in the file",
+                 "assay": f"imported {meta['format']} file", "source": source,
+                 "allele_fractions": {r["variant"]: r["allele_fraction"] for r in rows}})
+
+
+# --- an imaging report: the read its sentences state ------------------------------------------
+PROGRESSION, RESPONSE, STABLE, NOT_STATED = "progression", "response", "stable", "not stated"
+READS = [  # the first read stated in a kept clause wins, in this order (a new lesion outranks)
+    (PROGRESSION, r"progressi(?:on|ve disease)|progressed|progressing"),
+    (RESPONSE, r"(?:partial|complete) response|responding|decrease[ds]? in size|"
+               r"interval decrease|smaller"),
+    (STABLE, r"stable|unchanged|no (?:significant |interval )?change"),
+]
+# Distant metastatic sites only: breast, skin, chest wall and nodes are local or regional, and a
+# report naming them new raises no "new metastatic site" alert
+SITE_WORDS = {"bone": "Bone", "osseous": "Bone", "skeletal": "Bone", "bony": "Bone",
+              "liver": "Liver", "hepatic": "Liver", "lung": "Lung", "pulmonary": "Lung",
+              "brain": "Brain", "cerebral": "Brain", "intracranial": "Brain",
+              "pleura": "Pleura", "pleural": "Pleura", "adrenal": "Adrenal",
+              "peritoneum": "Peritoneum", "peritoneal": "Peritoneum"}
+LESION = r"(?:lesions?|metasta(?:ses|sis|tic deposits?)|deposits?|nodules?|masses|mass|foci|focus)"
+NEW_SITE = [  # "new 1.2 cm hepatic lesions"; "new lesions in the right lobe of the liver"
+    re.compile(rf"\bnew\s+((?:[\w.-]+\s+){{1,4}}?){LESION}\b"),
+    re.compile(rf"\bnew\s+{LESION}\s+(?:in|within|involving)\s+((?:(?!and\b|with\b)[\w-]+\s*)"
+               r"{1,6})")]
+NEGATION = re.compile(r"\b(?:no|not|without|negative for|free of|absence of|resolved|"
+                      r"rule[ds]? out)\b")
+NEGATED_AFTER = re.compile(r"\b(?:not (?:seen|identified|present|demonstrated|evident)|absent|"
+                           r"ruled out|excluded)\b")
+HEDGE = re.compile(r"\b(?:possible|possibly|probable|probably|may(?!\s*\d)|might|could|"
+                   r"cannot be excluded|cannot exclude|suspicious|suspected|concerning for|"
+                   r"equivocal|indeterminate|questionable|likely|suggest\w*|versus|vs)\b|\?")
+CLAUSE = re.compile(r"(?<=[.!;])\s+|\n+|\bbut\b|\bhowever\b|\balthough\b|\bexcept\b")
+IMAGING_RULE = ("muffle.imports.imaging_read: a clause states the read or names a new distant "
+                "site; clauses with a negation before the words (no, not, without, negative "
+                "for…) or after them (not seen, absent…) and hedged clauses (possible, "
+                "suspicious, cannot be excluded…) are set aside")
+
+
+def _stated(clause: str, m: re.Match) -> str | None:
+    """Why a match in a clause does not count (negated or hedged), or None when it is stated."""
+    if NEGATION.search(clause[: m.start()]) or NEGATED_AFTER.search(clause[m.end():]):
+        return "negated"
+    return "hedged" if HEDGE.search(clause) else None
+
+
+def imaging_read(text: str) -> dict:
+    """The read an imaging report's words state: {"read", "words", "new_sites", "set_aside"}.
+    ``read`` is progression, response, stable or not stated (the first stated in that order:
+    one clause stating progression makes the read progression); ``words`` the clause it rests
+    on; ``new_sites`` the distant metastatic sites a clause names new ("new hepatic lesions",
+    "new lesions in the liver"); ``set_aside`` the negated and hedged clauses, with why. Only
+    the report's own words, observed; nothing is inferred from them."""
+    reads, sites, aside = {}, [], []
+    for clause in (c.strip() for c in CLAUSE.split(text) if c and c.strip()):
+        low = clause.lower()
+        for read, pattern in READS:
+            for m in re.finditer(pattern, low):
+                why = _stated(low, m)
+                if why:
+                    aside.append({"clause": clause, "why": f"{why}: {m.group()}"})
+                else:
+                    reads.setdefault(read, clause)
+        for rx in NEW_SITE:
+            for m in rx.finditer(low):
+                named = [s for w, s in SITE_WORDS.items() if re.search(rf"\b{w}\b", m.group(1))]
+                why = _stated(low, m)
+                if named and why:
+                    aside.append({"clause": clause, "why": f"{why}: {m.group().strip()}"})
+                elif named:
+                    sites += [s for s in named if s not in sites]
+    read = next((r for r, _ in READS if r in reads), NOT_STATED)
+    return {"read": read, "words": reads.get(read, ""), "new_sites": sites,
+            "set_aside": list({a["clause"] + a["why"]: a for a in aside}.values())}
+
+
+def imaging_test(title: str, text: str, month: int, doc_id: str, source: str) -> Test:
+    """An imaging report as an Imaging test: the read ``imaging_read`` found is its result and
+    carries the progression and new-site alerts (``workspace.add_version``); its record event
+    feeds the radiology report page and the lab workbench's marker-imaging comparison; the text
+    is a document of the file. Named "Imaging report" like the record's, which is where the
+    radiology workbench's items open; ``title`` stays with the document."""
+    r = imaging_read(text)
+    result = ("no overall read stated" if r["read"] == NOT_STATED else f"read as {r['read']}") \
+        + (f"; new {', '.join(s.lower() for s in r['new_sites'])} named" if r["new_sites"] else "")
+    return Test("Imaging", month, "Imaging report", result, "imaging", IMPLEMENTED,
+                {"scope": "imported report text, no images", "document": doc_id, "title": title,
+                 "text": text, "source": source, **r,
+                 "rule": IMAGING_RULE,
+                 "event": {"month": month, "kind": "Imaging",
+                           "text": f"Imaging (imported report): {result}",
+                           "progression": r["read"] == PROGRESSION, "sites": r["new_sites"]}})

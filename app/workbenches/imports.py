@@ -1,8 +1,9 @@
 """Import tests for a patient file (docs/WORKSPACE.md, "Import tests").
 
 The patient file's Import tests view calls ``render_view(file)``: a button opens a dialog with
-one input adapter per test type (lab results CSV, a report as text or PDF, a slide region image,
-a DICOM file, a clinician's note). Each checks its file on intake (``muffle.imports``), shows
+one input adapter per test type (lab results CSV, a report as text or PDF, sequencing results as
+VCF or MAF, an imaging report, a slide region image, a DICOM file, a clinician's note). Each
+checks its file on intake (``muffle.imports``), shows
 what it accepts and rejects and why, and adds the tests as a new report version, signed with the
 reviewer's initials. Records go to ``st.session_state.imports[file id]`` as {"kind", "version"
 (``workspace.add_version``'s arguments), "rejected"}; the shell applies them on every run, so
@@ -24,13 +25,18 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from muffle import imports as intake  # noqa: E402
+from muffle.data.tcga import DRIVERS as TCGA_PANEL  # noqa: E402
+from muffle.longitudinal import DRIVERS as SYNTHETIC_PANEL  # noqa: E402
+from muffle.report.case_tools import OBSERVED  # noqa: E402
 from muffle.workbench.documents import FIELDS, extract  # noqa: E402
 from muffle.workbench import labs_reference as ref  # noqa: E402
-from muffle.workbench.grammar import chip  # noqa: E402
+from muffle.workbench.grammar import chip, esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, PatientFile, Test  # noqa: E402
 
-KINDS = ("Lab results (CSV)", "Report (text or PDF)", "Slide region image", "DICOM file",
-         "Clinician note")
+LABS, REPORT, SEQUENCING, IMAGING = ("Lab results (CSV)", "Report (text or PDF)",
+                                     "Sequencing (VCF or MAF)", "Imaging report (text or PDF)")
+IMAGE, DICOM, NOTE = "Slide region image", "DICOM file", "Clinician note"
+KINDS = (LABS, REPORT, SEQUENCING, IMAGING, IMAGE, DICOM, NOTE)
 SESSION_ONLY = ("Imports are kept for this browser session only: nothing is saved to the server, "
                 "the patient data or the repository, and closing the tab discards them. Only "
                 "public or synthetic data may be imported.")
@@ -40,9 +46,10 @@ EXAMPLE = intake.LAB_EXAMPLE
 def render_view(file: PatientFile) -> None:
     """The Import tests view: the button that opens the dialog, and this session's imports."""
     st.markdown(f"#### Import tests {chip(IMPLEMENTED)}")
-    st.markdown("Lab results, a report (text or PDF), a slide region image, a DICOM file or a "
-                "clinician's note. Each import is checked on intake, joins the file as tests and "
-                "adds a report version; earlier versions are never overwritten.")
+    st.markdown("Lab results, a report (text or PDF), sequencing results (VCF or MAF), an "
+                "imaging report, a slide region image, a DICOM file or a clinician's note. Each "
+                "import is checked on intake, joins the file as tests and adds a report version; "
+                "earlier versions are never overwritten. The alert rules run on what arrives.")
     st.caption(SESSION_ONLY)
     if st.button("Import a test…", type="primary", key=f"import-open-{file.id}"):
         dialog(file)
@@ -84,7 +91,7 @@ def dialog(file: PatientFile) -> None:
     at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")  # the server's clock
     n = len(st.session_state.get("imports", {}).get(file.id, [])) + 1
     record = None
-    if kind == KINDS[0]:
+    if kind == LABS:
         record = _labs(file, when)
     else:
         month = int(st.number_input(f"Month of the test ({when[0].lower()}{when[1:]}; the "
@@ -92,12 +99,16 @@ def dialog(file: PatientFile) -> None:
                                     step=1, key="import-month"))
         source = f"imported by {by or 'no initials'} at {at}, this session"
         doc_id = f"import-{n}"
-        if kind == KINDS[1]:
+        if kind == REPORT:
             record = _report(month, doc_id, source)
-        elif kind == KINDS[2]:
+        elif kind == SEQUENCING:
+            record = _sequencing(file, month, source)
+        elif kind == IMAGING:
+            record = _imaging(month, doc_id, source)
+        elif kind == IMAGE:
             record = _queued(intake.image_test, ["png", "jpg", "jpeg"], month, "Slide region "
                              "image (PNG or JPEG)")
-        elif kind == KINDS[3]:
+        elif kind == DICOM:
             record = _queued(intake.dicom_test, ["dcm", "dicom"], month, "DICOM file (.dcm)")
         else:
             record = _note(month, doc_id, source, by)
@@ -170,10 +181,11 @@ def _facts_preview(text: str) -> None:
                "shows each at its sentence.")
 
 
-def _report(month: int, doc_id: str, source: str) -> dict | None:
-    up = st.file_uploader("Report (text or PDF with a text layer)", type=["txt", "pdf", "md"],
-                          key="import-report")
-    pasted = st.text_area("Or paste the report's text", key="import-report-text", height=120)
+def _upload_text(label: str, key: str, default: str) -> tuple[str, str] | None:
+    """A report uploaded (text or PDF) or pasted, checked on intake → (text, title)."""
+    up = st.file_uploader(f"{label} (text or PDF with a text layer)", type=["txt", "pdf", "md"],
+                          key=key)
+    pasted = st.text_area("Or paste the report's text", key=f"{key}-text", height=120)
     if up is None and not pasted.strip():
         return None
     try:
@@ -182,13 +194,87 @@ def _report(month: int, doc_id: str, source: str) -> dict | None:
     except intake.IntakeError as e:
         st.error(str(e))
         return None
-    title = st.text_input("Title", value=up.name if up is not None else "Pathology report",
-                          key="import-title", max_chars=80) or "Report"
+    title = st.text_input("Title", value=up.name if up is not None else default,
+                          key=f"{key}-title", max_chars=80) or default
+    return text, title
+
+
+def _report(month: int, doc_id: str, source: str) -> dict | None:
+    got = _upload_text("Report", "import-report", "Pathology report")
+    if got is None:
+        return None
+    text, title = got
     _facts_preview(text)
     test, observed = intake.document_test("Document", title, text, month, doc_id, source)
     return {"kind": "Report", "rejected": [], "version": {
         "tests": [test], "month": month, "observed": observed,
         "event": f"Imported report: {title} ({len(text):,} characters)"}}
+
+
+def _sequencing(file: PatientFile, month: int, source: str) -> dict | None:
+    panel = SYNTHETIC_PANEL if file.kind == "synthetic" else TCGA_PANEL
+    up = st.file_uploader("Sequencing results: a VCF annotated by VEP (CSQ) or SnpEff (ANN), or "
+                          "a MAF; plain or gzip", type=["vcf", "maf", "tsv", "txt", "gz"],
+                          key="import-vcf")
+    st.caption(f"Kept: protein-altering variants in the {len(panel)} breast panel genes this "
+               f"file's genomics workbench reads ({', '.join(panel)}); from a VCF, PASS calls "
+               "only. Genes and protein changes come from the file's own annotation: nothing is "
+               "called on intake. One sample per file.")
+    if up is None:
+        return None
+    try:
+        ok, bad, meta = intake.parse_variants(up.getvalue(), panel)
+    except intake.IntakeError as e:
+        st.error(str(e))
+        return None
+    if ok:
+        st.markdown(f"**Accepted** · {len(ok)} variant(s) · {meta['format']}, sample "
+                    f"{meta['sample'] or 'not named in the file'}")
+        st.dataframe(pd.DataFrame(ok)[["row", "variant", "consequence", "allele_fraction"]],
+                     hide_index=True, width="stretch")
+    if bad:
+        st.markdown(f"**Rejected** · {len(bad)} row(s), with the reason (row = line in the file)")
+        st.dataframe(pd.DataFrame(bad), hide_index=True, width="stretch")
+    if not ok:
+        st.error("No panel variant was accepted: nothing to add. A variant file lists calls, "
+                 "not coverage, so it can't show that the panel's genes are unmutated.")
+        return None
+    seen = {var for t in file.tests if t.workbench == "mutations" for var in t.details["variants"]}
+    again = [r["variant"] for r in ok if r["variant"] in seen]
+    if again:
+        st.caption(f"Sequenced before in this file: {', '.join(again)}; observed again at month "
+                   f"{month}. The newly-sequenced-driver alert runs on the others.")
+    test = intake.sequencing_test(ok, meta, month, up.name, panel, source)
+    return {"kind": "Sequencing", "rejected": bad, "version": {
+        "tests": [test], "month": month, "observed": [],
+        "event": f"Imported sequencing ({meta['format']}): {test.result}"}}
+
+
+def _imaging(month: int, doc_id: str, source: str) -> dict | None:
+    got = _upload_text("Imaging report", "import-imaging", "Imaging report")
+    if got is None:
+        return None
+    text, title = got
+    test = intake.imaging_test(title, text, month, doc_id, source)
+    read_details(test.details)
+    return {"kind": "Imaging report", "rejected": [], "version": {
+        "tests": [test], "month": month, "observed": [],
+        "event": f"Imported imaging report: {title} ({test.result})"}}
+
+
+def read_details(d: dict) -> None:
+    """What the intake rule read in an imaging report, and the clauses it set aside."""
+    words = f' · "{esc(d["words"])}"' if d["words"] else ""
+    st.markdown(f"**Read** {chip(OBSERVED)}: {d['read']}{words}  \n**New distant sites named:** "
+                + (", ".join(d["new_sites"]) or "none"))
+    if d["set_aside"]:
+        st.dataframe(pd.DataFrame(d["set_aside"]).rename(
+            columns={"clause": "Clause set aside", "why": "Why"}), hide_index=True,
+            width="stretch")
+    st.caption(f"Rule: {d['rule']}. It raises progression on imaging when the read is "
+               "progression, and a new metastatic site for a named site not in the record "
+               "before. Tested on sample sentences, not validated on a set of real reports: the "
+               "report itself is the record.")
 
 
 def _note(month: int, doc_id: str, source: str, by: str) -> dict | None:

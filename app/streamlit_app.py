@@ -30,6 +30,7 @@ import os
 import sys
 import tempfile
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 APP = Path(__file__).parent
@@ -197,10 +198,25 @@ for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percent
                              documents=case_documents(c.index),
                              imaging=IMAGING.get(c.index))
     FILES[pf.id], CASES[pf.id] = pf, c
+
+
+def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
+    """CIViC items for a variant: the synthetic patient's record variants are frozen with the
+    timeline file; others (a TCGA file's, an imported one's) come from the live table (None if
+    it couldn't load)."""
+    if pf.kind == "synthetic" and variant in TL["evidence"]:
+        return TL["evidence"][variant]
+    if EVIDENCE is None:
+        return None
+    gene, change = variant.split(maxsplit=1)
+    return EVIDENCE(gene, change)
+
+
 BUNDLE_FILES = dict(FILES)  # as the bundle and the repo hold them, before this session's imports
 for pid, records in st.session_state.imports.items():  # each import adds a report version
     for r in records:
-        FILES[pid] = workspace.add_version(FILES[pid], **r["version"])
+        FILES[pid] = workspace.add_version(FILES[pid], **r["version"],
+                                           evidence=partial(civic_items, FILES[pid]))
 
 # --- sidebar: what is running ----------------------------------------------------------------
 with st.sidebar:
@@ -755,17 +771,6 @@ def case_why(case):
                       delta_color="inverse")
 
 
-def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
-    """CIViC items for a variant: frozen with the timeline file for the synthetic patient, else
-    from the live table (None if it couldn't load)."""
-    if pf.kind == "synthetic":
-        return TL["evidence"].get(variant, [])
-    if EVIDENCE is None:
-        return None
-    gene, change = variant.split(maxsplit=1)
-    return EVIDENCE(gene, change)
-
-
 def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
     items = civic_items(pf, variant)
     with st.container(border=True):
@@ -927,6 +932,12 @@ def tests_view(pf: workspace.PatientFile, i: int):
     elif t.workbench == "imaging":  # the image viewer, or the reports' words when no images
         from workbenches import radiology
 
+        if "read" in t.details:  # an imported report: its text and what the intake rule read
+            from workbenches import imports
+
+            st.markdown(f"#### {esc(t.details['title'])}, month {t.month} · imported report")
+            st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.details['text'])}")
+            imports.read_details(t.details)
         radiology.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
         omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo)

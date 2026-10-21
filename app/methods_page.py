@@ -267,9 +267,12 @@ def alert_card() -> None:
     card("SOS alerts and their order", workspace.IMPLEMENTED,
          "the report's SOS tile · rules on the record, one model estimate")
     st.dataframe(pd.DataFrame([
-        ("Progression on imaging", OBSERVED, "the imaging report reads progression",
-         "recorded"),
-        ("New metastatic site", OBSERVED, "a site not in the record before", "recorded"),
+        ("Progression on imaging", OBSERVED, "the imaging report reads progression; an "
+         "imported report: a clause states it, not negated or hedged (trust moderate)",
+         "recorded; an imported report: its words"),
+        ("New metastatic site", OBSERVED, "a site not in the record before; an imported "
+         "report: a clause names a new distant site, not negated or hedged (trust moderate)",
+         "recorded; an imported report: its words"),
         ("Tumor marker rise", OBSERVED,
          f"above the reference limit and at least {workspace.RISE:.0%} above the previous "
          "value; to be confirmed with a second specimen within a month",
@@ -470,6 +473,12 @@ def known_failures() -> None:
                                                  else "") + "."),
         *(("Lab rules", f) for f in lab_rules.rules_card()["known_failures"]),
         *(("ctDNA rules", f) for f in ctdna_rules.rules_card(CTDNA)["known_failures"]),
+        ("Imported imaging report", "A word rule, tested on sample sentences only: it misses "
+         "progression stated without the word (\"enlarging lesions\"), a new site phrased "
+         "another way and negations it doesn't list; it reads no measurements, so no RECIST."),
+        ("Imported sequencing", "Genes and protein changes are the file's own annotation; a "
+         "variant file lists calls, not coverage, so a gene it doesn't list stays unknown; a "
+         "VCF's allele fractions are not read."),
         ("Case note", "The grounding check catches numbers, genes and links no tool returned, "
          "not a wrong reading of a right number or an overstated sentence."),
         ("Evolution view", "A cohort's frequency is not this patient's probability; purity is "

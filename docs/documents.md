@@ -165,6 +165,29 @@ The patient file's **Import tests** view opens a dialog (`app/workbenches/import
   tile, the Tests list, the Timeline and the lab workbench pick them up.
 - **A report**, text or PDF with a text layer (pypdf; no OCR): a Document test, read by the rules
   above.
+- **Sequencing results**, a VCF annotated by VEP (INFO `CSQ` with `SYMBOL`, `Consequence` and
+  `HGVSp`) or SnpEff (INFO `ANN`), or a GDC or cBioPortal MAF (`Hugo_Symbol`,
+  `Variant_Classification`, `HGVSp_Short` or `HGVSp`); plain or gzip, at most 5 MB unzipped and
+  20,000 records. Genes and protein changes come from the file's own annotation; nothing is
+  called on intake. Kept: protein-altering variants (the TCGA files' consequence set, or the
+  MAF's protein-altering classes) in the genes the file's genomics workbench reads (the
+  synthetic patient's 8-gene panel, `muffle.longitudinal.DRIVERS`; a TCGA file's 16,
+  `muffle.data.tcga.DRIVERS`), with the canonical transcript first. A VCF keeps PASS calls only;
+  a MAF is taken as filtered by its pipeline, as the TCGA files are. Rejected rows are listed
+  with the reason (off the panel, not protein-altering, no protein change, FILTER, a repeat). A
+  MAF must hold one tumor sample, and a file naming MSK-IMPACT sample ids (MSK-CHORD) is refused.
+  Allele fractions come from a MAF's `t_alt_count` and `t_depth`; a VCF's are not read, since
+  callers store them differently. The variants become one Sequencing test: the genomics
+  workbench shows them at their month with the file's sample and assay, and the
+  newly-sequenced-driver alert runs on each variant the file had not sequenced before (CIViC
+  level A or B treatment evidence, from the live CIViC table; for the synthetic patient's own
+  variants, the evidence frozen with its record). A variant file lists calls, not coverage, so a
+  gene it doesn't list stays unknown, never wild type.
+- **An imaging report**, text or PDF: an Imaging test whose result is the read its sentences
+  state (`muffle.imports.imaging_read`, below). The text is also a document of the file, and the
+  read is a record event, so the radiology workbench's report page lists it and the lab
+  workbench compares markers with it. The test opens on the report's text and the rule's read,
+  above the radiology workbench.
 - **A slide region image** (PNG or JPEG) and **a DICOM file** (pydicom, header only; patient
   identifiers are never read in): tests "queued for the local pipeline", since the hosted app
   runs no models.
@@ -175,3 +198,27 @@ Every import is signed and labeled "imported by <initials> at <time>", adds a re
 session only: nothing reaches the server's disk, the bundle or the repository. A new version has
 no new risk estimate for the synthetic patient (its models are not run on imported results); a
 TCGA case keeps its risk, which rests on the tumor sample alone.
+
+### The imaging-report rule
+The report is split into clauses (sentence ends, semicolons, and "but", "however", "although",
+"except"). A clause **states** a read when it names progression ("progression", "progressive
+disease", "progressed"), response ("partial/complete response", "decreased in size", "smaller")
+or stability ("stable", "unchanged", "no interval change") with no negation before the words
+(no, not, without, negative for, free of, absence of, resolved, ruled out), none after them
+("not seen", "not identified", "absent", "excluded") and no hedge anywhere in the clause
+(possible, probable, may, might, could, suspicious, concerning for, equivocal, indeterminate,
+likely, suggests, versus, cannot be excluded, a question mark). One stated progression makes the
+read progression, else response, else stable, else "not stated". A clause names a **new site**
+with "new <words> lesion(s)/metastases/nodule(s)/mass(es)/deposits/foci" ("new 1.2 cm hepatic
+lesions") or "new lesion(s) in <site>", under the same negation and hedge checks. Only distant
+sites count: bone, liver, lung, brain, pleura, adrenal, peritoneum (with their adjectives:
+osseous, hepatic, pulmonary…); breast, skin, chest wall and lymph nodes are local or regional.
+
+Alerts (`workspace.add_version`): **progression on imaging** when the read is progression, and
+**a new metastatic site** for each new site the file's "Metastatic sites" row lacks. Both are
+observed (the report's own words) with trust *moderate*: a text rule read them, not yet a
+person. The Imaging test's page shows the read, the clause it rests on and every clause set
+aside, with why. The rule reads words only: "enlarging lesions" without the word progression,
+or a new lesion under a read of response, raise no progression alert (RECIST would need the
+measurements). It is tested on sample sentences (`tests/test_imports.py`), not validated on a
+set of real reports: no open imaging-report corpus was used.

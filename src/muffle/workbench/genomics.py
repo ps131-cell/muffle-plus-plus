@@ -102,6 +102,11 @@ def _panel_names(test) -> list[str]:
     return [] if test.result.startswith("none") else test.result.split(", ")
 
 
+def _imported(file):
+    """Sequencing tests imported in this session (``muffle.imports.sequencing_test``)."""
+    return [t for v in file.versions if v.imported for t in v.tests if t.workbench == "mutations"]
+
+
 def _af_text(reads: dict | None, name: str, default: str) -> str:
     r = (reads or {}).get(name)
     if not r or not r.get("depth"):
@@ -112,20 +117,25 @@ def _af_text(reads: dict | None, name: str, default: str) -> str:
 def _detections(file, events, reads: dict | None = None) -> list[dict]:
     """gene, change, month, sample, assay, test and allele fraction per observed variant; the
     allele fraction comes from ``reads`` ({"GENE CHANGE": {"alt", "depth"}}, the per-case GDC
-    files' read counts) when given; the synthetic record states none."""
+    files' read counts) when given; the synthetic record states none; an imported file carries
+    its own (a MAF's read counts) or says why not."""
     if file.kind == "synthetic":
-        return [{"gene": g, "change": c, "month": e["month"], "sample": "bone biopsy",
-                 "assay": "tumor sequencing panel", "test": "Tumor sequencing",
-                 "allele_fraction": NO_ALLELE_FRACTION_RECORD}
-                for e in events if "mutations" in e for g, c in e["mutations"]]
-    test = _panel_test(file)
-    if test is None:
-        return []
-    return [{"gene": n.partition(" ")[0], "change": n.partition(" ")[2], "month": None,
+        out = [{"gene": g, "change": c, "month": e["month"], "sample": "bone biopsy",
+                "assay": "tumor sequencing panel", "test": "Tumor sequencing",
+                "allele_fraction": NO_ALLELE_FRACTION_RECORD}
+               for e in events if "mutations" in e for g, c in e["mutations"]]
+    else:
+        test = _panel_test(file)
+        out = [] if test is None else [
+            {"gene": n.partition(" ")[0], "change": n.partition(" ")[2], "month": None,
              "sample": "primary tumor (TCGA)",
              "assay": "exome sequencing, GDC open-access masked calls", "test": test.name,
              "allele_fraction": _af_text(reads, n, NO_ALLELE_FRACTION)}
             for n in _panel_names(test)]
+    return out + [{"gene": n.partition(" ")[0], "change": n.partition(" ")[2], "month": t.month,
+                   "sample": t.details["sample"], "assay": t.details["assay"], "test": t.name,
+                   "allele_fraction": t.details["allele_fractions"][n]}
+                  for t in _imported(file) for n in t.details["variants"]]
 
 
 def variants(file, events=None, evidence: dict | None = None, lookup=None,
@@ -202,6 +212,8 @@ def longitudinal(file, events=None) -> dict:
                 points[(e["month"], "bone biopsy")] = [f"{g} {c}" for g, c in e["mutations"]]
     elif (test := _panel_test(file)) is not None:
         points[(None, "primary tumor (TCGA)")] = _panel_names(test)
+    for t in _imported(file):
+        points[(t.month, t.details["sample"])] = list(t.details["variants"])
     rows = [{"month": m, "sample": s, "found": ", ".join(f) or "none of the panel"}
             for (m, s), f in points.items()]
     if not rows:
@@ -475,6 +487,14 @@ def provenance(file, events=None) -> list[tuple[str, str]]:
     cannot = ("allele fractions, copy number, clonal structure, germline variants, genes outside "
               "the panel, and anything that changed after this sample")
     can = "protein-altering somatic mutations in the panel genes, in this sample"
+    if imported := _imported(file):  # the latest sample is an imported file
+        t = imported[-1]
+        return [("sample", t.details["sample"]), ("site", "not stated in the imported file"),
+                ("date", f"month {t.month}"), ("assay", t.details["assay"]),
+                ("can show", "the protein-altering variants in the panel genes that the file "
+                             "lists"),
+                ("cannot show", cannot + "; whether a gene the file doesn't list was tested (a "
+                                         "variant file lists calls, not coverage)")]
     if file.kind == "synthetic":
         seq = [e for e in events if "mutations" in e]
         if not seq:
