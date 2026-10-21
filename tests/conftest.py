@@ -12,6 +12,21 @@ def _spend_ledger(tmp_path, monkeypatch):
     monkeypatch.delenv("TOKEN_FACTORY_BUDGET_USD", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _arrow_strict(monkeypatch):
+    """A table Streamlit can't hand to Arrow as it is fails the page's test: Streamlit would
+    otherwise re-type its columns silently, logging only at INFO level."""
+    try:
+        from streamlit import dataframe_util
+    except ImportError:
+        return
+
+    def refuse(df):
+        raise AssertionError(f"mixed column types reached Arrow: {list(df.columns)}")
+
+    monkeypatch.setattr(dataframe_util, "fix_arrow_incompatible_column_types", refuse)
+
+
 @pytest.fixture(scope="session")
 def small_cfg():
     return {
