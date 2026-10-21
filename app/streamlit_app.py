@@ -80,15 +80,13 @@ from muffle.report.nemotron import (  # noqa: E402
 )
 from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench.documents import case_documents  # noqa: E402
+from muffle.workbench.grammar import chip, esc  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
 BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}
-EVIDENCE_COLORS = {OBSERVED: "blue", INFERENCE: "violet", HYPOTHESIS: "orange"}
-STATUS_COLORS = {workspace.IMPLEMENTED: "blue", workspace.VALIDATED: "green",
-                 workspace.PLANNED: "gray"}
 PLANNED_WORKBENCHES = {
     "imaging": "Radiology workbench: a slice viewer with window and level, lesion contours, size "
                "and volume, and the same lesion tracked across scans.",
@@ -157,11 +155,11 @@ def secrets_to_env() -> None:
 
 def tags(text: str) -> str:
     """Badges for the evidence types ``text`` names ("observed (mutation), hypothesis (...)")."""
-    return " ".join(f":{c}-badge[{e}]" for e, c in EVIDENCE_COLORS.items() if e in text)
+    return " ".join(chip(e) for e in (OBSERVED, INFERENCE, HYPOTHESIS) if e in text)
 
 
 def badge(status: str) -> str:
-    return f":{STATUS_COLORS[status]}-badge[{status}]"
+    return chip(status)
 
 
 st.set_page_config(page_title="MuFFLe++ · breast cancer intelligence", page_icon="🧬",
@@ -311,7 +309,7 @@ def report_view(pf: workspace.PatientFile, i: int):
     left, right = st.columns(2)
     with left:
         st.markdown(f"**Characterization and record** {tags(OBSERVED)}")
-        st.markdown("\n".join(f"- **{k}:** {val}" for k, val in v.observed))
+        st.markdown("\n".join(f"- **{k}:** {esc(val)}" for k, val in v.observed))
     with right:
         head, box = st.columns([4, 1])
         head.markdown(f"**Risk** {tags(INFERENCE)} {badge(pf.model['status'])}")
@@ -344,14 +342,14 @@ def report_view(pf: workspace.PatientFile, i: int):
         st.caption("Not sequenced: driver mutations are unknown, not wild type.")
     for t in seq:
         st.markdown(f"- {t.name}" + ("" if t.month is None else f", month {t.month}")
-                    + f": {t.result}")
+                    + f": {esc(t.result)}")
     variants = [var for t in seq for var in t.details["variants"]]
     quiet = [var for var in variants if civic_items(pf, var) == []]
     for var in variants:
         if var not in quiet:
             civic_block(pf, var, k=3)
     if quiet:
-        st.caption("No CIViC breast cancer evidence for " + ", ".join(quiet) + ".")
+        st.caption("No CIViC breast cancer evidence for " + esc(", ".join(quiet)) + ".")
 
     watch = evolution.hypothesis_set(pf, i)["items"]
     st.markdown(f"**Evolutionary hypotheses** {tags(HYPOTHESIS)} {badge(workspace.IMPLEMENTED)}"
@@ -591,7 +589,7 @@ def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
 def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
     items = civic_items(pf, variant)
     with st.container(border=True):
-        st.markdown(f"**{variant}** · CIViC treatment evidence, for clinician review "
+        st.markdown(f"**{esc(variant)}** · CIViC treatment evidence, for clinician review "
                     f"{tags(HYPOTHESIS)}")
         if items is None:
             st.caption("The CIViC table could not be loaded here.")
@@ -759,7 +757,7 @@ def tests_view(pf: workspace.PatientFile, i: int):
         imports.render_test(pf, t)
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
-        st.markdown(f"**Report text** {tags(OBSERVED)}: {t.result}")
+        st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.result)}")
         st.info(PLANNED_WORKBENCHES[t.workbench] + " Planned, pending the model and dataset "
                 "survey's shortlist (docs/WORKSPACE.md).", icon="🧭")
 

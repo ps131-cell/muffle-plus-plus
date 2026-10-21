@@ -36,9 +36,10 @@ import streamlit as st  # noqa: E402
 
 from muffle.report.civic import LEVELS  # noqa: E402
 from muffle.workbench import genomics as wb  # noqa: E402
+from muffle.workbench.grammar import CANNOT_SEE, CARD, chip, esc  # noqa: E402
 
-COLORS = {wb.IMPLEMENTED: "green", wb.PLANNED: "gray", "observed": "blue", "hypothesis": "orange",
-          wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray",
+# page-specific colors; statuses and evidence types take the shared grammar's
+COLORS = {wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray",
           wb.PANEL_NOT_STATED: "gray", "present": "orange", "none": "gray"}
 QUEUE_WHY = {wb.ESTABLISHED: "a CIViC item of level A or B",
              wb.UNCERTAIN: "CIViC items of level C, D or E only",
@@ -52,7 +53,7 @@ LINK = {"CIViC": st.column_config.LinkColumn(display_text="evidence item"),
 
 
 def badge(text: str, color: str | None = None) -> str:
-    return f":{color or COLORS.get(text, 'gray')}-badge[{text}]"
+    return chip(text, color or COLORS.get(text))
 
 
 def _level_text(level: str | None) -> str:
@@ -70,7 +71,7 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
           key: str) -> None:
     """The Spot panel of one variant: ladder, CIViC table, the panel's view of the gene, the
     sample, the review marks."""
-    st.markdown(f"### Spot: {v['variant']} · {v['sample']}"
+    st.markdown(f"### Spot: {esc(v['variant'])} · {v['sample']}"
                 + (f" · month {v['month']}" if v["month"] is not None else ""))
     items = v["interpretation"]["items"]
     st.markdown("**Evidence ladder** · each rung carries its own evidence type and what would "
@@ -168,7 +169,7 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         col.metric(name.capitalize(), len(queue[name]))
     if vs:
         strongest = _level_text(levels[0] if levels else None)
-        st.markdown("Observed: " + ", ".join(f"**{v['variant']}**" for v in vs)
+        st.markdown("Observed: " + ", ".join(f"**{esc(v['variant'])}**" for v in vs)
                     + f". Strongest evidence level present: {strongest}."
                     " CIViC items are evidence **for clinician review, never a recommendation**.")
     elif not lon["timepoints"]:
@@ -276,18 +277,19 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     # export
     st.markdown("#### Export")
     e1, e2 = st.columns(2)
-    e1.download_button("Report (Markdown)",
+    e1.download_button("Download the genomics report (Markdown)",
                        wb.report_markdown(file, vs, ladders, watch, reviews, strip),
                        f"genomics_{file.id.replace(' ', '_')}.md", "text/markdown",
                        key=f"{key}-md")
-    e2.download_button("Variants and items (CSV)", wb.report_csv(file, vs, reviews),
+    e2.download_button("Download the variants and evidence items (CSV)",
+                       wb.report_csv(file, vs, reviews),
                        f"genomics_{file.id.replace(' ', '_')}.csv", "text/csv", key=f"{key}-csv")
 
     # limits, data card, planned
-    st.markdown("#### Limits")
+    st.markdown(f"#### {CANNOT_SEE}")
     for limit in card["limits"]:
         st.markdown(f"- {limit}")
-    st.markdown("#### Data and method card")
+    st.markdown(f"#### {CARD}")
     rows = [("Status", card["status"]), ("Model", card["model"]),
             *((f"Data: {k}", v) for k, v in card["data"].items()),
             *((f"Label: {k}", v) for k, v in card["labels"].items()),

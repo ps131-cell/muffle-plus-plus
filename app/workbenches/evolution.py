@@ -34,10 +34,10 @@ import streamlit as st  # noqa: E402
 from muffle import evolution  # noqa: E402
 from muffle.report import trials  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
+from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 
 DOCS = "https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/evolution.md"
-COLORS = {OBSERVED: "blue", INFERENCE: "violet", HYPOTHESIS: "orange", IMPLEMENTED: "green"}
 KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78d6",
                "sequencing": "#7b4fd6", "marker": "#1a9e8f", "alert": "#e34948"}
 GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
@@ -50,7 +50,7 @@ PROVENANCE = (f"Data: this file's record (observed). Method: a table of {len(evo
 
 
 def badge(text: str, color: str | None = None) -> str:
-    return f":{color or COLORS.get(text, 'gray')}-badge[{text}]"
+    return chip(text, color)
 
 
 def esc(text: str) -> str:
@@ -303,7 +303,11 @@ def trials_section(pf: PatientFile, genes: list[str], rows: list[dict], results:
 
 
 def method_card() -> None:
-    with st.expander("Constraints this view applies, and how the table was built"):
+    st.markdown(f"#### {CANNOT_SEE}")
+    st.markdown("Copy number beyond the gene level, purity, subclones in other places, anything "
+                "after the last sample; whether a treatment will work. Nothing here is a "
+                "recommendation or a regimen.")
+    with st.expander(f"{CARD}: the constraints this view applies and how the table was built"):
         for c in evolution.CONSTRAINTS:
             refs = ", ".join(f"[{evolution.source(s)['cite']}]({evolution.source(s)['url']})"
                              for s in c["sources"])
@@ -316,10 +320,7 @@ def method_card() -> None:
             f"matter. Every PMID and DOI was checked against PubMed on {evolution.VERIFIED}; a "
             "row whose source could not be verified was dropped. CIViC items (CC0) are matched "
             "to each event by its molecular profile. The full table with references: "
-            f"[docs/evolution.md]({DOCS}).  \n"
-            "**What this view cannot see:** copy number beyond the gene level, purity, "
-            "subclones in other places, anything after the last sample; whether a treatment "
-            "will work. Nothing here is a recommendation or a regimen.")
+            f"[docs/evolution.md]({DOCS}).")
 
 
 def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
@@ -369,8 +370,9 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
     method_card()
 
     when = "baseline" if v.month is None else f"month{v.month}"
+    st.markdown(f"#### {EXPORT}")
     st.download_button(
-        "Download this view (Markdown)",
+        "Download the evolution view (Markdown)",
         evolution.report_markdown(pf, i, hs, panel, rows, "; ".join(
             f"{r['term']}: {r['source']}, {r['note']}" for r in results) or "no query",
             st.session_state.get("reviews")),

@@ -32,9 +32,9 @@ from muffle.explain import risk_percentile, top_features
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.workbench import omics as wb
 from muffle.workbench.genomics import add_mark, mark_text
+from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip
 
 APP = Path(__file__).resolve().parents[1]
-EVIDENCE_COLORS = {OBSERVED: "blue", INFERENCE: "violet"}
 STATUS_COLORS = {wb.AGREE: "green", wb.DISAGREE: "red", wb.NO_COMPARISON: "gray"}
 CALLS = {-2: "deep deletion", -1: "loss", 0: "neutral", 1: "gain", 2: "amplification"}
 UNITS = {"rna": "z-score of log(1 + TPM)", "methylation": "M-value", "protein": "z-score",
@@ -46,6 +46,10 @@ MISSING = {  # what a missing layer limits
     "methylation": "no CpG features",
 }
 TOP = 10
+CANNOT = ("Protein level from RNA, single cells or where in the tumor (the slide workbench), point "
+          "mutations (the genomics workbench), change over time (TCGA holds one sample per "
+          "patient). A subtype from bulk RNA is not the IHC surrogate subtype used in the clinic, "
+          "and nothing here is a treatment recommendation.")
 
 
 @st.cache_data
@@ -63,11 +67,9 @@ def results() -> dict:
 
 
 def tag(evidence: str) -> str:
-    return " ".join(f":{c}-badge[{e}]" for e, c in EVIDENCE_COLORS.items() if e in evidence)
+    return " ".join(chip(e) for e in (OBSERVED, INFERENCE) if e in evidence)
 
 
-def chip(text: str, color: str = "gray") -> str:
-    return f":{color}-badge[{text}]"
 
 
 # --- findings ----------------------------------------------------------------------------------
@@ -287,8 +289,10 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
         f"{by_key[k]['kind']} · {by_key[k]['layer']} · {by_key[k]['name']}"))
     spot_panel(pf, by_key[st.session_state[spot]], cs, data, contrib, reviews, pins)
 
-    # export
-    st.markdown("#### Export")
+    st.markdown(f"#### {CANNOT_SEE}")
+    st.markdown(CANNOT)
+
+    st.markdown(f"#### {EXPORT}")
     shown = [f for f in findings if f["kind"] != "feature"] + [
         f for m in case.layers for f in sorted((f for f in feats if f["layer"] == m),
                                                key=lambda f: -abs(f["score"]))[:TOP]]
@@ -302,12 +306,13 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                              "ERBB2 amplified at >= 2x ploidy (ASCAT calls)"]}
     e1, e2 = st.columns(2)
     name = pf.id.replace(" ", "_")
-    e1.download_button("Findings and marks (JSON)", wb.report_json(pf.id, rows, reviews, prov),
-                       f"omics_{name}.json", "application/json", key=f"omics-json-{pf.id}")
-    e2.download_button("Findings and marks (CSV)", wb.report_csv(rows, reviews),
+    e1.download_button("Download the findings and marks (JSON)",
+                       wb.report_json(pf.id, rows, reviews, prov), f"omics_{name}.json",
+                       "application/json", key=f"omics-json-{pf.id}")
+    e2.download_button("Download the findings and marks (CSV)", wb.report_csv(rows, reviews),
                        f"omics_{name}.csv", "text/csv", key=f"omics-csv-{pf.id}")
 
-    with st.expander("Methods, references, placeholders and known failures"):
+    with st.expander(f"{CARD}: methods, references, placeholders and known failures"):
         method_card(data)
 
 
