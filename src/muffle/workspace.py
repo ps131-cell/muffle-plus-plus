@@ -416,6 +416,8 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "imaging": "the TCGA barcode (or 'report'), the study (its date, or the report's month), "
                "the lesion ('C1', or the named site)",
     "ctdna": "the variant ('ESR1 D538G'), the ctDNA sample's month",
+    "cn": "the gene of a copy-number call ('ERBB2')",
+    "pathway": "the pathway's name on the genomics pathway map ('PI3K / AKT / mTOR')",
 }
 
 

@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from muffle.data.tcga import DRIVERS
-from muffle.report.case_tools import HYPOTHESIS, OBSERVED
+from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.timeline import EVENTS
 from muffle.workbench import genomics as g
 from muffle.workspace import case_file, synthetic_file
@@ -143,10 +143,11 @@ def test_not_sequenced_is_unknown_and_an_empty_panel_is_all_not_found():
     assert g.longitudinal(clean)["timepoints"][0]["found"] == "none of the panel"
 
 
-def test_data_card_has_no_model_and_names_its_limits():
+def test_data_card_runs_no_model_and_names_its_limits():
     card = g.data_card()
-    assert card["status"] == g.IMPLEMENTED and card["model"].startswith("none")
-    assert "no allele fractions" in card["data"]["TCGA-BRCA"]
+    assert card["status"] == g.IMPLEMENTED and card["model"].startswith("no model runs here")
+    assert "read counts" in card["data"]["TCGA-BRCA"]
+    assert card["labels"]["predicted effect"] == INFERENCE
     assert "PADA-1" in card["data"]["literature"]
     assert card["labels"]["detected"] == OBSERVED
     assert card["labels"]["watchlist"] == HYPOTHESIS
@@ -316,3 +317,396 @@ def csv_rows(text: str):
     import csv
     import io
     return csv.reader(io.StringIO(text))
+
+
+# ---------------------------------------------------------------- the genome views (genome.py)
+
+from muffle import evolution  # noqa: E402
+from muffle.data.tcga import copy_number_calls  # noqa: E402
+from muffle.report import vep  # noqa: E402
+from muffle.workbench import genome as gx  # noqa: E402
+from muffle.workspace import FINDING_KINDS, add_version, finding_key  # noqa: E402
+from muffle.workspace import Test as RecordTest  # noqa: E402
+
+CN = gx.load(gx.CN_JSON)
+EFFECTS = gx.load(gx.EFFECT_JSON)
+
+
+def tcga_case(index: int, **over):
+    """A bundled TCGA case as the shipped genome numbers know it (index, percentile, drivers)."""
+    c = CN["cases"][str(index)]
+    muts = [d["variant"].replace(" ", " p.", 1) for d in c.get("drivers", [])]
+    return SimpleNamespace(**{**CASE, "index": index, "percentile": c["percentile"],
+                              "log_risk": c["log_risk"], "mutations": muts, **over})
+
+
+def test_copy_number_calls_at_their_cutoffs_follow_the_models_rule():
+    assert [gx.cn_call(c, 2) for c in (0, 1, 2, 3, 4, 5)] == [-2, -1, 0, 1, 2, 2]
+    assert [gx.cn_call(c, 3) for c in (2, 3, 5, 6)] == [-1, 0, 1, 2]
+    assert gx.cn_call(None, 2) is None and gx.cn_call(float("nan"), 2) is None
+    cn = pd.DataFrame([[0, 1, 2, 3, 4, 2], [3, 3, 6, 2, 0, 3]], dtype=float)
+    calls = copy_number_calls(cn)  # the rule that built the model's input
+    for i, row in cn.iterrows():
+        ploidy = max(1, round(float(row.median())))
+        assert [gx.cn_call(c, ploidy) for c in row] == calls.iloc[i].astype(int).tolist()
+    tags = {c["name"]: c["tag"] for c in gx.CUTOFFS}
+    assert tags == {"ploidy estimate": gx.METHOD, "deep deletion": gx.DEFINITION,
+                    "loss": gx.PLACEHOLDER, "gain": gx.PLACEHOLDER,
+                    "amplification": gx.PLACEHOLDER}
+    assert all(c["source"] for c in gx.CUTOFFS)
+
+
+def test_shipped_copy_number_matches_the_model_and_percentiles_are_ordered():
+    assert CN["checks"]["vaf_vs_read_counts"][0] == CN["checks"]["vaf_vs_read_counts"][1] > 0
+    agree, total = CN["checks"]["calls_vs_bundle"]
+    assert agree / total > 0.99  # the rest: symbols naming two loci (Y_RNA twice in the model)
+    assert set(gx.INTEREST) | set(gx.PATHWAY_GENES) <= set(CN["genes"])
+    for gene in ("ERBB2", "CCND1", "TP53"):
+        pts = [(c["cn"][gene][0] / c["ploidy"], c["cn"][gene][1]) for c in CN["cases"].values()
+               if "cn" in c and c["cn"][gene][0] is not None]
+        pts.sort()
+        assert all(0 <= p <= 100 for _, p in pts)
+        pairs = list(zip(pts, pts[1:], strict=False))
+        assert all(a[1] <= b[1] for a, b in pairs if a[0] < b[0])  # monotone
+        assert all(a[1] == b[1] for a, b in pairs if a[0] == b[0])  # ties share a percentile
+    shares = CN["genes"]["ERBB2"]["cohort_calls"]
+    assert len(shares) == 5 and abs(sum(shares) - 1) < 0.01
+
+
+def test_landscape_rows_in_genome_order_with_the_ploidy_override():
+    block = CN["cases"]["61"]
+    rows = gx.landscape(block, CN["genes"])
+    assert [r["order"] for r in rows] == sorted(r["order"] for r in rows)
+    erbb2 = next(r for r in rows if r["gene"] == "ERBB2")
+    assert erbb2["call"] == gx.cn_call(erbb2["copies"], block["ploidy"]) == 2
+    assert erbb2["share"] == CN["genes"]["ERBB2"]["cohort_calls"][4] and erbb2["interest"]
+    assert "HER2 / RTK" in erbb2["pathways"] and erbb2["evidence"] == OBSERVED
+    other = gx.landscape(block, CN["genes"], ploidy=10)
+    assert next(r for r in other if r["gene"] == "ERBB2")["call"] == gx.cn_call(
+        erbb2["copies"], 10)
+    q = gx.cn_queue(rows, block)
+    assert any(x.startswith("ERBB2 amplification") for x in q) and "placeholder" in q[-1]
+
+
+def test_two_ploidy_estimates_that_disagree_are_flagged():
+    assert gx.ploidy_check({"ploidy": 2.0, "absolute": {"ploidy": 2.3}})["disagree"] is False
+    pc = gx.ploidy_check({"ploidy": 1.0, "absolute": {"ploidy": 2.1, "purity": 0.5}})
+    assert pc["disagree"] and "in doubt" in pc["text"]
+    assert gx.ploidy_check({"ploidy": 2.0}) is None and gx.ploidy_check(None) is None
+    assert gx.cn_queue([], {"ploidy": 1.0, "absolute": {"ploidy": 2.1}})[0].startswith("Ploidy 1")
+
+
+def test_numbers_are_shown_only_for_the_same_build():
+    pf = case_file(tcga_case(61))
+    assert gx.case_block(CN, pf) is CN["cases"]["61"]  # the file's log-risk matches
+    assert gx.case_block(CN, pf, log_risk=CN["cases"]["61"]["log_risk"] + 0.5) is None
+    other = case_file(tcga_case(61, log_risk=CN["cases"]["61"]["log_risk"] + 0.5))
+    assert gx.case_block(CN, other) is None  # another build of the cohort
+    old = tcga_case(61)
+    del old.log_risk  # a file without the log-risk falls back to the risk percentile
+    assert gx.case_block(CN, case_file(old)) is CN["cases"]["61"]
+    moved = SimpleNamespace(**{**old.__dict__, "percentile": 99.0})
+    assert gx.case_block(CN, case_file(moved)) is None
+    assert gx.case_block(CN, synthetic_file(timeline())) is None
+    assert gx.case_index(pf) == 61
+
+
+def test_burden_count_rate_percentile_and_labeled_reference_lines():
+    b = gx.burden(CN["cases"]["61"], CN)
+    raw = CN["cases"]["61"]["burden"]
+    assert b["measured"] and b["calls"] == raw["calls"]
+    assert abs(b["rate"] - raw["calls"] / gx.EXOME_MB) < 1e-3 and gx.EXOME_MB == 38.0
+    assert b["high"] == (raw["pct"] >= gx.HIGH_PCT) and b["above_keynote"] is (b["rate"] >= 10)
+    assert b["evidence"]["count"] == OBSERVED and b["evidence"]["rate"].startswith("derived")
+    high = next(c for c in CN["cases"].values() if c.get("burden", {}).get("pct", 0) >= 90)
+    assert gx.burden(high, CN)["high"]
+    assert gx.burden(None, CN) == {"measured": False, "note": "not sequenced: the burden is "
+                                   "unknown"}
+
+
+def test_allele_fractions_with_their_interval_and_the_clonal_range():
+    assert gx.clonal_range(0.5, 2) == (0.25, 0.5)
+    lo, hi = gx.clonal_range(1.0, 4)
+    assert (lo, hi) == (0.25, 1.0) and gx.clonal_range(None, 2) is None
+    block = {"absolute": {"purity": 0.5}, "drivers": [
+        {"variant": "A X1Y", "class": "missense", "copies": 2},
+        {"variant": "B X2Y", "class": "nonsense", "copies": 2},
+        {"variant": "C X3Y", "class": "missense", "copies": 2, "dna_vaf": 0.3}]}
+    reads = {"variants": [{"variant": "A X1Y", "alt": 40, "depth": 100},
+                          {"variant": "B X2Y", "alt": 5, "depth": 200}]}
+    a, b, c = gx.allele_fractions(block, reads)
+    assert a["vaf"] == 0.4 and a["lo"] < 0.4 < a["hi"] and a["fit"] == "within the clonal range"
+    assert b["fit"].startswith("below the clonal range")
+    assert c["vaf"] == 0.3 and c["fit"].startswith("not assessed")
+    assert a["evidence"]["reads"] == OBSERVED and a["evidence"]["fit"].startswith(INFERENCE)
+    vaf = gx.load(gx.APP / "evolution_vaf.json")["cases"]["61"]
+    real = gx.allele_fractions(CN["cases"]["61"], vaf)
+    assert {x["variant"] for x in real} == {"PIK3CA E469delinsDK", "PIK3CA H1047R"}
+    assert all(x["alt"] and x["depth"] for x in real)
+
+
+def test_three_kinds_of_effect_evidence_stay_apart():
+    ef = gx.effect("PIK3CA H1047R", EFFECTS)
+    assert ef["found"] and ef["annotation"]["evidence"] == OBSERVED
+    assert ef["interpretation"]["evidence"] == HYPOTHESIS
+    assert ef["prediction"]["evidence"] == INFERENCE
+    assert ef["prediction"]["class"] == "ambiguous"  # a known hotspot: predicted is not interpreted
+    assert "Oncogenic" in ef["interpretation"]["somatic"]
+    assert "not approved for, any clinical use" in ef["prediction"]["limits"]
+    trunc = gx.effect("TP53 R196*", EFFECTS)
+    assert trunc["prediction"]["applies"] is False and trunc["prediction"]["score"] is None
+    assert gx.effect_text(trunc)["prediction"].startswith("not applicable")
+    assert gx.effect("ABC X1Y", EFFECTS)["found"] is False
+    rng = EFFECTS["alphamissense_class_ranges"]
+    assert rng["likely_benign"][1] == 0.34 and rng["likely_pathogenic"][0] == 0.564
+    text = gx.EFFECT_JSON.read_text()
+    assert "COSV" not in text and "COSM" not in text  # COSMIC is excluded from the project
+    rungs = g.ladder(g.variants(synthetic_file(timeline()))[0], predicted=ef)
+    assert rungs[2]["evidence"] == INFERENCE and "AlphaMissense" in rungs[2]["lines"][0]
+
+
+def test_vep_client_sends_names_only_and_drops_cosmic():
+    assert vep.hgvs_protein("ESR1 D538G") == "ESR1:p.Asp538Gly"
+    assert vep.hgvs_protein("TP53 R196*") == "TP53:p.Arg196Ter"
+    assert vep.hgvs_protein("TP53 E285Rfs*54") is None
+    assert vep.region("3", 100, "A", "G", "X Y") == "3 100 100 A/G + X_Y"
+    assert vep.region("3", 100, "-", "TT", "X") == "3 101 100 -/TT + X"
+    assert vep.region("3", 100, "ACG", "-", "X") == "3 100 102 ACG/- + X"
+    rec = {"seq_region_name": "3", "start": 5, "allele_string": "A/G",
+           "transcript_consequences": [
+               {"canonical": 1, "mane_select": "NM_1", "consequence_terms": ["missense_variant"],
+                "hgvsp": "P:p.H1R", "alphamissense": {"am_pathogenicity": 0.9,
+                                                      "am_class": "likely_pathogenic"}}],
+           "colocated_variants": [
+               {"id": "COSV1", "clinvar_somatic_classification": "x"},
+               {"id": "CM1", "clin_sig": ["pathogenic"]},
+               {"id": "rs1", "clin_sig": ["pathogenic", "not_provided"],
+                "var_synonyms": {"ClinVar": ["RCV1", "VCV9"], "COSMIC": ["COSM1"]}}]}
+    p = vep.parse(rec)
+    assert p["clinvar"] == {"germline": ["pathogenic"], "somatic": "", "record": "VCV9"}
+    assert p["alphamissense"]["score"] == 0.9 and p["consequence"] == "missense_variant"
+
+
+def test_pathway_table_integrity_and_identifiers():
+    brief = {"ER signaling": {"ESR1", "GATA3", "FOXA1"}, "HER2 / RTK": {"ERBB2", "EGFR", "FGFR1"},
+             "PI3K / AKT / mTOR": {"PIK3CA", "PTEN", "AKT1", "PIK3R1"},
+             "Cell cycle": {"CCND1", "CDK4", "CDK6", "RB1", "CDKN2A"},
+             "TP53 and DNA repair": {"TP53", "BRCA1", "BRCA2", "ATM", "PALB2"},
+             "MAP kinase": {"NF1", "KRAS", "MAP3K1", "MAP2K4"}, "Chromatin": {"ARID1A", "KMT2C"}}
+    for name, genes in brief.items():
+        assert genes <= set(gx.PATHWAYS[name]["genes"]), name
+        assert gx.PATHWAYS[name]["says"], name
+        for key, says in gx.PATHWAYS[name]["says"]:
+            assert key in gx.REFERENCES and says
+    for cite, where, pmid, doi, title in gx.REFERENCES.values():
+        assert pmid.isdigit() and doi.startswith("10.") and cite and where and title
+    assert gx.VERIFIED == "2026-10-20"
+
+
+def test_references_match_pubmed():
+    """Every PMID's DOI as PubMed lists it (NCBI E-utilities); skipped offline."""
+    import urllib.request
+    ids = ",".join(r[2] for r in gx.REFERENCES.values())
+    try:
+        with urllib.request.urlopen("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+                                    f"?db=pubmed&retmode=json&id={ids}", timeout=20) as r:
+            result = json.load(r)["result"]
+    except Exception as e:  # offline CI or NCBI down
+        pytest.skip(f"PubMed not reachable: {e}")
+    for _, _, pmid, doi, _ in gx.REFERENCES.values():
+        dois = [a["value"].lower() for a in result[pmid]["articleids"] if a["idtype"] == "doi"]
+        assert doi.lower() in dois, pmid
+
+
+def test_pathway_map_marks_mutated_amplified_unknown_and_not_altered():
+    rows = [{"gene": "ERBB2", "call": 2, "call_text": "amplification", "copies": 8, "pct": 99},
+            {"gene": "PTEN", "call": -1, "call_text": "loss", "copies": 1, "pct": 5},
+            {"gene": "AKT1", "call": 0, "call_text": "neutral", "copies": 2, "pct": 50}]
+    nodes = {n["gene"]: n for n in gx.pathway_map(["PIK3CA H1047R"], rows, sequenced=False)}
+    assert nodes["PIK3CA"]["status"] == "mutated" and nodes["ERBB2"]["status"] == "amplification"
+    assert nodes["PTEN"]["status"] == "loss" and nodes["AKT1"]["status"] == "not altered"
+    assert nodes["TP53"]["status"] == "not measured"  # unknown, never normal
+    assert {n["gene"] for n in gx.pathway_map([], [], sequenced=True)
+            if n["status"] == "not altered"} == set(gx.PATHWAY_GENES)
+    s = {p["pathway"]: p for p in gx.pathway_summary(list(nodes.values()))}
+    assert s["PI3K / AKT / mTOR"]["altered"] == ["PIK3CA (mutated)", "PTEN (loss)"]
+    assert s["PI3K / AKT / mTOR"]["evidence"] == HYPOTHESIS
+    assert all(src["pmid"] and src["says"] for p in s.values() for src in p["sources"])
+
+
+def test_pathway_items_come_from_civic_for_its_genes(table):
+    items = gx.pathway_items("PI3K / AKT / mTOR", table)
+    assert items["total"] == 3 and items["items"][0]["evidence_level"] == "A"
+    assert gx.pathway_items("Cell cycle", table)["items"][0]["molecular_profile"] == \
+        "RB1 Loss-of-function"
+    assert gx.pathway_items("Chromatin", None) == {"items": [], "total": 0}
+    amp = pd.DataFrame([["ERBB2 Amplification", "Breast Cancer", "Trastuzumab", "Predictive",
+                         "Supports", "A", "Sensitivity/Response", "X, 2001", "5", "accepted",
+                         "https://civicdb.org/e/9"]], columns=COLUMNS)
+    got = gx.cn_items("ERBB2", 2, amp)
+    assert got["total"] == 1 and got["items"][0]["matches_call"] is True
+    assert gx.cn_items("ERBB2", -1, amp)["items"][0]["matches_call"] is False
+
+
+CTDNA = {"assay": "plasma panel (synthetic)", "synthetic": True, "detection_limit": 0.1,
+         "variants": ("PIK3CA H1047R", "ESR1 D538G"),
+         "samples": [{"month": -2, "vaf": {"PIK3CA H1047R": 1.6, "ESR1 D538G": None}},
+                     {"month": 4, "vaf": {"PIK3CA H1047R": 0.9, "ESR1 D538G": 0.2}}]}
+
+
+def test_longitudinal_table_keeps_not_resequenced_cells_blank():
+    pf = synthetic_file(timeline())
+    lon = gx.longitudinal_table(pf, None, CTDNA)
+    assert [s["id"] for s in lon["samples"]] == ["ctDNA · month -2", "Tumor sequencing · month 0",
+                                                 "ctDNA · month 4"]
+    cells = {r["variant"]: [c["state"] for c in r["cells"]] for r in lon["rows"]}
+    assert cells["PIK3CA H1047R"] == ["detected", "detected", "detected"]
+    # month -2: the ctDNA assay looked and did not find it; month 0: the record's panel is not
+    # stated, so the tissue cell is blank, never "absent"
+    assert cells["ESR1 D538G"] == ["not detected", "blank", "detected"]
+    text = {r["variant"]: [c["text"] for c in r["cells"]] for r in lon["rows"]}
+    assert text["ESR1 D538G"][0] == "not detected (below 0.1%)" and text["ESR1 D538G"][1] == ""
+    assert text["PIK3CA H1047R"][2] == "detected (0.9%)"
+    assert "absent" not in json.dumps(lon["rows"])
+    early = gx.longitudinal_table(pf, 5, CTDNA)  # month -1: only the month -2 ctDNA sample
+    assert [s["id"] for s in early["samples"]] == ["ctDNA · month -2"]
+    assert gx.longitudinal_table(pf, None, None)["notes"][0] == ("ctDNA series: not yet "
+                                                                 "available in this record")
+
+
+def test_longitudinal_table_adds_imported_sequencing_against_each_panel():
+    pf = case_file(tcga_case(61))
+    imported = RecordTest("Sequencing", 14, "Imported tumor sequencing",
+                          "PIK3CA H1047R, ESR1 Y537S", "mutations", g.IMPLEMENTED,
+                          {"variants": ["PIK3CA H1047R", "ESR1 Y537S"],
+                           "panel": ["PIK3CA", "ESR1"], "vaf": {"ESR1 Y537S": 0.12}})
+    pf2 = add_version(pf, [imported], 14, "Imported sequencing", "AB", "10:00")
+    lon = gx.longitudinal_table(pf2, None, None, {"PIK3CA H1047R": 0.21})
+    cells = {r["variant"]: [c["text"] for c in r["cells"]] for r in lon["rows"]}
+    assert cells["PIK3CA H1047R"] == ["detected (21.0%)", "detected"]
+    assert cells["ESR1 Y537S"] == ["not detected", "detected (12.0%)"]  # ESR1: in the TCGA panel
+    assert cells["PIK3CA E469delinsDK"] == ["detected", "not detected"]  # PIK3CA: in its panel
+    assert lon["samples"][1]["kind"] == "imported sequencing"
+
+
+def test_variants_link_to_the_evolution_views_escape_routes():
+    pf = synthetic_file(timeline())
+    hs = evolution.hypothesis_set(pf, None)
+    links = gx.escape_links("ESR1", hs)
+    assert any(x["id"] == "esr1-ai" and x["raised"] for x in links)
+    assert all(x["event"] and x["status"] for x in links)
+    assert gx.escape_links("PIK3CA", None) == []
+
+
+def test_search_answers_plain_words_and_says_what_it_cannot_see():
+    rows = gx.landscape(CN["cases"]["61"], CN["genes"])
+    nodes = gx.pathway_map(["PIK3CA H1047R"], rows, True)
+    bur = gx.burden(CN["cases"]["61"], CN)
+    amp = gx.search("amplified", rows, nodes, bur, ["PIK3CA H1047R"])
+    assert "ERBB2" in amp["genes"] and amp["note"] is None
+    assert gx.search("ERBB2", rows, nodes, bur, [])["pathways"] == ["HER2 / RTK"]
+    assert gx.search("PI3K pathway", rows, nodes, bur, [])["pathways"] == ["PI3K / AKT / mTOR"]
+    hb = gx.search("high burden", rows, nodes, bur, [])
+    assert hb["burden"] is bur and (hb["note"] is None) == bur["high"]
+    assert "not in the copy-number" in gx.search("lymphocytes", rows, nodes, bur, [])["note"]
+    assert "can't answer" in gx.search("amplified", [], nodes, bur, [])["note"]
+
+
+def test_new_finding_kinds_card_and_exports():
+    assert "cn" in FINDING_KINDS and "pathway" in FINDING_KINDS
+    pf = case_file(tcga_case(61))
+    rows = gx.landscape(CN["cases"]["61"], CN["genes"])
+    bur = gx.burden(CN["cases"]["61"], CN)
+    nodes = gx.pathway_map([d["variant"] for d in CN["cases"]["61"]["drivers"]], rows, True)
+    afs = gx.allele_fractions(CN["cases"]["61"], None)
+    lon = gx.longitudinal_table(pf, None, None)
+    reviews = {}
+    g.add_mark(reviews, finding_key(pf, "cn", "ERBB2"), "ERBB2 copy number: amplification",
+               g.AGREE, "ab", "t1")
+    g.add_mark(reviews, finding_key(pf, "pathway", "HER2 / RTK"), "pathway HER2 / RTK",
+               g.SECOND_LOOK, "", "t2")
+    md = gx.report_markdown(pf, rows, bur, afs, nodes, EFFECTS, lon, reviews)
+    assert "## Copy-number landscape" in md and "[placeholder]" in md
+    assert "| ERBB2 |" in md and "AlphaMissense" in md and "(PMID 23000897)" in md
+    assert "- ERBB2 copy number: amplification: agree (ab, t1)" in md
+    assert "- pathway HER2 / RTK: second look (no initials, t2)" in md
+    out = list(csv_rows(gx.landscape_csv(rows, reviews, pf)))
+    assert out[0][0] == "gene" and any(r[0] == "ERBB2" and r[-1].startswith("agree") for r in out)
+    found = gx.findings(pf, rows, bur, nodes, afs, EFFECTS)
+    assert {f["kind"] for f in found} == {"cn", "burden", "variant", "pathway"}
+    assert json.loads(gx.report_json(pf, found, reviews, {}))["review_marks"]
+    card = gx.card(CN, EFFECTS, {"receptors": {"HER2": {"cn": {"n": 10, "sensitivity": 0.57,
+                                                                "specificity": 0.98}}}})
+    assert all(r["source"] and r["tag"] for r in card)
+    assert any(r["tag"] == gx.PLACEHOLDER for r in card)
+    assert "sensitivity 0.57" in next(r["source"] for r in card
+                                      if r["what"].endswith("amplification"))
+
+
+PAGE = """
+import json, sys
+sys.path.insert(0, {workbenches!r})
+from types import SimpleNamespace
+from muffle.workspace import case_file, synthetic_file
+import genomics
+{body}
+"""
+
+
+def test_genome_sections_render_on_the_shipped_numbers():
+    AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
+    wbs = str(ROOT / "app" / "workbenches")
+    case = tcga_case(61).__dict__
+    at = AppTest.from_string(PAGE.format(workbenches=wbs, body=(
+        f"genomics.render(case_file(SimpleNamespace(**{case!r})))")), default_timeout=120).run()
+    assert not at.exception
+    text = " ".join(e.value for k in ("markdown", "caption", "info", "warning", "subheader")
+                    for e in getattr(at, k))
+    assert "The tumor's genome" in text and "ABSOLUTE purity" in text
+    assert "Spot: " in text and "somatic calls" in text and "AlphaMissense" in text
+    assert "Rule: detected / not detected only where the sample looked" in text
+    assert len(at.tabs) == 4
+    tl = str(ROOT / "app" / "timeline_synthetic.json")
+    syn = AppTest.from_string(PAGE.format(workbenches=wbs, body=(
+        f"tl = json.loads(open({tl!r}, encoding='utf-8').read())\n"
+        "genomics.render(synthetic_file(tl), evidence=tl['evidence'])")),
+        default_timeout=120).run()
+    assert not syn.exception
+    text = " ".join(e.value for k in ("markdown", "caption", "info") for e in getattr(syn, k))
+    assert "No copy number for this file" in text and "AlphaMissense" in text
+
+
+def test_the_synthetic_ctdna_series_joins_the_variant_table():
+    from muffle.timeline import CTDNA
+    pf = synthetic_file(timeline())
+    lon = gx.longitudinal_table(pf, None, CTDNA)
+    assert len(lon["samples"]) == len(CTDNA["samples"]) + 1  # every ctDNA draw and the biopsy
+    tissue = next(n for n, s in enumerate(lon["samples"]) if s["kind"] == "tumor sequencing")
+    rows = {r["variant"]: r["cells"] for r in lon["rows"]}
+    assert set(rows) == {"PIK3CA H1047R", *CTDNA["variants"]}
+    assert rows["DNMT3A R882H"][tissue]["state"] == "blank"  # the biopsy never looked for it
+    assert rows["ESR1 D538G"][0]["text"] == "not detected (below 0.1%)"  # month -12, below limit
+    assert rows["PIK3CA H1047R"][tissue]["state"] == "detected"
+    assert "synthetic" in " ".join(lon["notes"])
+
+
+def test_the_patient_overview_gets_copy_number_and_burden():
+    from muffle.workspace import CARD_KEYS, ITEM_KEYS
+    pf = case_file(tcga_case(61))
+    cards = gx.overview_cards(pf, CN)
+    assert [c["what"] for c in cards] == ["Copy number", "Mutation burden"]
+    assert set(cards[0]) == set(CARD_KEYS) and "ERBB2" in cards[0]["text"]
+    assert "placeholder" in cards[0]["threshold"] and cards[0]["focus"] == {"gene": "PIK3CA"}
+    assert cards[0]["opens"][0] == "Tests"
+    items = gx.overview_items(pf, CN)
+    erbb2 = next(i for i in items if i["pointer"] == "ERBB2")
+    assert set(erbb2) == set(ITEM_KEYS) and erbb2["consequence"] == 2
+    assert erbb2["key"] == finding_key(pf, "cn", "ERBB2") and erbb2["focus"] == {"gene": "ERBB2"}
+    flagged = case_file(tcga_case(49))  # ploidy 1 by the median rule, 1.58 by ABSOLUTE
+    items = gx.overview_items(flagged, CN)
+    assert items[0]["pointer"] == "ploidy" and all(i["trust"] == "weak" for i in items[1:])
+    assert gx.overview_cards(synthetic_file(timeline()), CN) == []
+    summary = g.summary(pf)
+    assert [c["what"] for c in summary["cards"]] == ["Key drivers", "Copy number",
+                                                     "Mutation burden"]
+    assert any(i["pointer"] == "ERBB2" for i in g.queue(pf))  # even without CIViC loaded

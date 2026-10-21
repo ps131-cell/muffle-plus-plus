@@ -201,9 +201,13 @@ The analyzer's "detection, then interpretation, then what to check" becomes an *
 ladder** per variant. Beyond the first page (variant browser, the three separated blocks,
 panel coverage, review queue, longitudinal note, limits, data card):
 
+Built in two rounds (2026-10-19, 2026-10-20/21; method and numbers in
+[`genomics.md`](genomics.md)). Tags: **now** = built.
+
 - **Evidence ladder** [now]: for each variant, five rungs with their own evidence type: detected
-  (observed: test, sample, date; allele fraction "not available in these calls"), interpreted
-  (CIViC items by level, direction and date), predicted effect (CIViC's own wording only),
+  (observed: test, sample, date; allele fraction from the read counts for the TCGA cases),
+  interpreted (CIViC items by level, direction and date), predicted effect (model inference:
+  AlphaMissense and the Ensembl VEP consequence; CIViC's own wording when no prediction exists),
   therapy evidence for clinician review, resistance mechanisms (CIViC "Resistance" items and the
   literature already cited in `VISION.md`: ESR1 under aromatase inhibitors). Each rung names what
   would strengthen it.
@@ -216,13 +220,27 @@ panel coverage, review queue, longitudinal note, limits, data card):
   the same association, with their levels and dates; no averaging.
 - **Variant Spot panel** [now]: click a variant: the ladder, the CIViC items as a table with links,
   the panel's view of the gene, the sample it came from, the review marks.
-- **Longitudinal variant table** [data]: one row per variant per sample with dates and assay
-  differences; "not re-sequenced" cells stay blank, never "absent".
-- **Pathway view** [roadmap]: which observed variants fall on which known pathways, from a named
-  reference, as hypotheses.
+- **Copy-number landscape** [now, placeholder cutoffs]: ASCAT3 gene-level copy number in genome
+  order, calls relative to the ploidy (the model's rule, or ABSOLUTE's when the two disagree),
+  cohort percentiles, a Spot panel per gene (CIViC items for its copy-number change, the
+  expression workbench's RNA and protein, its pathway, neighbors), the ERBB2-versus-HER2 line
+  reused from the omics workbench.
+- **Mutation burden and allele fractions** [now]: observed call count, rate over the 38 Mb exome
+  (Chalmers 2017), cohort percentile; allele fractions with 95% intervals, ABSOLUTE purity and the
+  clonal range (model inference).
+- **Predicted effect** [now]: detected (VEP consequence), interpreted (CIViC, ClinVar) and
+  predicted (AlphaMissense, not approved for clinical use) kept apart; bundled snapshot, live
+  Ensembl lookup by name for imported variants.
+- **Longitudinal variant table** [now; ctDNA when its series lands]: one row per variant per
+  sample (tumor sequencing, imported sequencing, ctDNA) with allele fractions; "not re-sequenced"
+  cells stay blank, never "absent"; each variant links to the Evolution view's escape routes.
+- **Pathway view** [now, hypothesis]: seven breast-cancer pathways with their sources (PubMed-
+  checked), this tumor's mutations and copy-number changes on each node, CIViC items per pathway
+  for clinician review.
 - **Search** [now]: "level A", "resistance", a gene; "this panel does not include that gene" when
-  it is not covered.
-- **Export** [now]: the variant table, the ladder, the sources, the reviewer marks.
+  it is not covered; in the genome views "amplified", a gene, "PI3K pathway", "high burden".
+- **Export** [now]: the variant table, the ladder, the sources, the reviewer marks; the genome
+  sections, the copy-number table (CSV) and the genome findings (JSON).
 
 ## 5. Pathology workbench (H&E slides)
 
