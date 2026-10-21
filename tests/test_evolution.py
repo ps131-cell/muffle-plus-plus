@@ -13,9 +13,11 @@ import pandas as pd
 import pytest
 
 from muffle import evolution as ev
+from muffle.imports import document_test
 from muffle.report import trials
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE
-from muffle.workspace import case_file, finding_key, synthetic_file
+from muffle.workbench.documents import case_documents
+from muffle.workspace import add_version, case_file, finding_key, synthetic_file
 
 ROOT = Path(__file__).resolve().parents[1]
 CASE = dict(index=43, site="site-2", stage="II", age=67.0, percentile=73.4, group="high",
@@ -110,6 +112,59 @@ def test_tcga_file_uses_drivers_only_and_assumes_no_treatment():
     assert any("applies if HER2-positive" in w for w in by["pik3ca-her2"]["why"])
     skipped = {s["id"]: s["reason"] for s in hs["not_raised"]}
     assert "none is assumed" in skipped["rb1-cdk46"]
+
+
+def reported(*texts):
+    """The hypothesis set of CASE with made-up pathology report texts (not a patient's)."""
+    docs = [{"id": f"rep-{n}", "title": "Pathology report", "kind": "Document", "month": None,
+             "text": t, "source": "written for this test"} for n, t in enumerate(texts, 1)]
+    return ev.hypothesis_set(case_file(SimpleNamespace(**CASE), documents=docs))
+
+
+def test_a_reports_receptor_status_makes_rows_definite_and_is_named():
+    hs = reported("ER: positive (95%). PR: positive. HER2: negative (1+).")
+    by = {it["id"]: it for it in hs["items"]}
+    assert "hormone-receptor-positive observed in document rep-1" in by["er-loss"]["why"]
+    assert "HER2-negative observed in document rep-1" in by["metastatic-drivers"]["why"]
+    skipped = {s["id"]: s["reason"] for s in hs["not_raised"]}
+    assert "HER2 negative observed in document rep-1" in skipped["pik3ca-her2"]  # HER2+ only
+    notes = " ".join(hs["notes"])
+    assert "rep-1 states ER status positive, PR status positive" in notes
+    assert "conditional" not in notes and "Document statuses are read by the documents" in notes
+    doc = case_documents(43)[0]["id"]  # case 43's own report states ER and PR, not HER2
+    real = ev.hypothesis_set(case_file(SimpleNamespace(**CASE), documents=case_documents(43)))
+    by = {it["id"]: it for it in real["items"]}
+    assert f"hormone-receptor-positive observed in document {doc}" in by["er-loss"]["why"]
+    assert "applies if HER2-positive: not recorded in this file" in by["pik3ca-her2"]["why"]
+
+
+def test_a_reports_receptor_status_can_rule_rows_out():
+    hs = reported("ER: negative. PR: negative. HER2: negative.")
+    assert {it["id"] for it in hs["items"]} == {"her2-change", "tp53-subtype"}
+    skipped = {s["id"]: s["reason"] for s in hs["not_raised"]}
+    assert "hormone receptor negative observed in document rep-1" in skipped["er-loss"]
+    assert {"metastatic-drivers", "pik3ca-her2"} <= set(skipped)
+    by = {it["id"]: it for it in reported("ER: negative. HER2: negative.")["items"]}
+    assert ("applies if hormone-receptor-positive: not settled by document rep-1"  # PR unknown
+            in by["er-loss"]["why"])
+
+
+def test_disagreeing_receptor_statuses_are_shown_not_picked():
+    hs = reported("ER: positive. PR: positive.", "ER: negative. PR: negative.")
+    by = {it["id"]: it for it in hs["items"]}
+    assert ("applies if hormone-receptor-positive: conflicting statuses in documents rep-1, "
+            "rep-2") in by["er-loss"]["why"]
+    assert any("conflicting statuses, rep-1 states ER status positive, PR status positive; "
+               "rep-2 states ER status negative, PR status negative" in n for n in hs["notes"])
+    pf = synthetic()  # the record says HR+: its own status is used, the document is named
+    test, rows = document_test("Document", "Outside report", "ER: negative. PR: negative.", 26,
+                               "import-1", "imported by AB")
+    hs = ev.hypothesis_set(add_version(pf, [test], 26, "Imported document", "AB", "14:03", rows))
+    by = {it["id"]: it for it in hs["items"]}
+    assert ("hormone-receptor-positive in the record (document import-1 states otherwise)"
+            in by["er-loss"]["why"])
+    assert any(n.startswith("Hormone receptor status: the record says positive; import-1 states "
+                            "ER status negative, PR status negative") for n in hs["notes"])
 
 
 def test_only_the_cited_esr1_hotspots_count_as_the_lbd_event():

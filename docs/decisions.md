@@ -2,6 +2,19 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — Evolution view: receptor status from the file's documents when the record has none
+- **What:** `evolution.context` reads the ER, PR and HER2 status the documents rules find in a
+  file's documents (a TCGA case's pathology report, an imported report) when the record states
+  none, as in every TCGA file. Hormone-receptor positive when a document states ER or PR positive,
+  negative when both negative; no IHC score or ISH result is turned into a status. The record's
+  own status wins and a disagreeing document is named beside it; documents that disagree with
+  each other leave the status unknown. Each why line names the document.
+- **Why:** the receptor-conditional rows were never definite for a TCGA file, though 15 of the 39
+  bundled reports state the hormone-receptor status and 14 the HER2 status.
+- **Consequence:** a document's HER2-negative now drops the HER2-positive row although the HER2
+  rule's precision is 80% on held-out reports; the drop is listed under "Not raised" with its
+  document and the precision is shown in the view, so the read can be checked.
+
 ## 2026-10-20 — Tumor evolution as a cited table, ranked per file; clonal order as alternatives
 - **What:** an Evolution view in every patient file (`docs/evolution.md`). Its core is a table of
   18 context → event rows (ESR1 under aromatase inhibitors; RB1, FAT1, AKT1 and PTEN under
