@@ -16,11 +16,13 @@ from muffle.hotreload import source_digest
 from muffle.imports import lab_tests, parse_labs
 from muffle.models import MuffleNet
 from muffle.report import civic, trials
+from muffle.workbench import radiology
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app" / "streamlit_app.py"
+RESULTS = ROOT / "app" / "workbenches" / "radiology_results"
 VIEWS = ("Tests", "Timeline", "Evolution", "Import tests", "Report")
 
 
@@ -52,6 +54,11 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
 
     monkeypatch.setattr(trials, "CACHE", tmp_path / "trials")  # the trials come from the snapshot
     monkeypatch.setattr(trials, "_get", offline)
+    # the test cohort's first case stands in for a TCGA patient with a processed public MRI
+    shipped = [s for v in radiology.load_index(RESULTS).values() for s in v
+               if s["modality"] == "MR"]
+    monkeypatch.setattr(radiology, "load_index",
+                        lambda folder: {demo.cases[0].index: shipped[:1]})
     # this process already runs this code, so the app's hot-reload guard must not purge it
     monkeypatch.setattr(sys, "_muffle_code_digest",
                         source_digest([APP.parent, ROOT / "src" / "muffle"]), raising=False)
@@ -73,7 +80,8 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     assert "New metastatic site: liver" in shown(at)
     button(at, "Open the test").click().run()  # lands on the imaging report behind the alert
     assert at.segmented_control(key="view").value == "Tests"
-    assert "Imaging report, month 12" in shown(at)
+    assert "Imaging report, month 12" in shown(at) and "Radiology workbench" in shown(at)
+    assert "no measurements recorded" in shown(at) and not at.exception
     at.segmented_control(key="view").set_value("Report").run()
     button(at, "▶").click().run()
     button(at, "▶").click().run()
@@ -147,6 +155,11 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.selectbox(key=f"omics-spot-{case}").select_index(0).run()
     next(s for s in at.segmented_control if s.label == "Your mark").set_value("agree").run()
     assert any(k.startswith(f"{case}|omics|") for k in at.session_state.reviews)
+    if shipped:  # the imaging test opens the image viewer on the shipped study
+        at.session_state[f"picked-{case}"] = ("Imaging", None, shipped[0]["name"])
+        at.run()
+        assert "Radiology workbench" in shown(at) and "Spot panel · C1" in shown(at)
+        assert "not validated on breast mri here" in shown(at).lower() and not at.exception
     for view in VIEWS:
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
@@ -163,7 +176,8 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     cards = " ".join(s.value for s in at.subheader)
     for card in ("Multi-omic survival model", "MSK-CHORD landmark models", "Breast tissue head",
                  "Nuclei (StarDist)", "Case note", "SOS alerts", "Lab result rules",
-                 "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution"):
+                 "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution",
+                 "Lesion contours (MedSAM", "Screening score (mammoscreen", "Radiology: report"):
         assert card in cards, card
     placeholders = next(d.value for d in at.dataframe if "Placeholder" in d.value.columns)
     assert f"{workspace.RISK_JUMP} points of 12-month risk" in placeholders["Value"].tolist()

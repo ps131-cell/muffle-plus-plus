@@ -2,6 +2,25 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-20 — Radiology workbench, first version: report text plus public TCIA studies
+- **What:** Tests → Imaging opens `app/workbenches/radiology.py`. For SYNTHETIC-001 it reads the
+  imaging reports as text (reads, new sites, a lesion table, "no measurements recorded", lead and
+  lag against CA 15-3); its imaging tests become implemented ("report text, no images"). Three
+  held-out TCGA cases with a public TCIA study (563 and 937 breast MRI, 926 mammography) get an
+  imaging test that opens an image viewer on small 8-bit copies, with MedSAM contours drawn
+  offline from a seed rule's top three boxes, longest diameter, volume and DCE kinetics
+  (`scripts/radiology_pipeline.py`, `docs/radiology.md`); the mammogram gets a mammoscreen score
+  and density per breast (Apache-2.0, re-built with timm so no remote code runs).
+- **Why:** TCGA-BRCA radiology (CC BY 3.0) is the only imaging that joins the omics cohort, and
+  5 of the 40 held-out cases have a study; MedSAM ViT-B is Apache-2.0, ungated and runs on this
+  CPU at 12–21 s per slice, so contours can be precomputed. The best-annotated breast MRI sets and
+  their nnU-Net weights are non-commercial (model survey §3).
+- **Consequence:** every contour, measurement and curve type is a model inference, not validated
+  on breast MRI here; the seed rule's cutoffs are placeholders and the kinetics cutoffs are
+  literature values used as placeholders. No processed patient has two study dates, so prior
+  comparison stays planned; 134 of the 139 TCIA patients are in the omics cohort and 20 have two
+  dates, which a future bundle could include (needs a new release).
+
 ## 2026-10-20 — Tumor evolution as a cited table, ranked per file; clonal order as alternatives
 - **What:** an Evolution view in every patient file (`docs/evolution.md`). Its core is a table of
   18 context → event rows (ESR1 under aromatase inhibitors; RB1, FAT1, AKT1 and PTEN under
