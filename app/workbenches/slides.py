@@ -460,14 +460,14 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
     st.markdown(text)
     st.markdown("**Hypothesis.** The arrows show where the tumor is invading in this section: "
                 "a 2D snapshot, not a forecast of where it will go.")
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²")
-    c2.metric("Front length", f"{s['front_length_mm']} mm")
-    c3.metric("Infiltrative arcs", f"{n['infiltrative_arcs']} / {n['arcs']}")
-    c4.metric("Breakaway in field", "—" if not hs else str(hs["buds_in_field"]),
-              help="clusters of up to 4 tumor-candidate nuclei in the 0.785 mm² field; "
-                   "weak until validated")
-    c5.metric("Unsure share", f"{s['unsure_share']:.0%}")
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²", width="content")
+    row.metric("Front length", f"{s['front_length_mm']} mm", width="content")
+    row.metric("Infiltrative arcs", f"{n['infiltrative_arcs']} / {n['arcs']}", width="content")
+    row.metric("Breakaway in field", "—" if not hs else str(hs["buds_in_field"]),
+               help="clusters of up to 4 tumor-candidate nuclei in the 0.785 mm² field; "
+                    "weak until validated", width="content")
+    row.metric("Unsure share", f"{s['unsure_share']:.0%}", width="content")
     reviews = st.session_state.setdefault("reviews", {})
     st.markdown("**Look here** (pointers T1…Tn, shared by the text, the map and the Spot "
                 "panel):")
@@ -797,11 +797,12 @@ def render_example(pf: PatientFile, result: dict | None) -> None:
         st.markdown(f"**What the front faces** (tiles touching the front, outside the tumor): "
                     f"{faces}. A 2D snapshot of this section: where the tumor is, not where it "
                     "is going.")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²")
-    c2.metric("Front length", f"{s['front_length_mm']} mm")
-    c3.metric("Unsure share", f"{s['unsure_share']:.0%}")
-    c4.metric("Head accuracy (held out)", f"{head.get('accuracy', float('nan')):.0%}")
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²", width="content")
+    row.metric("Front length", f"{s['front_length_mm']} mm", width="content")
+    row.metric("Unsure share", f"{s['unsure_share']:.0%}", width="content")
+    row.metric("Head accuracy (held out)", f"{head.get('accuracy', float('nan')):.0%}",
+               width="content")
 
     st.markdown("#### Tissue map")
     st.caption("Hover a tile for its class probabilities. Each tile is one score for 112 µm of "

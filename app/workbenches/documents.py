@@ -31,7 +31,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from muffle.workbench import documents as wb  # noqa: E402
-from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
+from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip, esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 
 FACT, FOCUS, HIT = "#fde68a", "#bfdbfe", "#bbf7d0"
@@ -208,7 +208,7 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
         if note:
             with st.expander("The case note (written by a language model from derived numbers, "
                              "not from these documents)"):
-                st.markdown(note)
+                st.markdown(esc(note))
         else:
             st.caption("No case note in this file.")
 

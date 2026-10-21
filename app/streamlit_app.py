@@ -54,7 +54,7 @@ from muffle.hotreload import purge_modules, source_digest  # noqa: E402
 # from what this process last ran, drop those modules and the caches their old code built.
 CODE_DIGEST = source_digest([APP, APP.parent / "src" / "muffle"])
 if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
-    purge_modules(("charts", "muffle", "workbenches"))
+    purge_modules(("charts", "methods_page", "muffle", "workbenches"))
     st.cache_resource.clear()
     st.cache_data.clear()
     sys._muffle_code_digest = CODE_DIGEST
@@ -661,7 +661,7 @@ def case_note(case):
         report, source = st.session_state.reports[case.index]
         note, trace = st.columns([3, 2])
         with note:
-            st.markdown(report.text)
+            st.markdown(esc(report.text))
             if report.mode != "offline":
                 if report.issues:
                     st.warning("Grounding check: not found in the tool outputs: "
@@ -844,211 +844,15 @@ def import_view(pf: workspace.PatientFile, i: int):
 
 
 # --- Methods and validation ------------------------------------------------------------------
-def methods_page():
-    st.title("Methods and validation")
-    st.markdown(
-        "How each result in a patient file is produced, how well it holds up, and where the data "
-        "come from. In a file, every finding is marked **observed** (measured or recorded), "
-        "**model inference** (a prediction, with its uncertainty) or **hypothesis** (evidence "
-        "and literature leads); every module is marked implemented, experimentally validated or "
-        "planned; every alert names its rule and where its threshold comes from.")
-    res = results()
-    by = {m["method"]: m for m in res["methods"]} if res else None
+def methods():
+    import methods_page  # a card per model and rule, every known failure and placeholder
 
-    st.header("Model cards")
-    st.subheader("Multi-omic survival model")
-    st.markdown(f"{badge(workspace.VALIDATED)} · overall survival, ranked by cohort percentile · "
-                "TCGA patient files")
-    st.markdown(
-        f"- **Training data:** TCGA-BRCA open access ({len(demo.cohort_risks):,} patients, "
-        "overall survival): copy number, RNA expression, methylation, protein and clinical "
-        f"data, split across {len(demo.sites)} simulated hospitals (groups of TCGA tissue source "
-        "sites, so their data gaps are real).\n"
-        "- **Design:** a clinical risk first, which the omic layers then correct by an amount "
-        "chosen on hospitals the model wasn't trained on. A layer a hospital never measured is "
-        "masked, not imputed, and training hides layers at random so the model copes. Trained "
-        "with FedAvg in NVIDIA FLARE: only model weights leave a hospital.\n"
-        f"- **Held-out performance:** C-index {demo.c_index:.3f}, the mean over hospitals ("
-        + ", ".join(f"{s} {c:.3f}" for s, c in demo.c_index_by_site.items()) + ").\n"
-        "- **Calibration:** the model ranks patients; its absolute risks are only roughly "
-        "calibrated, and it is weaker for patients under 50 and within a single stage.")
-    if res and demo.names:  # real data (synthetic cohorts have no gene names)
-        st.markdown("**Leave one hospital out:** train on two hospitals, test on the third.")
-        main = [m for m in res["methods"] if m["group"] == "main"]
-        st.altair_chart(charts.results(main), width="stretch")
-        st.markdown(
-            f"- **Federated ≈ pooled.** FedAvg reaches {by['fedavg_residual']['mean']:.3f} on "
-            f"a hospital it never saw, against {by['residual']['mean']:.3f} when the other "
-            "hospitals' patients are pooled in one place, without moving any patient data.\n"
-            f"- **Better than one hospital alone**, which scores "
-            f"{by['local_only']['mean']:.3f}.\n"
-            f"- **The omic layers don't add signal yet.** Clinical data alone (stage, age, "
-            f"T/N/M) scores {by['only_clinical']['mean']:.3f} on overall survival, so the model "
-            "anchors on clinical data and lets the omics correct it.")
-        st.caption(res["protocol"] + ".")
-        with st.expander("Each omic layer on its own"):
-            single = [m for m in res["methods"] if m["group"] == "single layer"]
-            st.dataframe(pd.DataFrame(single)[["label", "mean", "sd"]].rename(
-                columns={"label": "Layer", "mean": "C-index", "sd": "sd"}), hide_index=True)
-            st.caption("Copy number alone ranks patients worse than chance across hospitals "
-                       "(below 0.5): a sign of site and batch effects.")
-    left, right = st.columns([3, 2])
-    with left:
-        st.altair_chart(charts.survival_by_group(demo.km), width="stretch")
-    with right:
-        st.markdown("**Risk groups on the held-out patients**")
-        st.caption(f"{demo.heldout_patients} held-out patients, {demo.heldout_deaths} deaths. "
-                   "Curves stop at 5 years, where fewer than 20 patients per group remain. The "
-                   "risk groups rank patients well; they are not calibrated probabilities of "
-                   "death.")
-
-    if TL:
-        st.subheader("MSK-CHORD landmark models")
-        st.markdown(f"{badge(workspace.VALIDATED)} · {TL['task']} · the synthetic patient's file")
-        st.dataframe(pd.DataFrame([{
-            "From month": int(k), "Patients": m["n"], "Event rate": m["event_rate"],
-            "AUROC, record so far": f"{m['auroc'][0]:.3f} ± {m['auroc'][1]:.3f}",
-            "AUROC, diagnosis only": f"{m['baseline_auroc'][0]:.3f} ± "
-                                     f"{m['baseline_auroc'][1]:.3f}"}
-            for k, m in sorted(TL["models"].items(), key=lambda kv: int(kv[0]))]),
-            hide_index=True, column_config={
-                "From month": st.column_config.NumberColumn(
-                    help="Landmark: months after the first tumor sequencing"),
-                "Event rate": st.column_config.NumberColumn(format="percent")})
-        st.caption(
-            "Gradient boosting on the record so far, against the same learner on the diagnosis "
-            "alone (stage, HR, HER2); held-out AUROC, mean ± sd over 5 seeds. "
-            + TL["model_note"] + " Some features reflect care, not only biology (how often labs "
-            "and treatments are recorded). Whether the probabilities are calibrated has not "
-            "been checked.")
-
-    omics.methods_section()
-
-    st.subheader("Clinical documents: extraction rules")
-    st.markdown(f"{badge(workspace.IMPLEMENTED)} · breast pathology facts from report text, each "
-                "with its source sentence · the clinical documents workbench")
-    st.markdown("Regular expressions run where the app runs: no language model reads a report "
-                "and no report text leaves the machine. A fact is *documented*: the document "
-                "says it; nothing is derived from it. Measured against TCGA's clinical fields:")
-    from workbenches import documents
-
-    documents.methods_card()
-
-    st.subheader("Alert rules")
-    st.dataframe(pd.DataFrame([
-        ("Progression on imaging", OBSERVED, "the imaging report reads progression; an "
-         "imported report: a clause states it, not negated or hedged (trust moderate)",
-         "recorded; an imported report: its words"),
-        ("New metastatic site", OBSERVED, "a site not in the record before; an imported "
-         "report: a clause names a new distant site, not negated or hedged (trust moderate)",
-         "recorded; an imported report: its words"),
-        ("Tumor marker rise", OBSERVED,
-         f"above the reference limit and at least {workspace.RISE:.0%} above the previous "
-         "value; to be confirmed with a second specimen within a month",
-         workspace.EGTM + "; the limit from the patient's lab report"),
-        ("Risk jump", INFERENCE,
-         f"12-month risk up at least {workspace.RISK_JUMP} points since the previous result",
-         "placeholder, not validated"),
-        ("Newly sequenced driver", f"{OBSERVED} (mutation), {HYPOTHESIS} (evidence)",
-         "level A or B CIViC treatment evidence", "CIViC evidence levels"),
-    ], columns=["Alert", "Evidence", "Rule", "Threshold source"]), hide_index=True,
-        width="stretch")
-    st.caption("A tumor marker out of range is not evidence of progression by itself.")
-
-    evolution_page.methods_card()
-
-    st.subheader("Case note")
-    st.markdown(f"""
-- **{model_name(DEFAULT_MODEL)} plans** on Nebius Token Factory: it decides which tools to call.
-  The tools run locally and label what they return: `observed_findings` (*observed*: measured
-  and missing data layers, recorded stage, age band, the sequenced driver mutations from GDC
-  open-access somatic calls, or "not sequenced"), `predict_risk`, `modality_contributions` and
-  `top_features` (*model inference*, with the model's validation C-index as its uncertainty),
-  `treatment_evidence` (*hypothesis*: CIViC items for the observed mutations) and
-  `search_literature` (*hypothesis*: Tavily search for papers or trials on up to 3 named genes).
-- **{model_name(WRITER_MODEL)} writes** the note from the tool outputs, in five sections:
-  Summary, Observed, Model inferences, Hypotheses and evidence, Caveats. Every bullet starts
-  with [Observed], [Model inference] or [Hypothesis]. If it fails, {model_name(DEFAULT_MODEL)}
-  writes.
-- **A grounding check** (plain code, no language model) looks for any number, gene or link in
-  the note that no tool returned. The writer gets one rewrite; anything left is shown with the
-  note.
-- **Treatment content is evidence, not advice.** Each CIViC (CC0) item keeps its evidence level
-  (A validated … E inferential), significance, citation and link, for clinician review, never
-  a recommendation.
-- Only derived numbers (risk, percentile, contributions, attribution scores) and gene or
-  mutation names go to Token Factory and Tavily, never a patient's omics values, and nothing
-  from MSK-CHORD. Every call counts against a hard spending cap; once it is reached, or without
-  a key, the same tools run in a fixed order and a template writes the note.
-""")
-
-    st.header("Federated training across simulated hospitals")
-    left, right = st.columns([2, 3])
-    with left:
-        dot = ["digraph { rankdir=LR; bgcolor=transparent; size=\"5,3\"; node [shape=box, "
-               "style=rounded, fontname=Helvetica, fontsize=11]; edge [fontname=Helvetica, "
-               "fontsize=9];",
-               'server [label="NVIDIA FLARE server\\nFedAvg", shape=box, style="rounded,bold"];']
-        for s in demo.sites:
-            dot.append(f'"{s.name}" [label="{s.name} (simulated)\\n{s.patients} patients\\n'
-                       f'data stays here"];')
-            dot.append(f'"{s.name}" -> server [label="weights", dir=both];')
-        st.graphviz_chart("\n".join(dot) + "}", width="content")
-    with right:
-        table = pd.DataFrame([{
-            "Hospital": s.name, "Patients": s.patients, "Deaths": s.deaths,
-            "Held out": s.heldout,
-            **{LAYER_NAMES.get(m, m): 100 * s.coverage[m] for m in demo.model.names
-               if m != "clinical"},
-        } for s in demo.sites])
-        st.dataframe(table, hide_index=True, column_config={
-            LAYER_NAMES.get(m, m): st.column_config.ProgressColumn(
-                LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
-            for m in demo.model.names if m != "clinical"})
-        st.caption("Bars: share of each hospital's patients with that data layer. The hospitals "
-                   "are simulated: TCGA tissue source sites grouped into three clients of the "
-                   "NVFlare simulator, so the data gaps are real but no real site took part.")
-
-    st.header("Data sources and licenses")
-    st.dataframe(pd.DataFrame([
-        ("TCGA-BRCA (GDC open access, UCSC Xena)", "the survival model and the TCGA patient files",
-         "open access; cite the TCGA Research Network"),
-        ("GDC masked somatic mutations (open access)", "observed driver mutations", "as TCGA"),
-        ("MSK-CHORD (Jee et al., Nature 2024)",
-         "the landmark models behind the synthetic patient's risk; used on this machine only, "
-         "aggregate results", "CC BY-NC-ND 4.0"),
-        ("CIViC clinical evidence summaries", "treatment evidence for clinician review", "CC0"),
-        ("Tavily search", "literature leads in case notes", "Tavily API terms"),
-        ("NVIDIA Nemotron 3 Super and Ultra on Nebius Token Factory", "the case note",
-         "NVIDIA open model license; Token Factory terms"),
-        ("EGTM breast cancer recommendations", "the tumor-marker rise rule", "cited"),
-        ("TCGA-Reports (Kefeli and Tatonetti, Patterns 2024; Mendeley Data "
-         "10.17632/hyg5xkznpx.1)", "the TCGA cases' pathology reports in the documents "
-         "workbench; measuring the extraction", "CC BY 4.0, attribution"),
-        ("PubMed (NCBI E-utilities)", "checking every citation of the evolution table",
-         "NLM terms; abstracts cited, not copied"),
-        ("ClinicalTrials.gov API v2", "trials that mention a patient's observed genes",
-         "U.S. government database: attributed, with the date of its data"),
-    ], columns=["Source", "Used for", "License or terms"]), hide_index=True, width="stretch")
-    st.caption("SYNTHETIC-001's record is written by hand and labeled synthetic; it is not a "
-               "real person and was not taken from any dataset.")
-
-    st.header("Limits")
-    st.markdown(
-        "- On overall survival in TCGA-BRCA the omic layers don't beat clinical data yet; "
-        "federation matches pooling and beats a single hospital.\n"
-        "- TCGA holds one tumor sample per patient, so its files have one version and no "
-        "alerts.\n"
-        "- The lab, mutation, data-layer and clinical documents workbenches and test import "
-        "are built, and the pathology workbench in a first version on an example region; "
-        "imaging and ctDNA are planned and labeled so. Imports last for the browser session.\n"
-        "- The hospitals are simulated, and SYNTHETIC-001 is synthetic.\n"
-        "- Research and decision support for clinicians; not a diagnosis or a prescription.")
+    methods_page.render(demo, TL, results())
 
 
 st.navigation([
     st.Page(patients_page, title="Patients", icon="🗂️", default=True),
-    st.Page(methods_page, title="Methods and validation", icon="📖", url_path="methods"),
+    st.Page(methods, title="Methods and validation", icon="📖", url_path="methods"),
 ]).run()
 
 if LIVE:

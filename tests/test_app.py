@@ -173,3 +173,19 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
     assert "Tumor-board note" in shown(at) and "nothing alarming" in shown(at)
+
+    # Methods and validation: a card per model and rule, one list of failures and placeholders
+    pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
+    at._page_hash = pages["methods"]  # switch_page() takes page files, not callable pages
+    at.run()
+    assert not at.exception
+    heads = [h.value for h in at.header]
+    assert heads[:2] == ["Models", "Rules"] and heads[-3:] == [
+        "Known failures", "Every placeholder in the app", "Limits"]
+    cards = " ".join(s.value for s in at.subheader)
+    for card in ("Multi-omic survival model", "MSK-CHORD landmark models", "Breast tissue head",
+                 "Nuclei (StarDist)", "Case note", "SOS alerts", "Lab result rules",
+                 "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution"):
+        assert card in cards, card
+    placeholders = next(d.value for d in at.dataframe if "Placeholder" in d.value.columns)
+    assert f"{workspace.RISK_JUMP} points of 12-month risk" in placeholders["Value"].tolist()
