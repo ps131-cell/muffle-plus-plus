@@ -65,7 +65,7 @@ render(case_file(SimpleNamespace(index={idx}, site="site-0", percentile=50.0, gr
     text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.info, *at.warning]).lower()
     assert "the patient's own" in text and "2d snapshot" in text
     assert "weak until validated" in text and "placeholder" in text
-    assert "what this map cannot see" in text and "not reviewed by a pathologist" in text
+    assert "what this test cannot see" in text and "not reviewed by a pathologist" in text
     assert "known failures" in text and "0.785" in text
     assert not any(w in text for w in ("demo", "hackathon"))
     labels = [b.label for b in at.get("download_button")]

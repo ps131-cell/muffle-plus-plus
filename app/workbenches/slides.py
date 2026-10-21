@@ -44,6 +44,7 @@ from muffle.workbench.slides import (  # noqa: E402
     analyze,
     load_result,
 )
+from muffle.workbench.grammar import CANNOT_SEE, CARD, chip  # noqa: E402
 from muffle.workspace import MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
 
 EXAMPLE = APP / "workbenches" / "slides_example"
@@ -58,10 +59,10 @@ NO_MARK = "no mark"
 
 
 def chips(*labels: str) -> None:
-    color = {"placeholder cutoffs": "orange", PLANNED: "blue", "example slide": "violet",
+    color = {"example slide": "violet",  # statuses, evidence, placeholders: the shared grammar
              "patient's own slide": "green", "hypothesis": "orange",
              "not reviewed by a pathologist": "red", "weak until validated": "orange"}
-    st.caption(" ".join(f":{color.get(label, 'gray')}-badge[{label}]" for label in labels))
+    st.caption(" ".join(chip(label, color.get(label)) for label in labels))
 
 
 def own_slides(index) -> list[str]:
@@ -379,7 +380,7 @@ def head_card(meta: dict, classes: list[str]) -> None:
 
 
 def cannot_see(cutoffs: dict | None = None) -> None:
-    st.markdown("#### What this map cannot see")
+    st.markdown(f"#### {CANNOT_SEE}")
     st.dataframe(pd.DataFrame([{"not visible here": what, "why": why, "what can": how}
                                for what, why, how in inv.CANNOT_SEE]), hide_index=True,
                  width="stretch")
@@ -652,7 +653,7 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
                    if s["excluded"] else "") + ".")
 
     # --- model and validation card -----------------------------------------------------------
-    st.markdown("#### Model and validation card")
+    st.markdown(f"#### {CARD}")
     chips("not reviewed by a pathologist")
     head_card(meta, classes)
     st.markdown(f"**Nuclei.** {inv.MODEL_CARD['nuclei']}. **Geometry.** "

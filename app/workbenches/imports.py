@@ -25,7 +25,8 @@ import streamlit as st  # noqa: E402
 
 from muffle import imports as intake  # noqa: E402
 from muffle.workbench.documents import FIELDS, extract  # noqa: E402
-from muffle.workspace import MARKERS, PatientFile, Test  # noqa: E402
+from muffle.workbench.grammar import chip  # noqa: E402
+from muffle.workspace import IMPLEMENTED, MARKERS, PatientFile, Test  # noqa: E402
 
 KINDS = ("Lab results (CSV)", "Report (text or PDF)", "Slide region image", "DICOM file",
          "Clinician note")
@@ -37,7 +38,7 @@ EXAMPLE = "month,marker,value,unit,reference limit\n27,CA 15-3,58,U/mL,30\n27,CE
 
 def render_view(file: PatientFile) -> None:
     """The Import tests view: the button that opens the dialog, and this session's imports."""
-    st.markdown("#### Import tests :green-badge[implemented]")
+    st.markdown(f"#### Import tests {chip(IMPLEMENTED)}")
     st.markdown("Lab results, a report (text or PDF), a slide region image, a DICOM file or a "
                 "clinician's note. Each import is checked on intake, joins the file as tests and "
                 "adds a report version; earlier versions are never overwritten.")

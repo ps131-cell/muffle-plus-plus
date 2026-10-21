@@ -31,6 +31,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from muffle.workbench import documents as wb  # noqa: E402
+from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 
 FACT, FOCUS, HIT = "#fde68a", "#bfdbfe", "#bbf7d0"
@@ -43,9 +44,8 @@ VALIDATION = APP / "documents" / "validation.json"
 
 
 def chips(*labels: str) -> None:
-    color = {IMPLEMENTED: "green", wb.DOCUMENTED: "blue", "model inference": "violet",
-             "synthetic patient": "orange", "rules, no model": "gray"}
-    st.caption(" ".join(f":{color.get(x, 'gray')}-badge[{x}]" for x in labels))
+    color = {wb.DOCUMENTED: "blue", "synthetic patient": "orange"}  # the rest: shared grammar
+    st.caption(" ".join(chip(x, color.get(x)) for x in labels))
 
 
 def _marked(text: str, spans: list[tuple[int, int]], lo: int, hi: int, color: str = FACT) -> str:
@@ -267,27 +267,28 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
             st.caption(f"{done['mark']} · {done['by'] or 'no initials'} · {done['at']}")
         st.caption("Marks and pins stay in this browser session and go into the report export.")
 
-    with st.expander("Rules card, what this workbench cannot see, and validation"):
+    st.markdown(f"#### {CANNOT_SEE}")
+    st.markdown("\n".join(f"- {x}" for x in wb.CANNOT_SEE))
+    with st.expander(f"{CARD}: the rules and their measured precision and recall"):
         st.dataframe(pd.DataFrame(list(wb.RULES.items()), columns=["Fact", "Rule"]),
                      hide_index=True, width="stretch")
-        st.markdown("**What it cannot see**\n" + "\n".join(f"- {x}" for x in wb.CANNOT_SEE))
         methods_card(compact=True)
 
-    # exports
+    st.markdown(f"#### {EXPORT}")
     e1, e2 = st.columns(2)
     marks = {k: reviews[k] for k in keys if k in reviews}
     e1.download_button(
-        "Documents and facts (JSON)", json.dumps({
+        "Download the documents and facts (JSON)", json.dumps({
             "file": file.id, "version": file.versions[i].label, "method": wb.RULES_VERSION,
             "documents": docs, "facts": facts, "conflicts": conflicts, "marks": marks},
             indent=1, default=str),
         file_name=f"{file.id.replace(' ', '_')}_documents.json", mime="application/json")
     e2.download_button(
-        "Facts (CSV)", pd.DataFrame([{**{k: f[k] for k in ("doc", "label", "value", "start",
-                                                           "end", "quote", "status", "rule")},
-                                      "mark": (reviews.get(key) or {}).get("mark", "")}
-                                     for f, key in zip(facts, keys, strict=True)]).to_csv(
-            index=False), file_name=f"{file.id.replace(' ', '_')}_facts.csv", mime="text/csv")
+        "Download the facts (CSV)", pd.DataFrame([
+            {**{k: f[k] for k in ("doc", "label", "value", "start", "end", "quote", "status",
+                                  "rule")}, "mark": (reviews.get(key) or {}).get("mark", "")}
+            for f, key in zip(facts, keys, strict=True)]).to_csv(index=False),
+        file_name=f"{file.id.replace(' ', '_')}_facts.csv", mime="text/csv")
 
 
 def methods_card(compact: bool = False) -> None:

@@ -296,7 +296,8 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
                         "#### Within-person baseline", "#### Markers against imaging",
                         "#### Cross-marker view", "#### Search", "#### Results",
                         "#### Flagged results: why, and your review", "#### Look here",
-                        "#### Quality checks", "#### Planned", "#### Rules card", "#### Export"]
+                        "#### Quality checks", "#### Planned", "#### Model and validation card",
+                        "#### Export"]
     # the spot panel opens on the latest flagged value
     assert at.selectbox(key="SYNTHETIC-001_spot").value.startswith("L7 · month 24")
     # plain-word search

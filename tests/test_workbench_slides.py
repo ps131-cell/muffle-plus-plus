@@ -106,7 +106,7 @@ def test_slides_page_renders_for_both_file_kinds():
     assert "nothing below is this patient's tissue" in text
     assert not any(w in text for w in ("demo", "hackathon"))
     if (EXAMPLE / "tiles.json").exists():
-        assert "placeholder" in text and "what this map cannot see" in text
+        assert "placeholder" in text and "what this test cannot see" in text
         assert "held out" in text and "not reviewed by a pathologist" in text
 
     tcga = AppTest.from_string(f"""

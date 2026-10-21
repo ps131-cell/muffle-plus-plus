@@ -62,6 +62,7 @@ from muffle.workspace import (  # noqa: E402
     synthetic_file,
 )
 from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
+from muffle.workbench.grammar import CARD, chip  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, f"{ABOVE}, {RISING}": RED, f"{ABOVE}, {FALLING}": ORANGE,
@@ -83,11 +84,8 @@ CAVEAT = ("An out-of-range or rising value is not evidence of progression by its
 
 
 def chips(*labels: str) -> None:
-    """Small status captions: implemented and literature threshold (gray), placeholders
-    (orange), model inference (violet), planned (blue)."""
-    color = {PLACEHOLDER_CHIP: "orange", PLACEHOLDER_METHOD_CHIP: "orange",
-             INFERENCE_CHIP: "violet", PLANNED: "blue"}
-    st.caption(" ".join(f":{color.get(label, 'gray')}-badge[{label}]" for label in labels))
+    """Small status captions in the shared grammar's colors (placeholders orange)."""
+    st.caption(" ".join(chip(label) for label in labels))  # the shared grammar's colors
 
 
 def pct(v) -> str:
@@ -534,9 +532,9 @@ def render(file: PatientFile, events: list[dict] | None = None,
     md = report_markdown(file.id, rows, queue, checks, card, kin[main_key], tracker, windows,
                          bands[main_key], lag, mine)
     e1, e2 = st.columns(2)
-    e1.download_button("Download the Markdown report", md, file_name=f"{file.id}_labs.md",
+    e1.download_button("Download the lab report (Markdown)", md, file_name=f"{file.id}_labs.md",
                        mime="text/markdown", key=f"{file.id}_labs_md")
-    e2.download_button("Download the results as CSV",
+    e2.download_button("Download the results (CSV)",
                        _table(rows, reviews, file).to_csv(index=False),
                        file_name=f"{file.id}_labs.csv", mime="text/csv",
                        key=f"{file.id}_labs_csv")
@@ -552,7 +550,7 @@ def _planned() -> None:
 
 def _card() -> dict:
     card = rules_card()
-    st.markdown("#### Rules card")
+    st.markdown(f"#### {CARD}")
     chips(card["status"])
     st.markdown(f"**{card['name']}** · {card['kind']}  \n**Inputs:** {card['inputs']}  \n"
                 f"**Outputs:** {card['outputs']}  \n**Evidence:** {card['evidence']}  \n"
