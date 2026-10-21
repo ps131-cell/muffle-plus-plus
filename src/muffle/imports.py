@@ -613,11 +613,13 @@ def imaging_read(text: str) -> dict:
 def imaging_test(title: str, text: str, month: int, doc_id: str, source: str) -> Test:
     """An imaging report as an Imaging test: the read ``imaging_read`` found is its result and
     carries the progression and new-site alerts (``workspace.add_version``); its record event
-    feeds the lab workbench's marker-imaging comparison; the text is a document of the file."""
+    feeds the radiology report page and the lab workbench's marker-imaging comparison; the text
+    is a document of the file. Named "Imaging report" like the record's, which is where the
+    radiology workbench's items open; ``title`` stays with the document."""
     r = imaging_read(text)
     result = ("no overall read stated" if r["read"] == NOT_STATED else f"read as {r['read']}") \
         + (f"; new {', '.join(s.lower() for s in r['new_sites'])} named" if r["new_sites"] else "")
-    return Test("Imaging", month, title, result, "imaging", IMPLEMENTED,
+    return Test("Imaging", month, "Imaging report", result, "imaging", IMPLEMENTED,
                 {"scope": "imported report text, no images", "document": doc_id, "title": title,
                  "text": text, "source": source, **r,
                  "rule": IMAGING_RULE,

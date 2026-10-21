@@ -932,7 +932,7 @@ def tests_view(pf: workspace.PatientFile, i: int):
         if "read" in t.details:  # an imported report: its text and what the intake rule read
             from workbenches import imports
 
-            st.markdown(f"#### {t.name}, month {t.month} · imported report")
+            st.markdown(f"#### {esc(t.details['title'])}, month {t.month} · imported report")
             st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.details['text'])}")
             imports.read_details(t.details)
         radiology.render(pf, version=i)

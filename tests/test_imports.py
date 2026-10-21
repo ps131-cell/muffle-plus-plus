@@ -24,6 +24,7 @@ from muffle.imports import (
 from muffle.longitudinal import DRIVERS as SYNTHETIC_PANEL
 from muffle.workbench import documents
 from muffle.workbench import genomics as g
+from muffle.workbench import radiology
 from muffle.workspace import (
     add_version,
     case_file,
@@ -249,12 +250,15 @@ def test_an_imported_imaging_report_raises_progression_and_only_truly_new_sites(
         'Progression on imaging: "New hepatic and pulmonary lesions, consistent with '
         'progression."', "New metastatic site: lung"]
     assert {a.trust for a in v.alerts} == {"moderate"} and v.alerts[0].evidence == "observed"
-    assert v.alerts[1].opens == ("Tests", "Imaging", 27, "CT CAP")
+    assert v.alerts[1].opens == ("Tests", "Imaging", 27, "Imaging report")
     rows = dict(v.observed)
     assert rows["Metastatic sites"] == ("Bone (month -1), Liver (month 12), Lung (month 27, "
                                         "imported report)")
     assert rows["Progressions on imaging"] == "3, last at month 27"
     assert record_events(new)[-1]["progression"] is True  # the lab workbench's lead-lag reads it
+    read = radiology.imaging_reads(radiology.file_events(new))[-1]  # and the radiology page
+    assert (read["month"], read["read"], read["new_sites"]) == (27, "progression",
+                                                                 ["Liver", "Lung"])
     assert documents.file_documents(new)[-1]["text"] == text
     # a stable read raises nothing, and a marker rise after it is a discrepancy
     stable = add_version(pf, [imaging_test("CT", "Imaging stable.", 25, "import-1", "")], 25,

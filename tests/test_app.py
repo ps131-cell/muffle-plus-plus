@@ -199,13 +199,14 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.session_state["picked-SYNTHETIC-001"] = ("Sequencing", 27, seq.name)
     at.run()
     assert "Genomics workbench" in shown(at) and "ESR1 Y537S" in shown(at) and not at.exception
-    at.session_state["picked-SYNTHETIC-001"] = ("Imaging", 27, "CT CAP")
+    at.session_state["picked-SYNTHETIC-001"] = ("Imaging", 27, "Imaging report")
     at.run()
     assert "New distant sites named:** Lung" in shown(at) and "Radiology workbench" in shown(at)
     assert not at.exception
     at.segmented_control(key="view").set_value("Report").run()
     assert 'Progression on imaging: "New pulmonary nodules' in shown(at)
-    assert "New metastatic site: lung" in shown(at) and not at.exception
+    # the new-site alert shares its mark with the radiology workbench's item for that site
+    assert "Lung: named new at month 27" in shown(at) and not at.exception
 
     at.selectbox(key="patient").select(case).run()
     at.segmented_control(key="view").set_value("Tests").run()
