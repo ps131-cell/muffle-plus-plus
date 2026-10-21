@@ -406,5 +406,9 @@ def test_list_rows_search_and_filters():
     assert ids(holds=["Imaging"]) == ["SYNTHETIC-001"]
     assert ids(holds=["Slides", "Documents"]) == ["Case 299"]
     assert ids(open_sos=True) == ["SYNTHETIC-001"]
+    last = len(syn.versions) - 1  # the list's alerts are the queue's, under the same keys
+    q = overview.attention(syn, last, overview.queues(syn, last), [])
+    assert set(by["SYNTHETIC-001"]["alerts"]) == {x["key"] for x in q if x["sos"]}
+    assert finding_key(syn, "lab", "ca153", 11) in by["SYNTHETIC-001"]["alerts"]
     seen = {k: {"mark": "reviewed"} for k in by["SYNTHETIC-001"]["alerts"]}
     assert ids(open_sos=True, reviews=seen) == []

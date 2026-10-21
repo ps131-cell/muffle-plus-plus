@@ -33,6 +33,7 @@ WORKBENCHES |= {name: m for name, m in (("radiology", radiology), ("evolution", 
 NAMES = {"labs": "Labs", "genomics": "Genomics", "slides": "Slides", "omics": "Expression",
          "documents": "Documents", "radiology": "Imaging", "evolution": "Evolution"}
 ORDER_RULE = QUEUE_ORDER
+MARKER_KEYS, DRIVER = crosstest.MARKER_KEYS, crosstest._DRIVER  # names in the alerts' text
 
 
 def _kw(name: str, pf: PatientFile, lookup) -> dict:
@@ -151,11 +152,24 @@ def absent(sums: dict) -> list[str]:
 
 # ------------------------------------------------------------------------------- the queue
 
+def alert_key(pf: PatientFile, a) -> str:
+    """An alert's review key: the finding it is about when a workbench names that finding (a
+    lab value, a sequenced driver), so the queue, the workbench and the patient list share one
+    mark; else the alert's own ``finding_key``."""
+    kind, month, name = (tuple(a.opens) + (None, None, None))[1:4]
+    if kind == "Lab" and name in MARKER_KEYS:
+        return finding_key(pf, "lab", MARKER_KEYS[name], month)
+    driver = DRIVER.search(a.what)
+    if kind == "Sequencing" and driver:
+        return finding_key(pf, "variant", driver.group(1), month)
+    return finding_key(pf, "alert", a.month, a.what)
+
+
 def _alert_item(pf: PatientFile, v_month, a) -> dict:
     return {"pointer": None, "what": a.what, "why": f"{a.rule}; trust: {a.why_trust}",
             "evidence": a.evidence, "trust": a.trust, "consequence": a.consequence,
             "opens": tuple(a.opens), "focus": None, "source": a.source,
-            "key": finding_key(pf, "alert", a.month, a.what), "month": a.month,
+            "key": alert_key(pf, a), "month": a.month,
             "threshold": a.threshold, "kind": "SOS", "new": a.month == v_month,
             "settle": ""}
 
@@ -189,9 +203,9 @@ def attention(pf: PatientFile, i: int, wb_queues: dict, disagree: list[dict]) ->
     for v in pf.versions[: i + 1]:
         for a in v.alerts:
             item = _alert_item(pf, v_month, a)
-            for w in by_opens.get(item["opens"], []):
-                if item["opens"][1:2] == ("Lab",) or (w["pointer"] and w["pointer"] in a.what):
-                    item.update(pointer=w["pointer"], focus=w["focus"], key=w["key"])
+            for w in by_opens.get(item["opens"], []):  # the workbench item behind the alert
+                if w["key"] == item["key"]:
+                    item.update(pointer=w["pointer"], focus=w["focus"])
                     break
             items.append(item)
     items += [_discrepancy_item(d, v_month) for d in disagree]
@@ -251,8 +265,8 @@ def list_row(pf: PatientFile) -> dict:
     }
     return {"id": pf.id, "subtype": omics.SUBTYPES[cs["pam50"]["call"]] if cs else "not called",
             "genes": genes, "stage": crosstest._recorded_stage(pf, len(pf.versions) - 1)
-            or "not recorded", "alerts": [finding_key(pf, "alert", a.month, a.what)
-                                          for v in pf.versions for a in v.alerts],
+            or "not recorded", "alerts": [alert_key(pf, a) for v in pf.versions
+                                          for a in v.alerts],
             "holds": [NAMES[k] for k, held in holds.items() if held]}
 
 
