@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from muffle.report.case_tools import INFERENCE, OBSERVED
+from muffle.workspace import card, finding_key, look
 from muffle.workbench.labs import lead_lag as _lab_lead_lag
 from muffle.workbench.labs import results_table
 from muffle.workspace import record_events
@@ -494,3 +495,122 @@ def search(query: str, reads: list[dict], lesions: list[dict] | None = None,
             "answer": "this workbench can't answer that. It searches reads (progression, "
                       "stable), sites (liver, bone), months (month 12), candidates (C1), "
                       "curve types (washout) and 'largest'."}
+
+
+def look_here(study: dict) -> list[dict]:
+    """What to check by eye in a processed study, per candidate, with the reason."""
+    out = []
+    for c in study["candidates"]:
+        if c["unsure_slices"]:
+            out.append({"candidate": c["id"], "why": f"contour unsure on {len(c['unsure_slices'])}"
+                        " slice(s) (empty, or larger than its box)"})
+        if c["longest_diameter_mm"] < 5:
+            out.append({"candidate": c["id"], "why": "under 5 mm: partial volume dominates"})
+        if c["kinetics"].get("delayed") == "washout":
+            out.append({"candidate": c["id"], "why": "washout curve (type III)"})
+        gap = (study["region"]["limit_row"] - c["seed"]["bbox"][3]) * \
+            study["display"]["native_pixel_mm"][0]
+        if gap < CUTOFFS["near_wall_mm"][0]:
+            out.append({"candidate": c["id"], "why": f"{gap:.0f} mm from the search region's "
+                        "posterior limit: chest-wall muscle and internal mammary vessels enhance "
+                        "there too"})
+        if c["rank"] > 1 and c["seed"]["mean_sub"] > study["candidates"][0]["seed"]["mean_sub"]:
+            out.append({"candidate": c["id"], "why": "brighter on average than C1, ranked lower "
+                        "only because it is smaller"})
+    return out
+
+
+# --- the workbench contract (docs/WORKBENCHES.md §1): the patient file's overview ----------------
+
+RESULTS = Path(__file__).resolve().parents[3] / "app" / "workbenches" / "radiology_results"
+REPORT_METHOD = ("report reading rules version 1 (word patterns for the read and for new sites, "
+                 "cross-checked against the record's own sites field), no model")
+
+
+def _tests(pf, version: int | None) -> list:
+    vs = pf.versions[: len(pf.versions) if version is None else version + 1]
+    return [t for v in vs for t in v.tests if t.workbench == "imaging"]
+
+
+def _studies(pf, version: int | None) -> list[tuple]:
+    return [(t, s) for t in _tests(pf, version) if "folder" in t.details
+            for s in [load_study(RESULTS / t.details["folder"])] if s is not None]
+
+
+def _reads(pf, version: int | None) -> list[dict]:
+    """The file's imaging reads up to the version's month (the report page's own source)."""
+    return imaging_reads(file_events(pf, version))
+
+
+def _opens(t) -> tuple:
+    return ("Tests", t.kind, t.month, t.name)
+
+
+def summary(pf, version: int | None = None) -> dict:
+    """A processed public study's headline (its contours, measurements or scores, and the
+    structured report's BI-RADS), else the lesion table of the record's imaging reports."""
+    tests = _tests(pf, version)
+    if not tests:
+        return {"workbench": "radiology", "title": "Radiology", "cards": [],
+                "note": "no imaging in this file"}
+    cards = []
+    for t, s in _studies(pf, version)[:1]:
+        rep = s.get("report", {})
+        cards.append(card(
+            "Imaging", t.result + (f"; the study's report: BI-RADS {rep['birads']}"
+                                   if rep.get("birads") else ""),
+            f"{OBSERVED} (the study's structured report), {INFERENCE} (contours, sizes, scores)",
+            t.name, f"{s['pipeline']['script']} version {s['pipeline']['version']}: "
+            + ("MedSAM contours on the seed rule's candidates" if s["modality"] == "MR" else
+               "a mammography screening model and a dense-pixel rule"),
+            "the seed rule's and the density rule's cutoffs are placeholders; the kinetics "
+            "cutoffs are literature values used as placeholders", "weak", _opens(t)))
+    reads = _reads(pf, version)
+    if not cards and reads:
+        table = lesion_table(reads)
+        last = reads[-1]
+        named = [t for t in tests if t.kind == "Imaging"]
+        cards.append(card(
+            "Imaging lesions", "; ".join(f"{row['site']} named new at month "
+                                         f"{row['first_named']}" for row in table)
+            + ("; " if table else "") + f"latest read (month {last['month']}): {last['read']}; "
+            f"{NO_MEASUREMENTS}", OBSERVED, "the record's imaging reports (text, no images)",
+            REPORT_METHOD, "none: the reports' own words", "strong",
+            _opens(named[-1]) if named else (), {"site": table[-1]["site"]} if table else None))
+    return {"workbench": "radiology", "title": "Radiology", "cards": cards,
+            "note": None if cards else "the imaging reports state no read"}
+
+
+def queue(pf, version: int | None = None) -> list[dict]:
+    """Each site a report names as new (consequence 3, trust strong: the reader's words), a
+    report whose words and the record's sites field disagree, and each processed study's
+    candidates to check by eye (model contours: consequence 1, trust weak)."""
+    out = []
+    reads = _reads(pf, version)
+    for row in lesion_table(reads):
+        m = row["first_named"]
+        out.append(look(
+            row["site"], f"{row['site']}: named new at month {m}", "the imaging report names "
+            f"it; size and count: {NO_MEASUREMENTS}", OBSERVED, "strong", 3,
+            ("Tests", "Imaging", m, "Imaging report"), source=f"Imaging report, month {m}",
+            key=finding_key(pf, "imaging", "report", m, row["site"]),
+            focus={"site": row["site"]}, month=m, threshold="none: the reader's own words"))
+    for r in reads:
+        if not r["agrees"]:
+            out.append(look(
+                None, f"Imaging, month {r['month']}: the report's words and the record's sites "
+                "field disagree", f"words {r['new_sites']}, field {r['recorded_sites']}",
+                OBSERVED, "moderate", 2, ("Tests", "Imaging", r["month"], "Imaging report"),
+                source=f"Imaging report, month {r['month']}",
+                key=finding_key(pf, "imaging", "report", r["month"], "read"), month=r["month"],
+                threshold=REPORT_METHOD))
+    for t, s in _studies(pf, version):
+        for q in look_here(s) if s["modality"] == "MR" else []:
+            out.append(look(
+                q["candidate"], f"{q['candidate']} ({t.name}): {q['why']}", "a model contour "
+                "from the seed rule's candidates, not a reading of the study", INFERENCE,
+                "weak", 1, _opens(t), source=t.name,
+                key=finding_key(pf, "imaging", s["barcode"], s["study"]["date"],
+                                q["candidate"]),
+                threshold="the seed rule's cutoffs (placeholders)"))
+    return out

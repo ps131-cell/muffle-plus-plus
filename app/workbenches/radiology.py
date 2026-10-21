@@ -275,7 +275,7 @@ def mri_page(pf: PatientFile, study: dict) -> None:
                f"{c1['volume_range_ml'][1]:g}), {c1['kinetics'].get('initial')} initial and "
                f"{c1['kinetics'].get('delayed')} delayed enhancement (curve type "
                f"{c1['kinetics'].get('curve_type')})." if c1 else "No candidate was proposed."))
-    look = look_here(study)
+    look = rad.look_here(study)
     st.markdown(obs + "  \n" + inf + "  \n**Check by eye**: " + (
         "; ".join(f"{q['candidate']}: {q['why']}" for q in look) or "nothing flagged") + ".")
     st.caption("The candidates are where the subtraction is brightest, not a reading of the "
@@ -363,29 +363,6 @@ def _jump(study: dict, key0: str) -> None:
              None)
     if c:
         st.session_state[f"{key0}-slice"] = _ld_index(study, c) + 1
-
-
-def look_here(study: dict) -> list[dict]:
-    """What to check by eye, per candidate, with the reason."""
-    out = []
-    for c in study["candidates"]:
-        if c["unsure_slices"]:
-            out.append({"candidate": c["id"], "why": f"contour unsure on {len(c['unsure_slices'])}"
-                        " slice(s) (empty, or larger than its box)"})
-        if c["longest_diameter_mm"] < 5:
-            out.append({"candidate": c["id"], "why": "under 5 mm: partial volume dominates"})
-        if c["kinetics"].get("delayed") == "washout":
-            out.append({"candidate": c["id"], "why": "washout curve (type III)"})
-        gap = (study["region"]["limit_row"] - c["seed"]["bbox"][3]) * \
-            study["display"]["native_pixel_mm"][0]
-        if gap < rad.CUTOFFS["near_wall_mm"][0]:
-            out.append({"candidate": c["id"], "why": f"{gap:.0f} mm from the search region's "
-                        "posterior limit: chest-wall muscle and internal mammary vessels enhance "
-                        "there too"})
-        if c["rank"] > 1 and c["seed"]["mean_sub"] > study["candidates"][0]["seed"]["mean_sub"]:
-            out.append({"candidate": c["id"], "why": "brighter on average than C1, ranked lower "
-                        "only because it is smaller"})
-    return out
 
 
 def lesion_rows(study: dict) -> list[dict]:

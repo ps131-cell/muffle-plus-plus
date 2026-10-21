@@ -38,6 +38,9 @@ RISK_JUMP = 20  # PLACEHOLDER: a rise in 12-month risk (points) worth an alert, 
 # ponytail: alerts are ordered by consequence × these weights, a fixed rule (placeholder), not a
 # validated score; a triage model calibrated on outcomes would replace it
 TRUST = {"strong": 1.0, "moderate": 0.6, "weak": 0.3}
+QUEUE_ORDER = ("ordered by consequence × trust (weights " + ", ".join(
+    f"{k} {w:g}" for k, w in TRUST.items()) + "; a fixed rule with placeholder weights, not a "
+    "validated score), then new in this version, then the latest first")
 DISCLAIMER = "Research and decision support for clinicians; not a diagnosis or a prescription."
 
 ASSAYS = {"clinical": "Clinical record (stage, T/N/M, age, histology)",
@@ -276,6 +279,7 @@ def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
          else ", ".join(muts) or "sequenced: none of the panel's genes mutated"],
     ]
     risk = {"percentile": case.percentile, "group": case.group, "c_index": c_index,
+            "log_risk": getattr(case, "log_risk", None),  # ties precomputed scores to the build
             "evidence": INFERENCE}
     summary = (f"Model estimate: risk at the {ordinal(case.percentile)} percentile of the cohort "
                f"({case.group} risk group).")
@@ -405,7 +409,9 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "slide": "the slide ('TCGA-AN-A0AS-DX1'), the tile ('r12c34')",
     "omics": "the layer or block ('rna', 'subtype', 'pathway', 'receptor', 'score'), the feature "
              "or finding ('ESR1', 'E2F_TARGETS', 'ER: IHC vs RNA')",
-    "document": "the document's id, the fact ('ER status: positive')",
+    "document": "the document's id, the fact ('ER status: positive'); 'conflict', the field's "
+                "label for a conflict between documents",
+    "discrepancy": "the cross-test rule ('ERBB2 copy number vs HER2'), what it is about",
     "evolution": "the watched event or 'trial', its source (a PMID or an NCT number)",
     "imaging": "the TCGA barcode (or 'report'), the study (its date, or the report's month), "
                "the lesion ('C1', or the named site)",
@@ -421,14 +427,50 @@ def finding_key(pf: PatientFile, kind: str, *parts) -> str:
     return "|".join([pf.id, kind, *map(str, parts)])
 
 
+# The workbench contract (docs/WORKBENCHES.md §1). Every workbench module has
+# ``summary(pf, version=None) -> {"workbench", "title", "cards": [card], "note"}`` (a few key
+# findings; "note" says why there are none) and ``queue(pf, version=None) -> [look]`` (what is
+# worth a look now). ``opens`` has the shape of ``Alert.opens``; ``focus`` says where inside the
+# workbench the evidence is (a pointer, a tile, a sentence), so "open" lands on it.
+CARD_KEYS = ("what", "text", "evidence", "source", "method", "threshold", "trust", "opens",
+             "focus")
+ITEM_KEYS = ("pointer", "what", "why", "evidence", "trust", "consequence", "opens", "focus",
+             "source", "key", "month", "threshold")
+
+
+def card(what: str, text: str, evidence: str, source: str, method: str, threshold: str,
+         trust: str, opens: tuple = (), focus: dict | None = None) -> dict:
+    """One finding card: the statement, its evidence label, the test it comes from, the method
+    and its version, where its threshold comes from and how far to trust it (TRUST)."""
+    if trust not in TRUST:
+        raise ValueError(f"trust must be one of {list(TRUST)}")
+    return dict(zip(CARD_KEYS, (what, text, evidence, source, method, threshold, trust,
+                                tuple(opens), focus), strict=True))
+
+
+def look(pointer: str | None, what: str, why: str, evidence: str, trust: str, consequence: int,
+         opens: tuple = (), *, source: str, key: str, focus: dict | None = None,
+         month: int | None = None, threshold: str = "") -> dict:
+    """One look-here item of a workbench's queue: its pointer in the workbench (L5, T2, ...), why
+    it is there, the evidence label, trust and consequence (as ``Alert``: 3 changes the picture of
+    the disease, 2 may change care, 1 worth a look), and ``key``, its ``finding_key``."""
+    if trust not in TRUST or consequence not in (1, 2, 3):
+        raise ValueError("trust must be one of TRUST and consequence 1, 2 or 3")
+    return dict(zip(ITEM_KEYS, (pointer, what, why, evidence, trust, consequence, tuple(opens),
+                                focus, source, key, month, threshold), strict=True))
+
+
 def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
                     reviews: dict | None = None, sources: list[str] | tuple = (),
-                    disagree: list[dict] | tuple = (), reducers: list[dict] | tuple = ()) -> str:
-    """Report version ``i`` as one Markdown page: summary, alerts, the three kinds of finding,
-    missing data, tests that disagree, what would reduce uncertainty, every placeholder, model
-    and sources, and the reviewers' marks. ``evidence`` maps "GENE CHANGE" to its CIViC items
-    (None: the table couldn't load); ``reviews`` maps ``finding_key`` names to {"what", "mark",
-    "by", "at"}; ``disagree`` and ``reducers`` are ``muffle.crosstest``'s lists."""
+                    disagree: list[dict] | tuple = (), reducers: list[dict] | tuple = (),
+                    summaries: dict | None = None, queue: list[dict] | None = None) -> str:
+    """Report version ``i`` as one Markdown page: summary, alerts, every workbench's finding
+    cards, the attention queue, the three kinds of finding, missing data, tests that disagree,
+    what would reduce uncertainty, every placeholder, model and sources, and the reviewers' marks
+    by finding kind. ``evidence`` maps "GENE CHANGE" to its CIViC items (None: the table couldn't
+    load); ``reviews`` maps ``finding_key`` names to {"what", "mark", "by", "at"}; ``disagree``
+    and ``reducers`` are ``muffle.crosstest``'s lists; ``summaries`` and ``queue`` are
+    ``muffle.overview``'s."""
     v, evidence, reviews = pf.versions[i], evidence or {}, reviews or {}
     when = "" if v.month is None else f" (month {v.month})"
     out = [f"# {pf.id} · report {v.label}", "", f"_{pf.title} · {pf.diagnosis}_", "",
@@ -440,6 +482,23 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
             "## SOS alerts in this version"]
     out += [f"- {a.what} [{a.evidence}; trust {a.trust}: {a.why_trust}]. Rule: {a.rule}. "
             f"Threshold: {a.threshold}." for a in v.alerts] or ["- none"]
+    marks = {k: r for k, r in reviews.items() if k.startswith(pf.id + "|")}
+    if summaries:
+        out += ["", "## Findings by workbench"]
+    for s in (summaries or {}).values():
+        out += ["", f"### {s['title']}"] + [
+            f"- **{c['what']}**: {c['text']} [{c['evidence']}; trust {c['trust']}]. Source: "
+            f"{c['source']}. Method: {c['method']}. Threshold: {c['threshold']}."
+            for c in s["cards"]] + ([f"- {s['note']}"] if s.get("note") else [])
+    if queue is not None:
+        out += ["", f"## Attention queue ({QUEUE_ORDER})"]
+        out += [f"{x['n']}. [{x['label']}] " + (f"{x['pointer']} · " if x["pointer"] else "")
+                + f"{x['what']} [{x['evidence']}; trust {x['trust']}; consequence "
+                f"{x['consequence']}]: {x['why']}"
+                + (f" What would settle it: {x['settle']}" if x["settle"] else "")
+                + (f" Also raised by {', '.join(x['also'])}." if x["also"] else "")
+                + (f" Review: {marks[x['key']]['mark']}." if x["key"] in marks else "")
+                for x in queue] or ["- nothing needs attention"]
     out += ["", f"## Observed [{OBSERVED}]"] + [f"- {k}: {val}" for k, val in v.observed]
     out += ["", f"## Model inference [{INFERENCE}]"]
     r = v.risk or {}
@@ -473,8 +532,10 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     out += [f"- {m}" for m in missing_data(pf, i)]
     if disagree:
         out += ["", "## Tests that disagree"] + [
-            f"- {d['what']} [{d['evidence']}]: {d['why']} What would settle it: "
-            f"{d['would_settle']}" for d in disagree]
+            f"- {d['what']} [{d['evidence']}" + (f"; trust {d['trust']}" if "trust" in d else "")
+            + f"]: {d['why']} Sources: {' vs '.join(d['sources'])}. What would settle it: "
+            f"{d['would_settle']}" + (f" Basis: {d['basis']}." if d.get("basis") and d["basis"]
+                                     not in d["would_settle"] else "") for d in disagree]
     if reducers:
         out += ["", f"## What would reduce uncertainty [{HYPOTHESIS}; evidence, not an order]"]
         out += [f"- {r['open_question']} → {r['test']}: {r['expectation']} (source: "
@@ -483,6 +544,12 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
         f"An alert when the 12-month risk rises at least {RISK_JUMP} points",
         "Alert order: consequence × trust, with trust weights "
         + ", ".join(f"{k} {w:g}" for k, w in TRUST.items())] if pf.kind == "synthetic" else []
+    if queue is not None:  # the queue's order, then every placeholder threshold shown above
+        placeholders.append(f"Attention queue: {QUEUE_ORDER}")
+        placeholders += list(dict.fromkeys(
+            f"{x['what']}: {x['threshold']}" for x in [
+                *(c for s in (summaries or {}).values() for c in s["cards"]), *queue]
+            if "placeholder" in x["threshold"].lower()))
     out += ["", "## Placeholders (not validated)"] + [f"- {p}" for p in placeholders or ["none"]]
     out += ["", "## Model and sources",
             f"- {pf.model['name']} ({pf.model['status']}); endpoint: {pf.model['endpoint']}"]
@@ -492,7 +559,9 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
         out += ["", "## Imported in this session (kept for this browser session only)"]
         out += [f"- {w.label}: {w.event}; tests: " + ", ".join(
             f"{t.kind} {t.name} ({t.status})" for t in w.tests) for w in imports]
-    marks = [r for k, r in reviews.items() if k.startswith(pf.id + "|")]
-    out += ["", "## Review marks"] + ([f"- {r['what']}: {r['mark']} ({r['by'] or 'no initials'}, "
-                                       f"{r['at']})" for r in marks] or ["- none"])
+    out += ["", "## Review marks"] + ([] if marks else ["- none"])
+    for kind in FINDING_KINDS:  # by kind: alerts, CIViC items, lab values, slide tiles, ...
+        mine = [r for k, r in marks.items() if k.split("|")[1] == kind]
+        out += [f"### {kind}"] * bool(mine) + [
+            f"- {r['what']}: {r['mark']} ({r['by'] or 'no initials'}, {r['at']})" for r in mine]
     return "\n".join(out) + "\n"

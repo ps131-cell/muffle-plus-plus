@@ -20,7 +20,14 @@ from pathlib import Path
 
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import documents
-from muffle.workspace import DISCLAIMER, PatientFile, finding_key, sequencing_tests
+from muffle.workspace import (
+    DISCLAIMER,
+    PatientFile,
+    card,
+    finding_key,
+    look,
+    sequencing_tests,
+)
 
 VERIFIED = "2026-10-20"  # every PMID and DOI in SOURCES, checked against PubMed that day
 VAF_JSON = Path(__file__).resolve().parents[2] / "app" / "evolution_vaf.json"
@@ -1071,3 +1078,40 @@ def report_markdown(pf: PatientFile, version: int | None, hs: dict, panel: dict,
     out += ["", f"Table checked against PubMed on {VERIFIED}; frequencies are cohort figures, "
             "not this patient's probability.", ""]
     return "\n".join(out)
+
+
+# --------------------------------------------- the workbench contract (docs/WORKBENCHES.md §1)
+
+def _raised(item: dict) -> bool:
+    """A row this file raises itself (a recorded treatment or an observed driver), not one that
+    applies to any breast cancer."""
+    return any("recorded from month" in w or w.startswith("observed") for w in item["why"])
+
+
+def summary(pf: PatientFile, version: int | None = None) -> dict:
+    """The top hypothesis of what to watch next, with why this file raises it."""
+    hs = hypothesis_set(pf, version)
+    if not hs["items"]:
+        return {"workbench": "evolution", "title": "Evolution", "cards": [],
+                "note": "no row of the evolution table is raised by this file"}
+    it = hs["items"][0]
+    return {"workbench": "evolution", "title": "Evolution", "note": None, "cards": [card(
+        "What to watch next", f"{it['event']}: {'; '.join(it['why'])}", HYPOTHESIS,
+        "this file's recorded treatments, drivers and receptor status",
+        f"a cited table of {len(TABLE)} rows (PubMed checked {VERIFIED}), ranked by a fixed "
+        f"rule; strongest support: {it['strength']}",
+        f"none: a hypothesis to watch, never advice; detect with {it['detect']}", "weak",
+        ("Evolution",))]}
+
+
+def queue(pf: PatientFile, version: int | None = None, k: int = 3) -> list[dict]:
+    """The first ``k`` rows the file raises itself, as hypotheses worth a look (consequence 1,
+    trust weak); the Evolution view holds the rest and the rows that apply to any patient."""
+    out = []
+    for it in [it for it in hypothesis_set(pf, version)["items"] if _raised(it)][:k]:
+        out.append(look(
+            it["id"], f"Watch for {it['event']}", f"{'; '.join(it['why'])}; when it would "
+            f"matter: {it['matters']}; detect with {it['detect']}", HYPOTHESIS, "weak", 1,
+            ("Evolution",), source="the Evolution view's cited table", key=it["key"],
+            threshold=f"none: a hypothesis ({it['strength']}); frequency {it['frequency']}"))
+    return out

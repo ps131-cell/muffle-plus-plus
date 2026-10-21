@@ -263,21 +263,21 @@ def _marks_of(file: PatientFile, r: dict, reviews: dict) -> str:
     return f"{done['mark']} ({done['by'] or 'no initials'})" if done else ""
 
 
-def _sync_reviews(file: PatientFile, flagged: list[dict], reviews: dict) -> None:
-    """Read the review widgets' state into the workspace's review store, in its shape
-    ({"what", "mark", "by", "at"} under ``finding_key``), before anything that shows the marks
-    is drawn, so filters never lag a click."""
-    by = st.session_state.get("reviewer", "") or ""  # the shell's sidebar field
-    for r in flagged:
-        key = _key(file, r)
-        choice = st.session_state.get(f"mark_{key}", NO_MARK)
-        if choice == NO_MARK:
-            reviews.pop(key, None)
-        elif key not in reviews or reviews[key]["mark"] != choice:
-            reviews[key] = {"what": f"{r['marker']} {r['value']:g} {r['unit']} at month "
-                                    f"{r['month']}: {r['flag']} ({r['pointer']})",
-                            "mark": choice, "by": by,
-                            "at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+def _set_mark(file: PatientFile, r: dict) -> None:
+    """A review widget changed: write its mark into the workspace's review store, in its shape
+    ({"what", "mark", "by", "at"} under ``finding_key``). The store is the truth (the report's
+    attention queue marks lab results too); a callback runs before the page, so filters never
+    lag a click."""
+    key = _key(file, r)
+    reviews = st.session_state.setdefault("reviews", {})
+    choice = st.session_state[f"mark_{key}"]
+    if choice == NO_MARK:
+        reviews.pop(key, None)
+    else:
+        reviews[key] = {"what": f"{r['marker']} {r['value']:g} {r['unit']} at month "
+                                f"{r['month']}: {r['flag']} ({r['pointer']})",
+                        "mark": choice, "by": st.session_state.get("reviewer", "") or "",
+                        "at": datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 
 def render(file: PatientFile, events: list[dict] | None = None,
@@ -333,7 +333,6 @@ def render(file: PatientFile, events: list[dict] | None = None,
     lag, cross = lead_lag(rows, events), cross_marker(rows)
     hyp = cross_analyte(rows, events)
     reviews = st.session_state.setdefault("reviews", {})  # the workspace's one store per file
-    _sync_reviews(file, flagged, reviews)
     mine = {k: v for k, v in reviews.items() if k.startswith(f"{file.id}|lab|")}
     synthetic = file.kind == "synthetic"
     imported = any("(imported" in e.get("text", "") for e in events)
@@ -586,8 +585,10 @@ def render(file: PatientFile, events: list[dict] | None = None,
                 st.markdown(f"**{f['flag']}** · rule: {f['rule']} · threshold: "
                             f"{f['threshold']} · evidence: {r['evidence']} · status: "
                             f"{f['status']}")
-            st.selectbox("Your review mark for this result", MARKS,
-                         key=f"mark_{_key(file, r)}",
+            key = _key(file, r)  # the widget starts from the store: a mark made elsewhere shows
+            st.session_state[f"mark_{key}"] = (reviews.get(key) or {}).get("mark", NO_MARK)
+            st.selectbox("Your review mark for this result", MARKS, key=f"mark_{key}",
+                         on_change=_set_mark, args=(file, r),
                          help="Marks go into this file's report export")
             st.markdown(f"Change from previous {pct(r['change'])}, from nadir "
                         f"{pct(r['from_nadir'])}; source: {r['event']}.")

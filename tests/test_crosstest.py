@@ -11,7 +11,8 @@ from muffle.workspace import synthetic_file
 
 ROOT = Path(__file__).resolve().parents[1]
 DIFF_KEYS = {"column", "finding", "before", "after", "status"}
-DISC_KEYS = {"what", "sources", "months", "why", "would_settle", "evidence"}
+DISC_KEYS = {"what", "sources", "months", "why", "would_settle", "evidence", "rule", "basis",
+             "trust", "consequence", "opens", "focus", "key"}
 RED_KEYS = {"open_question", "test", "expectation", "source", "evidence"}
 KINDS = {OBSERVED, INFERENCE, HYPOTHESIS}
 

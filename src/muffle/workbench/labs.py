@@ -22,7 +22,17 @@ from statistics import median
 
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import labs_reference as ref
-from muffle.workspace import IMPLEMENTED, PLANNED, REFERENCE_LIMITS, RISE, lab_series
+from muffle.workspace import (
+    IMPLEMENTED,
+    PLANNED,
+    REFERENCE_LIMITS,
+    RISE,
+    card,
+    finding_key,
+    lab_series,
+    look,
+    record_events,
+)
 
 WITHIN, ABOVE, BELOW, RISING, FALLING = ("within limit", "above limit", "below limit", "rising",
                                          "falling")
@@ -871,3 +881,91 @@ def rules_card(markers: dict | None = None, limits: dict = REFERENCE_LIMITS) -> 
         ],
         "status": IMPLEMENTED,
     }
+
+
+# --- the workbench contract (docs/WORKBENCHES.md §1): the patient file's overview ----------------
+
+METHOD = "rules on observed values, no model (lab workbench rules)"
+CARDS = 4  # the most cards a summary shows: tumor markers first, then flagged analytes
+
+
+def file_rows(pf, version: int | None = None) -> list[dict]:
+    """``results_table`` of a patient file as of report version ``version`` (the latest when
+    None): the record's results and this session's imported ones, up to that version's month."""
+    cutoff = pf.versions[-1 if version is None else version].month
+    return results_table([e for e in record_events(pf)
+                          if cutoff is not None and e["month"] <= cutoff])
+
+
+def _threshold(r: dict) -> str:
+    return "; ".join(f["threshold"] for f in _fired(r)) or \
+        f"reference {r['reference']} ({r['reference_source']})"
+
+
+def _opens(r: dict) -> tuple:
+    return ("Tests", "Lab", r["month"], r["marker"])
+
+
+def _focus(r: dict) -> dict:
+    return {"marker": r["key"], "month": r["month"]}
+
+
+def summary(pf, version: int | None = None) -> dict:
+    """The latest value of each tumor marker and of each analyte whose latest value is flagged,
+    and the latest rise still waiting for its confirming specimen (EGTM)."""
+    rows = file_rows(pf, version)
+    latest = {r["key"]: r for r in rows}  # month order: the last value wins
+    shown = sorted((r for r in latest.values() if r["tumor_marker"] or r["flags"]),
+                   key=lambda r: (not r["tumor_marker"], not r["flags"]))[:CARDS]
+    cards = [card(
+        f"Latest {r['marker']}", f"{r['marker']} {r['value']:g} {r['unit']} at month "
+        f"{r['month']}: {r['flag']}" + (f" ({r['pointer']})" if r["pointer"] else ""),
+        r["evidence"], f"{r['marker']}, month {r['month']}", METHOD, _threshold(r), "strong",
+        _opens(r), _focus(r)) for r in shown]
+    waiting = [t for t in confirmation_tracker(rows) if t["outcome"] == "unconfirmed"]
+    if waiting:
+        t = waiting[-1]
+        r = next(r for r in rows if r["pointer"] == t["pointer"])
+        cards.append(card(
+            "Rise not confirmed", f"{t['marker']} {t['previous']:g} → {t['value']:g} "
+            f"{r['unit']} at month {t['month']} ({t['pointer']}): {t['detail']}", OBSERVED,
+            f"{t['marker']}, month {t['month']}", METHOD, t["source"], "moderate", _opens(r),
+            _focus(r)))
+    note = None if cards else ("no lab results in this file" if not rows else
+                               "no tumor marker and no flagged result")
+    return {"workbench": "labs", "title": "Blood and lab", "cards": cards, "note": note}
+
+
+def queue(pf, version: int | None = None) -> list[dict]:
+    """Each change flag (a tumor marker's rise with its EGTM confirmation outcome, a fall, a
+    large change of another analyte), each CTCAE-graded low count, and each analyte's latest
+    value when it is out of its interval; older out-of-interval values stay in the workbench's
+    own queue."""
+    rows = file_rows(pf, version)
+    latest = {r["key"]: r for r in rows}
+    outcome = {t["pointer"]: t for t in confirmation_tracker(rows)}
+    out = []
+    for r in rows:
+        flags = set(r["flags"])
+        if not flags & {RISING, FALLING, LARGE_RISE, LARGE_FALL, GRADED} and not (
+                flags & {ABOVE, BELOW} and latest[r["key"]] is r):
+            continue
+        why = [f"{f['flag']}: {f['rule']} (threshold: {f['threshold']})" for f in _fired(r)]
+        trust, consequence, t = "strong", 1, outcome.get(r["pointer"])
+        if RISING in flags:
+            trust = {"confirmed": "strong", "withdrawn": "moderate"}.get(
+                t["outcome"] if t else "", "moderate")
+            consequence = 2 if ABOVE in flags and (not t or t["outcome"] != "withdrawn") else 1
+            if t:
+                why.append(f"EGTM confirmation: {t['outcome']}, {t['detail']}")
+        elif flags & {FALLING, LARGE_RISE, LARGE_FALL}:
+            trust = "weak"  # placeholder change thresholds
+        if GRADED in flags:  # a guideline grade: grade 3 or 4 may change care
+            trust, consequence = "strong", max(consequence, 2 if (r["grade"] or 0) >= 3 else 1)
+        out.append(look(
+            r["pointer"], f"{r['marker']} {r['value']:g} {r['unit']} at month {r['month']}: "
+            f"{r['flag']}", "; ".join(why), r["evidence"], trust, consequence, _opens(r),
+            source=f"{r['marker']}, month {r['month']}",
+            key=finding_key(pf, "lab", r["key"], r["month"]), focus=_focus(r),
+            month=r["month"], threshold=_threshold(r)))
+    return out
