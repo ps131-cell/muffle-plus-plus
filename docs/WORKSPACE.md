@@ -49,8 +49,9 @@ The front page of a file is always the newest version of the report:
 - **Risk factors and areas of risk**: which findings raise the risk, and where (organs, lesions,
   slide regions).
 - **What changed since the last version, and why.**
-- **Evolutionary hypotheses** (roadmap): the likely next alterations and escape routes, with
-  their confidence.
+- **Evolutionary hypotheses**: the likely next alterations and escape routes, each with its
+  sources and the test that would detect it (the Evolution view, `docs/evolution.md`; a
+  calibrated confidence per patient stays roadmap).
 - **Treatment evidence for clinician review**: CIViC items with their levels, guidelines, trials,
   literature and known resistance mechanisms; never a regimen.
 - **Missing data and what it limits** (e.g. "not sequenced since month 0: mutation status after
@@ -221,6 +222,7 @@ alert rules, how the case note is made, federated training, data sources and lic
 | Genomics workbench | Built (`app/workbenches/genomics.py`, opened from a sequencing test): provenance strip, variants with detection, interpretation and predicted effect apart, the CIViC evidence ladder with resistance items, panel coverage, the resistance watchlist, review queue and marks; ctDNA planned |
 | Expression, methylation, protein | Built (`app/workbenches/omics.py`, opened from any data-layer test or the clinical record of a TCGA file; [`omics.md`](omics.md)): the three questions with a check-by-eye queue, the PAM50 subtype call (experimentally validated against TCGA's published calls on this cohort) with its correlations and margin, Hallmark pathway, proliferation and immune scores with hover, receptor consistency (IHC against RNA, ERBB2 copy number and RPPA, with "RNA is not protein"), a card per layer (normalization, contribution against a typical patient, strongest features with cohort percentiles and pathway membership, the layer's own C-index, the copy-number layer's known failure), what-if, a Spot panel per finding, search, marks and pins, JSON and CSV export. Scores are precomputed offline (`scripts/omics_scores.py`); other signatures planned |
 | Status labels on modules | Built: every section shows its evidence labels and its status (implemented, experimentally validated, planned) |
+| Evolution view | Built (2026-10-20, `app/workbenches/evolution.py`, `docs/evolution.md`): the record's events over time; what to watch next from a cited table of 18 context → event rows (37 papers, PMIDs checked against PubMed), raised by the file's treatments, receptor status and drivers, each with evidence for and against, frequency and cohort, the detecting test and CIViC items; clonal order from GDC read counts as alternatives (TCGA cases; purity unknown); recruiting trials for the observed genes (ClinicalTrials.gov, dated snapshot offline); marks, pins, search, export. Hypotheses, not validated predictions |
 | Review tools and export | Built in the patient file: agree / disagree / second-look marks with initials and time and pins on alerts, CIViC items and the risk estimate, a filterable list of them, and a one-page Markdown export per report version (numbers, sources, placeholders, model versions, marks). Marks live in the browser session |
 
 ### What ships before the Oct 28 freeze (scope B, decided 2026-10-19)

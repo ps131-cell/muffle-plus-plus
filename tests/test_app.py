@@ -1,6 +1,8 @@
 """The workspace pages render: the patient list and both kinds of patient file in every view
 (Streamlit's AppTest, on a bundle built from the test cohort; no network, no keys)."""
 
+import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -8,17 +10,17 @@ import numpy as np
 import pytest
 import torch
 
-from muffle import workspace
+from muffle import evolution, workspace
 from muffle.demo import build_demo, pick_cases, save_bundle, subset
 from muffle.hotreload import source_digest
 from muffle.imports import lab_tests, parse_labs
 from muffle.models import MuffleNet
-from muffle.report import civic
+from muffle.report import civic, trials
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app" / "streamlit_app.py"
-VIEWS = ("Tests", "Timeline", "Import tests", "Report")
+VIEWS = ("Tests", "Timeline", "Evolution", "Import tests", "Report")
 
 
 def shown(at) -> str:
@@ -43,6 +45,12 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     for key in ("NEBIUS_API_KEY", "TAVILY_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(civic, "load_table", lambda *a, **k: None)  # no CIViC download
+
+    def offline(*a, **k):
+        raise OSError("no registry calls in tests")
+
+    monkeypatch.setattr(trials, "CACHE", tmp_path / "trials")  # the trials come from the snapshot
+    monkeypatch.setattr(trials, "_get", offline)
     # this process already runs this code, so the app's hot-reload guard must not purge it
     monkeypatch.setattr(sys, "_muffle_code_digest",
                         source_digest([APP.parent, ROOT / "src" / "muffle"]), raising=False)
@@ -84,6 +92,17 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.segmented_control(key="view").set_value("Timeline").run()  # compare month 11 with 12
     assert "~ Metastatic sites" in shown(at) and "12-month risk" in shown(at)
     at.segmented_control(key="view").set_value("Report").run()
+    button(at, "Open the Evolution view").click().run()  # the report's hook, as of month 12
+    assert at.segmented_control(key="view").value == "Evolution"
+    assert "Tumor evolution and treatment evidence" in shown(at) and not at.exception
+    assert "ESR1 ligand-binding-domain mutation" in shown(at) and "snapshot" in shown(at)
+    tl = json.loads((APP.parent / "timeline_synthetic.json").read_text(encoding="utf-8"))
+    key = evolution.hypothesis_set(workspace.synthetic_file(tl), 11)["items"][0]["key"]
+    mark = f"evo-mark-{hashlib.sha1(key.encode()).hexdigest()[:10]}"
+    at.segmented_control(key=mark).set_value("agree").run()  # joins the file's review list
+    assert at.session_state["reviews"][key]["mark"] == "agree"
+    at.segmented_control(key="view").set_value("Report").run()
+    assert any("2 marked" in e.label for e in at.expander)  # the alert above and this one
     at.select_slider(key="version-SYNTHETIC-001").set_value(10).run()  # month 11
     assert "CA 15-3 rising while the latest imaging read stable" in shown(at)
     assert "Repeat CA 15-3 specimen within a month" in shown(at) and not at.exception

@@ -54,9 +54,10 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
     sys._muffle_code_digest = CODE_DIGEST
 
 import charts  # noqa: E402
+from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
 
-from muffle import crosstest, workspace  # noqa: E402
+from muffle import crosstest, evolution, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
     evidence_lookup,
@@ -289,11 +290,12 @@ def patient_file(pf: workspace.PatientFile):
              "open the report, its tests and its timeline as they were then.")
     if "view" not in st.session_state and "view" not in st.query_params:
         st.session_state.view = "Report"  # no default=: "open the test" sets the view in code
-    view = st.segmented_control("View", ["Report", "Tests", "Timeline", "Import tests"],
+    view = st.segmented_control("View", ["Report", "Tests", "Timeline", "Evolution",
+                                         "Import tests"],
                                 required=True, key="view", bind="query-params",
                                 label_visibility="collapsed")
     {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
-     "Import tests": import_view}[view](pf, i)
+     "Evolution": evolution_view, "Import tests": import_view}[view](pf, i)
 
 
 def report_view(pf: workspace.PatientFile, i: int):
@@ -351,8 +353,13 @@ def report_view(pf: workspace.PatientFile, i: int):
     if quiet:
         st.caption("No CIViC breast cancer evidence for " + ", ".join(quiet) + ".")
 
-    st.markdown(f"**Evolutionary hypotheses** {badge(workspace.PLANNED)} · the likely next "
-                "alterations and escape routes, with their confidence (docs/VISION.md).")
+    watch = evolution.hypothesis_set(pf, i)["items"]
+    st.markdown(f"**Evolutionary hypotheses** {tags(HYPOTHESIS)} {badge(workspace.IMPLEMENTED)}"
+                " · what to watch next, ranked, with sources and the test that would detect it: "
+                + ("; ".join(it["event"] for it in watch[:3]) if watch else "none raised")
+                + " (Evolution view)")
+    st.button("Open the Evolution view", key=f"evolution-{pf.id}-{i}",
+              on_click=lambda: st.session_state.update(view="Evolution"))
     st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
     st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
     disagree = crosstest.discrepancies(pf, i)
@@ -811,6 +818,12 @@ def compare(pf: workspace.PatientFile, i: int):
         st.markdown("\n".join(f"- **{v.label}** · {v.summary}" for v in why))
 
 
+def evolution_view(pf: workspace.PatientFile, i: int):
+    table = civic.load_table() if EVIDENCE else None  # cached: loaded once by evidence()
+    evolution_page.render(pf, version=i, lookup=None if table is None else
+                          (lambda row: evolution.civic_items(row, table)))
+
+
 def import_view(pf: workspace.PatientFile, i: int):
     from workbenches import imports  # the button and its dialog; imports last for the session
 
@@ -926,6 +939,8 @@ def methods_page():
         width="stretch")
     st.caption("A tumor marker out of range is not evidence of progression by itself.")
 
+    evolution_page.methods_card()
+
     st.subheader("Case note")
     st.markdown(f"""
 - **{model_name(DEFAULT_MODEL)} plans** on Nebius Token Factory: it decides which tools to call.
@@ -994,6 +1009,10 @@ def methods_page():
         ("TCGA-Reports (Kefeli and Tatonetti, Patterns 2024; Mendeley Data "
          "10.17632/hyg5xkznpx.1)", "the TCGA cases' pathology reports in the documents "
          "workbench; measuring the extraction", "CC BY 4.0, attribution"),
+        ("PubMed (NCBI E-utilities)", "checking every citation of the evolution table",
+         "NLM terms; abstracts cited, not copied"),
+        ("ClinicalTrials.gov API v2", "trials that mention a patient's observed genes",
+         "U.S. government database: attributed, with the date of its data"),
     ], columns=["Source", "Used for", "License or terms"]), hide_index=True, width="stretch")
     st.caption("SYNTHETIC-001's record is written by hand and labeled synthetic; it is not a "
                "real person and was not taken from any dataset.")

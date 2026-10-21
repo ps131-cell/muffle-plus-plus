@@ -239,6 +239,9 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     st.caption("Sources: CIViC resistance items (civicdb.org, CC0) whose therapies include a "
                "recorded drug, and the trials cited in the platform's vision (PADA-1, SERENA-6). "
                "A watch item is never advice.")
+    st.button("Open the Evolution view: what to watch next, ranked, with sources and the test "
+              "that would detect it", key=f"{key}-evolution",
+              on_click=lambda: st.session_state.update(view="Evolution"))
 
     # panel coverage
     st.markdown("#### Panel coverage")

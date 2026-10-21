@@ -1,0 +1,1544 @@
+{
+ "snapshot": "2026-10-20",
+ "data_timestamp": "2026-10-20T09:00:04",
+ "query": {
+  "condition": "breast cancer",
+  "term": "<GENE> mutation",
+  "statuses": "RECRUITING,NOT_YET_RECRUITING",
+  "fields": "NCTId,BriefTitle,Phase,OverallStatus,InterventionName,LocationCountry,LastUpdatePostDate",
+  "per_gene": 20
+ },
+ "genes": {
+  "PIK3CA": {
+   "gene": "PIK3CA",
+   "term": "PIK3CA mutation",
+   "total": 42,
+   "studies": [
+    {
+     "nct": "NCT05455619",
+     "title": "Evexomostat Plus PI3K or AKT Inhibitor and Fulvestrant in Patients With a PI3K Alteration and HR+/Her2- Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-22",
+     "interventions": [
+      "Evexomostat"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT05594095",
+     "title": "SNF Platform Study of HR+/ HER2-advanced Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2024-10-04",
+     "interventions": [
+      "PIK3CA inhibitor",
+      "AKT inhibitor",
+      "Carrelizumab",
+      "Famitinib",
+      "Fluzoparib",
+      "Dalpiciclib",
+      "SHR-A1811",
+      "Everolimus",
+      "Aromatase Inhibitors or Fulvestrant",
+      "Goserelin",
+      "TPC",
+      "Sorafenib",
+      "Apatinib",
+      "SHR-A1921",
+      "SHR-A2102",
+      "SHR-A2009",
+      "SHR-1167",
+      "SHR-6209",
+      "bevacizumab"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT07543250",
+     "title": "A Real-World Study of Inavolisib in Patients With HR-Positive/HER2-Negative, PIK3CA-Mutated Advanced Breast Cancer",
+     "phase": "not stated",
+     "status": "not yet recruiting",
+     "updated": "2026-04-21",
+     "interventions": [
+      "Inavolisib in Combination With ET",
+      "Inavolisib in Combination With ET+CDK4/6i"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07054190",
+     "title": "A Study to Test Inavolisib Treatments in Participants With Early-Stage, PIK3CA-Mutated Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-09-25",
+     "interventions": [
+      "Inavolisib",
+      "Ribociclib",
+      "Letrozole",
+      "Giredestrant"
+     ],
+     "countries": [
+      "United States",
+      "Argentina",
+      "Brazil",
+      "Canada",
+      "Germany",
+      "South Korea",
+      "Spain"
+     ]
+    },
+    {
+     "nct": "NCT07395336",
+     "title": "Elacestrant and Exemestane for Patients With Pretreated HR+/HER2- Metastatic Breast Cancer and [18F] FES-avid Lesions (COMBINE)",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-05-14",
+     "interventions": [
+      "elacestrant and exemestane"
+     ],
+     "countries": [
+      "Italy"
+     ]
+    },
+    {
+     "nct": "NCT07300215",
+     "title": "An Exploratory Study on Individualized Neoadjuvant Treatment Regimens for Early HR+/HER2+ Breast Cancer",
+     "phase": "phase 2",
+     "status": "not yet recruiting",
+     "updated": "2025-12-23",
+     "interventions": [
+      "individualized neoadjuvant treatment"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07784036",
+     "title": "JYP0035 Capsules Plus Fulvestrant in PIK3CA-Mutant HR+/HER2- Advanced Breast Cancer",
+     "phase": "phase 3",
+     "status": "not yet recruiting",
+     "updated": "2026-08-25",
+     "interventions": [
+      "JYP0035 plus Fulvestrant",
+      "JYP0035 placebo plus Fulvestrant"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07618390",
+     "title": "A Phase ll, Interventional, Single-arm Study Evaluating the Efficacy and Safety of Inavolisib Plus Ribociclib and Fulvestrant in Chinese Patients With PIK3CA-mutant, HR-positive, HER2-negative Locally Advanced or Metastatic Breast Cancer.",
+     "phase": "phase 2",
+     "status": "not yet recruiting",
+     "updated": "2026-06-01",
+     "interventions": [
+      "Inavolisib + Ribociclib + Fulvestrant"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07383506",
+     "title": "A Study of Mutant Selective-Inhibitor (CGT6297), in Patients With Advanced Solid Tumors",
+     "phase": "phase 1",
+     "status": "recruiting",
+     "updated": "2026-08-26",
+     "interventions": [
+      "CGT6297"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07387861",
+     "title": "PI3K Pathway Activation Markers in ER-Positive, HER2-Negative Breast Cancer: A Clinicopathologic Study",
+     "phase": "not stated",
+     "status": "not yet recruiting",
+     "updated": "2026-02-04",
+     "interventions": [
+      "Not applicable- observational study"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT05660083",
+     "title": "Alpelisib/iNOS Inhibitor/Nab-paclitaxel in Patients With HER2 Negative Metaplastic Breast Cancer (MpBC)",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-06-04",
+     "interventions": [
+      "L-NMMA"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07520760",
+     "title": "A Multicenter, Single-Arm, Phase II Exploratory Study of Eribulin in Combination With Anlotinib for HER2-Negative Recurrent/Metastatic Breast Cancer Previously Treated With Antibody-Drug Conjugates",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-09",
+     "interventions": [
+      "Eribulin in Combination with Anlotinib"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT07590583",
+     "title": "Biology Guided Therapy Recommendations for Treatment Determination of Hormone Receptor-Positive Advanced, Unresectable or Metastatic Breast Cancer, ENDORSE Trial",
+     "phase": "phase 1",
+     "status": "not yet recruiting",
+     "updated": "2026-05-15",
+     "interventions": [
+      "Biopsy Procedure",
+      "Biospecimen Collection",
+      "Bone Scan",
+      "Computed Tomography",
+      "Electronic Health Record Review",
+      "Magnetic Resonance Imaging",
+      "Positron Emission Tomography",
+      "Treatment Planning",
+      "Treatment Regimen"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06805812",
+     "title": "Predicting clinicAL outcoMes During First-line CDK4/6 Inhibitors Plus Endocrine Therapy in Patients With Advanced Hormone REceptor-poSitive HER2-negative Breast Cancer: the Retrospective-prospective Multicenter Italian PALMARES-2 Study",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2025-02-03",
+     "interventions": [
+      "Palbociclib",
+      "Ribociclib",
+      "Abemaciclib"
+     ],
+     "countries": [
+      "Italy"
+     ]
+    },
+    {
+     "nct": "NCT05216432",
+     "title": "First-in-Human Study of Mutant-selective PI3K\u03b1 Inhibitor, RLY-2608, as a Single Agent in Patients With Advanced Solid Tumors and in Combination With Endocrine Therapy +/- a CDK4/6 or CDK4 Inhibitor in Patients With Advanced Solid Tumors or Advanced Breast Cancer",
+     "phase": "phase 1",
+     "status": "recruiting",
+     "updated": "2025-09-22",
+     "interventions": [
+      "RLY-2608",
+      "Fulvestrant",
+      "Palbociclib 125mg",
+      "Ribociclib 400mg",
+      "Ribociclib 600mg",
+      "PF-07220060 100mg",
+      "PF-07220060 300 mg"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "France",
+      "Italy",
+      "Spain"
+     ]
+    },
+    {
+     "nct": "NCT03424005",
+     "title": "A Study Evaluating the Efficacy and Safety of Multiple Treatment Combinations in Patients With Metastatic or Locally Advanced Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-10-09",
+     "interventions": [
+      "Capecitabine",
+      "Atezolizumab",
+      "Ipatasertib",
+      "SGN-LIV1A",
+      "Bevacizumab",
+      "Chemotherapy (Gemcitabine + Carboplatin or Eribulin)",
+      "Selicrelumab",
+      "Tocilizumab",
+      "Nab-Paclitaxel",
+      "Sacituzumab Govitecan",
+      "Abemaciclib",
+      "Fulvestrant",
+      "Ribociclib (Dose #1)",
+      "Inavolisib (Dose #1)",
+      "Trastuzumab Deruxtecan",
+      "Ribociclib (Dose #2)",
+      "Letrozole",
+      "Inavolisib (Dose #2)",
+      "Empagliflozin",
+      "Palbociclib",
+      "Metformin",
+      "Atirmociclib",
+      "Giredestrant"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "France",
+      "Germany",
+      "Israel",
+      "South Korea",
+      "Spain",
+      "Taiwan",
+      "United Kingdom"
+     ]
+    },
+    {
+     "nct": "NCT07679269",
+     "title": "Roll-Over Study of Alpelisib (BYL719) for Continued Access and Long-Term Safety.",
+     "phase": "phase 2",
+     "status": "not yet recruiting",
+     "updated": "2026-09-18",
+     "interventions": [
+      "Alpelisib",
+      "Fulvestrant",
+      "Trastuzumab",
+      "Pertuzumab",
+      "Letrozole"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT05646862",
+     "title": "A Study Evaluating the Efficacy and Safety of Inavolisib Plus Fulvestrant Compared With Alpelisib Plus Fulvestrant in Participants With HR-Positive, HER2-Negative, PIK3CA Mutated, Locally Advanced or Metastatic Breast Cancer Post CDK4/6i and Endocrine Combination Therapy",
+     "phase": "phase 3",
+     "status": "recruiting",
+     "updated": "2026-09-28",
+     "interventions": [
+      "Inavolisib",
+      "Fulvestrant",
+      "Alpelisib",
+      "Bupropion",
+      "Omeprazole",
+      "Midazolam"
+     ],
+     "countries": [
+      "United States",
+      "Argentina",
+      "Australia",
+      "Belgium",
+      "Brazil",
+      "Canada",
+      "China",
+      "France",
+      "Germany",
+      "Italy",
+      "Mexico",
+      "New Zealand",
+      "Poland",
+      "South Africa",
+      "South Korea",
+      "Spain",
+      "Taiwan",
+      "Thailand",
+      "Turkey (T\u00fcrkiye)",
+      "United Kingdom"
+     ]
+    },
+    {
+     "nct": "NCT04768426",
+     "title": "Serial Circulating Tumor DNA (ctDNA) Monitoring During Adjuvant Capecitabine in Early Triple-negative Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-12",
+     "interventions": [
+      "Capecitabine"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07207070",
+     "title": "A Randomised, Open-label, Multicentre Phase III Clinical Study to Evaluate the Efficacy and Safety of JS105 Combined With Dalpiciclib and Fulvestrant Compared With Dalpiciclib and Fulvestrant in Patients With PIK3CA-mutated, HR-positive, HER2-negative Recurrent or Metastatic Breast Cancer.",
+     "phase": "phase 3",
+     "status": "recruiting",
+     "updated": "2025-12-30",
+     "interventions": [
+      "JS105",
+      "Dalpiciclib",
+      "Fulvestrant 50 Mg/mL Intramuscular Solution"
+     ],
+     "countries": [
+      "China"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:24 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "TP53": {
+   "gene": "TP53",
+   "term": "TP53 mutation",
+   "total": 7,
+   "studies": [
+    {
+     "nct": "NCT06045572",
+     "title": "Vascular Supply Identification, Lesion Extension and Search for Tumor Similarity at a Distance by VTM in Breast Cancer",
+     "phase": "not applicable",
+     "status": "not yet recruiting",
+     "updated": "2026-01-12",
+     "interventions": [
+      "VTM examination and breast biopsy"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT04585750",
+     "title": "The Evaluation of PC14586 in Patients With Advanced Solid Tumors Harboring a TP53 Y220C Mutation (PYNNACLE)",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-10-02",
+     "interventions": [
+      "rezatapopt",
+      "pembrolizumab"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "France",
+      "Germany",
+      "Italy",
+      "Singapore",
+      "South Korea",
+      "Spain",
+      "United Kingdom"
+     ]
+    },
+    {
+     "nct": "NCT06778863",
+     "title": "A Study of CLSP-1025 in Adult Patients With Solid Tumors That Harbor the p53 R175H Mutation",
+     "phase": "phase 1",
+     "status": "recruiting",
+     "updated": "2026-02-13",
+     "interventions": [
+      "CLSP-1025"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT05877599",
+     "title": "A Study of NT-175 in Adult Participants With Advanced Malignancies That Are Positive for HLA-A*02:01 and the TP53 R175H Mutation",
+     "phase": "phase 1",
+     "status": "recruiting",
+     "updated": "2026-09-29",
+     "interventions": [
+      "NT-175"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06833216",
+     "title": "Familial Breast Cancer in China",
+     "phase": "not stated",
+     "status": "not yet recruiting",
+     "updated": "2025-02-18",
+     "interventions": [
+      "Genetic variation"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT07222215",
+     "title": "PhII Randomized CAPecitabine + ELAcestrant vs. Capecitabine Alone in ER+ Breast Cancer (CAPELA)",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-26",
+     "interventions": [
+      "Capecitabine",
+      "Elacestrant"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07752875",
+     "title": "A Study of LG00313112 in Participants With Advanced Solid Malignancies Harboring a TP53 Y220C Mutation",
+     "phase": "phase 1, phase 2",
+     "status": "not yet recruiting",
+     "updated": "2026-08-07",
+     "interventions": [
+      "LG00313112"
+     ],
+     "countries": []
+    }
+   ],
+   "fetched": "2026-10-20 16:24 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "CDH1": {
+   "gene": "CDH1",
+   "term": "CDH1 mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:24 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "GATA3": {
+   "gene": "GATA3",
+   "term": "GATA3 mutation",
+   "total": 1,
+   "studies": [
+    {
+     "nct": "NCT07520760",
+     "title": "A Multicenter, Single-Arm, Phase II Exploratory Study of Eribulin in Combination With Anlotinib for HER2-Negative Recurrent/Metastatic Breast Cancer Previously Treated With Antibody-Drug Conjugates",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-09",
+     "interventions": [
+      "Eribulin in Combination with Anlotinib"
+     ],
+     "countries": [
+      "China"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:24 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "MAP3K1": {
+   "gene": "MAP3K1",
+   "term": "MAP3K1 mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:24 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "KMT2C": {
+   "gene": "KMT2C",
+   "term": "KMT2C mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:24 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "PTEN": {
+   "gene": "PTEN",
+   "term": "PTEN mutation",
+   "total": 8,
+   "studies": [
+    {
+     "nct": "NCT05455619",
+     "title": "Evexomostat Plus PI3K or AKT Inhibitor and Fulvestrant in Patients With a PI3K Alteration and HR+/Her2- Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-22",
+     "interventions": [
+      "Evexomostat"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06045572",
+     "title": "Vascular Supply Identification, Lesion Extension and Search for Tumor Similarity at a Distance by VTM in Breast Cancer",
+     "phase": "not applicable",
+     "status": "not yet recruiting",
+     "updated": "2026-01-12",
+     "interventions": [
+      "VTM examination and breast biopsy"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT03050268",
+     "title": "Familial Investigations of Childhood Cancer Predisposition",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-06-17",
+     "interventions": [],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT04768426",
+     "title": "Serial Circulating Tumor DNA (ctDNA) Monitoring During Adjuvant Capecitabine in Early Triple-negative Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-12",
+     "interventions": [
+      "Capecitabine"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06837792",
+     "title": "Trastuzumab Deruxtecan vs Endocrine Therapy in Low-HER2 HR+ Advanced Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2025-04-29",
+     "interventions": [
+      "Experimental treatment arm",
+      "Control treatment arm"
+     ],
+     "countries": [
+      "South Korea"
+     ]
+    },
+    {
+     "nct": "NCT05933395",
+     "title": "Genetically-informed Therapy for ER+ Breast Cancer Post-CDK4/6 Inhibitor",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-01-20",
+     "interventions": [
+      "Fulvestrant",
+      "Neratinib",
+      "Alpelisib",
+      "Everolimus",
+      "Abemaciclib"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06417801",
+     "title": "Minimally Interventional Study on Prevalence of Emerging ESR1 Mutations in Liquid Biopsy in Three Cohorts of Patients With Breast Cancer in Comparison With Patient's Baseline ESR1 Mutation Status as Defined by Tissue Profiling.",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-10-16",
+     "interventions": [],
+     "countries": [
+      "Brazil"
+     ]
+    },
+    {
+     "nct": "NCT07340541",
+     "title": "Evolutionary Clinical Trial for Novel Biomarker-Driven Therapies",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-09-18",
+     "interventions": [
+      "SERD* + abemaciclib",
+      "SERD* + everolimus",
+      "SERD* + everolimus or capecitabine",
+      "SOC",
+      "Antiandrogen"
+     ],
+     "countries": [
+      "United States"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "AKT1": {
+   "gene": "AKT1",
+   "term": "AKT1 mutation",
+   "total": 6,
+   "studies": [
+    {
+     "nct": "NCT05455619",
+     "title": "Evexomostat Plus PI3K or AKT Inhibitor and Fulvestrant in Patients With a PI3K Alteration and HR+/Her2- Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-22",
+     "interventions": [
+      "Evexomostat"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT04768426",
+     "title": "Serial Circulating Tumor DNA (ctDNA) Monitoring During Adjuvant Capecitabine in Early Triple-negative Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-12",
+     "interventions": [
+      "Capecitabine"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06837792",
+     "title": "Trastuzumab Deruxtecan vs Endocrine Therapy in Low-HER2 HR+ Advanced Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2025-04-29",
+     "interventions": [
+      "Experimental treatment arm",
+      "Control treatment arm"
+     ],
+     "countries": [
+      "South Korea"
+     ]
+    },
+    {
+     "nct": "NCT05933395",
+     "title": "Genetically-informed Therapy for ER+ Breast Cancer Post-CDK4/6 Inhibitor",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-01-20",
+     "interventions": [
+      "Fulvestrant",
+      "Neratinib",
+      "Alpelisib",
+      "Everolimus",
+      "Abemaciclib"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06417801",
+     "title": "Minimally Interventional Study on Prevalence of Emerging ESR1 Mutations in Liquid Biopsy in Three Cohorts of Patients With Breast Cancer in Comparison With Patient's Baseline ESR1 Mutation Status as Defined by Tissue Profiling.",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-10-16",
+     "interventions": [],
+     "countries": [
+      "Brazil"
+     ]
+    },
+    {
+     "nct": "NCT07239271",
+     "title": "A Multicenter Phase III Clinical Study and Translational Research on Adaptive Neoadjuvant Therapy of De-escalation and Escalation for HER2-Positive Breast Cancer Based on Multi-Omics Response Evaluation Model",
+     "phase": "phase 3",
+     "status": "not yet recruiting",
+     "updated": "2025-11-20",
+     "interventions": [
+      "The control group",
+      "Adaptive therapy of de-escalation and escalation based on imaging and molecular analysis for predicting response"
+     ],
+     "countries": []
+    }
+   ],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "ERBB2": {
+   "gene": "ERBB2",
+   "term": "ERBB2 mutation",
+   "total": 112,
+   "studies": [
+    {
+     "nct": "NCT07340658",
+     "title": "A Study to Investigate the Efficacy and Safety of Letrozole SIE Compared With Femara\u00ae (Both Combined With the CDK4/6 Inhibitor Ribociclib) in Postmenopausal Women With HR-Positive, HER2-Negative, Inoperable Locally Advanced or Metastatic Breast Cancer",
+     "phase": "phase 3",
+     "status": "not yet recruiting",
+     "updated": "2026-04-02",
+     "interventions": [
+      "Letrozole SIE + Ribociclib + Oral placebo",
+      "Oral Femara\u00ae + Ribociclib + Injectable placebo"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT05475678",
+     "title": "Clinical Study of Camrelizumab Combined With TCb Versus TCb in Neoadjuvant Treatment of Triple-negative Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2025-01-23",
+     "interventions": [
+      "\uff08Carrelizumab + TCb\uff09 regimen",
+      "TCb regimen"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT05455619",
+     "title": "Evexomostat Plus PI3K or AKT Inhibitor and Fulvestrant in Patients With a PI3K Alteration and HR+/Her2- Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-22",
+     "interventions": [
+      "Evexomostat"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07132502",
+     "title": "Treatment Intermittent Periods Based on ctDNA-MRD\uff08Circulating Tumor DNA-minimal Residual Disease\uff09 Status in Advanced HER2-Positive Breast Cancer",
+     "phase": "not stated",
+     "status": "not yet recruiting",
+     "updated": "2025-08-20",
+     "interventions": [
+      "ctDNA MRD"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07361562",
+     "title": "A Study of a Selective ERBB2 Inhibitor (CGT4255), in Patients With Advanced Solid Tumors",
+     "phase": "phase 1",
+     "status": "recruiting",
+     "updated": "2026-09-04",
+     "interventions": [
+      "CGT4255"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06666439",
+     "title": "Longitudinal Tumor Burden Quantification Using Circulating Tumor DNA in Metastatic Lobular Breast Cancer",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-01-20",
+     "interventions": [
+      "circulating tumor DNA (ctDNA)"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT05594095",
+     "title": "SNF Platform Study of HR+/ HER2-advanced Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2024-10-04",
+     "interventions": [
+      "PIK3CA inhibitor",
+      "AKT inhibitor",
+      "Carrelizumab",
+      "Famitinib",
+      "Fluzoparib",
+      "Dalpiciclib",
+      "SHR-A1811",
+      "Everolimus",
+      "Aromatase Inhibitors or Fulvestrant",
+      "Goserelin",
+      "TPC",
+      "Sorafenib",
+      "Apatinib",
+      "SHR-A1921",
+      "SHR-A2102",
+      "SHR-A2009",
+      "SHR-1167",
+      "SHR-6209",
+      "bevacizumab"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT07543250",
+     "title": "A Real-World Study of Inavolisib in Patients With HR-Positive/HER2-Negative, PIK3CA-Mutated Advanced Breast Cancer",
+     "phase": "not stated",
+     "status": "not yet recruiting",
+     "updated": "2026-04-21",
+     "interventions": [
+      "Inavolisib in Combination With ET",
+      "Inavolisib in Combination With ET+CDK4/6i"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07617025",
+     "title": "Prognostic and Predictive Role of Intrinsic Molecular Subtypes in BRCA-associated Breast Cancer",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-06-01",
+     "interventions": [],
+     "countries": [
+      "Italy"
+     ]
+    },
+    {
+     "nct": "NCT05919108",
+     "title": "Neoadjuvant Neratinib in Stage I-III HER2-Mutated Lobular Breast Cancers",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-19",
+     "interventions": [
+      "Endocrine Therapy",
+      "Biopsy of breast",
+      "Neratinib",
+      "Biospecimen Collection",
+      "Mammogram",
+      "Magnetic Resonance Imaging",
+      "Breast Surgery",
+      "Ultrasound"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07054190",
+     "title": "A Study to Test Inavolisib Treatments in Participants With Early-Stage, PIK3CA-Mutated Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-09-25",
+     "interventions": [
+      "Inavolisib",
+      "Ribociclib",
+      "Letrozole",
+      "Giredestrant"
+     ],
+     "countries": [
+      "United States",
+      "Argentina",
+      "Brazil",
+      "Canada",
+      "Germany",
+      "South Korea",
+      "Spain"
+     ]
+    },
+    {
+     "nct": "NCT05761470",
+     "title": "Neoadjuvant Camrelizumab and Fluzoparib and Nab-paclitaxel in Early Breast Cancer With HRR Gene Mutation",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2023-03-09",
+     "interventions": [
+      "Camrelizumab",
+      "Fluzoparib",
+      "Nab-paclitaxel"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT04517838",
+     "title": "Immune Response to Anti-HER2 Therapies in Patients With HER2-Positive Stage I-IV Breast Cancer",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-06-16",
+     "interventions": [
+      "Biospecimen Collection"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06488378",
+     "title": "Phase Ib Study of Axatilimab in Combination With Olaparib in BRCA1/2 and PALB2- Associated Metastatic HER2-negative Breast Cancer",
+     "phase": "phase 1",
+     "status": "recruiting",
+     "updated": "2026-09-02",
+     "interventions": [
+      "Axatilimab",
+      "Olaparib"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT05059444",
+     "title": "ORACLE: Observation of ResiduAl Cancer With Liquid Biopsy Evaluation",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-09-14",
+     "interventions": [
+      "Guardant Reveal"
+     ],
+     "countries": [
+      "United States",
+      "France",
+      "Germany",
+      "Italy",
+      "Spain"
+     ]
+    },
+    {
+     "nct": "NCT05150691",
+     "title": "A Phase 1/2a Study of DB-1303/BNT323 in Advanced/Metastatic Solid Tumors",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-27",
+     "interventions": [
+      "DB-1303/BNT323",
+      "Pertuzumab Injection",
+      "Ritonavir",
+      "Itraconazole"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "China",
+      "Puerto Rico",
+      "South Korea",
+      "Taiwan"
+     ]
+    },
+    {
+     "nct": "NCT04585750",
+     "title": "The Evaluation of PC14586 in Patients With Advanced Solid Tumors Harboring a TP53 Y220C Mutation (PYNNACLE)",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-10-02",
+     "interventions": [
+      "rezatapopt",
+      "pembrolizumab"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "France",
+      "Germany",
+      "Italy",
+      "Singapore",
+      "South Korea",
+      "Spain",
+      "United Kingdom"
+     ]
+    },
+    {
+     "nct": "NCT06548919",
+     "title": "Current Status of Treatment for Chinese Patients With ESR1-mutated HR+/HER2-advanced Breast Cancer",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2024-08-12",
+     "interventions": [
+      "Endocrine therapy",
+      "Chemotherapy Prednisone"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT04893109",
+     "title": "ATEMPT 2.0: Adjuvant T-DM1 vs TH",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-19",
+     "interventions": [
+      "trastuzumab-emtansine",
+      "Trastuzumab SC",
+      "Paclitaxel"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07395336",
+     "title": "Elacestrant and Exemestane for Patients With Pretreated HR+/HER2- Metastatic Breast Cancer and [18F] FES-avid Lesions (COMBINE)",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-05-14",
+     "interventions": [
+      "elacestrant and exemestane"
+     ],
+     "countries": [
+      "Italy"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "ESR1": {
+   "gene": "ESR1",
+   "term": "ESR1 mutation",
+   "total": 37,
+   "studies": [
+    {
+     "nct": "NCT07340658",
+     "title": "A Study to Investigate the Efficacy and Safety of Letrozole SIE Compared With Femara\u00ae (Both Combined With the CDK4/6 Inhibitor Ribociclib) in Postmenopausal Women With HR-Positive, HER2-Negative, Inoperable Locally Advanced or Metastatic Breast Cancer",
+     "phase": "phase 3",
+     "status": "not yet recruiting",
+     "updated": "2026-04-02",
+     "interventions": [
+      "Letrozole SIE + Ribociclib + Oral placebo",
+      "Oral Femara\u00ae + Ribociclib + Injectable placebo"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT07054190",
+     "title": "A Study to Test Inavolisib Treatments in Participants With Early-Stage, PIK3CA-Mutated Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-09-25",
+     "interventions": [
+      "Inavolisib",
+      "Ribociclib",
+      "Letrozole",
+      "Giredestrant"
+     ],
+     "countries": [
+      "United States",
+      "Argentina",
+      "Brazil",
+      "Canada",
+      "Germany",
+      "South Korea",
+      "Spain"
+     ]
+    },
+    {
+     "nct": "NCT06548919",
+     "title": "Current Status of Treatment for Chinese Patients With ESR1-mutated HR+/HER2-advanced Breast Cancer",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2024-08-12",
+     "interventions": [
+      "Endocrine therapy",
+      "Chemotherapy Prednisone"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT07395336",
+     "title": "Elacestrant and Exemestane for Patients With Pretreated HR+/HER2- Metastatic Breast Cancer and [18F] FES-avid Lesions (COMBINE)",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-05-14",
+     "interventions": [
+      "elacestrant and exemestane"
+     ],
+     "countries": [
+      "Italy"
+     ]
+    },
+    {
+     "nct": "NCT07387861",
+     "title": "PI3K Pathway Activation Markers in ER-Positive, HER2-Negative Breast Cancer: A Clinicopathologic Study",
+     "phase": "not stated",
+     "status": "not yet recruiting",
+     "updated": "2026-02-04",
+     "interventions": [
+      "Not applicable- observational study"
+     ],
+     "countries": []
+    },
+    {
+     "nct": "NCT05816655",
+     "title": "Comparison of Clinical Efficacy Between Letrozole + Ribociclib and Fulvestrant + Letrozole + Ribociclib in Hormone Receptor Positive, HER2 Negative Metastatic Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2025-03-18",
+     "interventions": [
+      "Fulvestrant plus AI plus ribociclib",
+      "AI plus ribociclib"
+     ],
+     "countries": [
+      "South Korea"
+     ]
+    },
+    {
+     "nct": "NCT05868226",
+     "title": "PRE-ISPY Phase I/II Oncology Platform Program",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-09-30",
+     "interventions": [
+      "ALX148",
+      "Fam-Trastuzumab Deruxtecan-Nxki",
+      "Zanidatamab",
+      "Tucatinib",
+      "TTX-MC138"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT05696626",
+     "title": "Evaluation of Lasofoxifene Combined With Abemaciclib Compared With Fulvestrant Combined With Abemaciclib in Locally Advanced or Metastatic ER+/HER2- Breast Cancer With an ESR1 Mutation",
+     "phase": "phase 3",
+     "status": "recruiting",
+     "updated": "2026-06-22",
+     "interventions": [
+      "Lasofoxifene in combination with abemaciclib",
+      "Fulvestrant in combination with abemaciclib"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "Belgium",
+      "Canada",
+      "China",
+      "France",
+      "Germany",
+      "Israel",
+      "Italy",
+      "Poland",
+      "Romania",
+      "Singapore",
+      "South Korea",
+      "Spain",
+      "Taiwan",
+      "Turkey (T\u00fcrkiye)",
+      "United Kingdom"
+     ]
+    },
+    {
+     "nct": "NCT07520760",
+     "title": "A Multicenter, Single-Arm, Phase II Exploratory Study of Eribulin in Combination With Anlotinib for HER2-Negative Recurrent/Metastatic Breast Cancer Previously Treated With Antibody-Drug Conjugates",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-04-09",
+     "interventions": [
+      "Eribulin in Combination with Anlotinib"
+     ],
+     "countries": [
+      "China"
+     ]
+    },
+    {
+     "nct": "NCT07590583",
+     "title": "Biology Guided Therapy Recommendations for Treatment Determination of Hormone Receptor-Positive Advanced, Unresectable or Metastatic Breast Cancer, ENDORSE Trial",
+     "phase": "phase 1",
+     "status": "not yet recruiting",
+     "updated": "2026-05-15",
+     "interventions": [
+      "Biopsy Procedure",
+      "Biospecimen Collection",
+      "Bone Scan",
+      "Computed Tomography",
+      "Electronic Health Record Review",
+      "Magnetic Resonance Imaging",
+      "Positron Emission Tomography",
+      "Treatment Planning",
+      "Treatment Regimen"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT07612215",
+     "title": "Elacestrant in Advanced Triple Positive Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-05-28",
+     "interventions": [
+      "Elacestrant",
+      "Trastuzumab",
+      "Pertuzumab"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06380751",
+     "title": "Saruparib (AZD5305) Plus Camizestrant or Plus Endocrine Therapy, Compared With CDK4/6 Inhibitor Plus Endocrine Therapy or Plus Camizestrant in HR-Positive, HER2-Negative (IHC 0, 1+, 2+/ ISH Non-amplified), BRCA1, BRCA2, or PALB2m Advanced Breast Cancer",
+     "phase": "phase 3",
+     "status": "recruiting",
+     "updated": "2026-09-02",
+     "interventions": [
+      "Saruparib (AZD5305)",
+      "Camizestrant",
+      "Abemaciclib",
+      "Ribociclib",
+      "Palbociclib",
+      "Fulvestrant",
+      "Letrozole",
+      "Anastrozole",
+      "Exemestane"
+     ],
+     "countries": [
+      "United States",
+      "Argentina",
+      "Australia",
+      "Austria",
+      "Brazil",
+      "Bulgaria",
+      "Canada",
+      "Chile",
+      "China",
+      "Czechia",
+      "France",
+      "Germany",
+      "Hong Kong",
+      "Hungary",
+      "India",
+      "Israel",
+      "Italy",
+      "Japan",
+      "Malaysia",
+      "Peru",
+      "Poland",
+      "Portugal",
+      "Puerto Rico",
+      "South Korea",
+      "Spain",
+      "Taiwan",
+      "Thailand",
+      "Turkey (T\u00fcrkiye)",
+      "United Kingdom"
+     ]
+    },
+    {
+     "nct": "NCT06127979",
+     "title": "A Study of Changes in Ki67 Expression in People With Breast Cancer Receiving Endocrine Therapy Before Surgery",
+     "phase": "not applicable",
+     "status": "recruiting",
+     "updated": "2026-10-13",
+     "interventions": [
+      "blood draw"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT04174352",
+     "title": "FES Imaging to Optimize Tamoxifen for Metastatic Breast Cancer",
+     "phase": "early phase 1",
+     "status": "recruiting",
+     "updated": "2026-07-21",
+     "interventions": [
+      "Tamoxifen",
+      "FES PET/CT"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06991946",
+     "title": "Patient-Centric Study to Assess the Impact of Genomic Profiling on the Treatment of Patients With Metastatic Breast Cancer in Spain",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2025-05-28",
+     "interventions": [
+      "Liquid Biopsy",
+      "Archival Tumor DNA"
+     ],
+     "countries": [
+      "Spain"
+     ]
+    },
+    {
+     "nct": "NCT07766018",
+     "title": "A Phase 2 Bridging Study of Elacestrant Monotherapy in Advanced or Metastatic Breast Cancer",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-10-13",
+     "interventions": [
+      "Elacestrant"
+     ],
+     "countries": [
+      "Japan"
+     ]
+    },
+    {
+     "nct": "NCT07242352",
+     "title": "Marker - Adjusted Therapy Comparing Adjuvant Elacestrant With Standard Endocrine Treatment in Genomically and/or Clinically High-risk ER+/HER2- eBC",
+     "phase": "phase 3",
+     "status": "recruiting",
+     "updated": "2026-08-07",
+     "interventions": [
+      "Elacestrant",
+      "Standard-of-care endocrine treatment"
+     ],
+     "countries": [
+      "Germany"
+     ]
+    },
+    {
+     "nct": "NCT06075953",
+     "title": "DCIS: RECAST Trial Ductal Carcinoma In Situ: Re-Evaluating Conditions for Active Surveillance Suitability as Treatment",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-09-28",
+     "interventions": [
+      "Tamoxifen",
+      "Exemestane",
+      "Letrozole",
+      "Anastrazole",
+      "Testosterone + Anastrazole",
+      "Elacestrant",
+      "Z-endoxifen"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT06067503",
+     "title": "Biomarkers to Detect Endocrine Therapy Resistance",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-08-25",
+     "interventions": [
+      "18F-fluorofuranylnorprogesterone",
+      "Liquid Biopsy",
+      "Positron Emission Tomography/Computed Tomography"
+     ],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT04802759",
+     "title": "A Study Evaluating the Efficacy and Safety of Multiple Treatment Combinations in Participants With Breast Cancer",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-10-06",
+     "interventions": [
+      "Giredestrant",
+      "Abemaciclib",
+      "Ipatasertib",
+      "Inavolisib",
+      "Ribociclib",
+      "Everolimus",
+      "Samuraciclib",
+      "PH FDC SC",
+      "Palbociclib",
+      "Atezolizumab"
+     ],
+     "countries": [
+      "United States",
+      "Australia",
+      "Israel",
+      "South Korea",
+      "Spain"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "NF1": {
+   "gene": "NF1",
+   "term": "NF1 mutation",
+   "total": 2,
+   "studies": [
+    {
+     "nct": "NCT03050268",
+     "title": "Familial Investigations of Childhood Cancer Predisposition",
+     "phase": "not stated",
+     "status": "recruiting",
+     "updated": "2026-06-17",
+     "interventions": [],
+     "countries": [
+      "United States"
+     ]
+    },
+    {
+     "nct": "NCT05564377",
+     "title": "Targeted Therapy Directed by Genetic Testing in Treating Patients With Locally Advanced or Advanced Solid Tumors, The ComboMATCH Screening Trial",
+     "phase": "phase 2",
+     "status": "recruiting",
+     "updated": "2026-10-15",
+     "interventions": [
+      "Alpelisib",
+      "Binimetinib",
+      "Biopsy Procedure",
+      "Biospecimen Collection",
+      "Bone Marrow Aspiration",
+      "Bone Marrow Biopsy",
+      "Bone Scan",
+      "Computed Tomography",
+      "Echocardiography Test",
+      "Fluorouracil",
+      "Fulvestrant",
+      "Ipatasertib",
+      "Leucovorin",
+      "Magnetic Resonance Imaging",
+      "Multigated Acquisition Scan",
+      "Mutation Carrier Screening",
+      "Neratinib Maleate",
+      "Nilotinib Hydrochloride Monohydrate",
+      "Olaparib",
+      "Oxaliplatin",
+      "Paclitaxel",
+      "Palbociclib",
+      "Panitumumab",
+      "Positron Emission Tomography",
+      "Selumetinib Sulfate",
+      "Sotorasib"
+     ],
+     "countries": [
+      "United States",
+      "Puerto Rico"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "RUNX1": {
+   "gene": "RUNX1",
+   "term": "RUNX1 mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "CBFB": {
+   "gene": "CBFB",
+   "term": "CBFB mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "TBX3": {
+   "gene": "TBX3",
+   "term": "TBX3 mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "MAP2K4": {
+   "gene": "MAP2K4",
+   "term": "MAP2K4 mutation",
+   "total": 0,
+   "studies": [],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  },
+  "ARID1A": {
+   "gene": "ARID1A",
+   "term": "ARID1A mutation",
+   "total": 1,
+   "studies": [
+    {
+     "nct": "NCT05490472",
+     "title": "JAB-2485 Activity in Adult Patients With Advanced Solid Tumors",
+     "phase": "phase 1, phase 2",
+     "status": "recruiting",
+     "updated": "2026-01-09",
+     "interventions": [
+      "JAB-2485 (Aurora A inhibitor)",
+      "JAB-2485 (Aurora A inhibitor)"
+     ],
+     "countries": [
+      "United States",
+      "China"
+     ]
+    }
+   ],
+   "fetched": "2026-10-20 16:25 UTC",
+   "data_timestamp": "2026-10-20T09:00:04"
+  }
+ }
+}

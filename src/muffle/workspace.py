@@ -379,6 +379,7 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "omics": "the layer or block ('rna', 'subtype', 'pathway', 'receptor', 'score'), the feature "
              "or finding ('ESR1', 'E2F_TARGETS', 'ER: IHC vs RNA')",
     "document": "the document's id, the fact ('ER status: positive')",
+    "evolution": "the watched event or 'trial', its source (a PMID or an NCT number)",
 }
 
 
