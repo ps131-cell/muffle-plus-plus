@@ -163,8 +163,8 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
     contrib = tools.modality_contributions()["log_risk_added_by_layer"]
 
     st.caption(f"{pf.title} · {v.label}")
-    st.markdown(" ".join([chip(wb.IMPLEMENTED, "blue"), chip(f"subtype call: {wb.VALIDATED}",
-                                                             "green"),
+    st.markdown(" ".join([chip(wb.IMPLEMENTED, "blue"),
+                          *([chip(f"subtype call: {wb.VALIDATED}", "green")] if cs else []),
                           chip("signatures beyond PAM50: planned")]))
     st.caption("Data: TCGA-BRCA open access (UCSC Xena GDC hub; IHC from TCGA clinical data via "
                "cBioPortal) · scores: scripts/omics_scores.py, "
