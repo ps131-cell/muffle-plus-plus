@@ -2,6 +2,19 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-20 — Omics workbench: PAM50 centered on an ER-balanced subset of the cohort
+- **What:** the PAM50 call in the omics workbench centers each gene on its median over an
+  ER-balanced subset of TCGA-BRCA (every ER-negative tumor by IHC and as many ER-positive, seed 0;
+  466 tumors), not on the whole cohort as first specified (`docs/omics.md`).
+- **Why:** plain centering agrees with TCGA's published calls on 72.5% of 950 tumors (published
+  Luminal A drifts to Normal-like, Luminal B and HER2-enriched); the cohort is about three
+  quarters ER-positive, which Zhao et al. 2015 show shifts calls, and their remedy (center on a
+  subgroup with the training set's make-up) gives 94.7% (seeds 1–4: 94.1–94.7%).
+- **Consequence:** the choice was made after seeing the first result, on the same tumors, so the
+  94.7% is reported as agreement with TCGA's calls, not as an independent test; both numbers are
+  on the Methods page and in `docs/omics.md`. A cohort with another ER mix needs its own
+  reference.
+
 ## 2026-10-20 — Slide workbench round 2: the patient's own sections, invasion picture, cells
 - **What:** `scripts/slide_pipeline.py` scores a patient's own TCGA diagnostic slide offline
   (tissue grid, a 9,000-tile budget with a tumor-centred window for larger slides, QuiltNet
