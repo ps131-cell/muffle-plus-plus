@@ -12,6 +12,7 @@ from muffle.workbench.radiology import (
     CANNOT_SEE,
     CUTOFFS,
     NO_MEASUREMENTS,
+    PLACEHOLDERS,
     PROGRESSION,
     REPORT_CANNOT_SEE,
     STABLE,
@@ -19,6 +20,7 @@ from muffle.workbench.radiology import (
     candidates,
     cleft_row,
     dense_fraction,
+    file_events,
     imaging_reads,
     kinetics,
     lead_lag,
@@ -166,6 +168,35 @@ def test_imaging_tests_open_the_workbench_and_marks_have_a_kind():
     assert {(t.workbench, t.status) for t in imaging} == {("imaging", IMPLEMENTED)}
     key = finding_key(pf, "imaging", "report", 12, "Liver")
     assert key == "SYNTHETIC-001|imaging|report|12|Liver"
+
+
+def test_each_file_reads_only_its_own_imaging_reports():
+    from types import SimpleNamespace
+
+    from muffle.workspace import Test, case_file
+
+    tl = json.loads((ROOT / "app" / "timeline_synthetic.json").read_text(encoding="utf-8"))
+    pf = synthetic_file(tl)
+    assert [r["month"] for r in imaging_reads(file_events(pf))] == [-1, 7, 12, 19, 24]
+    month12 = next(i for i, v in enumerate(pf.versions) if v.month == 12)
+    assert max(e["month"] for e in file_events(pf, month12)) == 12
+    case = SimpleNamespace(index=1, mutations=None, layers=["clinical"], missing=[], stage=None,
+                           age=None, percentile=50.0, group="intermediate", site="site-1")
+    tcga = case_file(case, None)
+    assert file_events(tcga) == []  # no imports: never the synthetic record
+    event = {"month": 3, "kind": "Imaging", "progression": True, "sites": ["Liver"],
+             "text": "Imaging (imported report): read as progression; new liver named"}
+    tcga.versions[0].tests.append(Test("Imaging", 3, "CT chest and abdomen", "read as "
+                                       "progression", "imaging", IMPLEMENTED, {"event": event}))
+    reads = imaging_reads(file_events(tcga))
+    assert [(r["month"], r["read"], r["new_sites"]) for r in reads] == [(3, PROGRESSION, ["Liver"])]
+
+
+def test_placeholders_list_every_unvalidated_cutoff():
+    names = [what for what, _ in PLACEHOLDERS]
+    assert "seed_percentile" in names and "delayed_band_pct" in names  # literature placeholders too
+    assert "box_pad" not in names and "mask_threshold" not in names    # design choices are not
+    assert len(PLACEHOLDERS) == sum(1 for _, tag, _ in CUTOFFS.values() if tag != "design")
 
 
 def test_shipped_studies_are_small_and_attributed():
