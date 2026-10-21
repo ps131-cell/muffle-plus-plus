@@ -13,7 +13,7 @@ imports last for the browser session only and never touch the bundle or the repo
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
@@ -53,9 +53,10 @@ def render_view(file: PatientFile) -> None:
     for v, r in zip(versions, records, strict=False):
         with st.container(border=True):
             st.markdown(f"**{v.label}** · {r['kind']} · {v.event}")
-            st.caption("Tests: " + "; ".join(f"{t.kind} {t.name}: {t.result} ({t.status})"
-                                             for t in v.tests)
-                       + (f" · alerts raised: {len(v.alerts)}" if v.alerts else ""))
+            st.caption("Tests: " + "; ".join(
+                f"{t.kind} {t.name}: {t.result}" + ("" if t.result == t.status else
+                                                    f" ({t.status})") for t in v.tests)
+                + (f" · alerts raised: {len(v.alerts)}" if v.alerts else ""))
             if r["rejected"]:
                 st.caption(f"Rejected on intake: {len(r['rejected'])} row(s): " + "; ".join(
                     f"row {x['row']}: {x['reason']}" for x in r["rejected"]))
@@ -78,7 +79,7 @@ def dialog(file: PatientFile) -> None:
     lo = file.latest.month if file.latest.month is not None else 0
     when = ("Months count from the first tumor sequencing (month 0)" if file.kind == "synthetic"
             else "Months count from the TCGA tumor sample (month 0)")
-    at = datetime.now().strftime("%H:%M")
+    at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")  # the server's clock
     n = len(st.session_state.get("imports", {}).get(file.id, [])) + 1
     record = None
     if kind == KINDS[0]:
@@ -231,9 +232,9 @@ def render_test(file: PatientFile, t: Test) -> None:
     st.markdown(f"#### {t.kind}: {t.name}, month {t.month} :orange-badge[{intake.QUEUED}]")
     st.info("Queued for the local pipeline: the hosted app runs no models, so this file is "
             "registered, checked and kept for this session, not analyzed. "
-            + ("The slide workbench's tissue map runs on a local machine with its encoder "
-               "(docs/WORKBENCHES.md §5)." if t.details.get("pipeline") == "slides" else
-               "The radiology workbench's image viewer and lesion measurements are planned "
-               "(docs/WORKBENCHES.md §6).") + " Nothing below is a result.", icon="⏳")
+            + ("The slide workbench's tissue map runs on a local machine with its encoder."
+               if t.details.get("pipeline") == "slides" else
+               "The radiology workbench's image viewer and lesion measurements are planned.")
+            + " Nothing below is a result.", icon="⏳")
     _details(t)
     st.caption(SESSION_ONLY)
