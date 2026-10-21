@@ -18,12 +18,13 @@ import io
 import json
 import re
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from muffle.data.tcga import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, OBSERVED
 from muffle.report.civic import CACHE, LEVELS
-from muffle.workspace import MARKS, finding_key
+from muffle.workspace import MARKS, card, finding_key, look
 
 IMPLEMENTED, PLANNED = "implemented", "planned"
 FOUND, NOT_FOUND = "found", "tested and not found"
@@ -80,6 +81,7 @@ def events_until(events, month: int | None):
     return events if month is None else [e for e in events if e["month"] <= month]
 
 
+@lru_cache(maxsize=1)  # a file in the repo: read once per process
 def _synthetic_evidence() -> dict:
     if not SYNTHETIC_JSON.exists():
         return {}
@@ -523,6 +525,80 @@ def report_markdown(file, variants: list[dict], ladders: dict[str, list[dict]],
     out += ["", "CIViC items (civicdb.org, CC0) are evidence for clinician review, never a "
             "recommendation. Not tested means unknown, not wild type.", ""]
     return "\n".join(out)
+
+
+# --------------------------------------------------- the workbench contract (WORKBENCHES.md §1)
+
+def file_variants(file, version: int | None = None, lookup=None) -> tuple[list[dict], bool]:
+    """``variants`` as of report version ``version`` and whether CIViC was available (the
+    synthetic record's frozen items, or ``lookup`` for a TCGA file): without it a variant's
+    evidence is unknown, never "none"."""
+    month = None if version is None else file.versions[version].month
+    return (variants(file, events_until(None, month), None, lookup),
+            file.kind == "synthetic" or lookup is not None)
+
+
+def _seq_opens(file, v: dict) -> tuple:
+    t = next((t for t in file.tests if t.workbench == "mutations" and t.name == v["test"]
+              and t.month == v["month"]), None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def summary(file, version: int | None = None, lookup=None) -> dict:
+    """The observed drivers with their strongest CIViC level (or "not sequenced")."""
+    vs, civic = file_variants(file, version, lookup)
+    seq = [t for v in file.versions[: (len(file.versions) if version is None else version + 1)]
+           for t in v.tests if t.workbench == "mutations"]
+    method = ("tumor sequencing panel in the record" if file.kind == "synthetic" else
+              f"exome sequencing, GDC open-access masked somatic calls, {len(DRIVERS)}-gene "
+              "breast cancer driver panel")
+    if not seq:
+        return {"workbench": "genomics", "title": "Tumor sequencing", "note": None, "cards": [
+            card("Driver mutations", "not sequenced: unknown, not wild type", OBSERVED,
+                 "no sequencing test in this file", "none", "none", "strong")]}
+    if not vs:
+        text, opens, focus = "sequenced: none of the panel's genes mutated", (
+            "Tests", seq[-1].kind, seq[-1].month, seq[-1].name), None
+    else:
+        text = ", ".join(v["variant"] + (f" (CIViC level {v['strongest_level']})"
+                                         if v["strongest_level"] else
+                                         " (no CIViC breast cancer item)" if civic else "")
+                         for v in vs) + ("" if civic else " · CIViC not loaded here")
+        top = min(vs, key=lambda v: "ABCDEZ".find(v["strongest_level"] or "Z"))
+        opens, focus = _seq_opens(file, top), {"variant": top["variant"]}
+    return {"workbench": "genomics", "title": "Tumor sequencing", "note": None, "cards": [card(
+        "Key drivers", text, f"{OBSERVED} (mutation), {HYPOTHESIS} (CIViC evidence, for "
+        "clinician review)", ", ".join(dict.fromkeys(f"{t.name}" + (
+            "" if t.month is None else f", month {t.month}") for t in seq)), method,
+        "CIViC curated evidence levels (A validated … E inferential)", "strong", opens, focus)]}
+
+
+def queue(file, version: int | None = None, lookup=None) -> list[dict]:
+    """One item per observed variant, by the strength of its CIViC evidence: level A or B
+    (consequence 2, trust strong), C to E (1, moderate), none (1, weak). Nothing without CIViC:
+    an unknown evidence base is not a finding to triage."""
+    vs, civic = file_variants(file, version, lookup)
+    if not civic:
+        return []
+    out = []
+    for v in vs:
+        level, items = v["strongest_level"], v["interpretation"]["items"]
+        if level is None:
+            trust, consequence, why = "weak", 1, "no CIViC item for this variant in breast cancer"
+        else:
+            trust, consequence = ("strong", 2) if level in "AB" else ("moderate", 1)
+            therapies = sorted({t for i in items if i.get("evidence_level") == level
+                                for t in _therapies(i)})
+            why = (f"CIViC level {level} ({LEVELS.get(level, '?')}): {len(items)} item(s); "
+                   f"therapies named at that level: {', '.join(therapies) or 'none'}; evidence "
+                   "for clinician review, never a recommendation")
+        out.append(look(
+            v["variant"], f"{v['variant']} ({v['sample']}, {v['detection']['when']})", why,
+            f"{OBSERVED} (mutation), {HYPOTHESIS} (CIViC evidence)", trust, consequence,
+            _seq_opens(file, v), source=f"{v['test']}, {v['detection']['when']}",
+            key=variant_key(file, v), focus={"variant": v["variant"]}, month=v["month"],
+            threshold="CIViC curated evidence levels"))
+    return out
 
 
 def report_csv(file, variants: list[dict], reviews: dict) -> str:

@@ -31,10 +31,6 @@ def shown(at) -> str:
                                          "info") for e in getattr(at, kind))
 
 
-def button(at, label: str):
-    return next(b for b in at.button if b.label == label)
-
-
 def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeypatch):
     np.savez(tmp_path / "cohort.npz", **cohort)
     torch.manual_seed(0)
@@ -68,6 +64,17 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     patients = at.dataframe[0].value["Patient"].tolist()
     case = f"Case {demo.cases[0].index}"
     assert patients[0] == "SYNTHETIC-001" and case in patients
+    # the list searches genes and filters by what the files hold
+    at.text_input(key="list-search").set_value("pik3ca").run()
+    assert set(at.dataframe[0].value["Patient"]) == {"SYNTHETIC-001", case}
+    at.text_input(key="list-search").set_value("").run()
+    at.pills(key="list-holds").set_value(["Imaging"]).run()
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    at.pills(key="list-holds").set_value([]).run()
+    at.toggle(key="list-sos").set_value(True).run()
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    assert at.dataframe[0].value["Open SOS"].tolist() == [7]
+    at.toggle(key="list-sos").set_value(False).run()
 
     at.selectbox(key="patient").select("SYNTHETIC-001").run()
     assert not at.exception and "Synthetic patient" in at.warning[0].value
@@ -76,18 +83,34 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
     at.select_slider(key="version-SYNTHETIC-001").set_value(11).run()  # month 12
-    assert "1/7 · Progression on imaging" in shown(at)  # 3 alerts now, 4 earlier; strongest first
-    assert "New metastatic site: liver" in shown(at)
-    button(at, "Open the test").click().run()  # lands on the imaging report behind the alert
+    text = shown(at)
+    # the header: recorded and documented side by side, drivers, imaging, risk, open SOS alerts
+    assert "*Recorded:* stage II, HR+, HER2−" in text and "*Documented:* Stage II" in text
+    assert "PIK3CA H1047R (CIViC level A)" in text and "**:red[SOS]** · 7 open" in text
+    assert "**Source test:**" in text and "**Method and version:**" in text  # the Why? popovers
+    # one queue: SOS alerts, tests that disagree, the workbenches' items; strongest first
+    assert "**Attention** · 8 items: 7 SOS, 0 where tests disagree, 1 from the workbenches" in text
+    assert "1/8 · Progression on imaging" in text and "New metastatic site: liver" in text
+    queue = "queue-SYNTHETIC-001-11"
+    at.button(key=f"open-{queue}").click().run()  # lands on the imaging report behind the alert
     assert at.segmented_control(key="view").value == "Tests"
     assert "Imaging report, month 12" in shown(at) and "Radiology workbench" in shown(at)
     assert "no measurements recorded" in shown(at) and not at.exception
     at.segmented_control(key="view").set_value("Report").run()
-    button(at, "▶").click().run()
-    button(at, "▶").click().run()
-    assert "3/7 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
-    button(at, "Mark reviewed").click().run()
+    for _ in range(5):
+        at.button(key=f"next-{queue}").click().run()
+    assert "6/8 · `L4` CA 15-3 rose from 30 to 52" in shown(at)  # the alert took the lab pointer
+    assert "also raised by the labs workbench (L4)" in shown(at)
+    at.button(key=f"open-{queue}").click().run()  # the lab workbench opens on L4
+    assert at.selectbox(key="SYNTHETIC-001_spot").value.startswith("L4 · month 11")
+    at.segmented_control(key="view").set_value("Report").run()
+    at.button(key=f"next-{queue}").click().run()
+    assert "7/8 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
+    at.button(key=f"reviewed-{queue}").click().run()
     assert "✓ reviewed" in shown(at) and not at.exception
+    at.button(key=f"unsure-{queue}").click().run()  # u: weak trust or marked second look
+    assert "**unsure list**" in shown(at) and "1/2 · 12-month risk up" in shown(at)
+    at.button(key=f"unsure-{queue}").click().run()
     assert [b.label for b in at.get("download_button")] == [
         "Download this report version (Markdown)"]
     at.segmented_control(key="view").set_value("Tests").run()

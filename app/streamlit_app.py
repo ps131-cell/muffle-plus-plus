@@ -62,7 +62,7 @@ import charts  # noqa: E402
 from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
 
-from muffle import crosstest, evolution, workspace  # noqa: E402
+from muffle import crosstest, evolution, overview, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
     evidence_lookup,
@@ -87,6 +87,7 @@ from muffle.report.nemotron import (  # noqa: E402
 from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench.documents import case_documents  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
+from muffle.workbench.labs import file_rows as lab_rows  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
@@ -196,6 +197,7 @@ for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percent
                              documents=case_documents(c.index),
                              imaging=IMAGING.get(c.index))
     FILES[pf.id], CASES[pf.id] = pf, c
+BUNDLE_FILES = dict(FILES)  # as the bundle and the repo hold them, before this session's imports
 for pid, records in st.session_state.imports.items():  # each import adds a report version
     for r in records:
         FILES[pid] = workspace.add_version(FILES[pid], **r["version"])
@@ -248,31 +250,68 @@ def open_selected():
         st.session_state.list_n += 1
 
 
+SOURCE = args.bundle or (f"{args.ckpt}|{args.data}" if Path(args.ckpt).exists() and
+                         (Path(args.data) / "cohort.npz").exists() else BUNDLE_URL)
+
+
+@st.cache_data(show_spinner=False)
+def bundle_rows(source: str, code: str) -> dict[str, dict]:
+    """The list's search and filter fields of the files the bundle (``source``) and the repo's
+    data hold, once per bundle and code version; a file an import changed is read live."""
+    return {pid: overview.list_row(pf) for pid, pf in BUNDLE_FILES.items()}
+
+
 def patient_list():
-    rows = []
+    base, reviews, rows = bundle_rows(SOURCE, CODE_DIGEST), st.session_state.reviews, []
     for pid, pf in FILES.items():
         case = CASES.get(pid)
-        rows.append({
-            "Patient": pid,
-            "Kind": "Synthetic (written by hand)" if case is None
-                    else f"TCGA-BRCA · simulated {case.site}",
-            "Diagnosis": pf.diagnosis,
-            "Driver mutations": dict(pf.latest.observed).get("Driver mutations"),
-            "Latest report": pf.latest.label,
-            "SOS now": len(pf.latest.alerts),
-            "SOS before": sum(len(v.alerts) for v in pf.versions[:-1]),
-            "Tests": ", ".join(dict.fromkeys(t.kind for t in pf.tests)),
-            "Saved note": "★" if case and case.index in demo.notes else "",
-        })
-    table = pd.DataFrame(rows)
-    if st.toggle("Only files with SOS alerts"):
-        table = table[table["SOS now"] + table["SOS before"] > 0]
+        rows.append({**(base[pid] if pf is BUNDLE_FILES.get(pid) else overview.list_row(pf)),
+                     "diagnosis": pf.diagnosis, "latest": pf.latest.label,
+                     "kind": "Synthetic (written by hand)" if case is None
+                             else f"TCGA-BRCA · simulated {case.site}",
+                     "note": "★" if case and case.index in demo.notes else ""})
+    q, sos = st.columns([3, 1], vertical_alignment="center")
+    query = q.text_input("Search", key="list-search", label_visibility="collapsed",
+                         placeholder="Search a patient, a gene (PIK3CA), a subtype (luminal), a "
+                                     "stage (stage III) or a workbench (slides)")
+    open_sos = sos.toggle("Open SOS alerts only", key="list-sos",
+                          help="Files with an alert no reviewer has marked yet.")
+    f = st.columns([2, 2, 1, 2])
+    subtypes = f[0].multiselect("PAM50 subtype", sorted({r["subtype"] for r in rows}),
+                                key="list-subtype", placeholder="Any subtype")
+    genes = f[1].multiselect("Mutated gene", sorted({g for r in rows for g in r["genes"]}),
+                             key="list-gene", placeholder="Any gene")
+    stages = f[2].multiselect("Stage", [s for s in ("I", "II", "III", "IV", "not recorded")
+                                        if any(r["stage"] == s for r in rows)],
+                              key="list-stage", placeholder="Any")
+    holds = f[3].pills("Has", ["Slides", "Imaging", "Documents"], selection_mode="multi",
+                       key="list-holds")
+    shown = overview.filter_rows(rows, query, subtypes, genes, stages, open_sos, holds or (),
+                                 reviews)
+    table = pd.DataFrame([{
+        "Patient": r["id"], "Kind": r["kind"], "Diagnosis": r["diagnosis"],
+        "Subtype (PAM50)": r["subtype"], "Mutated genes": r["genes"],
+        "Workbenches with data": r["holds"], "Latest report": r["latest"],
+        "Open SOS": sum(k not in reviews for k in r["alerts"]), "Saved note": r["note"]}
+        for r in shown], columns=["Patient", "Kind", "Diagnosis", "Subtype (PAM50)",
+                                  "Mutated genes", "Workbenches with data", "Latest report",
+                                  "Open SOS", "Saved note"])
     st.session_state.list_ids = table["Patient"].tolist()
     st.dataframe(table, hide_index=True, on_select=open_selected, selection_mode="single-row",
-                 key=f"list-{st.session_state.list_n}", width="stretch",
-                 column_config={"Patient": st.column_config.TextColumn(pinned=True)})
+                 key=f"list-{st.session_state.list_n}", width="stretch", column_config={
+                     "Patient": st.column_config.TextColumn(pinned=True),
+                     "Mutated genes": st.column_config.ListColumn(
+                         help="Observed driver mutations; an empty cell is not sequenced or "
+                              "none found (the file says which)"),
+                     "Workbenches with data": st.column_config.ListColumn(
+                         help="The workbenches that hold this patient's own data"),
+                     "Subtype (PAM50)": st.column_config.TextColumn(
+                         help="Model inference from bulk RNA (Methods and validation); 'not "
+                              "called' without RNA"),
+                     "Open SOS": st.column_config.NumberColumn(
+                         help="Alerts without a review mark in this session")})
     st.caption(
-        "Click a row to open the file; the table's search icon filters it. SYNTHETIC-001 is a "
+        f"{len(shown)} of {len(rows)} files. Click a row to open the file. SYNTHETIC-001 is a "
         "synthetic patient, written by hand. The TCGA cases are public TCGA-BRCA patients the "
         "risk model never trained on, each assigned to one of the simulated hospitals; TCGA holds "
         "one tumor sample per patient, so their files have one version. ★ = a saved case note.")
@@ -309,7 +348,9 @@ def report_view(pf: workspace.PatientFile, i: int):
     arrived = v.event + ("" if v.month is None else f" (month {v.month})")
     st.markdown(f"**Summary** · {pf.diagnosis}. Latest in the record: {arrived}. "
                 f"{tags(OBSERVED)}  \n{v.summary} {tags(INFERENCE) if v.risk else ''}")
-    sos_tile(pf, i)
+    ov = overview_data(pf, i)
+    overview_header(pf, i, ov)
+    attention_queue(pf, i, ov)
     review_panel(pf)
 
     left, right = st.columns(2)
@@ -366,15 +407,18 @@ def report_view(pf: workspace.PatientFile, i: int):
               on_click=lambda: st.session_state.update(view="Evolution"))
     st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
     st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
-    disagree = crosstest.discrepancies(pf, i)
+    disagree = ov["disagree"]
     if disagree:
         st.markdown(f"**Tests that disagree** · {len(disagree)}")
         for d in disagree:
             with st.container(border=True):
-                st.markdown(f"**{d['what']}** {tags(d['evidence'])}")
-                st.caption(" · ".join(d["sources"]) + f" · {d['why']}")
-                st.markdown(f"What would settle it: {d['would_settle']}")
-    reducers = crosstest.uncertainty_reducers(pf, i)
+                st.markdown(f"**{md(d['what'])}** {tags(d['evidence'])} "
+                            f":{TRUST_COLORS[d['trust']]}-badge[trust: {d['trust']}]")
+                st.caption(" vs ".join(d["sources"]) + f" · {md(d['why'])}")
+                st.markdown(f"What would settle it: {md(d['would_settle'])}")
+                if d["basis"] and d["basis"] not in d["would_settle"]:
+                    st.caption(f"Basis: {d['basis']}")
+    reducers = ov["reducers"]
     if reducers:
         st.markdown(f"**What would reduce uncertainty** {tags(HYPOTHESIS)} · evidence for your "
                     "judgment, not an order")
@@ -385,7 +429,8 @@ def report_view(pf: workspace.PatientFile, i: int):
         st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
                     f"{pf.model['endpoint']}.\n" + "\n".join(f"- {s}" for s in sources(pf)))
     page = workspace.report_markdown(pf, i, {var: civic_items(pf, var) for var in variants},
-                                     st.session_state.reviews, sources(pf), disagree, reducers)
+                                     st.session_state.reviews, sources(pf), disagree, reducers,
+                                     ov["sums"], ov["queue"])
     when = "baseline" if v.month is None else f"month{v.month}"
     st.download_button("Download this report version (Markdown)", page,
                        file_name=f"{pf.id.replace(' ', '_')}_{when}.md", mime="text/markdown",
@@ -397,67 +442,190 @@ def report_view(pf: workspace.PatientFile, i: int):
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
 MARKS = workspace.MARKS[1:]  # "reviewed" comes from the "Mark reviewed" button
+KINDS = {"SOS": ":red-badge[SOS]", "discrepancy": ":violet-badge[tests disagree]"}
 
 
-def sos_tile(pf: workspace.PatientFile, i: int):
-    """The alert queue: this version's alerts, then earlier ones (latest first), each list ordered
-    by consequence × trust. One alert at a time is open, with its actions; next / previous step
-    through the queue."""
-    v = pf.versions[i]
-    queue = v.alerts + [a for w in reversed(pf.versions[:i]) for a in w.alerts]
+def md(text) -> str:
+    """Text for st.markdown: a variant such as "TP53 R196*" must not open italics."""
+    return str(text).replace("*", r"\*")
+
+
+def overview_data(pf: workspace.PatientFile, i: int) -> dict:
+    """Report version ``i``'s overview: every workbench's summary, the tests that disagree, what
+    would reduce uncertainty and the attention queue. Once per browser session and version (an
+    import adds a version, so it gets its own key; new code gets new keys)."""
+    memo = st.session_state.setdefault("overview", {})
+    key = (CODE_DIGEST, pf.id, len(pf.versions), i)
+    if key not in memo:
+        lookup = None if pf.kind == "synthetic" else EVIDENCE  # its CIViC items are frozen
+        disagree = crosstest.discrepancies(pf, i)
+        memo[key] = {"sums": overview.summaries(pf, i, lookup), "disagree": disagree,
+                     "reducers": crosstest.uncertainty_reducers(pf, i),
+                     "queue": overview.attention(pf, i, overview.queues(pf, i, lookup),
+                                                 disagree)}
+    return memo[key]
+
+
+def overview_header(pf: workspace.PatientFile, i: int, ov: dict):
+    """One row of finding cards from the workbenches' summaries (docs/WORKBENCHES.md §2)."""
+    cards = overview.header(pf, i, ov["sums"], ov["queue"], st.session_state.reviews)
+    for start in range(0, len(cards), 4):
+        for col, c in zip(st.columns(4), cards[start:start + 4], strict=False):
+            with col.container(border=True):
+                finding_card(pf, i, c)
+    gaps = overview.absent(ov["sums"])
+    if gaps:
+        st.caption("Not in this file: " + "; ".join(gaps) + ".")
+
+
+def finding_card(pf: workspace.PatientFile, i: int, c: dict):
+    """A card: the statement with its evidence label and trust; "Why?" names the source test,
+    the method and version, the threshold's source and the trust; "Open" lands on the evidence."""
+    title = (f"**:red[SOS]** · {c['open']} open" if c["what"] == "SOS" and c["open"] else
+             f"**{c['what']}**")
+    st.markdown(f"{title}  \n{tags(c['evidence'])}")
+    if "sides" in c:
+        st.markdown("  \n".join(f"*{k}:* {md(text)}" for k, text, _ in c["sides"]))
+    else:
+        st.markdown(md(c["text"]))
+    placeholder = " :orange-badge[placeholder threshold]" if "placeholder" in c["threshold"] \
+        else ""
+    st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}")
+    why, go = st.columns(2)
+    with why.popover("Why?", width="stretch"):
+        st.markdown(f"**Source test:** {md(c['source'])}  \n**Method and version:** "
+                    f"{md(c['method'])}  \n**Threshold:** {md(c['threshold'])}  \n**Trust:** "
+                    f"{c['trust']}  \n**Evidence:** {c['evidence']}")
+    if c["opens"]:
+        go.button("Open", key=f"card-{pf.id}-{i}-{c['what']}", width="stretch",
+                  on_click=open_evidence, args=(pf, i, c["opens"], c["focus"]),
+                  help="Opens the test behind this card at its evidence")
+
+
+def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
+    """The patient's one queue: SOS alerts, tests that disagree and every workbench's look-here
+    items, merged and ordered (``muffle.overview.attention``), one item at a time with keyboard
+    triage: j next, k previous, p pin, m mark reviewed (Streamlit keeps r for rerun), u the
+    unsure list, o open."""
+    items, reviews, pins = ov["queue"], st.session_state.reviews, st.session_state.pins
+    ss, pos, only = st.session_state, f"queue-{pf.id}-{i}", f"unsure-{pf.id}"
+    shown = overview.unsure(items, reviews) if ss.get(only) else items
+    sos = sum(x["sos"] for x in items)
+    disagree = sum(x["kind"] == "discrepancy" for x in items)
     with st.container(border=True):
-        if not queue:
-            st.markdown("**SOS** · nothing alarming in this version")
-            if len(pf.versions) == 1:
-                st.caption(pf.note)
+        st.markdown(f"**Attention** · {len(items)} item{'s' if len(items) != 1 else ''}: {sos} "
+                    f"SOS, {disagree} where tests disagree, {len(items) - sos - disagree} from "
+                    "the workbenches" + (" · **unsure list**: marked second look, or weak trust"
+                                         if ss.get(only) else ""))
+        st.caption(overview.ORDER_RULE.capitalize() + ".")
+        if not shown:
+            st.caption("Nothing on the unsure list." if ss.get(only) else
+                       "Nothing needs attention in this version.")
+            if ss.get(only):
+                st.button("Whole queue", key=f"unsure-off-{pos}", shortcut="U",
+                          on_click=lambda: ss.update({only: False, pos: 0}))
             return
-        earlier = len(queue) - len(v.alerts)
-        head = (f"**:red[SOS]** · {len(v.alerts)} alarming in this version" if v.alerts
-                else "**SOS** · nothing new in this version")
-        st.markdown(head + (f", {earlier} earlier" if earlier else ""))
-        pos = f"sos-{pf.id}-{i}"
-        k = st.session_state.get(pos, 0) % len(queue)
-        a = queue[k]
-        key = workspace.finding_key(pf, "alert", a.month, a.what)
-        done = st.session_state.reviews.get(key)
-        flag = " :orange-badge[placeholder threshold]" if "placeholder" in a.threshold else ""
-        st.markdown(f"**{k + 1}/{len(queue)} · {a.what}** {tags(a.evidence)} "
-                    f":{TRUST_COLORS[a.trust]}-badge[trust: {a.trust}]{flag}")
-        since = f"month {a.month}" + ("" if a.month == v.month or v.month is None
-                                      else f", {v.month - a.month} months before this version")
-        st.caption(f"Since {since} · source: {a.source} · rule: {a.rule} · threshold: "
-                   f"{a.threshold} · trust {a.trust}: {a.why_trust}"
-                   + (f" · {done['mark']} by {done['by'] or 'no initials'}, {done['at']}"
-                      if done else ""))
-        c = st.columns([3, 3, 2, 2, 3])
-        if a.opens:
-            c[0].button("Open the test" if a.opens[0] == "Tests" else "Open the timeline",
-                        key=f"open-{key}", on_click=open_evidence, args=(pf, a))
-        c[1].button("Mark reviewed", key=f"reviewed-{key}", disabled=done is not None,
-                    on_click=mark, args=(key, a.what, "reviewed"))
-        c[2].button("◀", key=f"prev-{pos}", help="Previous alert",
-                    on_click=lambda: st.session_state.update({pos: k - 1}))
-        c[3].button("▶", key=f"next-{pos}", help="Next alert",
-                    on_click=lambda: st.session_state.update({pos: k + 1}))
-        with c[4]:
-            review_box(key, a.what)
-        lines = []
-        for n, b in enumerate(queue):
-            line = f"{b.what} · month {b.month} · trust {b.trust}"
-            seen = st.session_state.reviews.get(workspace.finding_key(pf, "alert", b.month, b.what))
-            lines.append(f"{n + 1}. " + (f"**{line}**" if n == k else line)
-                         + (f" · ✓ {seen['mark']}" if seen else ""))
-        st.markdown("\n".join(lines))
-        st.caption("Ordered by consequence × trust, this version first: a fixed ordering rule "
-                   "with placeholder weights, not a validated score.")
+        k = ss.get(pos, 0) % len(shown)
+        cur = shown[k]
+        c = st.columns(6)
+        c[0].button("Previous", key=f"prev-{pos}", shortcut="K", width="stretch",
+                    on_click=lambda: ss.update({pos: k - 1}))
+        c[1].button("Next", key=f"next-{pos}", shortcut="J", width="stretch",
+                    on_click=lambda: ss.update({pos: k + 1}))
+        c[2].button("Unpin" if cur["key"] in pins else "Pin", key=f"pin-{pos}", shortcut="P",
+                    width="stretch", on_click=toggle_pin, args=(cur["key"], cur["what"]))
+        c[3].button("Mark reviewed", key=f"reviewed-{pos}", shortcut="M", width="stretch",
+                    disabled=cur["key"] in reviews,
+                    on_click=mark, args=(cur["key"], cur["what"], "reviewed"))
+        c[4].button("Whole queue" if ss.get(only) else "Unsure list", key=f"unsure-{pos}",
+                    shortcut="U", width="stretch",
+                    on_click=lambda: ss.update({only: not ss.get(only), pos: 0}))
+        c[5].button("Open", key=f"open-{pos}", shortcut="O", type="primary", width="stretch",
+                    disabled=not cur["opens"], on_click=open_evidence,
+                    args=(pf, i, cur["opens"], cur["focus"]))
+        queue_item(cur, k, len(shown), reviews)
+        with st.container(height=320 if len(shown) > 8 else "content"):
+            for n, x in enumerate(shown):
+                line, act = st.columns([10, 1], vertical_alignment="center")
+                done = reviews.get(x["key"])
+                text = (f"{x['n']}. " + (f"`{x['pointer']}` " if x["pointer"] else "")
+                        + md(x["what"]) + f" · {kind_badge(x)}"
+                        + (" :blue-badge[new]" if x["new"] else "")
+                        + f" :{TRUST_COLORS[x['trust']]}-badge[{x['trust']}]"
+                        + (f" · ✓ {done['mark']}" if done else "")
+                        + (" · 📌" if x["key"] in pins else ""))
+                line.markdown(f"**{text}**" if n == k else text)
+                if x["opens"]:
+                    act.button("Open", key=f"open-{pos}-{n}", on_click=open_item,
+                               args=(pf, i, pos, n, x))
+        st.caption("Keys: j next · k previous · p pin · m mark reviewed (Streamlit keeps r for "
+                   "rerun) · u unsure list · o open. A mark here is the same mark the "
+                   "workbench shows.")
 
 
-def open_evidence(pf: workspace.PatientFile, a: workspace.Alert):
-    """"Open the test": switch the file to the view that holds the alert's evidence."""
-    if a.opens[0] == "Tests":
-        st.session_state[f"picked-{pf.id}"] = a.opens[1:]
+def kind_badge(x: dict) -> str:
+    return KINDS.get(x["kind"]) or f":gray-badge[{overview.NAMES.get(x['kind'], x['kind'])}]"
+
+
+def queue_item(x: dict, k: int, total: int, reviews: dict):
+    """The current item in full: what, why, the evidence label, trust, consequence, where else
+    it was raised, what would settle it, and its review box."""
+    done = reviews.get(x["key"])
+    placeholder = " :orange-badge[placeholder threshold]" if "placeholder" in x["threshold"] \
+        else ""
+    st.markdown(f"**{k + 1}/{total} · " + (f"`{x['pointer']}` " if x["pointer"] else "")
+                + f"{md(x['what'])}** {tags(x['evidence'])} {kind_badge(x)} "
+                f":{TRUST_COLORS[x['trust']]}-badge[trust: {x['trust']}]"
+                f" :gray-badge[consequence {x['consequence']}]{placeholder}")
+    st.caption(f"{md(x['source'])} · {md(x['why'])}"
+               + (f" · threshold: {md(x['threshold'])}" if x["threshold"] else "")
+               + (f" · also raised by {', '.join(x['also'])}" if x["also"] else "")
+               + (f" · {done['mark']} by {done['by'] or 'no initials'}, {done['at']}"
+                  if done else ""))
+    if x["settle"]:
+        st.markdown(f"What would settle it: {md(x['settle'])}")
+    review_box(x["key"], x["what"])
+
+
+def open_item(pf: workspace.PatientFile, i: int, pos: str, n: int, x: dict):
+    """A row's "Open": make it the current item, then open its evidence."""
+    st.session_state[pos] = n
+    open_evidence(pf, i, x["opens"], x["focus"])
+
+
+def open_evidence(pf: workspace.PatientFile, i: int, opens: tuple, focus: dict | None = None):
+    """"Open": switch the file to the view that holds the evidence (``opens``, the shape of
+    ``Alert.opens``) and land the workbench on it (``focus``)."""
+    if opens and opens[0] == "Tests":
+        st.session_state[f"picked-{pf.id}"] = tuple(opens[1:])
+        st.session_state[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
         st.session_state.tests_n += 1  # a fresh tests table, so no old row selection wins
-    st.session_state.view = a.opens[0]
+        land(pf, i, focus or {})
+    if opens:
+        st.session_state.view = opens[0]
+
+
+def land(pf: workspace.PatientFile, i: int, focus: dict):
+    """Set the opened workbench's own widget state so it opens on the pointer.
+    ponytail: these are the pages' widget keys; a page that renames one opens at its top
+    instead (a pure focus() per page would carry this if pages multiply)."""
+    ss = st.session_state
+    if "marker" in focus:  # labs: the Spot panel's value
+        row = next((r for r in lab_rows(pf, i)
+                    if (r["key"], r["month"]) == (focus["marker"], focus["month"])), None)
+        if row:
+            ss[f"{pf.id}_spot"] = labs._lab(row)
+    if "variant" in focus:  # genomics: the variant browser narrowed to it, its Spot panel below
+        ss[f"genomics-{pf.id}-{i}-search"] = focus["variant"]
+    if "slide" in focus:  # slides: the section, then the pointer in its Spot panel
+        ss[f"{pf.id}-section"] = focus["slide"]
+        if "tile" in focus:
+            k = f"{pf.id}|{focus['slide']}"
+            ss[f"{k}-pick"], ss[f"{k}-spot"] = f"{focus['pointer']} · {focus['tile']}", ""
+    if "omics" in focus:  # omics: the finding in its Spot panel
+        ss[f"omics-spot-{pf.id}"] = focus["omics"]
+    if "doc" in focus:  # documents: the document at the sentence
+        ss[f"docs-jump-{pf.id}"] = (focus["doc"], tuple(focus["sentence"]))
 
 
 def mark(key: str, what: str, value: str | None):
