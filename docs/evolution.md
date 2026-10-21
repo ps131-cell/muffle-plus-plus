@@ -40,12 +40,14 @@ Code: `src/muffle/evolution.py` (table, hypothesis set, events, clonal order, ex
    negative alone settles neither, and an IHC score, an ISH result or "equivocal" is never turned
    into a status. When the record and a document disagree, the record's status is used and the
    document is named beside it ("in the record (document import-1 states otherwise)"); when
-   documents disagree with each other, or one report states both (case 545's report reads HER2
-   negative and, in what looks like a legend, positive), none is picked and the rows that need it
-   stay conditional. These are rule matches, not a pathologist's read: a note gives the rules'
-   precision on 481 held-out TCGA reports (ER 95%, PR 93%, HER2 80% with documents rules v1). With
-   those rules, 15 of the 39 bundled reports settle the hormone-receptor status and 14 the HER2
-   status; the other files stay conditional.
+   documents disagree with each other, or one report states both (two specimens, or a misread),
+   none is picked and the rows that need it stay conditional. These are rule matches, not a
+   pathologist's read: a note gives the rules' precision on 481 held-out TCGA reports (ER 95%, PR
+   93%, HER2 81% with documents rules v2). With those rules, 15 of the 38 bundled reports settle
+   the hormone-receptor status and 14 the HER2 status; the other files stay conditional. Rules v1
+   read case 545's report as HER2 negative and positive (its synoptic form's answers slid a row)
+   and case 58's "weakly positive (2+)" as HER2-positive; v2 reads case 545 as negative and
+   leaves case 58 unsettled (`docs/documents.md`).
    TCGA files record no treatment: "No treatment recorded; these hypotheses assume none." Every row
    not raised is listed with the reason. The order is a fixed rule, not a probability: two points
    for a recorded treatment of the row's class, one for an observed driver, one for a matching

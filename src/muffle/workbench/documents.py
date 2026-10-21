@@ -26,7 +26,7 @@ from muffle.report.case_tools import OBSERVED
 from muffle.timeline import EVENTS
 from muffle.workspace import card, finding_key, look
 
-RULES_VERSION = "documents rules v1 (2026-10-20)"
+RULES_VERSION = "documents rules v2 (2026-10-21)"
 DOCUMENTED = "documented"
 DOCS_DIR = Path(__file__).resolve().parents[3] / "app" / "documents"
 TCGA_REPORTS = ("TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933;"
@@ -83,12 +83,21 @@ _LIST_POL = re.compile(r"\b(positive|negative)\s+(?:for|of)\s+((?:(?:" + "|".joi
 _PCT = re.compile(r"(?<![<>≤≥\d.\-–])(?:over\s+|approximately\s+|about\s+)?(\d{1,3}(?:\.\d+)?)\s*%",
                   re.I)
 _ALLRED = re.compile(r"al[lI]red(?:\s+score)?\s*[-:=]?\s*([0-8])(?:\s*/\s*8)?\b", re.I)
-_IHC = re.compile(r"(?<![\d.\-–])([0-3])\s*\+|"
-                  r"\b(?:score|ihc)\s*(?:of\s*)?[:=]?\s*(0)\b(?!\.?\d)", re.I)
+_ZERO_OR_1 = r"\s*(?:or|/|-|–|to)\s*1\s*\+"  # "zero or 1+", "0/1+": a band, not 1+
+_IHC = re.compile(rf"\b(?:0|zero){_ZERO_OR_1}|(?<![\d.\-–])([0-3])\s*\+|"
+                  rf"\b(?:score|ihc)\s*(?:of\s*)?[:=]?\s*(0)\b(?!\.?\d|{_ZERO_OR_1})", re.I)
 _ISH = re.compile(r"\b(not\s+amplified|non-?amplified|no\.?\s+amplification|amplified)\b|"
                   r"\b(positive|negative)\s+by\s+(?:FISH|CISH|SISH|ISH)\b", re.I)
 _RATIO = re.compile(r"ratio\b[^0-9<>=]{0,25}" + _N, re.I)  # not a cutoff ("ratio </=2.0")
 _KI67_WORD = re.compile(r"\b(low|high|intermediate)\b", re.I)
+_CAT = r"(?:negative|positive|equivocal|borderline|indeterminate)"
+_BAND = (r"(?:score(?:\s*[:=])?\s*)?(?:[<>≤≥]=?\s*)?\d+(?:\.\d+)?(?:\s*[%+])?"
+         r"(?:\s*(?:-|–|/|,|or|to)\s*\d+(?:\.\d+)?(?:\s*[%+])?)?")
+_LEGEND = re.compile(  # a HER2 scoring legend, not a result: "Negative 0-1+, Equivocal 2+",
+    # "2=INDETERMINATE", "score of 2 are considered borderline", "... that is interpreted as"
+    rf"(?P<list>(?:\b{_CAT}\W{{0,4}}{_BAND}[\s.,;:)\]]*(?:and\s+)?){{2,}})|"
+    rf"\b[0-3]\s*\+?\s*(?:=|(?:is|are)\s+considered)\s*{_CAT}\b|"
+    rf"\bthat\s+(?:is|are)\s+interpreted\s+as\s+{_CAT}\b", re.I)
 
 _TYPE = re.compile(
     r"\b(?:(invasive|infiltrating)\s+(?:mammary\s+)?(ductal\s+and\s+lobular|lobular\s+and\s+"
@@ -204,8 +213,13 @@ RULES = {  # field group -> what the rule reads (the rules card)
                                  "\"positive for ER and PR\"; a % and an Allred score in the "
                                  "same stretch. A % is never turned into a status",
     "HER2": "HER2 / HER-2/neu / c-erbB-2 with positive / negative / equivocal, an IHC score "
-            "0–3+, an ISH result (amplified, not amplified, positive / negative by FISH) and a "
-            "ratio. A score is never turned into a status",
+            "0–3+ (\"zero or 1+\" kept as the band 0 or 1+), an ISH result (amplified, not "
+            "amplified, positive / negative by FISH) and a ratio. Not read: a scoring legend "
+            "(\"Negative 0-1+, Equivocal 2+\", \"2=INDETERMINATE\", \"score of 2 are considered "
+            "borderline\"), and a status word its own IHC score argues against (positive with 0 "
+            "or 1+, or 2+ unless amplified; negative with 3+): a form whose answers slid a row, a "
+            "comment that runs on, \"weakly positive (2+)\". A score is never turned into a "
+            "status",
     "Ki-67": "Ki-67 or MIB-1 with a % (or low / high as written)",
     "Laterality, specimen": "left / right breast, \"breast, left\", \"laterality: ...\"; "
                             "mastectomy types, lumpectomy, excisions, core biopsy, sentinel "
@@ -331,10 +345,36 @@ def extract(text: str, doc: str = "") -> list[dict]:
     return out
 
 
+def _outside(matches, at: int, spans):
+    """The matches (in a window at offset ``at`` of the text) that start outside ``spans``."""
+    return (m for m in matches if not any(s <= at + m.start() < e for s, e in spans))
+
+
+def _ihc(m: re.Match) -> str:
+    g = m.group(1) or m.group(2)
+    return f"{g}+".replace("0+", "0") if g else "0 or 1+"
+
+
+def _two_answers(value: str, ihc: re.Match | None, ish: re.Match | None) -> bool:
+    """A HER2 status word the IHC score in its stretch argues against: positive with 0 or 1+ (or
+    2+ when the stretch does not say amplified), negative with 3+. The stretch then holds two
+    answers and the word is likely not HER2's: an OCR'd form whose answers slid a row
+    ("PROGESTERONE RECEPTORS: positive. HER2/NEU: positive. zero or 1+", HER2's answer being
+    "zero or 1+"), a comment that runs on, or the HercepTest-era "weakly positive (2+)"."""
+    score = ihc and _ihc(ihc)
+    amplified = ish and (ish.group(1) or ish.group(2)).lower() in ("amplified", "positive")
+    return (value == "positive" and (score in ("0", "1+", "0 or 1+") or score == "2+"
+                                     and not amplified)
+            or value == "negative" and score == "3+")
+
+
 def _receptors(text: str, add) -> None:
     """ER, PR, hormone receptor, HER2 and Ki-67: "positive for ER and PR" first, then each named
-    receptor with what follows it up to the next receptor named (at most 120 characters)."""
+    receptor with what follows it up to the next receptor named (at most 120 characters). For
+    HER2, a scoring legend is not read, nor a status word its own IHC score argues against."""
     terms = [(m.lastgroup, m.start(), m.end()) for m in _TERM.finditer(text)]
+    legends = [m.span() for m in _LEGEND.finditer(text)  # a list names two categories or more
+               if not m["list"] or len({c.lower() for c in re.findall(_CAT, m["list"], re.I)}) > 1]
     covered = set()
     for m in _LIST_POL.finditer(text):
         value = m.group(1).lower()
@@ -359,13 +399,17 @@ def _receptors(text: str, add) -> None:
             elif p:
                 add("ki67", f"{float(p.group(1)):g}%", a, b + p.end(), "receptor window")
             continue
+        legend = legends if key == "her2" else ()
+        s, i = (next(_outside(rx.finditer(window), b, legend), None) for rx in (_IHC, _ISH))
         if a not in covered:  # a sign counts only right after the name ("ER+", "PR: -")
-            p = next((p for p in _POL.finditer(window) if p.group(1) or p.start() < 3), None)
-            if p:
-                value = (p.group(1) or p.group(2)).lower()
+            p = next((p for p in _outside(_POL.finditer(window), b, legend)
+                      if p.group(1) or p.start() < 3), None)
+            value = p and (p.group(1) or p.group(2)).lower()
+            value = POLARITY.get(value, value)
+            if value and not (key == "her2" and _two_answers(value, s, i)):
                 for k, start in [*pending, (key, a)]:
                     if start not in covered and k != "ki67":
-                        add(k, POLARITY.get(value, value), start, b + p.end(), "receptor window")
+                        add(k, value, start, b + p.end(), "receptor window")
         if key in ("er", "pr"):
             p = _PCT.search(window)
             if p:
@@ -374,11 +418,8 @@ def _receptors(text: str, add) -> None:
             if r:
                 add(f"{key}_allred", r.group(1), a, b + r.end(), "receptor window")
         if key == "her2":
-            s = _IHC.search(window)
             if s:
-                add("her2_ihc", f"{s.group(1) or s.group(2)}+".replace("0+", "0"), a,
-                    b + s.end(), "receptor window")
-            i = _ISH.search(window)
+                add("her2_ihc", _ihc(s), a, b + s.end(), "receptor window")
             if i:
                 v = (i.group(1) or i.group(2)).lower()
                 v = ("amplified" if v in ("amplified", "positive") else "not amplified")
@@ -576,7 +617,7 @@ def validation() -> dict[str, dict]:
 
 
 def measured(fields) -> str:
-    """"rules v1, measured on held-out TCGA reports: ER precision 95%, ..." for ``fields``."""
+    """"rules v2, measured on held-out TCGA reports: ER precision 95%, ..." for ``fields``."""
     v = validation()
     shown = [f"{FIELDS[k]} precision {v[k]['precision']:.0%}" for k in fields if k in v]
     return (f"{RULES_VERSION}; the document's own words, read by rules"
