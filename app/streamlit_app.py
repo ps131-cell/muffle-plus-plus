@@ -656,7 +656,7 @@ def case_note(case):
         report, source = st.session_state.reports[case.index]
         note, trace = st.columns([3, 2])
         with note:
-            st.markdown(report.text)
+            st.markdown(esc(report.text))
             if report.mode != "offline":
                 if report.issues:
                     st.warning("Grounding check: not found in the tool outputs: "
