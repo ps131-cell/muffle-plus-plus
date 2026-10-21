@@ -544,16 +544,22 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
         st.markdown("**Stromal lymphocytes by zone** (International TILs Working Group zones; "
                     "a count proxy, not the WG's area percentage)")
         im = res["immune"]
-        rows = []
-        for z, v in im["zones"].items():
-            rows.append({"zone": z, "tiles": v["tiles"],
-                         "lymphocyte-class tiles": f"{v['lymph_tile_share']:.0%}"
-                         if v["lymph_tile_share"] is not None else "—",
-                         "counted stroma tiles": v.get("counted_tiles", 0),
-                         "lymphocyte-like nuclei / mm²": v.get("lymph_nuclei_per_mm2", "—"),
-                         "within 50 µm of tumor": f"{v['tumor_contacting_share']:.0%}"
-                         if v.get("tumor_contacting_share") is not None else "—"})
-        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        # numeric columns with NaN where a zone has nothing, so no mixed dtype reaches Arrow
+        rows = [{"zone": z, "tiles": v["tiles"],
+                 "lymphocyte-class tiles": v["lymph_tile_share"],
+                 "counted stroma tiles": v.get("counted_tiles", 0),
+                 "lymphocyte-like nuclei / mm²": v.get("lymph_nuclei_per_mm2"),
+                 "within 50 µm of tumor": v.get("tumor_contacting_share")}
+                for z, v in im["zones"].items()]
+        zones = pd.DataFrame(rows)
+        for col in ("lymphocyte-class tiles", "lymphocyte-like nuclei / mm²",
+                    "within 50 µm of tumor"):
+            zones[col] = pd.to_numeric(zones[col], errors="coerce")
+        st.dataframe(zones, hide_index=True, width="stretch", column_config={
+            "lymphocyte-class tiles": st.column_config.NumberColumn(format="percent"),
+            "lymphocyte-like nuclei / mm²": st.column_config.NumberColumn(format="%d"),
+            "within 50 µm of tumor": st.column_config.NumberColumn(format="percent")})
+        st.caption("An empty cell means the zone has no tiles or no counted stroma tiles.")
         st.markdown(f"Pattern: **{im['pattern']}** ({im['status']}).")
     t1, t2, t3 = st.columns(3)
     tsr, nec = res["tsr"], res["necrosis"]
