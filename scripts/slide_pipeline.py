@@ -26,6 +26,18 @@ texture measures, encoder loading and head (``scripts/slide_spike.py``,
       --slide TCGA-AN-A0AS-DX1 ...
       adds every nucleus of the cached nuclei.csv (centroid, area, solidity) to nuclei.json
       for the slide viewer's cell layer; nothing is re-run
+  python scripts/slide_pipeline.py til-measure --spike-work SPIKE_WORK \
+      --head-metrics WORK/head_metrics.json --weights WEIGHTS/torchscript_model.pt \
+      --out WORK/til_metrics.json
+      the second opinion on lymphocytes (WSInfer TIL InceptionV4, CC BY 4.0, TorchScript): scores
+      the spike's BCSS tiles (centre 50 µm of each 224 px tile, resized to 299 px), reports the
+      AUROC for lymphocytes versus the rest on the head's held-out slides, per-class means, and a
+      cutoff calibrated on the training slides (Youden's J), for both candidate normalizations
+  python scripts/slide_pipeline.py til --slide SLIDES/X.svs --results RESULTS \
+      --weights ... --metrics WORK/til_metrics.json [--budget 1500]
+      scores the front-band and peritumoral tiles of an already written result folder with the
+      TIL model and writes til.json next to it (tile id -> probability, the cutoff and its source,
+      the measured numbers): derived numbers only
 
 Work files (WORK/<slide>/: grid.csv, embeddings.npy, tiles.csv, nuclei.csv, selection.json)
 stay local. A re-run with another encoder (``--model``) only changes "encoder" in summary.json
@@ -487,6 +499,147 @@ def cmd_cells(a):
         path.write_text(json.dumps(nuc))
         log(f"{name}: {sum(len(v) for v in nuc['cells']['tiles'].values()) // 4} nuclei, "
             f"nuclei.json {path.stat().st_size / 1e6:.2f} MB")
+# --- the second opinion on lymphocytes (WSInfer TIL model) ---------------------------------
+
+TIL_SPEC = {"name": "kaczmarj/pancancer-lymphocytes-inceptionv4.tcga",
+            "paper": "Abousamra et al., Front Oncol 2022, 10.3389/fonc.2021.806603",
+            "license": "CC BY 4.0", "patch_um": 50, "input_px": 299,
+            "trained_on": "TCGA slides of 23 cancer types (TCGA-BRCA among them), so the "
+                          "held-out BCSS slides may have been in its training set"}
+TIL_NORMS = {"half": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+             "imagenet": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))}
+
+
+def load_til(weights: str, threads: int):
+    import torch
+
+    torch.set_num_threads(threads)
+    return torch.jit.load(weights, map_location="cpu").eval()
+
+
+def til_scores(model, rgb: np.ndarray, norm: str, batch: int = 16) -> np.ndarray:
+    """P(lymphocyte-rich) per 224 px tile at 0.5 µm/px: the centre 100 px (50 µm) resized to
+    299 px, normalized, softmax over the model's two classes (index 1 = lymphocytes)."""
+    import torch
+    import torch.nn.functional as F
+
+    mean, std = (torch.tensor(v).view(1, 3, 1, 1) for v in TIL_NORMS[norm])
+    side = int(round(TIL_SPEC["patch_um"] / MPP))  # 100 px
+    lo = (TILE_PX - side) // 2
+    out = []
+    with torch.inference_mode():
+        for i in range(0, len(rgb), batch):
+            crop = np.ascontiguousarray(rgb[i:i + batch, lo:lo + side, lo:lo + side])
+            x = torch.from_numpy(crop).permute(0, 3, 1, 2).float() / 255
+            x = F.interpolate(x, size=TIL_SPEC["input_px"], mode="bicubic", align_corners=False)
+            x = (x - mean) / std
+            out.append(torch.softmax(model(x), 1)[:, 1].numpy())
+    return np.concatenate(out) if out else np.zeros(0, np.float32)
+
+
+def cmd_til_measure(a):
+    from sklearn.metrics import roc_auc_score, roc_curve
+
+    metrics = json.load(open(a.head_metrics))
+    test = set(metrics["test_slides"])
+    classes = metrics["classes"]
+    model = load_til(a.weights, a.threads)
+    rows = []
+    for folder in sorted(Path(a.spike_work).iterdir()):
+        if not (folder / "tiles_rgb.npy").exists():
+            continue
+        df = pd.read_csv(folder / "tiles.csv")
+        keep = (df["bcss_label"].isin(classes) & (df["qc"] == "ok")).to_numpy()
+        rgb = np.load(folder / "tiles_rgb.npy", mmap_mode="r")[keep]
+        sub = df[keep][["bcss_label"]].copy()
+        sub["slide"], sub["split"] = folder.name, "test" if folder.name in test else "train"
+        t0 = time.time()
+        for norm in TIL_NORMS:
+            sub[f"p_{norm}"] = til_scores(model, np.asarray(rgb), norm)
+        rate = len(sub) * len(TIL_NORMS) / (time.time() - t0)
+        log(f"{folder.name}: {len(sub)} tiles, {rate:.2f} tiles/s over both normalizations, "
+            f"{uptime()}")
+        rows.append(sub)
+    d = pd.concat(rows)
+    d.to_csv(Path(a.out).with_suffix(".csv"), index=False)
+    y = (d["bcss_label"] == "lymphocytes").astype(int)
+    result = {"model": TIL_SPEC, "weights": str(a.weights), "classes_scored": classes,
+              "test_slides": sorted(test), "train_slides": sorted(set(d["slide"]) - test),
+              "n_test_tiles": int((d["split"] == "test").sum()),
+              "n_train_tiles": int((d["split"] == "train").sum()), "norms": {},
+              "uptime": uptime()}
+    for norm in TIL_NORMS:
+        p, te, tr = d[f"p_{norm}"], d["split"] == "test", d["split"] == "train"
+        fpr, tpr, thr = roc_curve(y[tr], p[tr])
+        cutoff = float(thr[np.argmax(tpr - fpr)])
+        pred = p[te] >= cutoff
+        rec = {"auroc_test": round(float(roc_auc_score(y[te], p[te])), 3),
+               "auroc_train": round(float(roc_auc_score(y[tr], p[tr])), 3),
+               "cutoff": round(cutoff, 3),
+               "cutoff_source": "calibrated on the 8 training slides (Youden's J); the held-out "
+                                "numbers use it unchanged",
+               "test_at_cutoff": {
+                   "recall_lymphocytes": round(float(pred[y[te] == 1].mean()), 3),
+                   "specificity": round(float((~pred[y[te] == 0]).mean()), 3),
+                   "accuracy": round(float((pred == y[te]).mean()), 3)},
+               "mean_p_by_class_test": {c: round(float(p[te & (d["bcss_label"] == c)].mean()), 3)
+                                        for c in classes if (te & (d["bcss_label"] == c)).any()}}
+        result["norms"][norm] = rec
+    result["chosen_norm"] = max(TIL_NORMS, key=lambda n: result["norms"][n]["auroc_test"])
+    Path(a.out).write_text(json.dumps(result, indent=1))
+    print(json.dumps(result, indent=1))
+
+
+def til_tiles(tiles: pd.DataFrame, n: int) -> pd.DataFrame:
+    """Which tiles the TIL model scores: the front band (nearest the front first), then the
+    peritumoral zone by distance; usable tiles only."""
+    ok = tiles[tiles["qc"] == "ok"]
+    band = ok[ok["zone"] == "front band"]
+    if "dist_to_front_um" in band:
+        band = band.assign(d=band["dist_to_front_um"].abs()).sort_values("d")
+    peri = ok[ok["zone"] == "peritumoral"]
+    if "dist_to_front_um" in peri:
+        peri = peri.sort_values("dist_to_front_um")
+    return pd.concat([band, peri])[["row", "col"]].head(n).reset_index(drop=True)
+
+
+def cmd_til(a):
+    import openslide
+
+    name = Path(a.slide).stem
+    out = Path(a.results) / name
+    meta = json.loads((out / "summary.json").read_text())
+    tiles = pd.read_json(out / "tiles.json", orient="split")
+    res = inv.analyze_slide(tiles, meta["head"]["classes"])
+    chosen = til_tiles(res["tiles"], a.budget)
+    metrics = json.load(open(a.metrics))
+    norm = metrics["chosen_norm"]
+    model = load_til(a.weights, a.threads)
+    slide = openslide.OpenSlide(a.slide)
+    step, (r0, c0) = meta["step_base_px"], meta["scored"]["origin_tile"]
+    log(f"{name}: TIL model on {len(chosen)} tiles ({uptime()})")
+    probs, t0 = [], time.time()
+    pos = chosen[["row", "col"]].to_numpy(int)
+    for i in range(0, len(pos), 16):
+        rgb = np.stack([read_tile(slide, step, r + r0, c + c0) for r, c in pos[i:i + 16]])
+        probs.append(til_scores(model, rgb, norm))
+        if (i // 16) % 20 == 0:
+            log(f"  {i + len(rgb)}/{len(pos)} tiles, {uptime()}")
+    p = np.concatenate(probs) if probs else np.zeros(0)
+    dt = time.time() - t0
+    m = metrics["norms"][norm]
+    til = {"model": {**TIL_SPEC, "normalization": norm},
+           "cutoff": m["cutoff"], "cutoff_source": m["cutoff_source"],
+           "held_out": {"slides": metrics["test_slides"], "tiles": metrics["n_test_tiles"],
+                        "auroc": m["auroc_test"], "at_cutoff": m["test_at_cutoff"],
+                        "mean_p_by_class": m["mean_p_by_class_test"]},
+           "scored_tiles": int(len(pos)), "zones": "front band first, then peritumoral",
+           "s_per_tile": round(dt / max(len(pos), 1), 2), "threads": a.threads,
+           "uptime": uptime(),
+           "tiles": {f"r{r}c{c}": round(float(v), 3) for (r, c), v in zip(pos, p, strict=True)}}
+    (out / "til.json").write_text(json.dumps(til))
+    log(f"wrote {out / 'til.json'}: {len(pos)} tiles, {til['s_per_tile']} s per tile, "
+        f"{int((p >= m['cutoff']).sum())} at or above the cutoff")
 
 
 def cmd_index(a):
@@ -522,5 +675,20 @@ if __name__ == "__main__":
     i = sub.add_parser("index")
     i.add_argument("--results", required=True)
     i.add_argument("--case", action="append", required=True, help="INDEX=SLIDE[,SLIDE]")
+    tm = sub.add_parser("til-measure")
+    tm.add_argument("--spike-work", required=True,
+                    help="the BCSS tiles: WORK/<slide>/tiles_rgb.npy and tiles.csv")
+    tm.add_argument("--head-metrics", required=True)
+    tm.add_argument("--weights", required=True)
+    tm.add_argument("--out", required=True)
+    tm.add_argument("--threads", type=int, default=2)
+    tl = sub.add_parser("til")
+    tl.add_argument("--slide", required=True)
+    tl.add_argument("--results", required=True)
+    tl.add_argument("--weights", required=True)
+    tl.add_argument("--metrics", required=True, help="til-measure's output")
+    tl.add_argument("--budget", type=int, default=1500)
+    tl.add_argument("--threads", type=int, default=2)
     args = p.parse_args()
-    {"run": cmd_run, "index": cmd_index, "cells": cmd_cells}[args.cmd](args)
+    {"run": cmd_run, "index": cmd_index, "cells": cmd_cells, "til-measure": cmd_til_measure,
+     "til": cmd_til}[args.cmd](args)

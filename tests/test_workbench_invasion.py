@@ -207,3 +207,47 @@ def test_a_slide_without_a_tumor_still_analyzes():
     assert res["risk"]["cards"] == [] and res["numbers"]["front_length_mm"] == 0.0
     assert res["immune"]["pattern"] == "no front: not assessed"
     assert not inv.search("T1", res)["understood"]
+
+
+def test_second_lymphocyte_model_disagreement_feeds_zones_queue_search_and_compare():
+    tiles = fake_tiles()
+    base = inv.analyze_slide(tiles)["tiles"]
+    # the second model scores the front band: it sees lymphocytes where the head says stroma
+    # on three tiles, misses two of the head's lymphocyte tiles, and agrees elsewhere
+    scored = base[base["zone"] == "front band"].copy()
+    p = np.where(scored["label"] == "lymphocytes", 0.9, 0.1).astype(float)
+    stroma_idx = np.flatnonzero((scored["label"] == "stroma").to_numpy())[:3]
+    lymph_idx = np.flatnonzero((scored["label"] == "lymphocytes").to_numpy())[:2]
+    p[stroma_idx], p[lymph_idx] = 0.95, 0.05
+    scored["p_til"] = p
+    with_til = tiles.merge(scored[["row", "col", "p_til"]], on=["row", "col"], how="left")
+    res = inv.analyze_slide(with_til, til_cutoff=0.5, til_calibrated=True)
+    d = res["til"]
+    assert d["scored"] == len(scored) and d["disagree"] == 5
+    assert d["head_only"] == 2 and d["til_only"] == 3 and 0 < d["kappa"] < 1
+    assert res["numbers"]["til_disagree_share"] == round(5 / len(scored), 3)
+    t = res["tiles"]
+    assert t["disagree"].sum() == 5 and t["til_lymph"].notna().sum() == len(scored)
+    assert t.loc[t["p_til"].isna(), "disagree"].eq(False).all()
+    band = res["immune"]["zones"]["front band"]
+    assert band["til_scored_tiles"] == len(scored) and 0 < band["til_lymph_share"] < 1
+    assert "til_scored_tiles" not in res["immune"]["zones"]["peritumoral"] or \
+        res["immune"]["zones"]["peritumoral"]["til_scored_tiles"] == 0
+    q = [p for p in res["queue"] if p["kind"] == "disagree"]
+    assert len(q) == 1 and "5 of" in q[0]["what"] and "calibrated" in q[0]["status"]
+    assert t[(t.row == q[0]["row"]) & (t.col == q[0]["col"])]["disagree"].item()
+    hit = inv.search("where do the models disagree", res)
+    assert hit["understood"] and len(hit["rows"]) == 5
+    rows = inv.compare({**res["numbers"], "slide": "a"},
+                       {**res["numbers"], "slide": "b", "til_disagree_share": 0.9})
+    assert {r["measure"]: r["differs"] for r in rows}[
+        "Models disagree on lymphocytes (share of scored tiles)"] == "yes"
+    # without the second model nothing changes
+    plain = inv.analyze_slide(tiles)
+    assert plain["til"]["scored"] == 0 and plain["numbers"]["til_disagree_share"] is None
+    assert not any(p["kind"] == "disagree" for p in plain["queue"])
+    assert not inv.search("disagree", plain)["understood"]
+    # a placeholder cutoff when none is given
+    fallback = inv.analyze_slide(with_til)
+    assert fallback["til"]["cutoff"] == inv.CUTOFFS["til_cutoff_fallback"][0]
+    assert "placeholder" in next(p for p in fallback["queue"] if p["kind"] == "disagree")["status"]
