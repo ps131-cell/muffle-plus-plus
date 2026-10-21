@@ -48,32 +48,87 @@ measurement. Every workbench follows it.
    known failures, like the analyzer's "what didn't work" page.
 8. **Change over time.** "Since the last version" on every workbench where it is valid; never a
    comparison across an assay or protocol change without saying so.
+9. **One contract for the patient file** (built 2026-10-21). Every workbench module
+   (`src/muffle/workbench/<name>.py`) carries two pure functions that the report, the export
+   and the patient list read the same way (`muffle.overview`):
+   - `summary(pf, version=None) -> {"workbench", "title", "cards", "note"}`: a few key
+     findings as cards (`workspace.card`): `what`, `text`, `evidence` (observed, model
+     inference or hypothesis; a documented fact is observed), `source` (the test it comes
+     from), `method` (rule or model, with its version), `threshold` (where it comes from:
+     guideline, literature, calibrated or placeholder), `trust` (strong, moderate, weak),
+     `opens` and `focus`. `note` says why there is no card ("no scored section of this
+     tumor").
+   - `queue(pf, version=None) -> [item]`: what is worth a look now (`workspace.look`):
+     `pointer` (L5, T2, the variant, "ER: IHC vs RNA", D1), `what`, `why`, `evidence`, `trust`,
+     `consequence` (3 changes the picture of the disease, 2 may change care, 1 worth a look),
+     `opens`, `focus`, `source`, `key` (its `finding_key`, so a mark made from the report is
+     the workbench's own mark), `month` and `threshold`. The workbench page may list more
+     (older flags, standing caveats such as a layer's known failure).
+   - `opens` has the shape of `Alert.opens` (`("Tests", kind, month, name)` or
+     `("Timeline",)`); `focus` says where inside the workbench the evidence is (`{"marker",
+     "month"}`, `{"variant"}`, `{"slide", "pointer", "tile"}`, `{"omics": key}`, `{"doc",
+     "sentence"}`), and the report's "open" lands there.
+   - Pure: no Streamlit, no model run, nothing new computed (`tests/test_overview.py`). Labs,
+     genomics, slides (with the invasion results), omics and documents carry them; radiology
+     and evolution join the overview as soon as their modules carry the two functions.
 
 ## 2. Patient file and report
 
-The report is where the workbenches meet. Beyond what the shell already shows (summary, SOS
-tile, observed / inference / hypothesis blocks, risk, what changed):
+The report is where the workbenches meet. Beyond what the shell already shows (summary,
+observed / inference / hypothesis blocks, risk, what changed):
 
-- **SOS ordering by trust × consequence** [now]: an observed progression on imaging outranks a
-  placeholder-rule marker rise; each alert says since when, which rule, the threshold's source,
-  its trust, and has two buttons, "open the test" (the pointer lands on the evidence) and "mark
-  reviewed".
+- **Overview header** [built 2026-10-21]: one row of finding cards from the workbenches'
+  summaries: the open SOS alerts (alerts without a review mark), stage and receptors (recorded
+  and documented side by side), the PAM50 call with its margin, key drivers with their best
+  CIViC level, the slide picture (main tumor area, infiltrative arcs, breakaway candidates,
+  immune pattern) for scored sections, imaging (the latest report's own words until the
+  radiology workbench carries the contract), the 12-month or cohort risk, and the top
+  evolution hypothesis once that module carries it. Each card has its evidence label and
+  trust, "Why?" (source test, method and version, threshold source, trust) and "Open"; a line
+  under the row names what the file lacks.
+- **One attention queue** [built 2026-10-21], replacing the SOS tile: the SOS alerts, the
+  discrepancies below and every workbench's queue, ordered by consequence × trust (placeholder
+  weights), then new in this version, then the latest; de-duplicated by finding key, so an
+  alert takes the pointer of the workbench item behind it (the marker rise is L4 in the lab
+  workbench, one item with one mark) and says where else it was raised. One item at a time
+  with keyboard triage: j next, k previous, p pin, m mark reviewed (Streamlit keeps r for its
+  own rerun), u the unsure list (marked "second look", or weak trust), o open; "open" lands on
+  the pointer (the lab value's Spot panel, the slide tile, the omics finding, the variant, the
+  document's sentence). Exported with the report.
+- **SOS ordering by trust × consequence** [built]: an observed progression on imaging outranks
+  a placeholder-rule marker rise; each alert says since when, which rule, the threshold's
+  source and its trust.
 - **Version diff** [now]: any two versions side by side in the three evidence columns, with added,
   removed and changed items highlighted and the "what changed and why" attribution underneath.
 - **Evidence chain** [now]: every sentence of the case note links to the tool output behind it
   (the grounding trace rendered as a chain: sentence → tool → measurement → raw value), with the
   trust at each step. This is the analyzer's "why" made navigable.
-- **Discrepancy queue** [now]: tests that disagree: a marker rising while imaging reads stable; the
-  12-month risk up while labs fall; two notes that differ. Each item names both sources and what
-  would settle it.
-- **What would reduce uncertainty** [now]: the open hypotheses and the test that would resolve
-  each (a repeat specimen within a month for an unconfirmed marker rise; ctDNA for mutation status
-  after treatment), with the source of that expectation. Evidence for the clinician's judgment,
-  never an order.
+- **Discrepancy queue** [built]: tests that disagree, each naming both sources, the evidence
+  labels, what would settle it and its cited basis where one exists: a marker rising while
+  imaging reads stable; the 12-month risk up while labs fall; sites that drop out of a summary;
+  level A/B evidence with no treatment change (a question); since 2026-10-21 also ERBB2 copy
+  number against the recorded or documented HER2 status (ASCO/CAP HER2 guideline, Wolff 2018);
+  ESR1 RNA and ER-alpha protein against the recorded or documented ER status (ASCO/CAP ER/PR
+  guideline, Allison 2020); a documented receptor status against the recorded one; PAM50
+  Basal-like with an ER-positive status (Prat 2015); a slide section read as an immune desert
+  while the RNA's cytolytic score is high (TILs Working Group, Salgado 2015; the "high" cutoff
+  is a placeholder); documents that disagree with each other; documented stage, laterality or
+  specimen type against the clinical record (today's records hold a stage, not a side or a
+  specimen); an imported lab value against the record's value of that month.
+- **What would reduce uncertainty** [built]: the open hypotheses and the test that would
+  resolve each (a repeat specimen within a month for an unconfirmed marker rise; ctDNA for
+  mutation status after treatment; a repeat IHC or ISH for a receptor disagreement; a second
+  encoder's tile classes where the slide head is unsure, cited with the head's own held-out
+  accuracy below and above its certainty cutoff; a re-read of a document), with the source of
+  that expectation. Evidence for the clinician's judgment, never an order.
 - **Missing data and what it limits** [now]: "not sequenced since month 0" and the inferences
   that therefore carry wider uncertainty.
-- **Report export** [now]: one page per version with figures, numbers, sources, placeholders,
-  model versions and reviewer marks.
+- **Report export** [built]: one page per version with every workbench's finding cards, the
+  attention queue with each item's mark, the discrepancies with their sources and basis,
+  numbers, sources, every placeholder (the queue's weights and each placeholder threshold
+  shown), model versions and the reviewer marks by finding kind.
+- **Imports** [built]: an imported test adds a report version; it shows in the timeline and the
+  version diff, its lab values and alerts join the attention queue, and the export lists it.
 
 ## 3. Blood and lab workbench
 

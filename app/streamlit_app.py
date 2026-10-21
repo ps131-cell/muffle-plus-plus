@@ -469,8 +469,10 @@ def overview_data(pf: workspace.PatientFile, i: int) -> dict:
 def overview_header(pf: workspace.PatientFile, i: int, ov: dict):
     """One row of finding cards from the workbenches' summaries (docs/WORKBENCHES.md §2)."""
     cards = overview.header(pf, i, ov["sums"], ov["queue"], st.session_state.reviews)
-    for start in range(0, len(cards), 4):
-        for col, c in zip(st.columns(4), cards[start:start + 4], strict=False):
+    cards = cards[-1:] + cards[:-1]  # the SOS card first
+    per_row = len(cards) if len(cards) <= 5 else -(-len(cards) // 2)  # one row, else two
+    for start in range(0, len(cards), per_row):
+        for col, c in zip(st.columns(per_row), cards[start:start + per_row], strict=False):
             with col.container(border=True):
                 finding_card(pf, i, c)
     gaps = overview.absent(ov["sums"])
@@ -491,15 +493,15 @@ def finding_card(pf: workspace.PatientFile, i: int, c: dict):
     placeholder = " :orange-badge[placeholder threshold]" if "placeholder" in c["threshold"] \
         else ""
     st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}")
-    why, go = st.columns(2)
-    with why.popover("Why?", width="stretch"):
-        st.markdown(f"**Source test:** {md(c['source'])}  \n**Method and version:** "
-                    f"{md(c['method'])}  \n**Threshold:** {md(c['threshold'])}  \n**Trust:** "
-                    f"{c['trust']}  \n**Evidence:** {c['evidence']}")
-    if c["opens"]:
-        go.button("Open", key=f"card-{pf.id}-{i}-{c['what']}", width="stretch",
-                  on_click=open_evidence, args=(pf, i, c["opens"], c["focus"]),
-                  help="Opens the test behind this card at its evidence")
+    with st.container(horizontal=True, gap="small"):  # wraps in a narrow card
+        with st.popover("Why?"):
+            st.markdown(f"**Source test:** {md(c['source'])}  \n**Method and version:** "
+                        f"{md(c['method'])}  \n**Threshold:** {md(c['threshold'])}  \n"
+                        f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
+        if c["opens"]:
+            st.button("Open", key=f"card-{pf.id}-{i}-{c['what']}", on_click=open_evidence,
+                      args=(pf, i, c["opens"], c["focus"]),
+                      help="Opens the test behind this card at its evidence")
 
 
 def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
@@ -548,7 +550,7 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
             for n, x in enumerate(shown):
                 line, act = st.columns([10, 1], vertical_alignment="center")
                 done = reviews.get(x["key"])
-                text = (f"{x['n']}. " + (f"`{x['pointer']}` " if x["pointer"] else "")
+                text = (f"{x['n']} · " + (f"`{x['pointer']}` " if x["pointer"] else "")
                         + md(x["what"]) + f" · {kind_badge(x)}"
                         + (" :blue-badge[new]" if x["new"] else "")
                         + f" :{TRUST_COLORS[x['trust']]}-badge[{x['trust']}]"
@@ -577,8 +579,10 @@ def queue_item(x: dict, k: int, total: int, reviews: dict):
                 + f"{md(x['what'])}** {tags(x['evidence'])} {kind_badge(x)} "
                 f":{TRUST_COLORS[x['trust']]}-badge[trust: {x['trust']}]"
                 f" :gray-badge[consequence {x['consequence']}]{placeholder}")
+    shown = x["threshold"] and x["threshold"] not in x["settle"]  # a basis the settle line cites
+    label = "basis" if x["kind"] == "discrepancy" else "threshold"
     st.caption(f"{md(x['source'])} · {md(x['why'])}"
-               + (f" · threshold: {md(x['threshold'])}" if x["threshold"] else "")
+               + (f" · {label}: {md(x['threshold'])}" if shown else "")
                + (f" · also raised by {', '.join(x['also'])}" if x["also"] else "")
                + (f" · {done['mark']} by {done['by'] or 'no initials'}, {done['at']}"
                   if done else ""))

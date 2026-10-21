@@ -2,6 +2,33 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — One overview per patient file: a workbench contract for summaries and queues
+- **What:** every workbench module carries `summary(pf, version=None)` (a few finding cards:
+  text, evidence label, source test, method and version, threshold source, trust, where it
+  opens) and `queue(pf, version=None)` (look-here items with pointer, why, trust, consequence
+  1–3, where it opens and the finding's key), in one shape (`workspace.card` and
+  `workspace.look`, `docs/WORKBENCHES.md` §1). `muffle.overview` builds the report's header from
+  the summaries and one attention queue from every queue, the SOS alerts and the cross-test
+  discrepancies, ordered by consequence × trust (the placeholder weights) and de-duplicated by
+  finding key, so an SOS alert and the lab workbench's flag of the same value are one item with
+  one review mark. The queue replaces the report's SOS tile; the header's SOS card counts the
+  alerts without a mark. Seven cross-test rules join (ERBB2 copy number against HER2, ESR1 RNA
+  and ER-alpha protein against ER, PAM50 Basal-like with ER positive, a slide immune desert
+  against a high immune RNA score, documents that disagree, documents against the record, an
+  imported lab value against the record), each with its cited basis where one exists (PMIDs
+  checked on PubMed), and three reducers (repeat IHC or ISH, a second encoder for unsure tiles,
+  a re-read of a document).
+- **Why:** seven workbenches landed in a week, each knowing only itself; the user's product is
+  one evidence-linked picture of a patient. A shared shape lets the report, the export and the
+  patient list read every workbench the same way, and lets radiology and evolution join by
+  adding two functions.
+- **Consequence:** nothing new is computed for the overview: it reads what each workbench
+  already decided, with its labels and threshold sources, and "open" lands on the pointer by
+  setting the workbench page's own widget state. Trust and consequence per item are the rule
+  author's choice, listed in the export with the placeholder weights. Radiology and evolution
+  add nothing until their modules carry the two functions. Keyboard triage uses j, k, p, u and
+  o; "mark reviewed" is m, because Streamlit reserves r (and c) for its own shortcuts.
+
 ## 2026-10-21 — Evolution view: receptor status from the file's documents when the record has none
 - **What:** `evolution.context` reads the ER, PR and HER2 status the documents rules find in a
   file's documents (a TCGA case's pathology report, an imported report) when the record states

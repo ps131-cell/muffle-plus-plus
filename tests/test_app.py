@@ -197,6 +197,18 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         assert not at.exception, view
     assert "Tumor-board note" in shown(at) and "nothing alarming" in shown(at)
 
+    # an import on a TCGA file reaches the report's queue and the timeline's version diff
+    ok, _ = parse_labs(b"month,marker,value,unit\n0,CA 15-3,20,U/mL\n1,CA 15-3,45,U/mL\n")
+    tests, observed = lab_tests(ok)
+    at.session_state["imports"] = {case: [{"kind": "Lab results", "rejected": [], "version": {
+        "tests": tests, "month": 1, "event": "Imported lab results", "observed": observed,
+        "by": "AB", "at": "14:10"}}]}
+    at.run()
+    assert "CA 15-3 rose from 20 to 45 U/mL (+125%)" in shown(at) and not at.exception
+    assert "**:red[SOS]** · 1 open" in shown(at)
+    at.segmented_control(key="view").set_value("Timeline").run()
+    assert "+ Lab: CA 15-3 (month 1)" in shown(at) and not at.exception
+
     # Methods and validation: a card per model and rule, one list of failures and placeholders
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
     at._page_hash = pages["methods"]  # switch_page() takes page files, not callable pages
