@@ -24,13 +24,15 @@ from pathlib import Path
 
 import numpy as np
 
+from muffle.imports import (CLAUSE, NOT_STATED, PROGRESSION, READS, RESPONSE, STABLE,
+                            imaging_read, stated)
+from muffle.imports import SITE_WORDS as DISTANT_SITES
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.workspace import card, finding_key, look
 from muffle.workbench.labs import lead_lag as _lab_lead_lag
 from muffle.workbench.labs import results_table
 from muffle.workspace import record_events
 
-PROGRESSION, STABLE, RESPONSE, NOT_STATED = "progression", "stable", "response", "not stated"
 NO_MEASUREMENTS = "no measurements recorded"
 PLACEHOLDER, DESIGN = "placeholder", "design"
 LITERATURE = "literature, placeholder until calibrated"
@@ -93,15 +95,14 @@ KNOWN_FAILURES = [
     "crops of the same views) and nothing in the record can check it.",
 ]
 
-SITE_WORDS = {"bone": "Bone", "liver": "Liver", "lung": "Lung", "brain": "Brain",
-              "lymph node": "Lymph node", "nodal": "Lymph node", "pleural": "Pleura",
-              "adrenal": "Adrenal", "peritoneal": "Peritoneum", "skin": "Skin",
-              "chest wall": "Chest wall", "breast": "Breast"}
-READ_WORDS = [  # the first match wins, in this order
-    (PROGRESSION, r"read as progression|progressi(?:on|ve disease)"),
-    (RESPONSE, r"partial response|complete response|\bresponse\b|decreas"),
-    (STABLE, r"stable disease|imaging stable|\bstable\b"),
-]
+# The import's distant sites, and the local and regional ones the lesion table tracks too: a new
+# chest-wall nodule is a site the report names, though the import's "new metastatic site" alert
+# counts distant sites only
+SITE_WORDS = DISTANT_SITES | {"lymph node": "Lymph node", "nodal": "Lymph node", "skin": "Skin",
+                              "chest wall": "Chest wall", "breast": "Breast"}
+# The import's read words (muffle.imports.READS), and the one-line reads of the record and of an
+# imported report's event ("read as response"); the first stated read wins, in this order
+READ_WORDS = [(read, rf"read as {read}|{words}") for read, words in READS]
 
 # (what, why not, which test can, words that ask for it): what breast images cannot show
 CANNOT_SEE = [
@@ -139,24 +140,22 @@ REPORT_CANNOT_SEE = [
 
 # --- imaging reports as text --------------------------------------------------------------
 def read_of(text: str) -> tuple[str, str]:
-    """The overall read a report's words state, and the words it rests on."""
-    low = text.lower()
+    """The overall read a report's words state, and the words it rests on, by the import's rule
+    (``muffle.imports.imaging_read``): clause by clause, a negated ("No evidence of
+    progression") or hedged ("possible progression") mention is set aside."""
+    clauses = [c.strip() for c in CLAUSE.split(text) if c and c.strip()]
     for read, pattern in READ_WORDS:
-        m = re.search(pattern, low)
-        if m:
-            return read, text[m.start(): m.end()]
+        for clause in clauses:
+            for m in re.finditer(pattern, clause.lower()):
+                if not stated(clause.lower(), m):
+                    return read, clause[m.start(): m.end()]
     return NOT_STATED, ""
 
 
 def sites_named_new(text: str) -> list[str]:
-    """Sites a report names as new ("new liver lesions" -> Liver), in the order named."""
-    out = []
-    for m in re.finditer(r"new ([a-z ]+?) (?:lesions?|metastas[ie]s|nodules?|masses|mass)",
-                         text.lower()):
-        site = SITE_WORDS.get(m.group(1).strip())
-        if site and site not in out:
-            out.append(site)
-    return out
+    """Sites a report names as new ("new liver lesions" -> Liver), in the order named: the
+    import's rule with this page's wider site list ("No new liver lesions" names none)."""
+    return imaging_read(text, SITE_WORDS)["new_sites"]
 
 
 def file_events(pf, version: int | None = None) -> list[dict]:
@@ -187,6 +186,7 @@ def imaging_reads(events: list[dict]) -> list[dict]:
             "agrees": set(named) == set(recorded) or not named,
             "source": "imaging report" if e["kind"] == "Imaging"
                       else f"{e['kind'].lower()} note stating an imaging read",
+            "imported": bool(e.get("imported")),  # read by the import's text rule
             "measurements": NO_MEASUREMENTS, "evidence": OBSERVED})
     return out
 
@@ -200,7 +200,7 @@ def lesion_table(reads: list[dict]) -> list[dict]:
         for site in r["new_sites"]:
             rows.setdefault(site, {"site": site, "first_named": r["month"], "named_in": [],
                                    "cells": {}, "measurements": NO_MEASUREMENTS,
-                                   "evidence": OBSERVED})
+                                   "evidence": OBSERVED, "imported": r.get("imported", False)})
             rows[site]["named_in"].append(r["month"])
     for row in rows.values():
         for r in reads:
@@ -523,7 +523,8 @@ def look_here(study: dict) -> list[dict]:
 # --- the workbench contract (docs/WORKBENCHES.md §1): the patient file's overview ----------------
 
 RESULTS = Path(__file__).resolve().parents[3] / "app" / "workbenches" / "radiology_results"
-REPORT_METHOD = ("report reading rules version 1 (word patterns for the read and for new sites, "
+REPORT_METHOD = ("report reading rules version 2 (the import's imaging-report rule: word patterns "
+                 "for the read and for new sites, negated and hedged clauses set aside, "
                  "cross-checked against the record's own sites field), no model")
 
 
@@ -575,26 +576,33 @@ def summary(pf, version: int | None = None) -> dict:
                                          f"{row['first_named']}" for row in table)
             + ("; " if table else "") + f"latest read (month {last['month']}): {last['read']}; "
             f"{NO_MEASUREMENTS}", OBSERVED, "the record's imaging reports (text, no images)",
-            REPORT_METHOD, "none: the reports' own words", "strong",
+            REPORT_METHOD, "none: the reports' own words",
+            "moderate" if any(r["imported"] for r in reads) else "strong",
             _opens(named[-1]) if named else (), {"site": table[-1]["site"]} if table else None))
     return {"workbench": "radiology", "title": "Radiology", "cards": cards,
             "note": None if cards else "the imaging reports state no read"}
 
 
 def queue(pf, version: int | None = None) -> list[dict]:
-    """Each site a report names as new (consequence 3, trust strong: the reader's words), a
-    report whose words and the record's sites field disagree, and each processed study's
-    candidates to check by eye (model contours: consequence 1, trust weak)."""
+    """Each site a report names as new (consequence 3, trust strong: the reader's words; trust
+    moderate for an imported report, whose site the import's text rule read, as its alert in
+    ``workspace.add_version``), a report whose words and the record's sites field disagree, and
+    each processed study's candidates to check by eye (model contours: consequence 1, trust
+    weak)."""
     out = []
     reads = _reads(pf, version)
     for row in lesion_table(reads):
-        m = row["first_named"]
+        m, imported = row["first_named"], row["imported"]
         out.append(look(
-            row["site"], f"{row['site']}: named new at month {m}", "the imaging report names "
-            f"it; size and count: {NO_MEASUREMENTS}", OBSERVED, "strong", 3,
+            row["site"], f"{row['site']}: named new at month {m}",
+            ("the imported report's words, read by the import's text rule" if imported else
+             "the imaging report names it") + f"; size and count: {NO_MEASUREMENTS}", OBSERVED,
+            "moderate" if imported else "strong", 3,
             ("Tests", "Imaging", m, "Imaging report"), source=f"Imaging report, month {m}",
             key=finding_key(pf, "imaging", "report", m, row["site"]),
-            focus={"site": row["site"]}, month=m, threshold="none: the reader's own words"))
+            focus={"site": row["site"]}, month=m,
+            threshold="muffle.imports.imaging_read" if imported
+            else "none: the reader's own words"))
     for r in reads:
         if not r["agrees"]:
             out.append(look(

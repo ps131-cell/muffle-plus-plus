@@ -7,14 +7,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from muffle.imports import imaging_read, imaging_test
 from muffle.timeline import EVENTS
 from muffle.workbench.radiology import (
     CANNOT_SEE,
     CUTOFFS,
     NO_MEASUREMENTS,
+    NOT_STATED,
     PLACEHOLDERS,
     PROGRESSION,
     REPORT_CANNOT_SEE,
+    RESPONSE,
     STABLE,
     breast_region,
     candidates,
@@ -28,7 +31,11 @@ from muffle.workbench.radiology import (
     load_index,
     load_study,
     longest_diameter_mm,
+    queue,
+    read_of,
     search,
+    sites_named_new,
+    summary,
     slice_box,
     volume_ml,
     volume_range_ml,
@@ -60,6 +67,42 @@ def test_lesion_table_tracks_named_sites_and_never_calls_an_unnamed_site_stable(
     assert table["Liver"]["first_named"] == 12 and table["Bone"]["named_in"] == [-1]
     assert all("stable" != cell for row in table.values() for cell in row["cells"].values())
     assert table["Bone"]["measurements"] == NO_MEASUREMENTS
+
+
+def test_report_reading_sets_aside_negated_and_hedged_mentions_like_the_import():
+    # the import's rule (muffle.imports.imaging_read): a negated clause states nothing
+    read = read_of("No evidence of disease progression. Bone lesions stable.")
+    assert read == (STABLE, "stable")
+    assert sites_named_new("No new liver lesions.") == []
+    # a hedged one neither
+    assert read_of("Findings suspicious for progression.") == (NOT_STATED, "")
+    assert sites_named_new("Possible new liver lesions; new bone lesions.") == ["Bone"]
+    # the lesion table keeps local and regional sites; the import's alert counts distant only
+    assert sites_named_new("New chest wall nodule.") == ["Chest wall"]
+    assert imaging_read("New chest wall nodule.")["new_sites"] == []
+    # an imported report's one-line read, and the record's flag over the words
+    read = read_of("Imaging (imported report): read as response")
+    assert read == (RESPONSE, "read as response")
+    flagged = imaging_reads([{"month": 3, "kind": "Imaging", "progression": True,
+                              "text": "Imaging: no evidence of progression"}])
+    assert flagged[0]["read"] == PROGRESSION and flagged[0]["words"].startswith("the record's")
+
+
+def test_an_imported_reports_new_site_is_moderate_trust_like_its_alert():
+    from types import SimpleNamespace
+
+    from muffle.workspace import case_file
+
+    case = SimpleNamespace(index=1, mutations=None, layers=["clinical"], missing=[], stage=None,
+                           age=None, percentile=50.0, group="intermediate", site="site-1")
+    pf = case_file(case, None)
+    pf.versions[0].tests.append(imaging_test(
+        "CT chest and abdomen", "New hepatic lesions. No new osseous lesions.", 3, "doc-1", "test"))
+    items = [q for q in queue(pf) if q["pointer"]]
+    assert [q["pointer"] for q in items] == ["Liver"]  # the negated bone mention names no site
+    assert items[0]["trust"] == "moderate" and "import's text rule" in items[0]["why"]
+    assert items[0]["opens"] == ("Tests", "Imaging", 3, "Imaging report")
+    assert summary(pf)["cards"][0]["trust"] == "moderate"
 
 
 def test_lead_and_lag_against_ca153_is_an_observed_order_of_events():

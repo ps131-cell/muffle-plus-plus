@@ -573,34 +573,35 @@ IMAGING_RULE = ("muffle.imports.imaging_read: a clause states the read or names 
                 "suspicious, cannot be excluded…) are set aside")
 
 
-def _stated(clause: str, m: re.Match) -> str | None:
+def stated(clause: str, m: re.Match) -> str | None:
     """Why a match in a clause does not count (negated or hedged), or None when it is stated."""
     if NEGATION.search(clause[: m.start()]) or NEGATED_AFTER.search(clause[m.end():]):
         return "negated"
     return "hedged" if HEDGE.search(clause) else None
 
 
-def imaging_read(text: str) -> dict:
+def imaging_read(text: str, site_words: dict[str, str] = SITE_WORDS) -> dict:
     """The read an imaging report's words state: {"read", "words", "new_sites", "set_aside"}.
     ``read`` is progression, response, stable or not stated (the first stated in that order:
     one clause stating progression makes the read progression); ``words`` the clause it rests
     on; ``new_sites`` the distant metastatic sites a clause names new ("new hepatic lesions",
-    "new lesions in the liver"); ``set_aside`` the negated and hedged clauses, with why. Only
-    the report's own words, observed; nothing is inferred from them."""
+    "new lesions in the liver"; ``site_words`` widens the list, as the radiology workbench's
+    lesion table does); ``set_aside`` the negated and hedged clauses, with why. Only the
+    report's own words, observed; nothing is inferred from them."""
     reads, sites, aside = {}, [], []
     for clause in (c.strip() for c in CLAUSE.split(text) if c and c.strip()):
         low = clause.lower()
         for read, pattern in READS:
             for m in re.finditer(pattern, low):
-                why = _stated(low, m)
+                why = stated(low, m)
                 if why:
                     aside.append({"clause": clause, "why": f"{why}: {m.group()}"})
                 else:
                     reads.setdefault(read, clause)
         for rx in NEW_SITE:
             for m in rx.finditer(low):
-                named = [s for w, s in SITE_WORDS.items() if re.search(rf"\b{w}\b", m.group(1))]
-                why = _stated(low, m)
+                named = [s for w, s in site_words.items() if re.search(rf"\b{w}\b", m.group(1))]
+                why = stated(low, m)
                 if named and why:
                     aside.append({"clause": clause, "why": f"{why}: {m.group().strip()}"})
                 elif named:
@@ -625,4 +626,5 @@ def imaging_test(title: str, text: str, month: int, doc_id: str, source: str) ->
                  "rule": IMAGING_RULE,
                  "event": {"month": month, "kind": "Imaging",
                            "text": f"Imaging (imported report): {result}",
-                           "progression": r["read"] == PROGRESSION, "sites": r["new_sites"]}})
+                           "progression": r["read"] == PROGRESSION, "sites": r["new_sites"],
+                           "imported": True}})

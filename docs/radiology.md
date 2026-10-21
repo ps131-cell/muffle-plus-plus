@@ -11,13 +11,25 @@ Written 2026-10-20. Nothing here is a diagnosis; every candidate, contour and me
 The synthetic record holds imaging reports, not images (months -1, 7, 12 and 19, plus the month-24
 clinic note "Imaging stable"). The page reads each one:
 
-- **The read**, from the report's own words, first match wins: "read as progression" /
-  "progression" → progression; "partial response", "response", "decreas…" → response; "stable
-  disease", "imaging stable", "stable" → stable; else "not stated". The record's own
+- **One rule with the import.** Reports are read by the imaging-report rule of the import
+  (`muffle.imports.imaging_read`, [`documents.md`](documents.md)): the text is split into
+  clauses (sentences, semicolons, "but", "however", "although", "except"), and a mention with a
+  negation before it ("no", "not", "without", "negative for", "free of", "resolved"…) or after it
+  ("not seen", "absent", "excluded"…), or in a hedged clause ("possible", "suspicious",
+  "cannot be excluded", "likely", "?"…), is set aside. "No evidence of disease progression" states
+  no read and "No new liver lesions" names no site.
+- **The read**, from the report's own words, the first stated read in this order wins:
+  progression ("progression", "progressive disease", "progressed", "progressing"), response
+  ("partial" or "complete response", "responding", "decrease in size", "smaller"), stable
+  ("stable", "unchanged", "no change"); else "not stated". Each also matches "read as …", the
+  record's and an imported report's one-line wording ("read as response"). The record's own
   progression flag wins over the words if they ever disagree, and the page says so. **Observed.**
-- **New sites**, from "new *site* lesions / metastases / nodules / mass(es)" with a fixed site
-  vocabulary (bone, liver, lung, brain, lymph node, pleura, adrenal, peritoneum, skin, chest wall,
-  breast), cross-checked against the record's `sites` field; a disagreement is shown.
+- **New sites**, from "new *site* lesions / metastases / nodules / mass(es) / foci" and "new
+  lesions in the *site*", cross-checked against the record's `sites` field; a disagreement is
+  shown. The site words are the import's distant sites (bone, osseous, liver, hepatic, lung,
+  pulmonary, brain, pleura, adrenal, peritoneum…) **plus** the local and regional ones (lymph
+  node, nodal, skin, chest wall, breast), on purpose: the lesion table tracks every site a report
+  names new, while the import's "new metastatic site" alert counts distant sites only.
 - **Lesion table**: one row per named site, one column per read. A cell is "new" where the site
   is first named, "named" where it is named again, and otherwise "not named; overall read: …".
   An overall "stable disease" is never shown as "stable" for a site the report does not name.
@@ -34,7 +46,10 @@ Review marks use `workspace.finding_key(pf, "imaging", "report", month, "read")`
 The page reads the file's own record (`radiology.file_events`, i.e. `workspace.record_events`
 up to the report version's month): the synthetic record's events and every imported imaging
 report, which reaches the page as the read its import found. A TCGA file with an imported report
-reads only that report, never the synthetic record.
+reads only that report, never the synthetic record. A site an imported report names new is
+trust **moderate** in the queue and the summary card, as its "new metastatic site" alert is: the
+import's text rule read it (the event carries `"imported": True`). The record's own reports stay
+trust strong.
 
 ## 2. Public images (TCGA-BRCA radiology on TCIA)
 

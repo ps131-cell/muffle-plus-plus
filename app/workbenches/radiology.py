@@ -700,9 +700,8 @@ def report_page(pf: PatientFile, version: int | None) -> None:
         st.warning("Synthetic patient: this record was written by hand and is not a real person. "
                    "Its imaging reports exist to show how the workbench reads them.")
     st.caption("Data: this file's imaging reports (text, observed; an imported report as its "
-               "import read it); no images are on file. Method: report reading rules version 1 "
-               "(word patterns for the read and for new sites, cross-checked against the "
-               f"record's own sites field), no model. Measurements: {rad.NO_MEASUREMENTS}. "
+               f"import read it); no images are on file. Method: {rad.REPORT_METHOD}. "
+               f"Measurements: {rad.NO_MEASUREMENTS}. "
                "Status: implemented.")
     picked = st.session_state.get(f"picked-{pf.id}")
     if picked and picked[0] == "Imaging":
