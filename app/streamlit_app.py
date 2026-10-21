@@ -74,6 +74,7 @@ from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.report import civic  # noqa: E402
 from muffle.report.evidence_chain import note_chain  # noqa: E402
+from muffle.workbench.radiology import load_index  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
 from muffle.report.nemotron import (  # noqa: E402
     DEFAULT_MODEL,
@@ -92,10 +93,7 @@ BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/
 BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}
-PLANNED_WORKBENCHES = {
-    "imaging": "Radiology workbench: a slice viewer with window and level, lesion contours, size "
-               "and volume, and the same lesion tracked across scans.",
-}
+PLANNED_WORKBENCHES: dict[str, str] = {}  # workbench -> what it will show, for planned ones
 
 p = argparse.ArgumentParser()
 p.add_argument("--ckpt", default="outputs/tcga_fedavg.pt")
@@ -192,9 +190,11 @@ if TL:
     FILES[synthetic.id] = synthetic
 SLIDE_CASES = APP / "workbenches" / "slides_results" / "cases.json"  # index -> scored slides
 SLIDE_CASES = json.loads(SLIDE_CASES.read_text()) if SLIDE_CASES.exists() else {}
+IMAGING = load_index(APP / "workbenches" / "radiology_results")  # public TCIA studies by case
 for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile)):
     pf = workspace.case_file(c, demo.c_index, slides=SLIDE_CASES.get(str(c.index), ()),
-                             documents=case_documents(c.index))
+                             documents=case_documents(c.index),
+                             imaging=IMAGING.get(c.index))
     FILES[pf.id], CASES[pf.id] = pf, c
 for pid, records in st.session_state.imports.items():  # each import adds a report version
     for r in records:
@@ -656,7 +656,7 @@ def case_note(case):
         report, source = st.session_state.reports[case.index]
         note, trace = st.columns([3, 2])
         with note:
-            st.markdown(report.text)
+            st.markdown(esc(report.text))
             if report.mode != "offline":
                 if report.issues:
                     st.warning("Grounding check: not found in the tool outputs: "
@@ -749,6 +749,10 @@ def tests_view(pf: workspace.PatientFile, i: int):
         from workbenches import slides  # here, so a missing scipy can't break the whole app
 
         slides.render(pf, version=i)
+    elif t.workbench == "imaging":  # the image viewer, or the reports' words when no images
+        from workbenches import radiology
+
+        radiology.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
         omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo)
     elif t.workbench == "documents":  # rule-based extraction; the case note is shown as inferred
@@ -764,8 +768,9 @@ def tests_view(pf: workspace.PatientFile, i: int):
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
         st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.result)}")
-        st.info(PLANNED_WORKBENCHES[t.workbench] + " Planned, pending the model and dataset "
-                "survey's shortlist (docs/WORKSPACE.md).", icon="🧭")
+        st.info(PLANNED_WORKBENCHES.get(t.workbench, "This test's workbench.") + " Planned, "
+                "pending the model and dataset survey's shortlist (docs/WORKSPACE.md).",
+                icon="🧭")
 
 
 def timeline_view(pf: workspace.PatientFile, i: int):

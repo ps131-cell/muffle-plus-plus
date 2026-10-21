@@ -162,11 +162,11 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         col.markdown(f"**{k}**  \n{val}")
 
     # overview
-    cols = st.columns(5)
-    cols[0].metric("Variants observed", len(vs))
-    cols[1].metric("Strongest CIViC level", levels[0] if levels else "none")
-    for col, name in zip(cols[2:], queue, strict=True):
-        col.metric(name.capitalize(), len(queue[name]))
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("Variants observed", len(vs), width="content")
+    row.metric("Strongest CIViC level", levels[0] if levels else "none", width="content")
+    for name in queue:
+        row.metric(name.capitalize(), len(queue[name]), width="content")
     if vs:
         strongest = _level_text(levels[0] if levels else None)
         st.markdown("Observed: " + ", ".join(f"**{esc(v['variant'])}**" for v in vs)
@@ -260,7 +260,7 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
         for n in names:
             v = next(x for x in vs if x["variant"] == n)
-            col.markdown(f"- {n} · "
+            col.markdown(f"- {esc(n)} · "
                          f"{wb.mark_text(reviews.get(wb.variant_key(file, v))) or 'no mark yet'}")
         if not names:
             col.caption("none")

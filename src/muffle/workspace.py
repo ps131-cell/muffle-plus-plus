@@ -114,8 +114,9 @@ def _event_tests(e: dict) -> list[Test]:
     if e["kind"] == "Diagnosis":  # the slide workbench runs on a public example region for now
         out.append(Test("Pathology report", m, "Diagnosis", e["text"], "slides", IMPLEMENTED,
                         {"scope": "example region, first version"}))
-    if e["kind"] == "Imaging":
-        out.append(Test("Imaging", m, "Imaging report", e["text"], "imaging", PLANNED))
+    if e["kind"] == "Imaging":  # the radiology workbench reads the report's words (no images)
+        out.append(Test("Imaging", m, "Imaging report", e["text"], "imaging", IMPLEMENTED,
+                        {"scope": "report text, no images"}))
     if e["kind"] == "Clinic visit":  # the note's text is a document of the record
         out.append(Test("Clinic note", m, "Clinic visit", e["text"], "documents", IMPLEMENTED,
                         {"document": f"m{m}-clinic-visit"}))
@@ -219,13 +220,15 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
 
 
 def case_file(case, c_index: float | None = None, slides: list[str] | tuple = (),
-              documents: list[dict] | tuple = ()) -> PatientFile:
+              documents: list[dict] | tuple = (),
+              imaging: list[dict] | None = None) -> PatientFile:
     """A held-out TCGA case (``muffle.demo.Case``): one report version, its data layers and
     mutation panel as tests, and no alerts, since nothing earlier exists to compare with.
     ``slides``: the names of this patient's scored diagnostic sections, when the slide pipeline
     ran on them (``app/workbenches/slides_results/cases.json``); they add a pathology test.
     ``documents``: its pathology reports (``muffle.workbench.documents.case_documents``), each a
-    Document test."""
+    Document test. ``imaging``: this patient's processed public studies (TCIA;
+    ``muffle.workbench.radiology.load_index``), each a test that opens the image viewer."""
     muts = None if case.mutations is None else [m.replace(" p.", " ") for m in case.mutations]
     tests = [Test("Clinical record" if m == "clinical" else "Data layer", None, ASSAYS[m],
                   "measured", "record" if m == "clinical" else "omics", IMPLEMENTED, {"layer": m})
@@ -243,6 +246,9 @@ def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
     tests += [Test("Document", None, d["title"], "pathology report text, read by the documents "
                    "rules", "documents", IMPLEMENTED, {"document": d["id"], **d})
               for d in documents]
+    tests += [Test("Imaging", None, s["name"], s["result"], "imaging", IMPLEMENTED,
+                   {"barcode": s["barcode"], "study": s["study"], "folder": s["folder"],
+                    "scope": "public TCIA images"}) for s in imaging or []]
     observed = [
         ["Stage", case.stage or "not recorded"],
         ["Age band", age_band(case.age)],
@@ -356,6 +362,9 @@ def missing_data(pf: PatientFile, i: int) -> list[str]:
     planned = list(dict.fromkeys(t.kind for t in tests if t.status == PLANNED))
     if planned:
         out.append(f"{' and '.join(planned)} reports are text only: their workbench is planned")
+    if any(t.workbench == "imaging" and "barcode" not in t.details for t in tests):
+        out.append("Imaging reports are text only (no images on file): sites and reads are "
+                   "known, lesion sizes are not")
     if any(t.workbench == "slides" and not t.details.get("slides") for t in tests):
         out.append("No slide image of this tumor is on file: the pathology workbench shows a "
                    "public example region")
@@ -380,6 +389,8 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
              "or finding ('ESR1', 'E2F_TARGETS', 'ER: IHC vs RNA')",
     "document": "the document's id, the fact ('ER status: positive')",
     "evolution": "the watched event or 'trial', its source (a PMID or an NCT number)",
+    "imaging": "the TCGA barcode (or 'report'), the study (its date, or the report's month), "
+               "the lesion ('C1', or the named site)",
 }
 
 

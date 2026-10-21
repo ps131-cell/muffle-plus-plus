@@ -32,7 +32,7 @@ from muffle.explain import risk_percentile, top_features
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.workbench import omics as wb
 from muffle.workbench.genomics import add_mark, mark_text
-from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip
+from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip, esc
 
 APP = Path(__file__).resolve().parents[1]
 STATUS_COLORS = {wb.AGREE: "green", wb.DISAGREE: "red", wb.NO_COMPARISON: "gray"}
@@ -405,7 +405,7 @@ def layer_card(pf, v, m: str, case, contrib: dict, feats: list[dict], cs: dict |
     st.markdown(f"**Measured** {tag(OBSERVED)}: {workspace.ASSAYS[m]}  \n"
                 f"**Normalization:** {info['normalization']}.")
     if m == "clinical":
-        st.markdown("\n".join(f"- **{k}:** {val}" for k, val in v.observed))
+        st.markdown("\n".join(f"- **{k}:** {esc(val)}" for k, val in v.observed))
         if cs:
             st.markdown("- **Receptor status (IHC, TCGA clinical data):** " + ", ".join(
                 f"{n} {(r.get('ihc') or 'not recorded').lower()}"

@@ -24,6 +24,7 @@ from muffle.report.nemotron import DEFAULT_MODEL, WRITER_MODEL, model_name
 from muffle.workbench import genomics as genomics_rules
 from muffle.workbench import labs as lab_rules
 from muffle.workbench import omics as omics_rules
+from muffle.workbench import radiology as radiology_rules
 from muffle.workbench.grammar import chip
 
 APP = Path(__file__).parent
@@ -68,6 +69,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     survival_card(demo, res)
     landmark_card(tl)
     slide_model_cards()
+    radiology_model_cards()
     omics.methods_section()
     case_note_card(demo)
 
@@ -75,6 +77,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     alert_card()
     lab_card()
     slide_rule_card()
+    radiology_rule_card()
     genomics_card()
     st.subheader("Clinical documents: extraction rules")
     st.markdown(f"{chip(workspace.IMPLEMENTED)} · breast pathology facts from report text, each "
@@ -96,7 +99,9 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
         "federation matches pooling and beats a single hospital.\n"
         "- TCGA holds one tumor sample per patient, so its files have one version and no "
         "alerts.\n"
-        "- The radiology and ctDNA workbenches are planned; an imported image or DICOM file is "
+        "- The radiology workbench reads the synthetic patient's imaging reports as text and "
+        "shows model contours and a screening score on three public TCGA-BRCA studies only, not "
+        "validated here; the ctDNA workbench is planned; an imported image or DICOM file is "
         "registered and queued for the local pipeline, not analyzed. Imports last for the "
         "browser session.\n"
         "- No finding has been reviewed against outcomes by a clinician, and no slide by a "
@@ -284,6 +289,50 @@ def alert_card() -> None:
     st.caption("A tumor marker out of range is not evidence of progression by itself.")
 
 
+def radiology_model_cards() -> None:
+    card("Lesion contours (MedSAM, breast MRI)", workspace.IMPLEMENTED,
+         "promptable contours from a seed rule's boxes, precomputed offline · the radiology "
+         "workbench")
+    st.markdown(
+        f"- **Design:** {radiology_rules.MEDSAM}; a box prompt per slice from the seed rule, the "
+        "authors' preprocessing, sigmoid above 0.5; longest diameter, volume and DCE kinetics "
+        "are measured on its contours.\n"
+        "- **Published validation:** the paper's own tasks (1,570,263 image-mask pairs, 10 "
+        "modalities, 86 internal and 60 external validation tasks). **Not validated on breast "
+        "MRI here**: no reader contour exists for these studies.\n"
+        "- **Data:** three held-out TCGA cases with a public TCIA study (CC BY 3.0); the hosted "
+        "app reads 8-bit copies and derived numbers and runs no model.")
+    card("Screening score (mammoscreen, mammography)", workspace.IMPLEMENTED,
+         "cancer score and BI-RADS density per breast, precomputed offline · the radiology "
+         "workbench")
+    st.markdown(
+        "- **Design:** three EfficientNetV2-S nets on the CC and MLO views of a breast "
+        "(Apache-2.0), re-built from the published code with the pinned weights, so no remote "
+        "code runs; crops from a threshold mask, not the authors' crop model.\n"
+        "- **Published validation:** the model card's AUROC 0.945 on held-out splits of the "
+        "RSNA 2023 screening data; uncalibrated, not validated here, and the one study is a "
+        "known cancer whose report does not record the side.")
+
+
+def radiology_rule_card() -> None:
+    c = radiology_rules.CUTOFFS
+    n = sum(1 for _, tag, _ in c.values() if tag == radiology_rules.PLACEHOLDER)
+    card("Radiology: report reading, seed and kinetics rules", workspace.IMPLEMENTED,
+         "reads in the report's words, where to look, curve types · the radiology workbench")
+    st.markdown(
+        f"Imaging reports are read in their own words ({chip(OBSERVED)}): the read, the sites "
+        "named new, a lesion table across reads, and no measurement where none is recorded. On "
+        "images, the seed rule proposes boxes from the subtraction inside the breast region and "
+        "kinetics follow the BI-RADS MRI lexicon's curve types (Kuhl et al. 1999). "
+        f"**{n} of {len(c)} cutoffs are placeholders**; the kinetics cutoffs are literature "
+        "values used as placeholders until calibrated. Method and known failures: "
+        "docs/radiology.md.")
+    with st.expander("Every radiology cutoff and its source"):
+        st.dataframe(pd.DataFrame([{"cutoff": k, "value": str(v), "source": tag, "note": note}
+                                   for k, (v, tag, note) in c.items()]),
+                     hide_index=True, width="stretch")
+
+
 def lab_card() -> None:
     c = lab_rules.rules_card()
     card("Lab result rules", workspace.IMPLEMENTED,
@@ -372,6 +421,13 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
      "the patient's own sections in the slide workbench: derived numbers and small crops only",
      "as TCGA"),
     ("BCSS (Amgad et al., Bioinformatics 2019)", "labels for the breast tissue head", "CC0 1.0"),
+    ("TCGA-BRCA radiology (The Cancer Imaging Archive, doi:10.7937/K9/TCIA.2016.AB2NAZRP)",
+     "the radiology workbench's public MRI and mammography studies: 8-bit copies and derived "
+     "numbers", "CC BY 3.0, with attribution"),
+    ("MedSAM ViT-B (Ma et al., Nat Commun 2024; wanglab/medsam-vit-base)",
+     "lesion contours, run offline", "Apache-2.0"),
+    ("mammoscreen (ianpan/mammoscreen)", "the mammography screening score and density, run "
+     "offline", "Apache-2.0"),
     ("QuiltNet-B-32 (Ikezogwo et al., NeurIPS 2023)", "the tile encoder, run offline", "MIT"),
     ("StarDist 2D_versatile_he (Schmidt et al. 2018; Weigert et al. 2020)",
      "nuclei on front-band tiles, run offline", "BSD-3-Clause"),
@@ -446,6 +502,7 @@ def known_failures() -> None:
          "not a wrong reading of a right number or an overstated sentence."),
         ("Evolution view", "A cohort's frequency is not this patient's probability; purity is "
          "unknown, so no variant is called clonal."),
+        *(("Radiology", f) for f in radiology_rules.KNOWN_FAILURES),
     ]
     st.header("Known failures")
     st.caption("What each module gets wrong, as far as it has been measured or seen. Each "
@@ -477,6 +534,8 @@ def placeholders() -> None:
           {**slide_rules.CUTOFFS, **invasion.CUTOFFS}.items() if tag == slide_rules.PLACEHOLDER),
         ("Slides", "risk map points and levels", ", ".join(
             f"{k} {v}" for k, v in invasion.RISK_POINTS.items())),
+        *(("Radiology", k, f"{v} ({note})") for k, (v, tag, note) in
+          radiology_rules.CUTOFFS.items() if tag != radiology_rules.DESIGN),
     ]
     st.header("Every placeholder in the app")
     st.caption(f"{len(rows)} values nobody has validated yet. Each workbench marks its own "

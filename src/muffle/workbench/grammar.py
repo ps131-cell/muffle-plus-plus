@@ -5,6 +5,8 @@ the report, every workbench and the Methods and validation page. Pure strings, n
 
 from __future__ import annotations
 
+import re
+
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workspace import IMPLEMENTED, PLANNED, VALIDATED
 
@@ -23,7 +25,12 @@ def chip(label: str, color: str | None = None) -> str:
     return f":{COLORS.get(label) or color or 'gray'}-badge[{label}]"
 
 
+VARIANT_MARKS = re.compile(r"(?<=\d)\*|(?<=fs)\*|(?<=\d)_(?=\w)")  # not URLs' evidence_items
+
+
 def esc(text) -> str:
-    """Text for Markdown with its emphasis characters escaped: variant names carry them
-    ("TP53 R196*", "RUNX1 D96Gfs*15") and would otherwise turn into italics."""
-    return str(text).replace("*", r"\*").replace("_", r"\_")
+    """Text for Markdown with the emphasis characters of variant names escaped: a stop after a
+    position ("TP53 R196*"), a frameshift ("RUNX1 D96Gfs*15") and an underscore inside a word
+    ("TP53 X225_splice") would otherwise turn into italics. Emphasis that is meant (**bold**,
+    *italic*) is left alone, so a note written in Markdown passes through too."""
+    return VARIANT_MARKS.sub(lambda m: "\\" + m.group(0), str(text))
