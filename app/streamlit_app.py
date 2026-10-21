@@ -40,6 +40,11 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 import torch  # noqa: E402
 
+# The app scores one patient at a time; torch's thread pool only adds contention on a shared
+# CPU (single-row masked effects: 1.8 s with 8 threads at load ~3, 8 ms with 1). Per thread,
+# so it runs on every rerun: Streamlit runs each in a new thread.
+torch.set_num_threads(1)
+
 from muffle.hotreload import purge_modules, source_digest  # noqa: E402
 
 # ponytail: Streamlit Cloud hot-updates this file but keeps the modules this process already
@@ -264,7 +269,8 @@ def patient_list():
         table = table[table["SOS now"] + table["SOS before"] > 0]
     st.session_state.list_ids = table["Patient"].tolist()
     st.dataframe(table, hide_index=True, on_select=open_selected, selection_mode="single-row",
-                 key=f"list-{st.session_state.list_n}", width="stretch")
+                 key=f"list-{st.session_state.list_n}", width="stretch",
+                 column_config={"Patient": st.column_config.TextColumn(pinned=True)})
     st.caption(
         "Click a row to open the file; the table's search icon filters it. SYNTHETIC-001 is a "
         "synthetic patient, written by hand. The TCGA cases are public TCGA-BRCA patients the "
@@ -277,9 +283,9 @@ def patient_file(pf: workspace.PatientFile):
     st.button("← All patients",
               on_click=lambda: st.session_state.update(patient=None, view="Report"))
     st.header(pf.id)
-    st.caption(f"{pf.title} · {pf.diagnosis}")
+    st.caption(f"{pf.title} · {pf.diagnosis}  \n{DISCLAIMER}")
     if pf.kind == "synthetic":
-        st.warning(f"**{pf.id} is synthetic.** {pf.note}", icon="🧪")
+        st.warning(pf.note, icon="🧪")
     last = len(pf.versions) - 1
     i = last if not last else st.select_slider(
         "Report version", options=range(last + 1), value=last, key=f"version-{pf.id}",

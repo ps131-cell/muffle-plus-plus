@@ -396,14 +396,25 @@ def cannot_see(cutoffs: dict | None = None) -> None:
                    "a hypothesis about this section.")
 
 
-def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | None:
+@st.cache_data(max_entries=8, show_spinner="Reading the scored section...")
+def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
+    """A scored section, its analysis and its tile frame: they depend on the slide only, so
+    they are computed once per process, not on every click in the workbench."""
     result = load_slide(RESULTS / slide)
     if result is None:
         return None
-    meta, tiles = result["meta"], result["tiles"]
+    classes = result["meta"]["head"]["classes"]
+    res = inv.analyze_slide(result["tiles"], classes)
+    return result, res, frame(res, classes)
+
+
+def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | None:
+    if (got := scored(slide)) is None:
+        return None
+    result, res, df = got
+    meta = result["meta"]
     classes = meta["head"]["classes"]
-    res = inv.analyze_slide(tiles, classes)
-    df, s, n = frame(res, classes), res["summary"], res["numbers"]
+    s, n = res["summary"], res["numbers"]
     sc, nuc = meta.get("scored", {}), meta.get("nuclei", {})
     k = f"{pf.id}|{slide}"
     chips("patient's own slide", "placeholder cutoffs", "not reviewed by a pathologist",
@@ -705,16 +716,16 @@ def render_own(pf: PatientFile, slides: list[str], version: int | None) -> None:
         if name == chosen:
             numbers[name] = render_slide(pf, name, version)
         else:
-            r = load_slide(RESULTS / name)
-            if r:
-                numbers[name] = {**r["meta"].get("numbers", {}), "slide": name}
+            if got := scored(name):
+                numbers[name] = {**got[0]["meta"].get("numbers", {}), "slide": name}
     if len(slides) > 1:
         st.markdown("#### The sections compared")
         pairs = [(a, b) for i, a in enumerate(slides) for b in slides[i + 1:]
                  if numbers.get(a) and numbers.get(b)]
-        for a, b in pairs:
-            st.dataframe(pd.DataFrame(inv.compare(numbers[a], numbers[b])), hide_index=True,
-                         width="stretch")
+        for a, b in pairs:  # a column mixes numbers and words ("no front"), so show text
+            st.dataframe(pd.DataFrame(inv.compare(numbers[a], numbers[b])).map(
+                lambda v: "—" if v is None else f"{v:.3g}" if isinstance(v, float) else str(v)),
+                hide_index=True, width="stretch")
         st.caption("Why sections differ: each is one plane through the block, so a front that "
                    "is infiltrative in one cut can be pushing in another, a satellite in one "
                    "section can be the same tumor cut tangentially, and the counted tiles "

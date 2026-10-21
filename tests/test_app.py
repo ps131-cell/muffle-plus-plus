@@ -18,6 +18,7 @@ from muffle.models import MuffleNet
 from muffle.report import civic, trials
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
+pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app" / "streamlit_app.py"
 VIEWS = ("Tests", "Timeline", "Evolution", "Import tests", "Report")
@@ -62,7 +63,8 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     assert patients[0] == "SYNTHETIC-001" and case in patients
 
     at.selectbox(key="patient").select("SYNTHETIC-001").run()
-    assert not at.exception and "is synthetic" in at.warning[0].value
+    assert not at.exception and "Synthetic patient" in at.warning[0].value
+    assert workspace.DISCLAIMER in shown(at)  # in the file's header, sidebar collapsed or not
     for view in VIEWS:
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
