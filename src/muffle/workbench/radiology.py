@@ -538,13 +538,8 @@ def _studies(pf, version: int | None) -> list[tuple]:
 
 
 def _reads(pf, version: int | None) -> list[dict]:
-    """The synthetic record's imaging reads up to the version's month (the page's own source)."""
-    if pf.kind != "synthetic":
-        return []
-    from muffle.timeline import EVENTS  # the record the report-driven page reads
-
-    month = pf.versions[-1 if version is None else version].month
-    return imaging_reads([e for e in EVENTS if month is None or e["month"] <= month])
+    """The file's imaging reads up to the version's month (the report page's own source)."""
+    return imaging_reads(file_events(pf, version))
 
 
 def _opens(t) -> tuple:
