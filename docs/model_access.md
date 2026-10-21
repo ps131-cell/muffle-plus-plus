@@ -8,6 +8,67 @@ measured speed and accuracy: [`encoders.md`](encoders.md); a GPU run: [`gpu.md`]
 Nothing here changes the hosted app. It runs no encoder; encoders run offline (WSL CPU now, a GPU
 later) and the app reads small precomputed result folders.
 
+## Your remaining clicks (2026-10-21)
+
+Logged in as `psuryansh` (its primary email is the verified university address these gates
+require), open each link, fill in what the line says and submit. Approval is instant unless the
+line says *manual review*. Answers to reuse, the same ones the forms already sent used:
+- full name; affiliation **University of Illinois Urbana-Champaign**; type **Academia**; email:
+  the account's primary email; Bioptimus' main use-case **Models benchmarking on various tasks**;
+  newsletter boxes left empty;
+- research use, where a form asks (it stays true only while the model stays local):
+
+> Non-commercial academic research at the University of Illinois Urbana-Champaign: benchmarking pathology foundation models as frozen tile encoders for breast-cancer tissue classification on public TCGA-BRCA diagnostic slides with BCSS (CC0) region labels, compared with open-license encoders, in an open-source research prototype. The model runs only on our local machine; we will not redistribute the model, its embeddings or its outputs; no clinical use and no decisions about patients; only aggregate results are reported, with attribution.
+
+1. <https://huggingface.co/google/path-foundation>: "Acknowledge license" (HAI-DEF terms). Slides: ViT-S tile encoder.
+2. <https://huggingface.co/google/medgemma-1.5-4b-it>: "Acknowledge license". Documents: local extraction.
+3. <https://huggingface.co/google/medsiglip-448>: "Acknowledge license". Radiology and pathology zero-shot image–text queries.
+4. <https://huggingface.co/histai/cellvit-hibou-l>: agree. Nuclei segmentation and typing; CC BY-NC-SA 4.0, **local only**.
+5. <https://huggingface.co/MahmoodLab/madeleine>: agree. Slide encoder pretrained on breast H&E with IHC; MIT, but it reads CONCH features, so **local only** in practice.
+6. <https://huggingface.co/microsoft/BiomedParse>: agree. Text-prompted segmentation; CC BY-NC-SA 4.0, **local only**.
+7. <https://huggingface.co/bioptimus/H-optimus-0>: name, type, affiliation, email, main use-case. ViT-g tile encoder, Apache-2.0.
+8. <https://huggingface.co/MahmoodLab/UNI>: name, affiliation, type, email, research use, three boxes. ViT-L encoder; **local only**.
+9. <https://huggingface.co/MahmoodLab/conchv1_5>: the same form. TITAN's patch encoder; **local only**.
+10. <https://huggingface.co/MahmoodLab/TITAN>: the same form. Slide embeddings; **local only**.
+11. <https://huggingface.co/MahmoodLab/CONCH-Z>: the same form. Zero-shot CONCH, released 2026-10-14; **local only**.
+12. <https://huggingface.co/paige-ai/Virchow>: name, email, agree. ViT-H encoder, Apache-2.0 plus card terms.
+13. <https://huggingface.co/paige-ai/Virchow2>: name, email, agree. **Local only**.
+14. <https://huggingface.co/paige-ai/Prism>: name, email, agree. Slide embeddings and text on Virchow tiles; **local only**.
+15. <https://huggingface.co/YalaLab/Pillar0-BreastMRI>: name, organization. Breast MRI exam embeddings.
+16. <https://huggingface.co/bioptimus/H-optimus-1>: form, research use, three boxes; *manual review*. ViT-g; **local only**.
+17. <https://huggingface.co/bioptimus/H0-mini>: the same; *manual review*. A ViT-B distilled from H-optimus-0 that runs on this CPU; **local only**.
+18. <https://huggingface.co/paige-ai/Prism2>: name, email, agree; *manual review*. **Local only**.
+19. <https://huggingface.co/paige-ai/Prism2-survival>: the same; *manual review*. Survival from the slide, a comparison for the risk model; **local only**.
+20. <https://huggingface.co/owkin/histoplus>: agree; *manual review*. Cell detection and typing (Owkin license, not read).
+21. Optional: <https://huggingface.co/facebook/sam3>: name, date of birth, country, affiliation, job title; *manual review*. SAM 2.1 and MedSAM are open already.
+
+Then do step 0 (the token) and tell any session: the delegation session has the model-access
+session run `E1` for every granted encoder.
+
+**Already granted** ([Gated Repositories](https://huggingface.co/settings/gated-repos)): Hibou-B,
+Hibou-L, GigaPath-Flash, Prov-GigaPath, UNI2-h and SPIDER-breast (2026-10-21), and CONCH, MUSK,
+PathGen-CLIP and the PathGen dataset (2026-10-14). None refused. A session sent the first six and
+then the permission check stopped its automated form submissions (accepting license terms for
+someone is theirs to do), which is why the list above is yours. Midnight-92k has no public repo,
+so there is nothing to request.
+
+**Open models found on 2026-10-21 (no request).** Licenses from the cards and the HF API.
+
+| Model | License | What it would do here | Checked here |
+|---|---|---|---|
+| WSInfer breast tumor ResNet34 ([`kaczmarj/breast-tumor-resnet34.tcga-brca`](https://huggingface.co/kaczmarj/breast-tumor-resnet34.tcga-brca); Le et al., *Am J Pathol* 2020, PMID 32277893) | CC BY 4.0: its maps may be shown with attribution | slides: tumor vs other per 350 px tile at 0.25 µm/px | screening check (2026-10-21, not in the repo): tumor vs rest AUROC 0.921 on 516 BCSS-labelled tiles from 11 TCGA-BRCA slides (QC-passed, pure labels, at most 120 per class; the centre 87.5 µm of each 224 px tile at 0.5 µm/px). At its own 0.5 cutoff the balanced accuracy is 0.788, because stroma, fat and necrosis average 0.38–0.42: the cutoff needs calibrating. 1.2 tiles/s at 2 threads on the loaded CPU. Trained on TCGA-BRCA, so these slides may overlap its training |
+| WSInfer TIL InceptionV4 ([`kaczmarj/pancancer-lymphocytes-inceptionv4.tcga`](https://huggingface.co/kaczmarj/pancancer-lymphocytes-inceptionv4.tcga); Abousamra et al., *Front Oncol* 2022, [10.3389/fonc.2021.806603](https://doi.org/10.3389/fonc.2021.806603)) | CC BY 4.0 | slides: lymphocyte-rich vs other per 50 µm patch, a TIL map | the same check: lymphocytes vs rest AUROC 0.980 (the centre 50 µm of each tile); lymphocyte tiles average 0.96, stroma 0.30, the rest at most 0.05. 0.5 tiles/s. Trained on TCGA (23 cancer types) |
+| KEEP ([`Astaxanthin/KEEP`](https://huggingface.co/Astaxanthin/KEEP); *Cancer Cell* 2026) | MIT | slides: zero-shot vision–language queries (ViT-L), an open alternative to CONCH; repo code, pin the revision | not run |
+| MONAI breast density ([`MONAI/breast_density_classification`](https://huggingface.co/MONAI/breast_density_classification); Mayo Clinic, arXiv:2202.08238) | Apache-2.0 | radiology: BI-RADS density A–D from a 299 px mammogram (InceptionV3) | not run |
+| OpenMed zero-shot oncology NER ([`OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M`](https://huggingface.co/OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M)) | Apache-2.0 | documents: entity labels you name, such as "ER status" or "HER2 score" | not run |
+| Granite-Docling 258M ([`ibm-granite/granite-docling-258M`](https://huggingface.co/ibm-granite/granite-docling-258M)) | Apache-2.0 | Import tests: a scanned or PDF report to structured text | not run |
+| MedCPT ([`ncbi/MedCPT-Cross-Encoder`](https://huggingface.co/ncbi/MedCPT-Cross-Encoder) and its query and article encoders) | public domain (NCBI) | literature: rank the PubMed and Tavily hits a case note cites | not run |
+| ESM-1b ([`facebook/esm1b_t33_650M_UR50S`](https://huggingface.co/facebook/esm1b_t33_650M_UR50S)); Evo 2 ([`arcinstitute/evo2_7b`](https://huggingface.co/arcinstitute/evo2_7b)) | MIT; Apache-2.0 | genomics: a second missense effect score next to AlphaMissense; Evo 2 needs an NVIDIA GPU | not run |
+
+Not used: TIA Centre's checkpoints (no license on most cards), the Camelyon and metastasis models
+(lymph nodes, and most are NC), community breast classifiers with no paper or validation, and
+BoostDM (driver prediction per tumor type; no license found in its documentation).
+
 ## 0. Once: a token where the scripts can read it
 
 1. Log in at <https://huggingface.co/login> with the account that will hold the access.
