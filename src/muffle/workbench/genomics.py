@@ -25,6 +25,7 @@ from pathlib import Path
 from muffle.data.tcga import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.civic import CACHE, LEVELS
+from muffle.workbench import genome
 from muffle.workspace import MARKS, card, finding_key, look
 
 IMPLEMENTED, PLANNED = "implemented", "planned"
@@ -598,10 +599,11 @@ def summary(file, version: int | None = None, lookup=None) -> dict:
     method = ("tumor sequencing panel in the record" if file.kind == "synthetic" else
               f"exome sequencing, GDC open-access masked somatic calls, {len(DRIVERS)}-gene "
               "breast cancer driver panel")
+    extra = genome.overview_cards(file)  # copy number and burden, for the TCGA cases
     if not seq:
         return {"workbench": "genomics", "title": "Tumor sequencing", "note": None, "cards": [
             card("Driver mutations", "not sequenced: unknown, not wild type", OBSERVED,
-                 "no sequencing test in this file", "none", "none", "strong")]}
+                 "no sequencing test in this file", "none", "none", "strong"), *extra]}
     if not vs:
         text, opens, focus = "sequenced: none of the panel's genes mutated", (
             "Tests", seq[-1].kind, seq[-1].month, seq[-1].name), None
@@ -616,7 +618,8 @@ def summary(file, version: int | None = None, lookup=None) -> dict:
         "Key drivers", text, f"{OBSERVED} (mutation), {HYPOTHESIS} (CIViC evidence, for "
         "clinician review)", ", ".join(dict.fromkeys(f"{t.name}" + (
             "" if t.month is None else f", month {t.month}") for t in seq)), method,
-        "CIViC curated evidence levels (A validated … E inferential)", "strong", opens, focus)]}
+        "CIViC curated evidence levels (A validated … E inferential)", "strong", opens, focus),
+        *extra]}
 
 
 def queue(file, version: int | None = None, lookup=None) -> list[dict]:
@@ -625,7 +628,7 @@ def queue(file, version: int | None = None, lookup=None) -> list[dict]:
     an unknown evidence base is not a finding to triage."""
     vs, civic = file_variants(file, version, lookup)
     if not civic:
-        return []
+        return genome.overview_items(file)
     out = []
     for v in vs:
         level, items = v["strongest_level"], v["interpretation"]["items"]
@@ -644,7 +647,7 @@ def queue(file, version: int | None = None, lookup=None) -> list[dict]:
             _seq_opens(file, v), source=f"{v['test']}, {v['detection']['when']}",
             key=variant_key(file, v), focus={"variant": v["variant"]}, month=v["month"],
             threshold="CIViC curated evidence levels"))
-    return out
+    return out + genome.overview_items(file)
 
 
 def report_csv(file, variants: list[dict], reviews: dict) -> str:

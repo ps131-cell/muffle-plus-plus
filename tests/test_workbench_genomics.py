@@ -337,7 +337,7 @@ def tcga_case(index: int, **over):
     c = CN["cases"][str(index)]
     muts = [d["variant"].replace(" ", " p.", 1) for d in c.get("drivers", [])]
     return SimpleNamespace(**{**CASE, "index": index, "percentile": c["percentile"],
-                              "mutations": muts, **over})
+                              "log_risk": c["log_risk"], "mutations": muts, **over})
 
 
 def test_copy_number_calls_at_their_cutoffs_follow_the_models_rule():
@@ -398,10 +398,15 @@ def test_two_ploidy_estimates_that_disagree_are_flagged():
 
 def test_numbers_are_shown_only_for_the_same_build():
     pf = case_file(tcga_case(61))
-    assert gx.case_block(CN, pf) is CN["cases"]["61"]  # the file's percentile matches
-    assert gx.case_block(CN, pf, log_risk=CN["cases"]["61"]["log_risk"]) is not None
+    assert gx.case_block(CN, pf) is CN["cases"]["61"]  # the file's log-risk matches
     assert gx.case_block(CN, pf, log_risk=CN["cases"]["61"]["log_risk"] + 0.5) is None
-    assert gx.case_block(CN, case_file(tcga_case(61, percentile=99.0))) is None  # another build
+    other = case_file(tcga_case(61, log_risk=CN["cases"]["61"]["log_risk"] + 0.5))
+    assert gx.case_block(CN, other) is None  # another build of the cohort
+    old = tcga_case(61)
+    del old.log_risk  # a file without the log-risk falls back to the risk percentile
+    assert gx.case_block(CN, case_file(old)) is CN["cases"]["61"]
+    moved = SimpleNamespace(**{**old.__dict__, "percentile": 99.0})
+    assert gx.case_block(CN, case_file(moved)) is None
     assert gx.case_block(CN, synthetic_file(timeline())) is None
     assert gx.case_index(pf) == 61
 
@@ -669,3 +674,39 @@ def test_genome_sections_render_on_the_shipped_numbers():
     assert not syn.exception
     text = " ".join(e.value for k in ("markdown", "caption", "info") for e in getattr(syn, k))
     assert "No copy number for this file" in text and "AlphaMissense" in text
+
+
+def test_the_synthetic_ctdna_series_joins_the_variant_table():
+    from muffle.timeline import CTDNA
+    pf = synthetic_file(timeline())
+    lon = gx.longitudinal_table(pf, None, CTDNA)
+    assert len(lon["samples"]) == len(CTDNA["samples"]) + 1  # every ctDNA draw and the biopsy
+    tissue = next(n for n, s in enumerate(lon["samples"]) if s["kind"] == "tumor sequencing")
+    rows = {r["variant"]: r["cells"] for r in lon["rows"]}
+    assert set(rows) == {"PIK3CA H1047R", *CTDNA["variants"]}
+    assert rows["DNMT3A R882H"][tissue]["state"] == "blank"  # the biopsy never looked for it
+    assert rows["ESR1 D538G"][0]["text"] == "not detected (below 0.1%)"  # month -12, below limit
+    assert rows["PIK3CA H1047R"][tissue]["state"] == "detected"
+    assert "synthetic" in " ".join(lon["notes"])
+
+
+def test_the_patient_overview_gets_copy_number_and_burden():
+    from muffle.workspace import CARD_KEYS, ITEM_KEYS
+    pf = case_file(tcga_case(61))
+    cards = gx.overview_cards(pf, CN)
+    assert [c["what"] for c in cards] == ["Copy number", "Mutation burden"]
+    assert set(cards[0]) == set(CARD_KEYS) and "ERBB2" in cards[0]["text"]
+    assert "placeholder" in cards[0]["threshold"] and cards[0]["focus"] == {"gene": "PIK3CA"}
+    assert cards[0]["opens"][0] == "Tests"
+    items = gx.overview_items(pf, CN)
+    erbb2 = next(i for i in items if i["pointer"] == "ERBB2")
+    assert set(erbb2) == set(ITEM_KEYS) and erbb2["consequence"] == 2
+    assert erbb2["key"] == finding_key(pf, "cn", "ERBB2") and erbb2["focus"] == {"gene": "ERBB2"}
+    flagged = case_file(tcga_case(49))  # ploidy 1 by the median rule, 1.58 by ABSOLUTE
+    items = gx.overview_items(flagged, CN)
+    assert items[0]["pointer"] == "ploidy" and all(i["trust"] == "weak" for i in items[1:])
+    assert gx.overview_cards(synthetic_file(timeline()), CN) == []
+    summary = g.summary(pf)
+    assert [c["what"] for c in summary["cards"]] == ["Key drivers", "Copy number",
+                                                     "Mutation burden"]
+    assert any(i["pointer"] == "ERBB2" for i in g.queue(pf))  # even without CIViC loaded

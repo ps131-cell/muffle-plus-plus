@@ -616,6 +616,8 @@ def land(pf: workspace.PatientFile, i: int, focus: dict):
             ss[f"{pf.id}_spot"] = labs._lab(row)
     if "variant" in focus:  # genomics: the variant browser narrowed to it, its Spot panel below
         ss[f"genomics-{pf.id}-{i}-search"] = focus["variant"]
+    if "gene" in focus:  # genomics: the copy-number landscape's Spot panel on the gene
+        ss[f"genomics-{pf.id}-{i}-gene"] = focus["gene"]
     if "slide" in focus:  # slides: the section, then the pointer in its Spot panel
         ss[f"{pf.id}-section"] = focus["slide"]
         if "tile" in focus:

@@ -163,13 +163,23 @@ drawn. Review marks: `finding_key` kind `pathway`.
 
 One row per variant, one column per sample in time order: tumor sequencing (the record's and
 imported ones, any test whose workbench is `mutations`, added with `workspace.add_version`) and
-the ctDNA series (`muffle.timeline.CTDNA` once the ctDNA session's change lands; until then the
-page says "not yet available"). A cell is "detected" with its allele fraction; "not detected"
+the synthetic patient's ctDNA series (`muffle.timeline.CTDNA`, #94; labeled synthetic; a file
+without one says "not yet available"), with each blood variant's origin by the ctDNA monitor's own
+rule (DNMT3A R882H: possible clonal hematopoiesis). A cell is "detected" with its allele fraction; "not detected"
 only where the sample looked (its stated panel covered the gene, or the ctDNA assay tracked the
 variant, with its detection limit); blank otherwise: not re-sequenced or not covered, never
 "absent". The synthetic record names the variants its sequencing found, not its panel, so other
 variants are blank in that column. Each variant links to the Evolution view's escape-route rows
 for its gene (`evolution.hypothesis_set`), raised or not, with the reason.
+
+## Patient overview
+
+`genomics.summary()` adds a "Copy number" card (the amplified and deeply deleted breast drivers
+and pathway genes, both ploidies) and a "Mutation burden" card for a TCGA file; `genomics.queue()`
+adds a look-here item per amplified or deeply deleted driver or pathway gene (ERBB2
+amplification weighs 2, the rest 1; trust weak when the ploidies disagree) and one for two ploidy
+estimates that disagree, even when CIViC is not loaded. "Open" lands on the gene's Spot panel
+(`focus={"gene": ...}`). The numbers are matched to the file by the log-risk it carries.
 
 ## Search, marks, exports
 

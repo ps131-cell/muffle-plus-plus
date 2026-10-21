@@ -138,10 +138,11 @@ def case_block(data: dict | None, file, log_risk: float | None = None) -> dict |
     block = (data or {}).get("cases", {}).get(str(i)) if i is not None else None
     if block is None:
         return None
-    if log_risk is not None:
-        return block if abs(block["log_risk"] - log_risk) <= 1e-3 else None
     risk = file.versions[0].risk or {}
-    pct = risk.get("percentile")
+    log_risk = risk.get("log_risk") if log_risk is None else log_risk
+    if log_risk is not None:  # the file carries the case's log-risk (workspace.case_file)
+        return block if abs(block["log_risk"] - log_risk) <= 1e-3 else None
+    pct = risk.get("percentile")  # an older file without it: the percentile, less strict
     return block if pct is not None and abs(block["percentile"] - pct) <= 0.5 else None
 
 
@@ -676,6 +677,83 @@ def escape_links(gene: str, hs: dict | None) -> list[dict]:
     genes = {r["id"]: r["genes"] for r in TABLE}
     out += [{"id": s["id"], "event": s["event"], "raised": False, "status": s["reason"]}
             for s in hs.get("not_raised", []) if gene in genes.get(s["id"], [])]
+    return out
+
+
+# --------------------------------------------------------------------------- patient overview
+
+def _opens(file) -> tuple:
+    t = next((t for t in file.tests if t.workbench == "mutations"), None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def overview_cards(file, data: dict | None = None) -> list[dict]:
+    """Finding cards for the patient overview (``workspace.card``): the copy-number calls of the
+    breast drivers and pathway genes, and the mutation burden. [] for a file without the
+    precomputed numbers (the synthetic patient, another build)."""
+    from muffle.workspace import card
+    data = load(CN_JSON) if data is None else data
+    block = case_block(data, file)
+    if not block:
+        return []
+    rows = [r for r in landscape(block, data["genes"]) if r["interest"] or r["pathways"]]
+    pc = ploidy_check(block)
+    trust = "weak" if pc and pc["disagree"] else "moderate"
+    hits = {c: [r["gene"] for r in rows if r["call"] == c] for c in (2, -2)}
+    text = "; ".join(f"{CALLS[c]}: {', '.join(g)}" for c, g in hits.items() if g) or (
+        "no amplification or deep deletion among the breast drivers and pathway genes")
+    text += f" (ploidy {block['ploidy']:g} by the median rule" + (
+        f", {block['absolute']['ploidy']:.2f} by ABSOLUTE)" if block.get("absolute") else ")")
+    out = [card("Copy number", text, f"{OBSERVED} (copies); calls by a rule with placeholder "
+                "cutoffs", "ASCAT3 gene-level copy number, the TCGA tumor sample",
+                f"calls relative to the ploidy, {data.get('version', '?')}",
+                "placeholder: amplification at twice the ploidy, by analogy with the ASCO/CAP "
+                "in situ hybridization ratio of 2.0", trust, _opens(file),
+                {"gene": (hits[2] or hits[-2] or ["ERBB2"])[0]})]
+    bur = burden(block, data)
+    if bur.get("measured"):
+        out.append(card("Mutation burden", f"{bur['rate']:.2f} somatic calls per Mb, the "
+                        f"{_pct(bur['pct'])} of this cohort" + (" (high in this cohort)"
+                                                                 if bur["high"] else ""),
+                        f"{OBSERVED} (count), {DERIVED} (rate)",
+                        "GDC open-access masked somatic calls, the TCGA tumor sample",
+                        f"calls / {EXOME_MB:g} Mb (Chalmers et al. 2017)",
+                        "placeholder: high = the cohort's top decile", "moderate", _opens(file)))
+    return out
+
+
+def overview_items(file, data: dict | None = None) -> list[dict]:
+    """Look-here items for the patient overview (``workspace.look``): two ploidy estimates that
+    disagree, then each amplified or deeply deleted breast driver or pathway gene (ERBB2
+    amplification weighs 2: the clinical HER2 test settles it; the rest 1)."""
+    from muffle.workspace import finding_key, look
+    data = load(CN_JSON) if data is None else data
+    block = case_block(data, file)
+    if not block:
+        return []
+    pc = ploidy_check(block)
+    trust = "weak" if pc and pc["disagree"] else "moderate"
+    src = "ASCAT3 gene-level copy number, the TCGA tumor sample"
+    out = []
+    if pc and pc["disagree"]:
+        out.append(look("ploidy", "Two ploidy estimates disagree", pc["text"],
+                        f"{OBSERVED} (copies), {INFERENCE} (ploidy)", "moderate", 1, _opens(file),
+                        source=src, key=finding_key(file, "cn", "ploidy estimate"),
+                        focus={"gene": "ERBB2"},
+                        threshold=f"placeholder: {PLOIDY_RATIO:g}-fold apart"))
+    for r in landscape(block, data["genes"]):
+        if r["call"] not in (2, -2) or not (r["interest"] or r["pathways"]):
+            continue
+        weight = 2 if (r["gene"], r["call"]) == ("ERBB2", 2) else 1
+        out.append(look(r["gene"], f"{r['gene']} {r['call_text']}",
+                        f"{r['copies']:g} copies at ploidy {r['ploidy']:g}, the {_pct(r['pct'])} "
+                        "of this cohort" + ("; in situ hybridization is the clinical test"
+                                            if weight == 2 else ""),
+                        f"{OBSERVED} (copies); rule with placeholder cutoffs", trust, weight,
+                        _opens(file), source=src, key=finding_key(file, "cn", r["gene"]),
+                        focus={"gene": r["gene"]},
+                        threshold="placeholder: amplification at twice the ploidy, deep "
+                                  "deletion at 0 copies (definition)"))
     return out
 
 

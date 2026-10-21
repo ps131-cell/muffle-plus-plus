@@ -425,6 +425,12 @@ def _genome_sections(file, version, vs, g, effects, table, case, demo, reviews, 
     nodes = gx.pathway_map(names, rows, sequenced)
     ctdna = getattr(timeline, "CTDNA", None) if file.kind == "synthetic" else None
     lon = gx.longitudinal_table(file, version, ctdna, {a["variant"]: a["vaf"] for a in afs})
+    if ctdna:  # where a blood-only variant comes from, by the ctDNA monitor's own rule
+        from muffle.workbench import ctdna as cw
+        month = None if version is None else file.versions[version].month
+        seq = cw.tumor_sequencing(wb.events_until(None, month))
+        lon["origins"] = {r["variant"]: cw.origin(r["variant"], seq)["origin"]
+                          for r in lon["rows"] if r["variant"] in ctdna.get("variants", ())}
     hs = evolution.hypothesis_set(file, version)
     altered = [r["gene"] for r in rows if r["call"] in gx.ALTERED]
     omics_view = _rna_protein(case, demo, g["omics"], list(dict.fromkeys(
@@ -747,6 +753,7 @@ def _over_time(lon: dict, hs: dict, key: str) -> None:
         gene_rows[r["variant"]] = links
     df = pd.DataFrame([{"Variant": r["variant"], **{c: cell["text"] for c, cell in
                                                      zip(cols, r["cells"], strict=True)},
+                        "Origin (ctDNA monitor)": lon.get("origins", {}).get(r["variant"], ""),
                         "Evolution view": "; ".join(
                             f"{x['event']} ({'raised' if x['raised'] else 'not raised'})"
                             for x in gene_rows[r["variant"]]) or "no escape-route row names "
