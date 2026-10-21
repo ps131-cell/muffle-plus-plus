@@ -913,7 +913,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
         labs.render(pf, events=workspace.record_events(pf), version=i)
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
         genomics.render(pf, version=i, lookup=EVIDENCE,
-                        table=civic.load_table() if EVIDENCE else None)
+                        table=civic.load_table() if EVIDENCE else None, case=CASES.get(pf.id),
+                        demo=demo)
     elif t.workbench == "slides":  # the patient's own scored sections, or a public example
         from workbenches import slides  # here, so a missing scipy can't break the whole app
 
