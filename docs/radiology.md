@@ -31,6 +31,11 @@ clinic note "Imaging stable"). The page reads each one:
 Review marks use `workspace.finding_key(pf, "imaging", "report", month, "read")` for a read and
 `(…, "report", first month, site)` for a site.
 
+The page reads the file's own record (`radiology.file_events`, i.e. `workspace.record_events`
+up to the report version's month): the synthetic record's events and every imported imaging
+report, which reaches the page as the read its import found. A TCGA file with an imported report
+reads only that report, never the synthetic record.
+
 ## 2. Public images (TCGA-BRCA radiology on TCIA)
 
 **Data.** The TCGA-BRCA radiology collection on The Cancer Imaging Archive (139 patients, MR and
@@ -154,6 +159,19 @@ also moves with the crop: a first run whose breast mask was taken on the 8-bit i
 the VOI-LUT values gave right 0.37 and left 0.006. 143 CPU seconds for the four views in the
 pipeline run (4 threads, load 8.6); the first run took 537 s at load 8–12 plus 131 s to fetch
 the weights.
+
+**A second density opinion** comes from MONAI's breast density bundle
+(`MONAI/breast_density_classification`, revision `eb746b7`, Apache-2.0 per the repo's LICENSE
+file): InceptionV3 fine-tuned on Mayo Clinic mammograms (Gupta et al., arXiv:2202.08238,
+preprint). Its network is re-built from torchvision the way the bundle's `TorchVisionFCModel`
+builds it (with the ImageNet input transform the pretrained constructor switches on) and the
+pinned weights are loaded strictly, so MONAI itself is not needed; each whole view is scaled to
+[0, 1], resized to 299×299 and given a sigmoid per class, as in the bundle. Result (model
+inference, not validated here): left CC and MLO **C**, right MLO **C**, right CC **D** (it sits
+between the two there: C 0.83, D 0.90). mammoscreen says C for both breasts, so the two agree
+except on the right CC view; two models agreeing is not a validation. The bundle's metadata
+states accuracy 0.96 without describing its test set and calls the model "an example, not to be
+used for diagnostic purposes". 78 CPU seconds including the weights download (load 21).
 
 **Timings** (WSL, 8 shared cores, 4 threads, `nice -n 10`): MedSAM's image encoder took 21 s per
 1024² slice on a quiet machine (load 0.3, random input) and a median 12–17 s per slice in the
