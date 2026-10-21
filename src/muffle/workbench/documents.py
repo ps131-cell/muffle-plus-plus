@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from muffle.timeline import EVENTS
@@ -387,14 +388,17 @@ def _receptors(text: str, add) -> None:
 
 # ------------------------------------------------------------------------- documents of a file
 
+@lru_cache(maxsize=4)
+def _reports(folder: Path) -> dict[int, list[dict]]:
+    """Cohort row -> its TCGA-Reports documents, read once per process."""
+    return {(d := json.loads(p.read_text()))["case_index"]: d["documents"]
+            for p in sorted(folder.glob("TCGA-*.json"))}
+
+
 def case_documents(index: int, folder: Path = DOCS_DIR) -> list[dict]:
     """The TCGA-Reports documents of the held-out case at cohort row ``index`` (none if the
     dataset has no report for it)."""
-    for path in sorted(folder.glob("TCGA-*.json")):
-        data = json.loads(path.read_text())
-        if data["case_index"] == index:
-            return data["documents"]
-    return []
+    return _reports(folder).get(index, [])
 
 
 def file_documents(pf, i: int | None = None, events: list[dict] = EVENTS) -> list[dict]:
