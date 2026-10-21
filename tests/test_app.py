@@ -93,8 +93,8 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     assert "PIK3CA H1047R (CIViC level A)" in text and "**:red[SOS]** · 7 open" in text
     assert "**Source test:**" in text and "**Method and version:**" in text  # the Why? popovers
     # one queue: SOS alerts, tests that disagree, the workbenches' items; strongest first
-    assert "**Attention** · 11 items: 7 SOS, 0 where tests disagree, 4 from the workbenches" in text
-    assert "1/11 · Progression on imaging" in text and "New metastatic site: liver" in text
+    assert "**Attention** · 15 items: 7 SOS, 0 where tests disagree, 8 from the workbenches" in text
+    assert "1/15 · Progression on imaging" in text and "New metastatic site: liver" in text
     queue = "queue-SYNTHETIC-001-11"
     at.button(key=f"open-{queue}").click().run()  # lands on the imaging report behind the alert
     assert at.segmented_control(key="view").value == "Tests"
@@ -103,17 +103,19 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.segmented_control(key="view").set_value("Report").run()
     for _ in range(5):
         at.button(key=f"next-{queue}").click().run()
-    assert "6/11 · `L4` CA 15-3 rose from 30 to 52" in shown(at)  # the alert took the lab pointer
+    assert "6/15 · `L4` CA 15-3 rose from 30 to 52" in shown(at)  # the alert took the lab pointer
     assert "also raised by the labs workbench (L4)" in shown(at)
     at.button(key=f"open-{queue}").click().run()  # the lab workbench opens on L4
     assert at.selectbox(key="SYNTHETIC-001_spot").value.startswith("L4 · month 11")
     at.segmented_control(key="view").set_value("Report").run()
+    at.button(key=f"next-{queue}").click().run()  # 7: the ctDNA ESR1 item (PADA-1 situation)
+    assert "7/15 · `C2` ESR1 D538G new at month -2" in shown(at)
     at.button(key=f"next-{queue}").click().run()
-    assert "7/11 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
+    assert "8/15 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
     at.button(key=f"reviewed-{queue}").click().run()
     assert "✓ reviewed" in shown(at) and not at.exception
     at.button(key=f"unsure-{queue}").click().run()  # u: weak trust or marked second look
-    assert "**unsure list**" in shown(at) and "1/5 · 12-month risk up" in shown(at)
+    assert "**unsure list**" in shown(at) and "1/8 · 12-month risk up" in shown(at)
     at.button(key=f"unsure-{queue}").click().run()
     assert [b.label for b in at.get("download_button")] == [
         "Download this report version (Markdown)"]

@@ -17,7 +17,7 @@ from muffle.longitudinal import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, OBSERVED
 from muffle.workbench import labs
 from muffle.workbench.genomics import AROMATASE_INHIBITORS
-from muffle.workspace import IMPLEMENTED
+from muffle.workspace import IMPLEMENTED, card, finding_key, look
 
 DETECTED, NOT_DETECTED, NEW, RISING, FALLING, STABLE, CLEARED = (
     "detected", "not detected", "new", "rising", "falling", "stable", "cleared")
@@ -312,17 +312,20 @@ def spot(row: dict, rows: list[dict], events: list[dict], lab_rows: list[dict]) 
             "ca153": ca[-1] if ca else None, "check_by_eye": checks, "evidence": OBSERVED}
 
 
-def queue(rows: list[dict], vs: list[dict], rule: list[dict], shed: list[dict]) -> list[dict]:
+def look_here(rows: list[dict], vs: list[dict], rule: list[dict],
+              shed: list[dict]) -> list[dict]:
     """What to look at, latest first: the ESR1 rule items, new and rising calls, possible clonal
     hematopoiesis, and samples where low shedding limits a negative."""
     out = [{"pointer": i["pointer"], "month": i["month"], "what": i["what"],
+            "variant": i["variant"],
             "why": "PADA-1 / SERENA-6 (literature)" if i["applies"] else "ESR1 rising, rule n/a",
             "evidence": HYPOTHESIS, "status": i["status"]} for i in rule]
-    out += [{"pointer": r["pointer"], "month": r["month"],
+    out += [{"pointer": r["pointer"], "month": r["month"], "variant": r["variant"],
              "what": f"{r['variant']} {r['call']}: {r['vaf']:g}%", "why": r["rule"],
              "evidence": OBSERVED, "status": r["status"]}
             for r in rows if r["call"] in (NEW, RISING) and r["gene"] != "ESR1"]
-    out += [{"pointer": "", "month": v["latest_month"], "what": f"{v['variant']}: {v['origin']}",
+    out += [{"pointer": "", "month": v["latest_month"], "variant": v["variant"],
+             "what": f"{v['variant']}: {v['origin']}",
              "why": v["why"], "evidence": OBSERVED, "status": LITERATURE}
             for v in vs if v["origin"] == POSSIBLE_CH]
     out += [{"pointer": "", "month": s["month"], "what": s["what"], "why": "low shedding",
@@ -419,3 +422,75 @@ def report_markdown(file_id: str, rows: list[dict], vs: list[dict], rule: list[d
 
 def _vaf(r: dict) -> str:
     return f"{r['vaf']:g}%" if r["detected"] else f"not detected (<{r['lod']:g}%)"
+
+
+# --- the workbench contract (docs/WORKBENCHES.md §1): the patient file's overview ----------------
+
+METHOD = ("VAF rules on a synthetic plasma panel: rising at twice, falling at half the previous "
+          "detected VAF, cleared after two samples below the detection limit (placeholders)")
+
+
+def file_series(pf, version: int | None = None) -> tuple[list[dict], list[dict]]:
+    """(``series_rows``, record events) of a file's ctDNA series as of report version
+    ``version``, as the page builds them: the synthetic patient's series
+    (``muffle.timeline.CTDNA``) up to that version's month; ([], []) for any other file."""
+    if pf.kind != "synthetic":
+        return [], []
+    from muffle.timeline import CTDNA, EVENTS  # the record and series this page reads
+
+    cutoff = pf.versions[-1 if version is None else version].month
+    events = [e for e in EVENTS if cutoff is None or e["month"] <= cutoff]
+    samples = [s for s in CTDNA["samples"] if cutoff is None or s["month"] <= cutoff]
+    return (series_rows({**CTDNA, "samples": samples}, events) if samples else []), events
+
+
+def _opens(pf, month) -> tuple:
+    t = next((t for t in pf.tests if t.workbench == "ctdna" and t.month == month), None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def summary(pf, version: int | None = None) -> dict:
+    """The latest sample's calls, and the ESR1 rule when a new or rising ESR1 call raises it."""
+    rows, events = file_series(pf, version)
+    if not rows:
+        return {"workbench": "ctdna", "title": "ctDNA", "cards": [],
+                "note": "no ctDNA sample in this file" + (" yet" if pf.kind == "synthetic"
+                                                           else "")}
+    last = max(r["month"] for r in rows)
+    calls = ", ".join(f"{r['variant']} " + (f"{r['vaf']:g}%" if r["detected"] else
+                                            "not detected") + f" ({r['call']})"
+                      for r in rows if r["month"] == last)
+    rule = [i for i in esr1_rule(rows, events) if i["applies"]]
+    return {"workbench": "ctdna", "title": "ctDNA", "note": None, "cards": [card(
+        "ctDNA (synthetic series)", f"month {last}: {calls}" + (
+            f"; {rule[-1]['variant']} {rule[-1]['call']} at month {rule[-1]['month']} under an "
+            "aromatase inhibitor: the situation PADA-1 and SERENA-6 tested, for clinician "
+            "review" if rule else ""),
+        f"{OBSERVED} (allele fractions of a synthetic series)"
+        + (f", {HYPOTHESIS} (the ESR1 rule)" if rule else ""), "ctDNA panel (synthetic series)",
+        METHOD, "placeholders; the ESR1 trigger from PADA-1 and SERENA-6 (literature)", "weak",
+        _opens(pf, last))]}
+
+
+def queue(pf, version: int | None = None) -> list[dict]:
+    """The page's look-here items (``look_here``) worth a look now: the ESR1 rule when it applies
+    (consequence 2), the latest sample's new or rising calls and its low shedding, and possible
+    clonal hematopoiesis (1); older calls stay in the page's own queue. A synthetic series read
+    by placeholder rules: trust weak, the ESR1 rule's literature aside."""
+    rows, events = file_series(pf, version)
+    if not rows:
+        return []
+    rule, last = esr1_rule(rows, events), max(r["month"] for r in rows)
+    out = []
+    for q in look_here(rows, variants(rows, events), rule, low_shedding(rows)):
+        applies = any(i["pointer"] == q["pointer"] and i["applies"] for i in rule
+                      if q["pointer"])
+        if not (applies or q["month"] == last or POSSIBLE_CH in q["what"]):
+            continue
+        out.append(look(
+            q["pointer"] or None, q["what"], q["why"], q["evidence"],
+            "moderate" if applies else "weak", 2 if applies else 1, _opens(pf, q["month"]),
+            source=f"ctDNA, month {q['month']} (synthetic series)",
+            key=finding_key(pf, "ctdna", q.get("variant") or q["what"], q["month"]),
+            month=q["month"], threshold=q["status"]))
+    return out

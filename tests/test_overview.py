@@ -316,7 +316,7 @@ def test_one_queue_merges_alerts_discrepancies_and_workbench_items():
     pf = synthetic()
     dis = crosstest.discrepancies(pf, 11)
     q = overview.attention(pf, 11, overview.queues(pf, 11), dis)
-    assert [x["n"] for x in q] == list(range(1, len(q) + 1)) and len(q) == 11
+    assert [x["n"] for x in q] == list(range(1, len(q) + 1)) and len(q) == 15
     assert [x["kind"] for x in q].count("evolution") == 3  # rows the record raises, weak trust
     assert all(a["priority"] >= b["priority"] for a, b in zip(q, q[1:], strict=False))
     assert q[0]["what"].startswith("Progression on imaging") and q[0]["new"]
@@ -341,14 +341,16 @@ def test_the_header_cards_and_open_sos_alerts():
     sums = overview.summaries(pf, 11)
     q = overview.attention(pf, 11, overview.queues(pf, 11), crosstest.discrepancies(pf, 11))
     head = overview.header(pf, 11, sums, q, {})
-    assert [c["what"] for c in head] == ["Stage and receptors", "Key drivers", "Imaging lesions",
-                                         "12-month risk", "What to watch next", "SOS"]
-    assert head[4]["evidence"] == HYPOTHESIS and head[4]["opens"] == ("Evolution",)
+    assert [c["what"] for c in head] == [
+        "Stage and receptors", "Key drivers", "ctDNA (synthetic series)", "Imaging lesions",
+        "12-month risk", "What to watch next", "SOS"]
+    assert head[5]["evidence"] == HYPOTHESIS and head[5]["opens"] == ("Evolution",)
+    assert "PADA-1 and SERENA-6" in head[2]["text"] and head[2]["trust"] == "weak"
     stage = head[0]
     assert [k for k, *_ in stage["sides"]] == ["Recorded", "Documented"]
-    assert head[2]["text"] == ("Bone named new at month -1; Liver named new at month 12; latest "
+    assert head[3]["text"] == ("Bone named new at month -1; Liver named new at month 12; latest "
                                "read (month 12): progression; no measurements recorded")
-    assert head[3]["evidence"] == INFERENCE and head[-1]["open"] == 7
+    assert head[4]["evidence"] == INFERENCE and head[-1]["open"] == 7
     reviewed = {x["key"]: {"mark": "reviewed"} for x in q if x["sos"]}
     assert overview.header(pf, 11, sums, q, reviewed)[-1]["open"] == 0
     assert overview.absent(sums) == [
@@ -412,7 +414,8 @@ def test_list_rows_search_and_filters():
     assert by["Case 299"]["subtype"] == "Luminal A" and by["Case 864"]["subtype"] == "Basal-like"
     assert by["SYNTHETIC-001"]["subtype"] == "not called" and by["SYNTHETIC-001"]["stage"] == "II"
     assert by["Case 299"]["holds"] == ["Genomics", "Slides", "Expression", "Documents"]
-    assert by["SYNTHETIC-001"]["holds"] == ["Labs", "Genomics", "Documents", "Imaging"]
+    assert by["SYNTHETIC-001"]["holds"] == ["Labs", "ctDNA", "Genomics", "Documents",
+                                            "Imaging"]
 
     def ids(**kw):
         return [r["id"] for r in overview.filter_rows(rows, **kw)]

@@ -6,8 +6,8 @@ from each workbench's ``summary``; the queue merges each workbench's ``queue``, 
 ``muffle.crosstest.discrepancies``, de-duplicated by finding key (an alert on a lab value and the
 lab workbench's flag of that value are one finding) and ordered by consequence × trust
 (``workspace.TRUST``, placeholder weights). Radiology and evolution join once their modules carry
-the contract; every workbench module here does (labs, genomics, slides, omics, documents,
-radiology, evolution).
+the contract; every workbench module here does (labs, ctDNA, genomics, slides, omics,
+documents, radiology, evolution).
 """
 
 from __future__ import annotations
@@ -15,13 +15,15 @@ from __future__ import annotations
 from muffle import crosstest, evolution
 from muffle.demo import ordinal
 from muffle.report.case_tools import INFERENCE, OBSERVED
-from muffle.workbench import documents, genomics, labs, omics, radiology, slides
+from muffle.workbench import ctdna, documents, genomics, labs, omics, radiology, slides
 from muffle.workspace import QUEUE_ORDER, TRUST, PatientFile, card, finding_key
 
-WORKBENCHES = {"labs": labs, "genomics": genomics, "slides": slides, "omics": omics,
-               "documents": documents, "radiology": radiology, "evolution": evolution}
-NAMES = {"labs": "Labs", "genomics": "Genomics", "slides": "Slides", "omics": "Expression",
-         "documents": "Documents", "radiology": "Imaging", "evolution": "Evolution"}
+WORKBENCHES = {"labs": labs, "ctdna": ctdna, "genomics": genomics, "slides": slides,
+               "omics": omics, "documents": documents, "radiology": radiology,
+               "evolution": evolution}
+NAMES = {"labs": "Labs", "ctdna": "ctDNA", "genomics": "Genomics", "slides": "Slides",
+         "omics": "Expression", "documents": "Documents", "radiology": "Imaging",
+         "evolution": "Evolution"}
 ORDER_RULE = QUEUE_ORDER
 MARKER_KEYS, DRIVER = crosstest.MARKER_KEYS, crosstest._DRIVER  # names in the alerts' text
 
@@ -110,7 +112,7 @@ def header(pf: PatientFile, i: int, sums: dict, queue: list[dict] | None = None,
         out.append(c)
     om = _cards(sums, "omics")
     out += [om[k] for k in ("PAM50 subtype",) if k in om]
-    out += list(_cards(sums, "genomics").values())
+    out += list(_cards(sums, "genomics").values()) + list(_cards(sums, "ctdna").values())
     out += list(_cards(sums, "slides").values())
     rad = list(_cards(sums, "radiology").values())
     out += rad[:1] or [c for c in [_latest_imaging(pf, i)] if c]
@@ -252,6 +254,7 @@ def list_row(pf: PatientFile) -> dict:
                     for var in t.details.get("variants", [])})
     holds = {
         "labs": any(t.kind == "Lab" for t in pf.tests),
+        "ctdna": any(t.workbench == "ctdna" for t in pf.tests),
         "genomics": any(t.workbench == "mutations" for t in pf.tests),
         "slides": bool(slides.sections(pf)),
         "omics": cs is not None or any(t.workbench == "omics" for t in pf.tests),

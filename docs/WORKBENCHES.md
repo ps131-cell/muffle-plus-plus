@@ -69,8 +69,8 @@ measurement. Every workbench follows it.
      "month"}`, `{"variant"}`, `{"slide", "pointer", "tile"}`, `{"omics": key}`, `{"doc",
      "sentence"}`), and the report's "open" lands there.
    - Pure: no Streamlit, no model run, nothing new computed (`tests/test_overview.py`). Labs,
-     genomics, slides (with the invasion results), omics, documents, radiology and evolution
-     carry them; a new workbench joins the overview by adding the two functions.
+     ctDNA, genomics, slides (with the invasion results), omics, documents, radiology and
+     evolution carry them; a new workbench joins the overview by adding the two functions.
 
 ## 2. Patient file and report
 

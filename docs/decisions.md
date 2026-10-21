@@ -21,7 +21,7 @@ Newest at the top. One entry per decision: date, what, why.
 - **Why:** seven workbenches landed in a week, each knowing only itself; the user's product is
   one evidence-linked picture of a patient. A shared shape lets the report, the export and the
   patient list read every workbench the same way, and lets the next workbench join by adding
-  two functions (radiology and evolution, which landed the same day, did).
+  two functions (radiology, evolution and ctDNA, which landed the same day, did).
 - **Consequence:** nothing new is computed for the overview: it reads what each workbench
   already decided, with its labels and threshold sources, and "open" lands on the pointer by
   setting the workbench page's own widget state. Trust and consequence per item are the rule
