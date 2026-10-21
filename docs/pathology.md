@@ -245,6 +245,39 @@ build step), the geometry in `muffle.workbench.viewer`, the tiles from `scripts/
   OUT/<slide>.zip` (`--clobber` for a rebuilt section; a server that already unzipped the old
   one keeps it until it restarts).
 
+## 8. Second opinion on lymphocytes (2026-10-21)
+
+The tissue head's weakest class is lymphocytes (held-out recall 0.74), so the WSInfer TIL model
+(`kaczmarj/pancancer-lymphocytes-inceptionv4.tcga`; Abousamra et al., *Front Oncol* 2022,
+[10.3389/fonc.2021.806603](https://doi.org/10.3389/fonc.2021.806603); CC BY 4.0; TorchScript,
+`torch.jit.load`) gives a second reading of the same tiles: the centre 50 µm (100 px at 0.5
+µm/px) of a tile, resized to 299 px, normalized with mean and std 'half' (the better of the two
+candidate normalizations on the held-out slides; 'imagenet' gave AUROC 0.945),
+softmax over its two classes.
+
+- **Measured** (`scripts/slide_pipeline.py til-measure`, on the spike's BCSS tiles): on the
+  head's 3 held-out, patient-disjoint slides (TCGA-C8-A26X-DX1, TCGA-C8-A26Y-DX1, TCGA-EW-A1OV-DX1;
+  357 usable labelled tiles) lymphocytes versus the rest **AUROC
+  0.955**; mean probability per BCSS class on those tiles: tumor 0.04, stroma 0.39, lymphocytes 0.97, necrosis 0.08, fat 0.08. Cutoff
+  **0.667**, calibrated on the 8 training slides (1052 tiles, Youden's
+  J; training-slide AUROC 0.971) and applied unchanged: held-out recall
+  97%, specificity 79%, accuracy
+  83%. Caveat: the model was trained on TCGA slides of 23 cancer types, so the
+  held-out BCSS slides (all TCGA-BRCA) may have been in its training set; the AUROC is an upper
+  bound, not an independent validation.
+- **On a patient's section** (`slide_pipeline.py til`): up to 1,500 usable front-band tiles
+  (nearest the front first) then peritumoral tiles are scored and written to `til.json` (tile id
+  → probability, the cutoff and its source, the held-out numbers); nothing else leaves the
+  machine. `invasion.til_disagreement` compares the head's label (lymphocytes or not) with the
+  second model at the cutoff on the scored tiles: counts, share, Cohen's kappa, and the
+  disagreeing tiles, which get a "models disagree" pointer at their densest spot in the look-here
+  queue, a map layer ("lymphocytes (second model)", disagreement in orange and red), a column in
+  the stromal-lymphocytes-by-zone table, a search ("where do the models disagree"), a row in the
+  two-section comparison and an entry in the export. Every number is a model inference; a
+  disagreement is a place to look, never a verdict on which model is right.
+- Not done: the WSInfer tumor model (AUROC 0.921, balanced accuracy 0.788 at its cutoff in the
+  screening check) is not wired in.
+
 ## 8. What is left
 
 - A pathologist's review of one scored slide, and a measured error for StarDist on breast

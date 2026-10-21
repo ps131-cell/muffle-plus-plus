@@ -168,6 +168,16 @@ def _region_outlines(res: dict) -> list[dict]:
             for card in res["risk"]["cards"]]
 
 
+def til_codes(t: pd.DataFrame) -> list[int]:
+    """The second lymphocyte model per tile: -1 not scored, 0 not lymphocytes, 1 lymphocytes;
+    2 and 3 the same where the head disagrees."""
+    if "til_lymph" not in t:
+        return [-1] * len(t)
+    code = t["til_lymph"].fillna(-1).astype(int)
+    dis = t["disagree"].fillna(False).astype(bool) if "disagree" in t else False
+    return code.where(~(dis & (code >= 0)), code + 2).tolist()
+
+
 def overlay(res: dict, classes: list[str], cells: pd.DataFrame | None = None) -> dict:
     """Everything the viewer draws on the section, in grid units (the browser maps them with
     ``tile_frame``): per-tile class, certainty, quality, zone, front, risk and nuclei counts as
@@ -205,6 +215,7 @@ def overlay(res: dict, classes: list[str], cells: pd.DataFrame | None = None) ->
             "risk": t["risk_level"].astype(int).tolist(),
             "pts": t["risk_points"].round().astype(int).tolist(),
             "n": ints("n_nuclei"), "ly": ints("n_lymph"), "bud": ints("buds"),
+            "til": til_codes(t),
         },
         "front": outline(main, against=tissue & ~main),
         "arcs": [{"arc": a["arc"], "row": a["row"] + 0.5, "col": a["col"] + 0.5,
