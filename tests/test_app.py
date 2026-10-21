@@ -124,6 +124,15 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.run()
     assert "Clinical documents" in shown(at) and "documented facts" in shown(at)
     assert not at.exception
+    # the ctDNA monitor opens from a ctDNA test, labeled synthetic, and links to Evolution
+    at.session_state["picked-SYNTHETIC-001"] = ("ctDNA (liquid biopsy)", 9,
+                                                "ctDNA panel (synthetic series)")
+    at.run()
+    assert "ctDNA monitor (liquid biopsy)" in shown(at) and not at.exception
+    assert any(w.value.startswith("Synthetic series") for w in at.warning)
+    button(at, "Open the Evolution view: what to watch next").click().run()
+    assert at.segmented_control(key="view").value == "Evolution" and not at.exception
+    at.segmented_control(key="view").set_value("Tests").run()
     # an import (what the Import tests dialog stores) adds a version and re-runs the rise rule
     ok, _ = parse_labs(b"month,marker,value,unit\n27,CA 15-3,45,U/mL\n", after=24)
     tests, observed = lab_tests(ok)

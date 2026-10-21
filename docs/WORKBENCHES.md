@@ -104,13 +104,40 @@ table, flags with rule and source, quality checks, look-here queue, rules card):
   preceded the imaging progression at month 12; shown as a fact of this record, not a rule.
 - **Cross-marker view** [now]: CA 15-3 and CEA on one axis with their own limits; concordant and
   discordant rises named; correlation is not causation, said in the panel.
-- **Assay and unit change detection** [data]: a changed method or reference interval splits the
-  series and blocks comparisons across the split.
-- **CBC and differential, derived ratios** [data]: absolute counts versus percentages, ratios only
-  where clinically established, each with its source.
-- **Search** [now]: "values above the limit", "after palbociclib", "rising"; "can't see that" for
-  anything the panel lacks.
+- **Any analyte, from a reference table** [now, built 2026-10-21; `docs/labs.md`]: tumor
+  markers, liver and bone chemistry, kidney (eGFR by the 2021 CKD-EPI equation) and a CBC, each
+  with Mayo Clinic Laboratories' adult interval by sex (a reference laboratory's, tagged so), units
+  and conversions, and why it matters with its citation; the lab report's own interval always
+  wins; any other analyte flows through flagged against its own interval. Out-of-interval flags
+  are observed against the named source, the EGTM rise rule applies to tumor markers only,
+  other change flags are placeholders, low counts carry their CTCAE v5.0 grade.
+- **Assay and unit change detection** [now, partly]: units convert at the import boundary (an
+  unknown unit is rejected with the reason); a changed reference interval is a quality issue
+  ("compare across it with care"). A changed method the record does not state stays invisible
+  [data].
+- **CBC and differential, derived ratios** [now for absolute counts, via import; ratios planned]:
+  hemoglobin, white cells, absolute neutrophils and platelets with CTCAE grades; ratios only where
+  clinically established, each with its source.
+- **Cross-analyte hypotheses** [now, hypothesis]: raised or rising ALP and calcium next to an
+  imaging report naming bone, liver enzymes next to one naming the liver, each naming the report,
+  its literature and the other causes; a same-month GGT says which source fits a raised ALP.
+- **Search** [now]: "values above the limit", "after palbociclib", "rising", an analyte or a
+  panel; "can't see that" for anything the panel lacks, naming the panel that would show it.
 - **Export** [now]: the chart, the table, the flags with sources, the reviewer marks.
+
+### ctDNA monitor (liquid biopsy)
+
+- **Variant allele fractions over time** [now, synthetic series; `docs/ctdna.md`]: SYNTHETIC-001
+  carries a hand-written series (PIK3CA H1047R tracking burden, ESR1 D538G emerging under
+  letrozole, DNMT3A R882H flat), labeled synthetic on every screen; no open serial breast ctDNA
+  data exists [data]. Detection limit and calls (new, rising, falling, cleared) are placeholders.
+- **ESR1 under an aromatase inhibitor** [now, literature: PADA-1, SERENA-6]: evidence for
+  clinician review with how this record differs from the trials, never a switch recommendation.
+- **Clonal hematopoiesis** [now, literature: Razavi 2019, Jaiswal 2014]: a variant the tumor
+  sequencing did not find, in a clonal-hematopoiesis gene, is flagged and kept out of the tumor
+  picture; every variant keeps the matched white-cell caveat.
+- **Lead and lag, Spot panel, review marks, cannot see, rules card, exports** [now]; links to the
+  genomics workbench and the Evolution view.
 
 ## 4. Genomics workbench
 

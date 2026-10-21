@@ -67,6 +67,31 @@ EVENTS: list[dict] = [
      "text": "Imaging stable; CA 15-3 31 U/mL; ECOG 1"},
 ]
 
+# SYNTHETIC: a hand-written ctDNA (liquid biopsy) series for the same patient (docs/ctdna.md). It is
+# a separate constant so that EVENTS, and the risk updates row-aligned with it in
+# app/timeline_synthetic.json, never change; the risk models never saw it. No open serial breast
+# ctDNA data exists (docs/model_survey.md §5), so every value here is invented to show how the
+# ctDNA monitor reads a series. Months are the record's own timeline (it has no calendar dates);
+# variant allele fractions are in percent of cell-free DNA; None = not detected (below the
+# detection limit). Written to tell three stories: PIK3CA H1047R (found in the month-0 tumor
+# sequencing) tracks burden, up before both progressions and down under treatment; ESR1 D538G
+# emerges under letrozole and rises before the liver progression; DNMT3A R882H sits at a stable
+# low fraction whatever the treatment, the pattern of clonal hematopoiesis.
+CTDNA: dict = {
+    "assay": "targeted cell-free DNA panel, plasma only, no matched white-cell sequencing "
+             "(synthetic)",
+    "synthetic": True,
+    "detection_limit": 0.1,  # PLACEHOLDER: % variant allele fraction
+    "variants": ("PIK3CA H1047R", "ESR1 D538G", "DNMT3A R882H"),
+    "samples": [  # (month, PIK3CA H1047R, ESR1 D538G, DNMT3A R882H)
+        {"month": m, "vaf": dict(zip(("PIK3CA H1047R", "ESR1 D538G", "DNMT3A R882H"), v,
+                                     strict=True))}
+        for m, *v in [(-12, 0.12, None, 0.42), (-6, 0.35, None, 0.45), (-2, 1.6, 0.18, 0.40),
+                      (0, 2.4, 0.31, 0.47), (4, 0.9, 0.22, 0.44), (7, 0.3, 0.15, 0.41),
+                      (9, 0.6, 0.4, 0.46), (11, 1.9, 1.1, 0.43), (13, 3.2, 2.0, 0.45),
+                      (16, 1.1, 0.7, 0.48), (19, 0.4, 0.25, 0.44), (24, 0.18, None, 0.46)]],
+}
+
 # what the attribution calls each group of model features
 GROUPS = {
     "diagnosis (stage, HR, HER2)": lambda c: c in BASELINE,
