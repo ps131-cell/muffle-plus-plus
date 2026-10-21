@@ -19,11 +19,13 @@ from muffle.data.tcga import DRIVERS as TCGA_PANEL
 from muffle.demo import ordinal
 from muffle.longitudinal import DRIVERS
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED, age_band
-from muffle.timeline import EVENTS, PATIENT_ID
+from muffle.timeline import CTDNA, EVENTS, PATIENT_ID
 
 IMPLEMENTED, VALIDATED, PLANNED = "implemented", "experimentally validated", "planned"
 
-MARKERS = {"ca153": ("CA 15-3", "U/mL"), "cea": ("CEA", "ng/mL")}
+# the tumor markers the EGTM rise rule (and its SOS alert) reads
+MARKERS = {"ca153": ("CA 15-3", "U/mL"), "cea": ("CEA", "ng/mL"),
+           "ca2729": ("CA 27.29", "U/mL")}
 # Reference limits as the record states them. SYNTHETIC-001's first lab report reads
 # "reference below 30"; CEA has none in the record, so it never raises an alert.
 REFERENCE_LIMITS = {"ca153": (30.0, "the record's lab report (month -2)")}
@@ -69,7 +71,7 @@ class Test:
     month: int | None
     name: str
     result: str
-    workbench: str   # labs, mutations, omics, record, imaging, slides
+    workbench: str   # labs, mutations, omics, record, imaging, slides, ctdna
     status: str      # status of that workbench: implemented or planned
     details: dict = field(default_factory=dict)  # what the workbench opens: marker, layer, variants
 
@@ -130,6 +132,19 @@ def _event_tests(e: dict) -> list[Test]:
             out.append(Test("Lab", m, name, f"{e[key]:g} {unit}", "labs", IMPLEMENTED,
                             {"marker": key, "value": float(e[key])}))
     return out
+
+
+CTDNA_KIND = "ctDNA (liquid biopsy)"
+
+
+def ctdna_tests(series: dict = CTDNA) -> list[Test]:
+    """One ctDNA test per sample of the synthetic patient's series (``muffle.timeline.CTDNA``),
+    for the ctDNA workbench; every one labeled synthetic."""
+    lod = series["detection_limit"]
+    return [Test(CTDNA_KIND, s["month"], "ctDNA panel (synthetic series)", ", ".join(
+        f"{v} {vaf:g}%" if vaf is not None else f"{v} not detected (below {lod:g}%)"
+        for v, vaf in s["vaf"].items()), "ctdna", IMPLEMENTED,
+        {"sample": s["month"], "synthetic": True}) for s in series["samples"]]
 
 
 def marker_rise(key: str, value: float, before: float | None, month: int,
@@ -211,6 +226,9 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
                                 "sequencing (month 0).",
             u.get("changes", []), alerts, _event_tests(e),
             [agent.lower() for _, agent in e.get("treatments", [])]))
+    if events is EVENTS:  # the series belongs to this record: each sample joins the first
+        for t in ctdna_tests():  # version at or after its month, so "as of" never shows it early
+            next((v for v in versions if v.month >= t.month), versions[-1]).tests.append(t)
     dx = next(e for e in events if e["kind"] == "Diagnosis")
     return PatientFile(
         PATIENT_ID, "synthetic", "Synthetic patient: written by hand, not a real person",
@@ -292,7 +310,7 @@ def add_version(pf: PatientFile, tests: list[Test], month: int, event: str, by: 
     alerts = []
     for t in sorted(tests, key=lambda t: t.month):
         d = t.details
-        if t.kind == "Lab" and "value" in d:
+        if t.kind == "Lab" and "value" in d and d["marker"] in MARKERS:  # tumor markers only
             rise = marker_rise(d["marker"], d["value"], last.get(d["marker"]), t.month,
                                d.get("limit"))
             last[d["marker"]] = d["value"]
@@ -391,6 +409,7 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "evolution": "the watched event or 'trial', its source (a PMID or an NCT number)",
     "imaging": "the TCGA barcode (or 'report'), the study (its date, or the report's month), "
                "the lesion ('C1', or the named site)",
+    "ctdna": "the variant ('ESR1 D538G'), the ctDNA sample's month",
 }
 
 
