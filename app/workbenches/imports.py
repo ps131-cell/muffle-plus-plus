@@ -84,9 +84,9 @@ def dialog(file: PatientFile) -> None:
     if kind == KINDS[0]:
         record = _labs(file, when)
     else:
-        month = int(st.number_input(f"Month of the test ({when.lower()}; the latest report is "
-                                    f"month {lo})", min_value=lo, value=lo, step=1,
-                                    key="import-month"))
+        month = int(st.number_input(f"Month of the test ({when[0].lower()}{when[1:]}; the "
+                                    f"latest report is month {lo})", min_value=lo, value=lo,
+                                    step=1, key="import-month"))
         source = f"imported by {by or 'no initials'} at {at}, this session"
         doc_id = f"import-{n}"
         if kind == KINDS[1]:

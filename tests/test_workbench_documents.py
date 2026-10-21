@@ -167,7 +167,7 @@ def test_bundled_tcga_reports_load_by_case_index():
     assert docs and docs[0]["id"].startswith(data["barcode"]) and "CC BY 4.0" in docs[0]["source"]
     case = SimpleNamespace(index=data["case_index"], site="site-1", percentile=50.0, group="mid",
                            age=60.0, stage="II", layers=["clinical"], missing=[], mutations=None)
-    pf = case_file(case, 0.7, docs)
+    pf = case_file(case, 0.7, documents=docs)
     t = next(t for t in pf.tests if t.kind == "Document")
     assert (t.workbench, t.details["document"]) == ("documents", docs[0]["id"])
     assert wb.file_documents(pf)[0]["text"] == docs[0]["text"]
