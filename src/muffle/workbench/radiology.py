@@ -27,6 +27,7 @@ import numpy as np
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.workbench.labs import lead_lag as _lab_lead_lag
 from muffle.workbench.labs import results_table
+from muffle.workspace import record_events
 
 PROGRESSION, STABLE, RESPONSE, NOT_STATED = "progression", "stable", "response", "not stated"
 NO_MEASUREMENTS = "no measurements recorded"
@@ -72,6 +73,9 @@ CUTOFFS = {
     "dense_threshold": ("Otsu", PLACEHOLDER, "mammography dense pixels: above an Otsu threshold "
                         "inside the breast; a pixel share, not a BI-RADS density category"),
 }
+
+# every value nobody has validated yet, as (what, value) for the Methods page's one table
+PLACEHOLDERS = [(k, f"{v} ({note})") for k, (v, tag, note) in CUTOFFS.items() if tag != DESIGN]
 
 # what the workbench gets wrong, as far as it has been seen (docs/radiology.md §3)
 KNOWN_FAILURES = [
@@ -152,6 +156,15 @@ def sites_named_new(text: str) -> list[str]:
         if site and site not in out:
             out.append(site)
     return out
+
+
+def file_events(pf, version: int | None = None) -> list[dict]:
+    """The record the report page reads for a patient file: the synthetic record's events and
+    each imported test's event (``workspace.record_events``), up to report version
+    ``version``'s month. A TCGA file has only its imports: never the synthetic record."""
+    events = record_events(pf)
+    month = None if version is None else pf.versions[version].month
+    return events if month is None else [e for e in events if e["month"] <= month]
 
 
 def imaging_reads(events: list[dict]) -> list[dict]:

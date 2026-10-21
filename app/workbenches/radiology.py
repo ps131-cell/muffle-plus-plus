@@ -45,7 +45,6 @@ import streamlit as st  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
 from muffle.report.case_tools import INFERENCE, OBSERVED  # noqa: E402
-from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench import radiology as rad  # noqa: E402
 from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
@@ -677,21 +676,24 @@ def read_rows(reads: list[dict]) -> list[dict]:
 
 
 def report_page(pf: PatientFile, version: int | None) -> None:
-    events = EVENTS
-    if version is not None and pf.versions[version].month is not None:
-        cutoff = pf.versions[version].month
-        hidden = sum(e["month"] > cutoff for e in events)
-        events = [e for e in events if e["month"] <= cutoff]
-        st.caption(f"As of month {cutoff} ({pf.versions[version].label}): {hidden} later events "
-                   "hidden.")
+    """The file's imaging reports as text: the synthetic record's and any imported ones, never
+    another file's (``muffle.workbench.radiology.file_events``)."""
+    events = rad.file_events(pf, version)
+    hidden = len(rad.file_events(pf)) - len(events)
+    if hidden:
+        st.caption(f"As of month {pf.versions[version].month} ({pf.versions[version].label}): "
+                   f"{hidden} later events hidden.")
     reads = rad.imaging_reads(events)
-    chips(IMPLEMENTED, OBSERVED, "synthetic patient")
-    st.warning("Synthetic patient: this record was written by hand and is not a real person. Its "
-               "imaging reports exist to show how the workbench reads them.")
-    st.caption("Data: the record's imaging reports (text, observed); no images are on file. "
-               "Method: report reading rules version 1 (word patterns for the read and for new "
-               "sites, cross-checked against the record's own sites field), no model. "
-               f"Measurements: {rad.NO_MEASUREMENTS}. Status: implemented.")
+    synthetic = pf.kind == "synthetic"
+    chips(IMPLEMENTED, OBSERVED, *(["synthetic patient"] if synthetic else []))
+    if synthetic:
+        st.warning("Synthetic patient: this record was written by hand and is not a real person. "
+                   "Its imaging reports exist to show how the workbench reads them.")
+    st.caption("Data: this file's imaging reports (text, observed; an imported report as its "
+               "import read it); no images are on file. Method: report reading rules version 1 "
+               "(word patterns for the read and for new sites, cross-checked against the "
+               f"record's own sites field), no model. Measurements: {rad.NO_MEASUREMENTS}. "
+               "Status: implemented.")
     picked = st.session_state.get(f"picked-{pf.id}")
     if picked and picked[0] == "Imaging":
         st.info(f"Opened: {picked[2]}, month {picked[1]}.", icon="📍")
@@ -771,6 +773,53 @@ def report_page(pf: PatientFile, version: int | None) -> None:
             "file with an imaging test.", icon="🩻")
     _search(pf, None, reads, [], rad.REPORT_CANNOT_SEE)
     _export(pf, None, rows, {"reads": read_rows(reads), "lead_lag": lag})
+
+
+# --- the Methods and validation page's cards ---------------------------------------------------
+def methods_card() -> None:
+    """The radiology workbench's models and rules for the Methods and validation page
+    (app/methods_page.py): MedSAM, mammoscreen, and the report-reading, seed and kinetics rules
+    with every cutoff and its source."""
+    def head(title: str, what: str) -> None:
+        st.subheader(title)
+        st.markdown(f"{chip(IMPLEMENTED)} · {what}")
+
+    head("Lesion contours (MedSAM, breast MRI)", "promptable contours from a seed rule's boxes, "
+         "precomputed offline · the radiology workbench")
+    st.markdown(
+        f"- **Design:** {rad.MEDSAM}; a box prompt per slice from the seed rule, the authors' "
+        "preprocessing, sigmoid above 0.5; longest diameter, volume and DCE kinetics are "
+        "measured on its contours.\n"
+        "- **Published validation:** the paper's own tasks (1,570,263 image-mask pairs, 10 "
+        "modalities, 86 internal and 60 external validation tasks). **Not validated on breast "
+        "MRI here**: no reader contour exists for these studies.\n"
+        "- **Data:** three held-out TCGA cases with a public TCIA study (CC BY 3.0); the hosted "
+        "app reads 8-bit copies and derived numbers and runs no model.")
+    head("Screening score (mammoscreen, mammography)", "cancer score and BI-RADS density per "
+         "breast, precomputed offline · the radiology workbench")
+    st.markdown(
+        "- **Design:** three EfficientNetV2-S nets on the CC and MLO views of a breast "
+        "(Apache-2.0), re-built from the published code with the pinned weights, so no remote "
+        "code runs; crops from a threshold mask, not the authors' crop model.\n"
+        "- **Published validation:** the model card's AUROC 0.945 on held-out splits of the "
+        "RSNA 2023 screening data; uncalibrated, not validated here, and the one study is a "
+        "known cancer whose report does not record the side.")
+    c = rad.CUTOFFS
+    n = sum(1 for _, tag, _ in c.values() if tag == rad.PLACEHOLDER)
+    head("Radiology: report reading, seed and kinetics rules", "reads in the report's words, "
+         "where to look, curve types · the radiology workbench")
+    st.markdown(
+        f"Imaging reports are read in their own words ({chip(OBSERVED)}): the read, the sites "
+        "named new, a lesion table across reads, and no measurement where none is recorded. On "
+        "images, the seed rule proposes boxes from the subtraction inside the breast region and "
+        "kinetics follow the BI-RADS MRI lexicon's curve types (Kuhl et al. 1999). "
+        f"**{n} of {len(c)} cutoffs are placeholders**; the kinetics cutoffs are literature "
+        "values used as placeholders until calibrated. Known failures: "
+        + " ".join(rad.KNOWN_FAILURES) + " Method: docs/radiology.md.")
+    with st.expander("Every radiology cutoff and its source"):
+        st.dataframe(pd.DataFrame([{"cutoff": k, "value": str(v), "source": tag, "note": note}
+                                   for k, (v, tag, note) in c.items()]),
+                     hide_index=True, width="stretch")
 
 
 # --- entry point ----------------------------------------------------------------------------------
