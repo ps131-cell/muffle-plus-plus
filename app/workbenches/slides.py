@@ -680,6 +680,9 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
                         "tiles are in the queue.")
         elif til is None:
             st.caption("No second lymphocyte model has scored this section.")
+        else:
+            st.caption("The second lymphocyte model scored no tile here: the map has no front "
+                       "band or peritumoral zone to score.")
         st.markdown(f"Pattern: **{im['pattern']}** ({im['status']}).")
     t1, t2, t3 = st.columns(3)
     tsr, nec = res["tsr"], res["necrosis"]

@@ -275,6 +275,19 @@ softmax over its two classes.
   the stromal-lymphocytes-by-zone table, a search ("where do the models disagree"), a row in the
   two-section comparison and an entry in the export. Every number is a model inference; a
   disagreement is a place to look, never a verdict on which model is right.
+- **Per section** (2026-10-21; a disagreement is a place to look, not a verdict; kappa near zero means the two readings barely overlap, and most disagreements are the second model calling lymphocytes where the head reads stroma, consistent with its 0.39 mean on stroma tiles):
+
+| Section | Tiles scored | Per tile (2 threads) | Front band: head lymphocyte share | Front band: second model | Disagree | Head only / model only | Kappa |
+|---|---|---|---|---|---|---|---|
+| TCGA-AN-A0AS-DX1 | 1500 | 0.34 s (load average 4.5 7.7 8.1) | 0% | 3% | 43 (3%) | 0 / 43 | 0.0 |
+| TCGA-BH-A0H5-DX1 | 0 | 0.0 s (load average 6.4 5.0 6.1) | — | — | 0 (—) | 0 / 0 | — |
+| TCGA-D8-A1XF-DX1 | 1500 | 0.35 s (load average 3.8 6.1 7.2) | 2% | 6% | 114 (8%) | 28 / 86 | -0.029 |
+| TCGA-D8-A1XF-DX2 | 1500 | 0.29 s (load average 6.8 5.0 6.2) | 0% | 4% | 60 (4%) | 12 / 48 | -0.013 |
+| TCGA-EW-A1J2-DX1 | 771 | 0.27 s (load average 7.1 6.4 7.4) | 0% | 2% | 8 (1%) | 0 / 8 | 0.0 |
+| TCGA-PL-A8LZ-DX1 | 368 | 0.22 s (load average 3.6 4.4 5.8) | 0% | 0% | 0 (0%) | 0 / 0 | — |
+| TCGA-PL-A8LZ-DX2 | 0 | 0.0 s (load average 3.3 4.3 5.8) | — | — | 0 (—) | 0 / 0 | — |
+| TCGA-PL-A8LZ-DX3 | 899 | 0.23 s (load average 3.0 3.6 5.2) | 0% | 2% | 68 (8%) | 0 / 68 | 0.026 |
+
 - Not done: the WSInfer tumor model (AUROC 0.921, balanced accuracy 0.788 at its cutoff in the
   screening check) is not wired in.
 
