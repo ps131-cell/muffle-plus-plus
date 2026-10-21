@@ -120,6 +120,58 @@
   }
  ],
  "dense_cc_mean": 0.266,
+ "density_monai": {
+  "status": "implemented",
+  "model": "MONAI/breast_density_classification",
+  "revision": "eb746b7590d830bef92137ac632a4abe34a64f3d",
+  "license": "Apache-2.0",
+  "views": {
+   "L-CC": {
+    "density": {
+     "A": 0.01,
+     "B": 0.094,
+     "C": 0.922,
+     "D": 0.821
+    },
+    "density_class": "C"
+   },
+   "L-MLO": {
+    "density": {
+     "A": 0.019,
+     "B": 0.153,
+     "C": 0.913,
+     "D": 0.646
+    },
+    "density_class": "C"
+   },
+   "R-CC": {
+    "density": {
+     "A": 0.015,
+     "B": 0.087,
+     "C": 0.833,
+     "D": 0.899
+    },
+    "density_class": "D"
+   },
+   "R-MLO": {
+    "density": {
+     "A": 0.025,
+     "B": 0.224,
+     "C": 0.897,
+     "D": 0.551
+    },
+    "density_class": "C"
+   }
+  },
+  "card": {
+   "accuracy": "0.96 (the bundle's metadata; its test set is not described)",
+   "training": "InceptionV3 fine-tuned on Mayo Clinic mammograms (Gupta et al., arXiv:2202.08238, preprint)",
+   "intended_use": "an example, not to be used for diagnostic purposes (the bundle's metadata)"
+  },
+  "how": "the bundle's network re-built from torchvision with the pinned weights, without MONAI; the whole view, as the bundle's preprocessing takes it; a sigmoid per class, so the four values need not sum to 1",
+  "seconds": 78.0,
+  "uptime": "10:50:36 up  7:40,  1 user,  load average: 21.36, 23.01, 20.17"
+ },
  "screening_score": {
   "status": "implemented",
   "model": "ianpan/mammoscreen",
@@ -175,14 +227,14 @@
    "training": "CBIS-DDSM, then RSNA 2023 (the RSNA data terms not retrieved)"
   },
   "how": "the published architecture re-built with timm and the pinned weights, no remote code; crops from the breast mask instead of the authors' crop model; constant-zero padding",
-  "seconds_load": 6.0,
-  "seconds_inference": 143.0,
+  "seconds_load": 10.0,
+  "seconds_inference": 240.0,
   "threads": 4,
-  "uptime": "22:48:48 up  4:09,  1 user,  load average: 8.57, 8.99, 9.15"
+  "uptime": "10:54:47 up  7:44,  1 user,  load average: 16.81, 19.41, 19.32"
  },
  "pipeline": {
   "script": "scripts/radiology_pipeline.py mammo",
   "version": "1",
-  "run_at": "2026-10-21 03:48 UTC"
+  "run_at": "2026-10-21 15:54 UTC"
  }
 }

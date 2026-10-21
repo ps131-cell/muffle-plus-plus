@@ -211,3 +211,8 @@ def test_shipped_studies_are_small_and_attributed():
             assert sum(p.stat().st_size for p in folder.iterdir()) < 5_000_000
             for c in study.get("candidates", []):
                 assert c["evidence"] == "model inference" and c["longest_diameter_mm"] > 0
+            monai = study.get("density_monai", {})
+            if monai.get("status") == "implemented":  # one class per shipped view, A-D
+                assert set(monai["views"]) == {v["key"] for v in study["views"]}
+                assert {v["density_class"] for v in monai["views"].values()} <= set("ABCD")
+                assert "not to be used for diagnostic purposes" in monai["card"]["intended_use"]
