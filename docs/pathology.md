@@ -24,8 +24,8 @@ access, no token. Scored on 2026-10-20 (cohort index → sections):
 | 299 | TCGA-AN-A0AS | DX1 | in the video; saved case note | shipped |
 | 926 | TCGA-EW-A1J2 | DX1 | in the video; saved case note | shipped |
 | 1043 | TCGA-PL-A8LZ | DX1, DX2, DX3 | saved case note; three small sections, compared on the page | shipped |
-| 730 | TCGA-D8-A1XF | DX1, DX2 | saved case note; two large sections to compare | downloaded, scoring in WSL; follow-up PR |
-| 563 | TCGA-BH-A0H5 | DX1 | saved case note | downloaded, scoring in WSL; follow-up PR |
+| 730 | TCGA-D8-A1XF | DX1, DX2 | saved case note; two large sections to compare | shipped |
+| 563 | TCGA-BH-A0H5 | DX1 | saved case note | shipped (no tumor found: the page says no front) |
 
 The other saved-note cases (47, 545, 564, 601) have one DX1 slide each on the GDC and can be
 added with the same command. `cases.json` names only folders that are complete. TCGA slides are open-access public data, so 224 px tile crops of
@@ -137,12 +137,17 @@ Measured under the load average quoted (`uptime`), 4 threads, `nice -n 10`:
 | TCGA-PL-A8LZ-DX1 | 1,378 | 1,378 | whole slide | 7 min at 3.98 tiles/s (load average 4.7 7.5 6.7) | 300 tiles, 1.2 s each (load average 11.5 9.5 6.9) | 0.08 | 0.22 | 0/2 | 32 | 3 | 30% | 0.33 |
 | TCGA-PL-A8LZ-DX2 | 3,107 | 3,107 | whole slide | 10 min at 5.73 tiles/s (load average 12.2 13.0 11.2) | 0 tiles, ? s each () | 0.0 | 0.0 | 0/0 | None | 0 | 17% | 0.26 |
 | TCGA-PL-A8LZ-DX3 | 4,146 | 4,146 | whole slide | 8 min at 10.22 tiles/s (load average 5.8 9.6 9.4) | 400 tiles, 0.31 s each (load average 4.6 7.5 8.6) | 0.75 | 1.23 | 0/10 | 147 | 14 | 54% | 0.66 |
+| TCGA-D8-A1XF-DX1 | 12,164 | 8,866 | tumor-centred window | 9 min at 20.96 tiles/s (load average 3.1 4.9 7.9) | 400 tiles, 0.35 s each (load average 4.4 4.6 7.3) | 22.08 | 23.07 | 3/12 | 28 | 30 | 20% | 1.35 |
+| TCGA-D8-A1XF-DX2 | 19,475 | 8,971 | tumor-centred window | 18 min at 17.31 tiles/s (load average 4.9 4.7 5.6) | 400 tiles, 0.33 s each (load average 4.0 4.3 5.3) | 13.94 | 6.72 | 1/12 | 64 | 40 | 23% | 1.22 |
+| TCGA-BH-A0H5-DX1 | 19,635 | 8,923 | window centred on the tissue (coarse pass found no tumor) | 10 min at 19.69 tiles/s (load average 3.6 3.9 4.4) | not run (no front) | 0.0 | 0.0 | 0/0 | None | 0 | 10% | 0.69 |
 
-The encoder ran between 3 and 16 tiles/s depending on the other sessions' load (the spike
+The encoder ran between 3 and 21 tiles/s depending on the other sessions' load (the spike
 measured ~10 tiles/s on a quiet machine with 8 threads); StarDist 0.3–1.2 s per 448 px tile at
 4 threads. TCGA-PL-A8LZ-DX1's embedding time is taken from its first run's log (421 s). The WSL clock
 jumped once during the first run (11:30 → 13:01), so `nuclei_meta.json` for TCGA-PL-A8LZ-DX1 was
-corrected from the log.
+corrected from the log. The three window slides scored a 9k-tile window centred on the largest tumor
+piece of a coarse pass (every third tile); TCGA-BH-A0H5-DX1's coarse pass found no tumor, so its
+window was centred on the tissue, nuclei were not run and the page says no front.
 
 ## 6. Known failures
 
