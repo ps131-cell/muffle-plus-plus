@@ -138,7 +138,8 @@ function makePane(src) {
                           Size: {Width: String(src.width), Height: String(src.height)}}},
     showNavigationControl: false, showNavigator: true, navigatorPosition: "TOP_RIGHT",
     navigatorAutoFade: false, autoHideControls: false,
-    navigatorSizeRatio: 0.2, maxZoomPixelRatio: 3, visibilityRatio: 0.3, animationTime: 0.5,
+    navigatorMaintainSizeRatio: false, navigatorWidth: "150px", navigatorHeight: "110px",
+    maxZoomPixelRatio: 3, visibilityRatio: 0.3, animationTime: 0.5,
     zoomPerScroll: 1.4, gestureSettingsMouse: {clickToZoom: false, dblClickToZoom: true},
     gestureSettingsTouch: {clickToZoom: false, dblClickToZoom: true},
   });
