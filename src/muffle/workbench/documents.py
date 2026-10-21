@@ -22,7 +22,9 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+from muffle.report.case_tools import OBSERVED
 from muffle.timeline import EVENTS
+from muffle.workspace import card, finding_key, look
 
 RULES_VERSION = "documents rules v1 (2026-10-20)"
 DOCUMENTED = "documented"
@@ -436,9 +438,10 @@ def facts(docs: list[dict]) -> list[dict]:
 
 # ------------------------------------------------------------------------------- conflicts
 
-# fields where two documents naming different values is expected, not a conflict
+# fields where two documents naming different values is expected, not a conflict (performance
+# status changes from visit to visit)
 MANY = {"drug", "date", "specimen", "laterality", "nodes_examined", "nodes_positive",
-        "margin_distance", "size"}
+        "margin_distance", "size", "ecog"}
 
 
 def conflicts(all_facts: list[dict]) -> list[dict]:
@@ -544,11 +547,134 @@ def highlight(text: str, spans: list[tuple[int, int]]) -> list[tuple[str, bool]]
     return out
 
 
-def summary(all_facts: list[dict], fields=("histologic_type", "grade", "size", "pT", "pN",
-                                           "er", "pr", "her2", "her2_ihc", "ki67")) -> str:
+def facts_line(all_facts: list[dict], fields=("histologic_type", "grade", "size", "pT", "pN",
+                                              "er", "pr", "her2", "her2_ihc", "ki67")) -> str:
     """One line of a document's key facts for the tests list ("pT pT2; ER status positive"),
     "" when it states none of them."""
     first = {}
     for f in all_facts:
         first.setdefault(f["field"], f["value"])
     return "; ".join(f"{FIELDS[k]} {first[k]}" for k in fields if k in first)
+
+
+# ------------------------------------------- the workbench contract (docs/WORKBENCHES.md §1)
+
+KEY_FIELDS = {"er", "pr", "hr", "her2", "her2_ihc", "her2_ish", "stage", "pT", "pN", "grade",
+              "histologic_type", "margins", "lvi"}  # a conflict here may change care
+RECEPTORS = (("er", "ER"), ("pr", "PR"), ("hr", "Hormone receptors"), ("her2", "HER2"))
+
+
+@lru_cache(maxsize=1)
+def validation() -> dict[str, dict]:
+    """Field -> the rules' measured precision and recall on the held-out TCGA reports
+    (``app/documents/validation.json``); {} when absent."""
+    path = DOCS_DIR / "validation.json"
+    if not path.exists():
+        return {}
+    return {r["field"]: r
+            for r in json.loads(path.read_text(encoding="utf-8"))["sets"]["test"]["fields"]}
+
+
+def measured(fields) -> str:
+    """"rules v1, measured on held-out TCGA reports: ER precision 95%, ..." for ``fields``."""
+    v = validation()
+    shown = [f"{FIELDS[k]} precision {v[k]['precision']:.0%}" for k in fields if k in v]
+    return (f"{RULES_VERSION}; the document's own words, read by rules"
+            + (" measured on held-out TCGA reports: " + ", ".join(shown) if shown else ""))
+
+
+def first_facts(pf, version: int | None = None) -> dict[str, dict]:
+    """Each field's first documented fact in the file's documents as of report version
+    ``version``, in document order: {field: fact}."""
+    first = {}
+    for f in facts(file_documents(pf, version)):
+        first.setdefault(f["field"], f)
+    return first
+
+
+def doc_opens(pf, version: int | None, doc: str) -> tuple:
+    """The test that opens the documents workbench on ``doc``: the document's own test, else
+    the file's latest documents test so far (a clinic note opens the synthetic record's
+    entries); () when none exists yet."""
+    vs = pf.versions[: len(pf.versions) if version is None else version + 1]
+    tests = [t for v in vs for t in v.tests if t.workbench == "documents"]
+    t = next((t for t in tests if t.details.get("document") == doc), tests[-1] if tests else None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def _focus(f: dict) -> dict:
+    return {"doc": f["doc"], "sentence": tuple(f["sentence"])}
+
+
+def summary(pf, version: int | None = None) -> dict:
+    """The documented stage and receptor status, type and grade, and the conflicts between
+    documents: what the documents say, never derived."""
+    docs = file_documents(pf, version)
+    if not docs:
+        return {"workbench": "documents", "title": "Clinical documents", "cards": [],
+                "note": "no document in this file"}
+    titles = {d["id"]: d["title"] for d in docs}
+    all_facts = facts(docs)
+    first = {}
+    for f in all_facts:
+        first.setdefault(f["field"], f)
+    cards = []
+    for what, keys in (("Documented stage and receptors", ["stage", "pT", "pN", *dict(RECEPTORS)]),
+                       ("Documented type and grade", ["histologic_type", "grade", "size"])):
+        shown = [first[k] for k in keys if k in first]
+        if not shown:
+            continue
+        bits = []
+        for f in shown:
+            name = dict(RECEPTORS).get(f["field"], f["label"])
+            extra = [f"{x} {first[k]['value']}" for k, x in (("her2_ihc", "IHC"),
+                                                             ("her2_ish", "ISH"))
+                     if f["field"] == "her2" and k in first]
+            bits.append((f["value"] if f["field"] in ("stage", "pT", "pN") else
+                         f"{name} {f['value']}") + (f" ({', '.join(extra)})" if extra else ""))
+        if what.startswith("Documented stage"):
+            bits += [f"{x} not documented" for k, x in RECEPTORS[:2] + RECEPTORS[3:]
+                     if k not in first and not (k in ("er", "pr") and "hr" in first)]
+        cards.append(card(
+            what, "; ".join(bits), f"{OBSERVED} (documented)",
+            ", ".join(dict.fromkeys(titles[f["doc"]] for f in shown)),
+            measured([f["field"] for f in shown]), "none: what the document states",
+            "moderate", doc_opens(pf, version, shown[0]["doc"]), _focus(shown[0])))
+    found = conflicts(all_facts)
+    if found:
+        cards.append(card(
+            "Conflicts between documents", "; ".join(
+                f"{c['label']}: " + " vs ".join(v["value"] for v in c["values"]) for c in found),
+            f"{OBSERVED} (documented)", ", ".join(titles[d] for d in dict.fromkeys(
+                d for c in found for v in c["values"] for d in v["docs"])),
+            measured([c["field"] for c in found]), "none: kept side by side, no vote",
+            "moderate", doc_opens(pf, version, found[0]["values"][0]["docs"][0]),
+            _conflict_focus(all_facts, found[0])))
+    return {"workbench": "documents", "title": "Clinical documents", "cards": cards,
+            "note": None if cards else "the documents state no stage, receptor, type or grade"}
+
+
+def _conflict_focus(all_facts: list[dict], c: dict) -> dict:
+    doc = c["values"][0]["docs"][0]
+    f = next(f for f in all_facts if f["field"] == c["field"] and f["doc"] == doc)
+    return _focus(f)
+
+
+def queue(pf, version: int | None = None) -> list[dict]:
+    """Fields two documents give different values for (D1…Dn): consequence 2 for receptors,
+    stage, TNM, type, grade, margins and lymphovascular invasion, 1 otherwise; trust moderate
+    (rules: the sentences need reading)."""
+    docs = file_documents(pf, version)
+    titles = {d["id"]: d["title"] for d in docs}
+    all_facts, out = facts(docs), []
+    for n, c in enumerate(conflicts(all_facts), 1):
+        sides = " vs ".join(f"{v['value']} ({', '.join(titles[d] for d in v['docs'])})"
+                            for v in c["values"])
+        out.append(look(
+            f"D{n}", f"{c['label']}: documents disagree", f"{sides}; kept side by side, no vote",
+            f"{OBSERVED} (documented)", "moderate", 2 if c["field"] in KEY_FIELDS else 1,
+            doc_opens(pf, version, c["values"][0]["docs"][0]),
+            source=", ".join(titles[d] for v in c["values"] for d in v["docs"]),
+            key=finding_key(pf, "document", "conflict", c["label"]),
+            focus=_conflict_focus(all_facts, c), threshold=measured([c["field"]])))
+    return out

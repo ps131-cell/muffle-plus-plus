@@ -68,6 +68,17 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     patients = at.dataframe[0].value["Patient"].tolist()
     case = f"Case {demo.cases[0].index}"
     assert patients[0] == "SYNTHETIC-001" and case in patients
+    # the list searches genes and filters by what the files hold
+    at.text_input(key="list-search").set_value("pik3ca").run()
+    assert set(at.dataframe[0].value["Patient"]) == {"SYNTHETIC-001", case}
+    at.text_input(key="list-search").set_value("").run()
+    at.pills(key="list-holds").set_value(["Imaging"]).run()  # reports, and the case's MRI
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001", case]
+    at.pills(key="list-holds").set_value([]).run()
+    at.toggle(key="list-sos").set_value(True).run()
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    assert at.dataframe[0].value["Open SOS"].tolist() == [7]
+    at.toggle(key="list-sos").set_value(False).run()
 
     at.selectbox(key="patient").select("SYNTHETIC-001").run()
     assert not at.exception and "Synthetic patient" in at.warning[0].value
@@ -76,18 +87,36 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
     at.select_slider(key="version-SYNTHETIC-001").set_value(11).run()  # month 12
-    assert "1/7 · Progression on imaging" in shown(at)  # 3 alerts now, 4 earlier; strongest first
-    assert "New metastatic site: liver" in shown(at)
-    button(at, "Open the test").click().run()  # lands on the imaging report behind the alert
+    text = shown(at)
+    # the header: recorded and documented side by side, drivers, imaging, risk, open SOS alerts
+    assert "*Recorded:* stage II, HR+, HER2−" in text and "*Documented:* Stage II" in text
+    assert "PIK3CA H1047R (CIViC level A)" in text and "**:red[SOS]** · 7 open" in text
+    assert "**Source test:**" in text and "**Method and version:**" in text  # the Why? popovers
+    # one queue: SOS alerts, tests that disagree, the workbenches' items; strongest first
+    assert "**Attention** · 15 items: 7 SOS, 0 where tests disagree, 8 from the workbenches" in text
+    assert "1/15 · Progression on imaging" in text and "New metastatic site: liver" in text
+    queue = "queue-SYNTHETIC-001-11"
+    at.button(key=f"open-{queue}").click().run()  # lands on the imaging report behind the alert
     assert at.segmented_control(key="view").value == "Tests"
     assert "Imaging report, month 12" in shown(at) and "Radiology workbench" in shown(at)
     assert "no measurements recorded" in shown(at) and not at.exception
     at.segmented_control(key="view").set_value("Report").run()
-    button(at, "▶").click().run()
-    button(at, "▶").click().run()
-    assert "3/7 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
-    button(at, "Mark reviewed").click().run()
+    for _ in range(5):
+        at.button(key=f"next-{queue}").click().run()
+    assert "6/15 · `L4` CA 15-3 rose from 30 to 52" in shown(at)  # the alert took the lab pointer
+    assert "also raised by the labs workbench (L4)" in shown(at)
+    at.button(key=f"open-{queue}").click().run()  # the lab workbench opens on L4
+    assert at.selectbox(key="SYNTHETIC-001_spot").value.startswith("L4 · month 11")
+    at.segmented_control(key="view").set_value("Report").run()
+    at.button(key=f"next-{queue}").click().run()  # 7: the ctDNA ESR1 item (PADA-1 situation)
+    assert "7/15 · `C2` ESR1 D538G new at month -2" in shown(at)
+    at.button(key=f"next-{queue}").click().run()
+    assert "8/15 · 12-month risk up" in shown(at) and "placeholder threshold" in shown(at)
+    at.button(key=f"reviewed-{queue}").click().run()
     assert "✓ reviewed" in shown(at) and not at.exception
+    at.button(key=f"unsure-{queue}").click().run()  # u: weak trust or marked second look
+    assert "**unsure list**" in shown(at) and "1/8 · 12-month risk up" in shown(at)
+    at.button(key=f"unsure-{queue}").click().run()
     assert [b.label for b in at.get("download_button")] == [
         "Download this report version (Markdown)"]
     at.segmented_control(key="view").set_value("Tests").run()
@@ -173,6 +202,18 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
     assert "Tumor-board note" in shown(at) and "nothing alarming" in shown(at)
+
+    # an import on a TCGA file reaches the report's queue and the timeline's version diff
+    ok, _ = parse_labs(b"month,marker,value,unit\n0,CA 15-3,20,U/mL\n1,CA 15-3,45,U/mL\n")
+    tests, observed = lab_tests(ok)
+    at.session_state["imports"] = {case: [{"kind": "Lab results", "rejected": [], "version": {
+        "tests": tests, "month": 1, "event": "Imported lab results", "observed": observed,
+        "by": "AB", "at": "14:10"}}]}
+    at.run()
+    assert "CA 15-3 rose from 20 to 45 U/mL (+125%)" in shown(at) and not at.exception
+    assert "**:red[SOS]** · 1 open" in shown(at)
+    at.segmented_control(key="view").set_value("Timeline").run()
+    assert "+ Lab: CA 15-3 (month 1)" in shown(at) and not at.exception
 
     # Methods and validation: a card per model and rule, one list of failures and placeholders
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}

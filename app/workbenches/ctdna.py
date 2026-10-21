@@ -192,7 +192,7 @@ def render(pf: PatientFile, version: int | None = None) -> None:
     shed = wb.low_shedding(rows)
     lab_rows = labs.results_table(events)
     lag = wb.lead_lag(rows, events, lab_rows)
-    queue = wb.queue(rows, vs, rule, shed)
+    queue = wb.look_here(rows, vs, rule, shed)
     intervals = labs.treatment_intervals(events)
     months = [s["month"] for s in series["samples"]]
     span = (min(months + [e["month"] for e in events if e["month"] >= min(months)]),

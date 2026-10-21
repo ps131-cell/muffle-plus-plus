@@ -4,7 +4,8 @@ shows (docs/radiology.md). Runs locally (WSL), never in the hosted app.
     python scripts/radiology_pipeline.py fetch TCGA-EW-A1P3:10,11,14,22   # into ~/muffle-radiology
     python scripts/radiology_pipeline.py mri --barcode TCGA-EW-A1P3 --index 937 --series 10,11,14,22
     python scripts/radiology_pipeline.py mri --barcode TCGA-BH-A0H5 --index 563 --series 4
-    python scripts/radiology_pipeline.py mammo --barcode TCGA-EW-A1J2 --index 926 --series 1,2,3,4
+    python scripts/radiology_pipeline.py mammo --barcode TCGA-EW-A1J2 --index 926 \\
+        --series 1,2,3,4 --screen --density
     python scripts/radiology_pipeline.py index
 
 Source: the TCGA-BRCA radiology collection on The Cancer Imaging Archive (CC BY 3.0,
@@ -502,6 +503,62 @@ def screen(images: dict[tuple[str, str], np.ndarray]) -> dict:
             "threads": int(torch.get_num_threads()), "uptime": uptime()}
 
 
+MONAI_ID = "MONAI/breast_density_classification"
+MONAI_REV = "eb746b7590d830bef92137ac632a4abe34a64f3d"
+
+
+def monai_density(views: dict[tuple[str, str], np.ndarray]) -> dict:
+    """MONAI's breast density bundle (Apache-2.0, Mayo Clinic) per view: BI-RADS density A-D.
+    The network is re-built the way the bundle's TorchVisionFCModel builds it (torchvision
+    InceptionV3 as constructed with pretrained weights: aux logits and the ImageNet input
+    transform on; its fc replaced by identity, then a new 4-way linear layer) and the pinned
+    weights loaded strictly, so MONAI itself is not needed. The bundle's preprocessing: the whole
+    view scaled to [0, 1], resized to 299x299 (area), the grey channel repeated three times; a
+    sigmoid per class."""
+    import torch
+    import torch.nn.functional as F
+    from huggingface_hub import hf_hub_download
+    from torchvision.models import inception_v3
+
+    class Net(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.features = inception_v3(weights=None, aux_logits=True, transform_input=True,
+                                         init_weights=False)
+            self.features.fc = torch.nn.Identity()
+            self.fc = torch.nn.Linear(2048, 4)
+
+        def forward(self, x):
+            return self.fc(torch.flatten(self.features(x), 1))
+
+    start = time.time()
+    ckpt = torch.load(hf_hub_download(MONAI_ID, "models/model.pt", revision=MONAI_REV),
+                      map_location="cpu", weights_only=True)
+    net = Net().eval()
+    net.load_state_dict(ckpt.get("model", ckpt), strict=True)
+    out = {}
+    with torch.inference_mode():
+        for (side, view), img in sorted(views.items()):
+            x = torch.from_numpy(img.astype(np.float32))
+            x = (x - x.min()) / max(float(x.max() - x.min()), 1e-6)
+            x = F.interpolate(x[None, None], size=(299, 299), mode="area").expand(1, 3, 299, 299)
+            p = torch.sigmoid(net(x))[0].numpy()
+            out[f"{side}-{view}"] = {"density": {k: round(float(v), 3)
+                                                 for k, v in zip("ABCD", p, strict=True)},
+                                     "density_class": "ABCD"[int(np.argmax(p))]}
+    return {"status": "implemented", "model": MONAI_ID, "revision": MONAI_REV,
+            "license": "Apache-2.0", "views": out,
+            "card": {"accuracy": "0.96 (the bundle's metadata; its test set is not described)",
+                     "training": "InceptionV3 fine-tuned on Mayo Clinic mammograms (Gupta et "
+                                 "al., arXiv:2202.08238, preprint)",
+                     "intended_use": "an example, not to be used for diagnostic purposes (the "
+                                     "bundle's metadata)"},
+            "how": "the bundle's network re-built from torchvision with the pinned weights, "
+                   "without MONAI; the whole view, as the bundle's preprocessing takes it; a "
+                   "sigmoid per class, so the four values need not sum to 1",
+            "seconds": round(time.time() - start, 0), "uptime": uptime()}
+
+
 def mammo(args) -> None:
     from scipy import ndimage
 
@@ -510,7 +567,7 @@ def mammo(args) -> None:
     base = Path(args.dicom).expanduser() / args.barcode
     out = OUT / args.barcode
     out.mkdir(parents=True, exist_ok=True)
-    views, crops = [], {}
+    views, crops, whole = [], {}, {}
     for num in args.series.split(","):
         d = dicoms(base / num)[0]
         try:
@@ -529,6 +586,7 @@ def mammo(args) -> None:
         u8 = ((img - img.min()) / max(float(img.max() - img.min()), 1e-6) * 255).astype(np.uint8)
         crops[(str(d.ImageLaterality), str(d.ViewPosition))] = \
             u8[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+        whole[(str(d.ImageLaterality), str(d.ViewPosition))] = u8
         scale = max(img.shape) / MAMMO_PX
         small = resize2d(img, (round(img.shape[0] / scale), round(img.shape[1] / scale)))
         lo, hi = np.percentile(img[breast], [0.5, 99.8])
@@ -555,6 +613,9 @@ def mammo(args) -> None:
                   "presentation": str(getattr(d0, "PresentationIntentType", ""))},
         "source": SOURCE, "report": report_facts(base / "sr"), "views": views,
         "dense_cc_mean": round(float(np.mean(cc)), 3) if cc else None,
+        "density_monai": monai_density(whole) if args.density else {
+            "status": "planned", "why": "run with --density (MONAI breast density, "
+                                        "Apache-2.0)"},
         "screening_score": screen(crops) if args.screen else {
             "status": "planned", "why": "run with --screen (mammoscreen, Apache-2.0, minutes on "
                                         "the CPU); see docs/radiology.md"},
@@ -613,6 +674,8 @@ if __name__ == "__main__":
             s.add_argument("--medsam-input", choices=("sub", "early"), default="sub")
         else:
             s.add_argument("--screen", action="store_true", help="add mammoscreen's score")
+            s.add_argument("--density", action="store_true",
+                           help="add MONAI's breast density per view")
     sub.add_parser("index")
     a = p.parse_args()
     os.environ.setdefault("OMP_NUM_THREADS", "2")

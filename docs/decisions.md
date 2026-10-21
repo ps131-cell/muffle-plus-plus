@@ -23,6 +23,70 @@ Newest at the top. One entry per decision: date, what, why.
   and pan by distance but does not register the sections, and says so. The tile map remains
   as the fallback, and every overlay keeps its evidence label in the viewer's legend.
 
+## 2026-10-21 — Genomics workbench: the genome as a picture; two ploidies; AlphaMissense's license
+- **What:** the genomics workbench gains, for the TCGA cases, a copy-number landscape (ASCAT3 gene
+  level, the model's own call rule, placeholder cutoffs), mutation burden and allele fractions,
+  predicted effect (Ensembl VEP, ClinVar via Ensembl, AlphaMissense), a curated pathway map and a
+  variant table over time (`docs/genomics.md`). Purity and a second ploidy come from TCGA
+  PanCanAtlas's ABSOLUTE table; when the two ploidy estimates are 1.5-fold apart or more (7 of 40
+  cases) the page warns and offers calls relative to ABSOLUTE's ploidy.
+- **Why:** calls must match the model's copy-number input (7,993 of 7,999 equal; the rest are
+  ambiguous gene symbols), so the median-copy-number ploidy stays the default; but that rule gives
+  ploidy 1 for case 49 (ABSOLUTE 1.58) and 4 for case 741 (ABSOLUTE 1.53), turning ordinary copy
+  numbers into amplifications or losses, which a reader must see. ASCAT's own purity and ploidy
+  are not in the open gene-level file. The burden rate uses the 38 Mb exome size Chalmers et al.
+  2017 used for TCGA; KEYNOTE-158's 10 per Mb belongs to another assay and other cancers, so it is
+  named and not applied.
+- **License:** AlphaMissense's README and its Zenodo record (10.5281/zenodo.10813168) license the
+  predictions CC BY 4.0 (read 2026-10-20); the 2023 table's own header still says "CC BY-NC-SA
+  4.0". We follow the licensor's current statement, ship only the 21 scores we use, with
+  attribution, and Ensembl serves the same scores (they agree for 20 of 20). If the licensor's
+  statement changes, the scores can come from Ensembl alone.
+- **Consequence:** the ladder's "predicted effect" rung is model inference when a prediction
+  exists. PIK3CA H1047R scores "ambiguous" (0.538) while ClinVar and CIViC call it oncogenic: the
+  page keeps prediction and interpretation apart and says why. The variant table's ctDNA columns read
+  `timeline.CTDNA` (#94).
+
+## 2026-10-21 — One overview per patient file: a workbench contract for summaries and queues
+- **What:** every workbench module carries `summary(pf, version=None)` (a few finding cards:
+  text, evidence label, source test, method and version, threshold source, trust, where it
+  opens) and `queue(pf, version=None)` (look-here items with pointer, why, trust, consequence
+  1–3, where it opens and the finding's key), in one shape (`workspace.card` and
+  `workspace.look`, `docs/WORKBENCHES.md` §1). `muffle.overview` builds the report's header from
+  the summaries and one attention queue from every queue, the SOS alerts and the cross-test
+  discrepancies, ordered by consequence × trust (the placeholder weights) and de-duplicated by
+  finding key, so an SOS alert and the lab workbench's flag of the same value are one item with
+  one review mark. The queue replaces the report's SOS tile; the header's SOS card counts the
+  alerts without a mark. Seven cross-test rules join (ERBB2 copy number against HER2, ESR1 RNA
+  and ER-alpha protein against ER, PAM50 Basal-like with ER positive, a slide immune desert
+  against a high immune RNA score, documents that disagree, documents against the record, an
+  imported lab value against the record), each with its cited basis where one exists (PMIDs
+  checked on PubMed), and three reducers (repeat IHC or ISH, a second encoder for unsure tiles,
+  a re-read of a document).
+- **Why:** seven workbenches landed in a week, each knowing only itself; the user's product is
+  one evidence-linked picture of a patient. A shared shape lets the report, the export and the
+  patient list read every workbench the same way, and lets the next workbench join by adding
+  two functions (radiology, evolution and ctDNA, which landed the same day, did).
+- **Consequence:** nothing new is computed for the overview: it reads what each workbench
+  already decided, with its labels and threshold sources, and "open" lands on the pointer by
+  setting the workbench page's own widget state. Trust and consequence per item are the rule
+  author's choice, listed in the export with the placeholder weights. An SOS alert and the
+  workbench finding it is about share one review key. Keyboard triage uses j, k, p, u and
+  o; "mark reviewed" is m, because Streamlit reserves r (and c) for its own shortcuts.
+
+## 2026-10-21 — Evolution view: receptor status from the file's documents when the record has none
+- **What:** `evolution.context` reads the ER, PR and HER2 status the documents rules find in a
+  file's documents (a TCGA case's pathology report, an imported report) when the record states
+  none, as in every TCGA file. Hormone-receptor positive when a document states ER or PR positive,
+  negative when both negative; no IHC score or ISH result is turned into a status. The record's
+  own status wins and a disagreeing document is named beside it; documents that disagree with
+  each other leave the status unknown. Each why line names the document.
+- **Why:** the receptor-conditional rows were never definite for a TCGA file, though 15 of the 39
+  bundled reports state the hormone-receptor status and 14 the HER2 status.
+- **Consequence:** a document's HER2-negative now drops the HER2-positive row although the HER2
+  rule's precision is 80% on held-out reports; the drop is listed under "Not raised" with its
+  document and the precision is shown in the view, so the read can be checked.
+
 ## 2026-10-20 — Radiology workbench, first version: report text plus public TCIA studies
 - **What:** Tests → Imaging opens `app/workbenches/radiology.py`. For SYNTHETIC-001 it reads the
   imaging reports as text (reads, new sites, a lesion table, "no measurements recorded", lead and

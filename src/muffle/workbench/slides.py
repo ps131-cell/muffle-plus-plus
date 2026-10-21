@@ -14,11 +14,15 @@ have not been checked on breast slides, so the page must never show them as vali
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy import ndimage
+
+from muffle.report.case_tools import HYPOTHESIS, INFERENCE
+from muffle.workspace import card, finding_key, look
 
 TILE_PX, MPP = 224, 0.5
 TILE_UM = TILE_PX * MPP                      # 112 µm a side
@@ -225,6 +229,90 @@ def analyze(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
         "facing": facing(fz["front"], labels, tumor["main"], g["tissue"]),
     }
     return {"tiles": tiles, "summary": summary, "grid_shape": list(g["tissue"].shape)}
+
+
+# --- the workbench contract (docs/WORKBENCHES.md §1): the patient file's overview ----------------
+# Read from each scored section's summary.json (scripts/slide_pipeline.py): its numbers and its
+# queue are the ones the page recomputes from the tiles (same pointers), without the tiles.
+
+RESULTS = Path(__file__).resolve().parents[3] / "app" / "workbenches" / "slides_results"
+
+
+@lru_cache(maxsize=32)
+def _meta(folder: Path) -> dict | None:
+    path = folder / "summary.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def sections(pf, version: int | None = None, results: Path = RESULTS) -> list[dict]:
+    """The patient's own scored sections as of report version ``version`` (the latest when
+    None): each {"slide", "meta" (its summary.json), "opens" (the slide test, the shape of
+    ``Alert.opens``)}. [] when the file has none (its slide test shows a public example)."""
+    vs = pf.versions[: len(pf.versions) if version is None else version + 1]
+    out = []
+    for t in (t for v in vs for t in v.tests if t.workbench == "slides"):
+        for name in t.details.get("slides", ()):
+            meta = _meta(results / name)
+            if meta is not None:
+                out.append({"slide": name, "meta": meta,
+                            "opens": ("Tests", t.kind, t.month, t.name)})
+    return out
+
+
+def _head(meta: dict) -> str:
+    head, nuc = meta.get("head", {}), meta.get("nuclei", {})
+    encoder = meta.get("encoder", {}).get("name")
+    return (f"{len(head.get('classes', []))}-class BCSS head on {encoder} embeddings (held-out "
+            f"accuracy {head.get('accuracy', 0):.1%} on "
+            f"{head.get('held_out', 'held-out slides')}); {nuc.get('model') or 'no'} nuclei on "
+            f"the front band; method version {meta.get('method_version', '?')}")
+
+
+def summary(pf, version: int | None = None) -> dict:
+    """The slide picture of the section with the largest main tumor: its area, infiltrative arcs,
+    breakaway candidates and immune pattern."""
+    secs = sections(pf, version)
+    if not secs:
+        example = any(t.workbench == "slides" for t in pf.tests)
+        return {"workbench": "slides", "title": "Pathology slide", "cards": [], "note": (
+            "no scored section of this tumor: the slide workbench shows a public example region"
+            if example else "no slide in this file")}
+    s = max(secs, key=lambda s: s["meta"].get("analysis", {}).get("main_tumor_mm2", 0))
+    m, n = s["meta"], s["meta"].get("numbers", {})
+    where = (f"section {s['slide']}" + (f", the largest tumor of {len(secs)} sections"
+                                         if len(secs) > 1 else ""))
+    if not n.get("arcs"):
+        text = f"no tumor front found in {where}: nothing to measure at a front"
+    else:
+        buds = n.get("buds_in_field")
+        text = (f"main tumor {m['analysis']['main_tumor_mm2']} mm² ({where}); "
+                f"{n['infiltrative_arcs']} of {n['arcs']} front arcs infiltrative; "
+                + (f"{buds} breakaway candidate cluster(s) in the 0.785 mm² counting field"
+                   if buds is not None else "no breakaway count") +
+                f"; immune pattern: {n.get('immune_pattern')}")
+    return {"workbench": "slides", "title": "Pathology slide", "note": None, "cards": [card(
+        "Slide picture", text, f"{INFERENCE} (tile classes, nuclei), {HYPOTHESIS} (front "
+        "pattern)", f"Pathology slide {s['slide']} (the patient's own section)", _head(m),
+        "placeholder cutoffs (front pattern, immune pattern); the counting field from the ITBCC "
+        "(literature)", "weak", s["opens"], {"slide": s["slide"]})]}
+
+
+def queue(pf, version: int | None = None) -> list[dict]:
+    """Each section's look-here pointers T1…Tn (risk regions, the counting field, the roughest
+    arc, islands, the most unsure spot). The map is not validated on breast nuclei nor reviewed
+    by a pathologist: trust weak, consequence 1 (worth a look)."""
+    secs, out = sections(pf, version), []
+    for s in secs:
+        for q in s["meta"].get("queue", []):
+            tile = f"r{q['row']}c{q['col']}"
+            out.append(look(
+                q["pointer"], q["what"] + (f" · {s['slide']}" if len(secs) > 1 else ""),
+                f"{q['why']}; check by eye: {q['check']}", q["evidence"], "weak", 1, s["opens"],
+                source=f"Pathology slide {s['slide']}", key=finding_key(pf, "slide", s["slide"],
+                                                                        tile),
+                focus={"slide": s["slide"], "pointer": q["pointer"], "tile": tile},
+                threshold=q["status"]))
+    return out
 
 
 def load_result(folder: str | Path) -> dict | None:

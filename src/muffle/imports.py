@@ -279,7 +279,7 @@ def document_test(kind: str, title: str, text: str, month: int, doc_id: str,
                   source: str) -> tuple[Test, list[list[str]]]:
     """A document as a test of the documents workbench, with the facts the rules found as its
     result and one report row naming them (none when the rules found nothing)."""
-    line = documents.summary(documents.extract(text, doc_id))
+    line = documents.facts_line(documents.extract(text, doc_id))
     test = Test(kind, month, title, line or "no key pathology fact found by the rules",
                 "documents", IMPLEMENTED,
                 {"document": doc_id, "title": title, "text": text, "source": source})

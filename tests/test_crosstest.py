@@ -7,11 +7,13 @@ from muffle.crosstest import diff_versions, discrepancies, uncertainty_reducers
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workspace import EGTM, IMPLEMENTED, PLANNED, VALIDATED, Alert, PatientFile, Version
 from muffle.workspace import Test as WorkspaceTest
+from muffle.timeline import EVENTS
 from muffle.workspace import synthetic_file
 
 ROOT = Path(__file__).resolve().parents[1]
 DIFF_KEYS = {"column", "finding", "before", "after", "status"}
-DISC_KEYS = {"what", "sources", "months", "why", "would_settle", "evidence"}
+DISC_KEYS = {"what", "sources", "months", "why", "would_settle", "evidence", "rule", "basis",
+             "trust", "consequence", "opens", "focus", "key"}
 RED_KEYS = {"open_question", "test", "expectation", "source", "evidence"}
 KINDS = {OBSERVED, INFERENCE, HYPOTHESIS}
 
@@ -147,7 +149,11 @@ def test_a_file_with_one_version_and_no_alerts_has_nothing_to_queue():
 # ----------------------------------------------------------------------- uncertainty_reducers
 
 def test_reducers_in_the_synthetic_record():
-    pf = synthetic()
+    # its ctDNA series samples month 11 itself: the ctDNA question is being answered there
+    assert [i["test"] for i in uncertainty_reducers(synthetic(), 10)] == [
+        "Repeat CA 15-3 specimen within a month"]
+    tl = json.loads((ROOT / "app" / "timeline_synthetic.json").read_text(encoding="utf-8"))
+    pf = synthetic_file(tl, list(EVENTS))  # the same record without its ctDNA series
     items = uncertainty_reducers(pf, 10)  # month 11
     assert all(set(i) == RED_KEYS for i in items)
     tests = [i["test"] for i in items]

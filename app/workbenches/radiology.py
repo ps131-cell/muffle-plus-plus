@@ -275,7 +275,7 @@ def mri_page(pf: PatientFile, study: dict) -> None:
                f"{c1['volume_range_ml'][1]:g}), {c1['kinetics'].get('initial')} initial and "
                f"{c1['kinetics'].get('delayed')} delayed enhancement (curve type "
                f"{c1['kinetics'].get('curve_type')})." if c1 else "No candidate was proposed."))
-    look = look_here(study)
+    look = rad.look_here(study)
     st.markdown(obs + "  \n" + inf + "  \n**Check by eye**: " + (
         "; ".join(f"{q['candidate']}: {q['why']}" for q in look) or "nothing flagged") + ".")
     st.caption("The candidates are where the subtraction is brightest, not a reading of the "
@@ -363,29 +363,6 @@ def _jump(study: dict, key0: str) -> None:
              None)
     if c:
         st.session_state[f"{key0}-slice"] = _ld_index(study, c) + 1
-
-
-def look_here(study: dict) -> list[dict]:
-    """What to check by eye, per candidate, with the reason."""
-    out = []
-    for c in study["candidates"]:
-        if c["unsure_slices"]:
-            out.append({"candidate": c["id"], "why": f"contour unsure on {len(c['unsure_slices'])}"
-                        " slice(s) (empty, or larger than its box)"})
-        if c["longest_diameter_mm"] < 5:
-            out.append({"candidate": c["id"], "why": "under 5 mm: partial volume dominates"})
-        if c["kinetics"].get("delayed") == "washout":
-            out.append({"candidate": c["id"], "why": "washout curve (type III)"})
-        gap = (study["region"]["limit_row"] - c["seed"]["bbox"][3]) * \
-            study["display"]["native_pixel_mm"][0]
-        if gap < rad.CUTOFFS["near_wall_mm"][0]:
-            out.append({"candidate": c["id"], "why": f"{gap:.0f} mm from the search region's "
-                        "posterior limit: chest-wall muscle and internal mammary vessels enhance "
-                        "there too"})
-        if c["rank"] > 1 and c["seed"]["mean_sub"] > study["candidates"][0]["seed"]["mean_sub"]:
-            out.append({"candidate": c["id"], "why": "brighter on average than C1, ranked lower "
-                        "only because it is smaller"})
-    return out
 
 
 def lesion_rows(study: dict) -> list[dict]:
@@ -539,6 +516,35 @@ def screening_text(score: dict) -> str:
             f"threads; {score['uptime'].split('load average:')[-1].strip()} load).")
 
 
+def view_density(study: dict, view: dict) -> str:
+    """MONAI's density class for one view, for its tooltip and the CSV."""
+    d = study.get("density_monai", {}).get("views", {}).get(view["key"])
+    return (f"{d['density_class']} ({DENSITY[d['density_class']]}; model inference, not "
+            "validated here)" if d else "planned")
+
+
+def monai_text(d: dict, score: dict) -> str:
+    """MONAI's per-view density, whether it agrees with mammoscreen's per breast, and what the
+    model is and is not."""
+    if d.get("status") != "implemented":
+        return f"**Second density opinion**: planned ({d.get('why', 'not run')})."
+    views = d["views"]
+    per = "; ".join(f"{k} {v['density_class']}" for k, v in sorted(views.items()))
+    sides = []
+    for side, b in score.get("breasts", {}).items():
+        theirs = {v["density_class"] for k, v in views.items() if k.startswith(f"{side}-")}
+        sides.append(f"{'right' if side == 'R' else 'left'} breast: "
+                     + ("both say " + b["density_class"] if theirs == {b["density_class"]} else
+                        f"mammoscreen {b['density_class']}, MONAI {', '.join(sorted(theirs))}"))
+    return (f"**Second density opinion** (model inference: MONAI breast density "
+            f"classification, {d['license']}, revision {d['revision'][:7]}; "
+            f"{d['card']['training']}): {per}. Against mammoscreen: "
+            + ("; ".join(sides) or "no mammoscreen result to compare")
+            + f". Its metadata states accuracy {d['card']['accuracy']} and calls it "
+            f"{d['card']['intended_use']}. Not validated here; {d['how']}; "
+            f"{d['seconds']:.0f} CPU seconds. Two models agreeing is not a validation.")
+
+
 def breast_score(study: dict, view: dict) -> str:
     """The screening score of the breast a view shows, for its tooltip."""
     b = study["screening_score"].get("breasts", {}).get(view["laterality"])
@@ -559,7 +565,8 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
         f"**Model inference** (placeholder rule): dense-pixel share "
         f"{study['dense_cc_mean']:.0%} on the CC views; a pixel share above an Otsu threshold "
         "inside the breast, not a BI-RADS density category and not validated.  \n"
-        + screening_text(study["screening_score"])
+        + screening_text(study["screening_score"]) + "  \n"
+        + monai_text(study.get("density_monai", {}), study["screening_score"])
         + " Lesion contours on mammograms: planned (no seed rule for mammograms here).")
     level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
     width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
@@ -582,11 +589,13 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
                                          "dense-pixel share": f"{dense['dense_fraction']:.0%} "
                                                               "(placeholder rule)",
                                          "screening score": breast_score(study, v),
+                                         "MONAI density": view_density(study, v),
                                          "pixel": f"{v['pixel_mm']:g} mm shown, native "
                                                   f"{v['native_pixel_mm'][0]:g} mm"}])).mark_rect(
                     fillOpacity=0.01, fill="white").encode(
                     x="x:Q", y="y:Q", x2="x2:Q", y2="y2:Q",
-                    tooltip=["view:N", "dense-pixel share:N", "screening score:N", "pixel:N"])
+                    tooltip=["view:N", "dense-pixel share:N", "screening score:N",
+                             "MONAI density:N", "pixel:N"])
             ).properties(width=w * 0.75, height=h * 0.75).configure_view(strokeWidth=0)
             with col:
                 st.altair_chart(chart, width="content")
@@ -625,7 +634,8 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
     _search(pf, study, [], [], rad.CANNOT_SEE)
     _export(pf, study, [{"view": v["key"], "dense-pixel share": v["dense"]["dense_fraction"],
                          "dense rule": "placeholder", "screening score (breast)":
-                         breast_score(study, v), "evidence": INFERENCE} for v in views])
+                         breast_score(study, v), "MONAI density (view)": view_density(study, v),
+                         "evidence": INFERENCE} for v in views])
 
 
 def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[dict],
@@ -795,6 +805,15 @@ def methods_card() -> None:
         "MRI here**: no reader contour exists for these studies.\n"
         "- **Data:** three held-out TCGA cases with a public TCIA study (CC BY 3.0); the hosted "
         "app reads 8-bit copies and derived numbers and runs no model.")
+    head("Breast density, second opinion (MONAI, mammography)", "BI-RADS density A–D per "
+         "view, precomputed offline · the radiology workbench")
+    st.markdown(
+        "- **Design:** InceptionV3 fine-tuned on Mayo Clinic mammograms (Gupta et al., "
+        "arXiv:2202.08238, preprint); MONAI's bundle network re-built from torchvision with the "
+        "pinned weights (Apache-2.0); the whole view at 299×299, a sigmoid per class.\n"
+        "- **Published validation:** the bundle's metadata states accuracy 0.96 without "
+        "describing its test set and calls the model an example, not for diagnostic use. Not "
+        "validated here; shown next to mammoscreen's density, which is not a validation either.")
     head("Screening score (mammoscreen, mammography)", "cancer score and BI-RADS density per "
          "breast, precomputed offline · the radiology workbench")
     st.markdown(
