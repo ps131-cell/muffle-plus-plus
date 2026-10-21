@@ -11,6 +11,7 @@ import torch
 from muffle import workspace
 from muffle.demo import build_demo, pick_cases, save_bundle, subset
 from muffle.hotreload import source_digest
+from muffle.imports import lab_tests, parse_labs
 from muffle.models import MuffleNet
 from muffle.report import civic
 
@@ -86,6 +87,33 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.select_slider(key="version-SYNTHETIC-001").set_value(10).run()  # month 11
     assert "CA 15-3 rising while the latest imaging read stable" in shown(at)
     assert "Repeat CA 15-3 specimen within a month" in shown(at) and not at.exception
+
+    # the clinical documents workbench opens from a clinic note
+    at.select_slider(key="version-SYNTHETIC-001").set_value(15).run()
+    at.segmented_control(key="view").set_value("Tests").run()
+    at.session_state["picked-SYNTHETIC-001"] = ("Clinic note", 13, "Clinic visit")
+    at.run()
+    assert "Clinical documents" in shown(at) and "documented facts" in shown(at)
+    assert not at.exception
+    # an import (what the Import tests dialog stores) adds a version and re-runs the rise rule
+    ok, _ = parse_labs(b"month,marker,value,unit\n27,CA 15-3,45,U/mL\n", after=24)
+    tests, observed = lab_tests(ok)
+    at.session_state["imports"] = {"SYNTHETIC-001": [{"kind": "Lab results", "rejected": [],
+                                                      "version": {
+        "tests": tests, "month": 27, "event": "Imported lab results", "observed": observed,
+        "by": "AB", "at": "14:03"}}]}
+    at.session_state["picked-SYNTHETIC-001"] = ("Lab", 27, "CA 15-3")
+    at.run()
+    at.select_slider(key="version-SYNTHETIC-001").set_value(16).run()
+    assert any("month 27: CA 15-3 45" in e.label for e in at.expander) and not at.exception
+    at.segmented_control(key="view").set_value("Report").run()
+    assert "month 27 · imported by AB at 14:03" in shown(at)
+    assert "CA 15-3 rose from 31 to 45 U/mL (+45%)" in shown(at) and not at.exception
+    at.segmented_control(key="view").set_value("Import tests").run()
+    assert "Imported in this session" in shown(at) and "kept for this browser session only" in \
+        shown(at)
+    at.segmented_control(key="view").set_value("Timeline").run()
+    assert not at.exception
 
     at.selectbox(key="patient").select(case).run()
     at.segmented_control(key="view").set_value("Tests").run()

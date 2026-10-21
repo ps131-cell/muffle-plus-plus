@@ -252,26 +252,26 @@ def render(file: PatientFile, events: list[dict] | None = None,
     no sidebar). Synthetic files use ``muffle.timeline.EVENTS`` (or ``events``); with
     ``version`` (an index into ``file.versions``) the workbench is shown as of that version's
     month, with flags computed from the results up to it only. A TCGA file holds no lab
-    results, and the page says so."""
+    results unless some were imported in this session (``events``), and the page says so."""
     st.subheader("Blood and lab workbench")
     st.caption(f"{file.id} · {file.title}")
-    if file.kind != "synthetic":
+    events = (EVENTS if file.kind == "synthetic" else []) if events is None else events
+    if version is not None:
+        cutoff = file.versions[version].month  # None: a TCGA baseline, before any import
+        kept = [e for e in events if cutoff is not None and e["month"] <= cutoff]
+        later, events = len(events) - len(kept), kept
+        if events:
+            st.caption(f"As of month {cutoff} ({file.versions[version].label}): {later} later "
+                       "events hidden, flags computed from the results up to here.")
+    if not events:
         chips(IMPLEMENTED)
         st.info("This file holds no lab results: TCGA-BRCA has one tumor sample per patient and "
-                "no blood panels, so there is no series to trend. The workbench is implemented; "
-                "see the synthetic patient's file for what it shows.")
+                "no blood panels, so there is no series to trend. Lab results can be imported "
+                "(Import tests); see the synthetic patient's file for what the workbench shows.")
         _planned()
         _card()
         st.caption(CAVEAT)
         return
-
-    events = EVENTS if events is None else events
-    if version is not None:
-        cutoff = file.versions[version].month
-        later = sum(e["month"] > cutoff for e in events)
-        events = [e for e in events if e["month"] <= cutoff]
-        st.caption(f"As of month {cutoff} ({file.versions[version].label}): "
-                   f"{later} later events hidden, flags computed from the results up to here.")
     rows, queue = results_table(events), look_here(events)
     checks, intervals = quality_checks(events), treatment_intervals(events)
     span = (min(e["month"] for e in events), max(e["month"] for e in events))
@@ -283,9 +283,15 @@ def render(file: PatientFile, events: list[dict] | None = None,
     reviews = st.session_state.setdefault("reviews", {})  # the workspace's one store per file
     _sync_reviews(file, flagged, reviews)
     mine = {k: v for k, v in reviews.items() if k.startswith(f"{file.id}|lab|")}
-    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP, "synthetic patient")
-    st.warning("Synthetic patient: this record was written by hand and is not a real person. "
-               "Its values exist to show how the workbench reads a series.")
+    synthetic = file.kind == "synthetic"
+    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP,
+          "synthetic patient" if synthetic else "imported this session")
+    if synthetic:
+        st.warning("Synthetic patient: this record was written by hand and is not a real "
+                   "person. Its values exist to show how the workbench reads a series.")
+    else:
+        st.info("These lab results were imported in this browser session; TCGA-BRCA itself "
+                "holds none.")
     st.caption(PROVENANCE)
 
     # overview: one paragraph, with the pointers every view shares

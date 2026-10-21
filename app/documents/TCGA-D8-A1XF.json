@@ -1,0 +1,16 @@
+{
+ "barcode": "TCGA-D8-A1XF",
+ "case_index": 730,
+ "license": "CC BY 4.0",
+ "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "documents": [
+  {
+   "id": "TCGA-D8-A1XF.FCBB54EB-6FBF-4DC4-B4D5-DB533687FA58",
+   "title": "Pathology report (TCGA-Reports)",
+   "kind": "Document",
+   "month": null,
+   "text": "page 1 / 1. copy No. Examination: Histopathological examination. Gender: F. Material: Multiple organ resection - left breast with axillary tissues. Expected time of examination: up to 8 working days. Clinical diagnosis: Cancer of the left breast. Macroscopic description: Left breast sized 22 x 15 x 4 cm removed along with axillary tissues sized 10 x 6x2 cm and a 17 x 6.5 cm skin flap. Weight 780. g. A post-operative scar visible round the nipple with a site of 6 x 4 x 2 cm. Microscopic description: Infiltratio carcinomatosa mamillae. Status post resectionem tumoris. Glandular tissue containing foci of carcinoma ductale in situ (solid and cribrate type, with medium nuclear atypia, with. necrosis and calcifications, as well as lesions of the type mastopathia fibrosa. Axillary lymph nodes: Lymphonodulitis chronica (No VIII). Preliminary result: (including the examination No. Carcinoma invasivum mammae sinistrae. (NHG2, pT2, pNO). Histopathological diagnosis: Carcinoma ductale invasivum mammae sinistrae. Invasive ductal carcinoma of the left breast. ,. NHG2, pT2, pNO.",
+   "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report for TCGA-D8-A1XF"
+  }
+ ]
+}

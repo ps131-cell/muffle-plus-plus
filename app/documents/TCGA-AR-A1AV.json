@@ -1,0 +1,16 @@
+{
+ "barcode": "TCGA-AR-A1AV",
+ "case_index": 406,
+ "license": "CC BY 4.0",
+ "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "documents": [
+  {
+   "id": "TCGA-AR-A1AV.5AD5B38F-5CC1-4A2F-96E6-F344D8FE0149",
+   "title": "Pathology report (TCGA-Reports)",
+   "kind": "Document",
+   "month": null,
+   "text": "Final Diagnosis. Breast, left, modified radical mastectomy: Infiltrating ductal carcinoma, Nottingham grade II (of. III) [tubules 3/3, nuclei 2/3, mitoses 2/3; Nottingham score 779], forming a mass (2.8 x 2.3 x 2.1. cm) located in the retroareolar region of the breast. Ductal carcinoma in situ is absent. Angiolymphatic invasion is absent. Calcifications are not seen. The tumor involves the. overlying skin [AJCC pT4]. All surgical resection margins, including the skin and deep margins,. are negative for tumor (minimum tumor free margin, 1.1 cm, anterior superior margin). A single. (of 23) left axillary mid/low lymph node is positive for metastatic carcinoma. The positive lymph. node (1.7 cm in greatest dimension) shows extranodal extension. Lymph nodes, left high axillary, excision: Multiple (2) left high axillary lymph nodes are. negative for tumor.",
+   "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report for TCGA-AR-A1AV"
+  }
+ ]
+}

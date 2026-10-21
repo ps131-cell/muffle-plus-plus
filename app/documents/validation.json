@@ -1,0 +1,293 @@
+{
+ "rules": "documents rules v1 (2026-10-20)",
+ "measured": "2026-10-20",
+ "reports": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "reference": "TCGA-BRCA clinical fields (UCSC Xena TCGA hub, BRCA_clinicalMatrix; TCGA open access)",
+ "sets": {
+  "dev": {
+   "patients": 524,
+   "fields": [
+    {
+     "field": "er",
+     "compared": "ER status (positive / negative)",
+     "with_value": 501,
+     "extracted": 201,
+     "right": 194,
+     "precision": 0.9651741293532339,
+     "recall": 0.3872255489021956
+    },
+    {
+     "field": "pr",
+     "compared": "PR status (positive / negative)",
+     "with_value": 499,
+     "extracted": 201,
+     "right": 185,
+     "precision": 0.9203980099502488,
+     "recall": 0.37074148296593185
+    },
+    {
+     "field": "her2",
+     "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
+     "with_value": 475,
+     "extracted": 262,
+     "right": 208,
+     "precision": 0.7938931297709924,
+     "recall": 0.4378947368421053
+    },
+    {
+     "field": "pT",
+     "compared": "pT category (T1\u2013T4, Tis, TX; suffix ignored)",
+     "with_value": 524,
+     "extracted": 310,
+     "right": 294,
+     "precision": 0.9483870967741935,
+     "recall": 0.5610687022900763
+    },
+    {
+     "field": "pN",
+     "compared": "pN category (N0\u2013N3, NX; suffix ignored)",
+     "with_value": 524,
+     "extracted": 299,
+     "right": 286,
+     "precision": 0.9565217391304348,
+     "recall": 0.5458015267175572
+    },
+    {
+     "field": "stage",
+     "compared": "Stage group (I\u2013IV; A\u2013C ignored)",
+     "with_value": 516,
+     "extracted": 33,
+     "right": 30,
+     "precision": 0.9090909090909091,
+     "recall": 0.05813953488372093
+    },
+    {
+     "field": "histologic_type",
+     "compared": "Histologic type (ductal, lobular, mixed, special types)",
+     "with_value": 500,
+     "extracted": 429,
+     "right": 416,
+     "precision": 0.9696969696969697,
+     "recall": 0.832
+    },
+    {
+     "field": "margins",
+     "compared": "Margins (negative / positive / close)",
+     "with_value": 498,
+     "extracted": 248,
+     "right": 221,
+     "precision": 0.8911290322580645,
+     "recall": 0.44377510040160645
+    },
+    {
+     "field": "nodes_examined",
+     "compared": "Lymph nodes examined (count)",
+     "with_value": 466,
+     "extracted": 238,
+     "right": 151,
+     "precision": 0.634453781512605,
+     "recall": 0.3240343347639485
+    },
+    {
+     "field": "nodes_positive",
+     "compared": "Lymph nodes positive (count, H&E)",
+     "with_value": 456,
+     "extracted": 218,
+     "right": 174,
+     "precision": 0.7981651376146789,
+     "recall": 0.3815789473684211
+    }
+   ]
+  },
+  "test": {
+   "patients": 481,
+   "fields": [
+    {
+     "field": "er",
+     "compared": "ER status (positive / negative)",
+     "with_value": 459,
+     "extracted": 202,
+     "right": 192,
+     "precision": 0.9504950495049505,
+     "recall": 0.41830065359477125
+    },
+    {
+     "field": "pr",
+     "compared": "PR status (positive / negative)",
+     "with_value": 458,
+     "extracted": 201,
+     "right": 187,
+     "precision": 0.9303482587064676,
+     "recall": 0.40829694323144106
+    },
+    {
+     "field": "her2",
+     "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
+     "with_value": 422,
+     "extracted": 241,
+     "right": 194,
+     "precision": 0.8049792531120332,
+     "recall": 0.4597156398104265
+    },
+    {
+     "field": "pT",
+     "compared": "pT category (T1\u2013T4, Tis, TX; suffix ignored)",
+     "with_value": 481,
+     "extracted": 269,
+     "right": 257,
+     "precision": 0.9553903345724907,
+     "recall": 0.5343035343035343
+    },
+    {
+     "field": "pN",
+     "compared": "pN category (N0\u2013N3, NX; suffix ignored)",
+     "with_value": 481,
+     "extracted": 254,
+     "right": 245,
+     "precision": 0.9645669291338582,
+     "recall": 0.5093555093555093
+    },
+    {
+     "field": "stage",
+     "compared": "Stage group (I\u2013IV; A\u2013C ignored)",
+     "with_value": 468,
+     "extracted": 28,
+     "right": 27,
+     "precision": 0.9642857142857143,
+     "recall": 0.057692307692307696
+    },
+    {
+     "field": "histologic_type",
+     "compared": "Histologic type (ductal, lobular, mixed, special types)",
+     "with_value": 464,
+     "extracted": 388,
+     "right": 381,
+     "precision": 0.9819587628865979,
+     "recall": 0.8211206896551724
+    },
+    {
+     "field": "margins",
+     "compared": "Margins (negative / positive / close)",
+     "with_value": 443,
+     "extracted": 217,
+     "right": 197,
+     "precision": 0.9078341013824884,
+     "recall": 0.44469525959367945
+    },
+    {
+     "field": "nodes_examined",
+     "compared": "Lymph nodes examined (count)",
+     "with_value": 441,
+     "extracted": 208,
+     "right": 131,
+     "precision": 0.6298076923076923,
+     "recall": 0.29705215419501135
+    },
+    {
+     "field": "nodes_positive",
+     "compared": "Lymph nodes positive (count, H&E)",
+     "with_value": 432,
+     "extracted": 187,
+     "right": 151,
+     "precision": 0.8074866310160428,
+     "recall": 0.34953703703703703
+    }
+   ]
+  },
+  "bundled": {
+   "patients": 38,
+   "fields": [
+    {
+     "field": "er",
+     "compared": "ER status (positive / negative)",
+     "with_value": 36,
+     "extracted": 15,
+     "right": 15,
+     "precision": 1.0,
+     "recall": 0.4166666666666667
+    },
+    {
+     "field": "pr",
+     "compared": "PR status (positive / negative)",
+     "with_value": 36,
+     "extracted": 15,
+     "right": 14,
+     "precision": 0.9333333333333333,
+     "recall": 0.3888888888888889
+    },
+    {
+     "field": "her2",
+     "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
+     "with_value": 34,
+     "extracted": 18,
+     "right": 16,
+     "precision": 0.8888888888888888,
+     "recall": 0.47058823529411764
+    },
+    {
+     "field": "pT",
+     "compared": "pT category (T1\u2013T4, Tis, TX; suffix ignored)",
+     "with_value": 38,
+     "extracted": 22,
+     "right": 20,
+     "precision": 0.9090909090909091,
+     "recall": 0.5263157894736842
+    },
+    {
+     "field": "pN",
+     "compared": "pN category (N0\u2013N3, NX; suffix ignored)",
+     "with_value": 38,
+     "extracted": 24,
+     "right": 23,
+     "precision": 0.9583333333333334,
+     "recall": 0.6052631578947368
+    },
+    {
+     "field": "stage",
+     "compared": "Stage group (I\u2013IV; A\u2013C ignored)",
+     "with_value": 36,
+     "extracted": 2,
+     "right": 2,
+     "precision": 1.0,
+     "recall": 0.05555555555555555
+    },
+    {
+     "field": "histologic_type",
+     "compared": "Histologic type (ductal, lobular, mixed, special types)",
+     "with_value": 37,
+     "extracted": 28,
+     "right": 28,
+     "precision": 1.0,
+     "recall": 0.7567567567567568
+    },
+    {
+     "field": "margins",
+     "compared": "Margins (negative / positive / close)",
+     "with_value": 33,
+     "extracted": 17,
+     "right": 17,
+     "precision": 1.0,
+     "recall": 0.5151515151515151
+    },
+    {
+     "field": "nodes_examined",
+     "compared": "Lymph nodes examined (count)",
+     "with_value": 36,
+     "extracted": 12,
+     "right": 6,
+     "precision": 0.5,
+     "recall": 0.16666666666666666
+    },
+    {
+     "field": "nodes_positive",
+     "compared": "Lymph nodes positive (count, H&E)",
+     "with_value": 35,
+     "extracted": 10,
+     "right": 7,
+     "precision": 0.7,
+     "recall": 0.2
+    }
+   ]
+  }
+ }
+}

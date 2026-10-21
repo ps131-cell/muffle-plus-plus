@@ -1,0 +1,16 @@
+{
+ "barcode": "TCGA-AN-A0XP",
+ "case_index": 318,
+ "license": "CC BY 4.0",
+ "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "documents": [
+  {
+   "id": "TCGA-AN-A0XP.80E9B7CE-0D5D-4C01-A8E3-E6345BE145EC",
+   "title": "Pathology report (TCGA-Reports)",
+   "kind": "Document",
+   "month": null,
+   "text": "Sex: Female. Diagnosis: Breast Cancer Histological description: Infiltrative ductal carcinoma. Anatomic Site: Breast Tumor location: Primary. Tissue Specification: Tumor Specimen Matrix: Tissue Specimen Format: OCT. Container: block Type of Procurement: surgery Grade: 2. T Stage: 2 N Stage: 1 M Stage: 0 Treatment: none. Treatment Details: n/a. Normal Sample. Anatomic Site: Blood Sample Type: Normal Type of Procurement: blood draw. Matrix: Blood Specimen Format: frozen Container: tube.",
+   "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report for TCGA-AN-A0XP"
+  }
+ ]
+}

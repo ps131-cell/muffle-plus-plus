@@ -1,0 +1,16 @@
+{
+ "barcode": "TCGA-D8-A27I",
+ "case_index": 754,
+ "license": "CC BY 4.0",
+ "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "documents": [
+  {
+   "id": "TCGA-D8-A27I.FAB622C2-3E45-4E72-AA36-9530BB830993",
+   "title": "Pathology report (TCGA-Reports)",
+   "kind": "Document",
+   "month": null,
+   "text": "page 1 / 1. copy No. 4. Examination: Histopathological examination. Cost of diagnostic procedure. Gender: F. Material: Multiple organ resection - right breasi with axillary tissues. Expected time of examination: up to 8 working days. Clinical diagnosis: Cancer of the right breast. Macroscopic description: Right breast'sized 19.3 x 14.2 x 5.8 cm removed along with axillary tissues sized 10 x 6 x 3 cm and a skin flap of 16.2 x 6.8 cm. Tumour sized 1.7 x 1.2 x 1.5 cm on the border of outer quadrants, located 6.3 cm from the upper boundary, 0.3 cm from the. base and 1.2 cm from the skin. Microscopic description: Carcinoma lobulare invasivum (classical type) multifocale - NHG2 (3 + 2 +1; 0 mitoses/10 HPF, visual area diameter 0.55 mm). Infiltratio carcinomatosa mamillae. Parenchymal atrophy showing in the glandular tissue. AXILLARY LYMPH NODES. Metastases carcinomatosae in lymphonodis (NO IV/X). Histopathological Diagnosis: Carcinoma lobulare invasivum multifocale mammae dextrae. Invasive multifocal lobular carcinoma of the right breast.3. Metastases carcinomatosae in lymphonodis axillae (NO IV/X). Cancer metastases in axillary lymph nodes. (NHG2, pTIc, pN2a).",
+   "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report for TCGA-D8-A27I"
+  }
+ ]
+}

@@ -78,6 +78,7 @@ from muffle.report.nemotron import (  # noqa: E402
     tavily_search,
 )
 from muffle.timeline import EVENTS  # noqa: E402
+from muffle.workbench.documents import case_documents  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
@@ -178,6 +179,7 @@ st.session_state.setdefault("list_n", 0)    # a new patient-list key drops its o
 st.session_state.setdefault("tests_n", 0)   # likewise for the tests table after "open the test"
 st.session_state.setdefault("reviews", {})  # finding key -> {"what", "mark", "by", "at"}
 st.session_state.setdefault("pins", {})     # finding key -> what it is
+st.session_state.setdefault("imports", {})  # patient id -> this session's imports
 
 TL = timeline()
 FILES, CASES = {}, {}  # patient id -> PatientFile; and for a TCGA file, its held-out case
@@ -187,8 +189,12 @@ if TL:
 SLIDE_CASES = APP / "workbenches" / "slides_results" / "cases.json"  # index -> scored slides
 SLIDE_CASES = json.loads(SLIDE_CASES.read_text()) if SLIDE_CASES.exists() else {}
 for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile)):
-    pf = workspace.case_file(c, demo.c_index, slides=SLIDE_CASES.get(str(c.index), ()))
+    pf = workspace.case_file(c, demo.c_index, slides=SLIDE_CASES.get(str(c.index), ()),
+                             documents=case_documents(c.index))
     FILES[pf.id], CASES[pf.id] = pf, c
+for pid, records in st.session_state.imports.items():  # each import adds a report version
+    for r in records:
+        FILES[pid] = workspace.add_version(FILES[pid], **r["version"])
 
 # --- sidebar: what is running ----------------------------------------------------------------
 with st.sidebar:
@@ -723,8 +729,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
              None) or next((t for w in ("labs", "mutations", "omics", "record") for t in shown
                             if t.workbench == w), shown[0])
     st.divider()
-    if t.workbench == "labs":
-        labs.render(pf, version=i)
+    if t.workbench == "labs":  # the record's results and this session's imported ones
+        labs.render(pf, events=workspace.record_events(pf), version=i)
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
         genomics.render(pf, version=i, lookup=EVIDENCE,
                         table=civic.load_table() if EVIDENCE else None)
@@ -734,6 +740,16 @@ def tests_view(pf: workspace.PatientFile, i: int):
         slides.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
         omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo)
+    elif t.workbench == "documents":  # rule-based extraction; the case note is shown as inferred
+        from workbenches import documents
+
+        saved = demo.notes.get(CASES[pf.id].index) if pf.id in CASES else None
+        documents.render(pf, version=i, focus=t.details.get("document"),
+                         note=CaseReport.from_dict(saved["report"]).text if saved else None)
+    elif t.workbench == "intake":  # an imported image or scan, queued for the local pipeline
+        from workbenches import imports
+
+        imports.render_test(pf, t)
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
         st.markdown(f"**Report text** {tags(OBSERVED)}: {t.result}")
@@ -744,7 +760,7 @@ def tests_view(pf: workspace.PatientFile, i: int):
 def timeline_view(pf: workspace.PatientFile, i: int):
     if len(pf.versions) == 1:
         st.info(pf.note)
-    else:
+    elif pf.kind == "synthetic":  # a TCGA file's later versions are imports: no risk timeline
         month = pf.versions[i].month
         updates = TL["updates"][: i + 1]
         if any("risk" in u for u in updates):
@@ -796,12 +812,9 @@ def compare(pf: workspace.PatientFile, i: int):
 
 
 def import_view(pf: workspace.PatientFile, i: int):
-    st.markdown(f"#### Import tests {badge(workspace.PLANNED)}")
-    st.info("Each test type will come in through its own input adapter (slide images, DICOM scan "
-            "series, lab results, VCF or MAF sequencing reports, expression data, text reports), "
-            "with quality control on intake that shows what was accepted or rejected and why. An "
-            "imported test adds a report version; earlier versions are never overwritten. For "
-            "now only public or synthetic data can be imported (docs/WORKSPACE.md).")
+    from workbenches import imports  # the button and its dialog; imports last for the session
+
+    imports.render_view(pf)
 
 
 # --- Methods and validation ------------------------------------------------------------------
@@ -884,6 +897,16 @@ def methods_page():
             "been checked.")
 
     omics.methods_section()
+
+    st.subheader("Clinical documents: extraction rules")
+    st.markdown(f"{badge(workspace.IMPLEMENTED)} · breast pathology facts from report text, each "
+                "with its source sentence · the clinical documents workbench")
+    st.markdown("Regular expressions run where the app runs: no language model reads a report "
+                "and no report text leaves the machine. A fact is *documented*: the document "
+                "says it; nothing is derived from it. Measured against TCGA's clinical fields:")
+    from workbenches import documents
+
+    documents.methods_card()
 
     st.subheader("Alert rules")
     st.dataframe(pd.DataFrame([
@@ -968,6 +991,9 @@ def methods_page():
         ("NVIDIA Nemotron 3 Super and Ultra on Nebius Token Factory", "the case note",
          "NVIDIA open model license; Token Factory terms"),
         ("EGTM breast cancer recommendations", "the tumor-marker rise rule", "cited"),
+        ("TCGA-Reports (Kefeli and Tatonetti, Patterns 2024; Mendeley Data "
+         "10.17632/hyg5xkznpx.1)", "the TCGA cases' pathology reports in the documents "
+         "workbench; measuring the extraction", "CC BY 4.0, attribution"),
     ], columns=["Source", "Used for", "License or terms"]), hide_index=True, width="stretch")
     st.caption("SYNTHETIC-001's record is written by hand and labeled synthetic; it is not a "
                "real person and was not taken from any dataset.")
@@ -978,8 +1004,9 @@ def methods_page():
         "federation matches pooling and beats a single hospital.\n"
         "- TCGA holds one tumor sample per patient, so its files have one version and no "
         "alerts.\n"
-        "- Only the lab, mutation and data-layer workbenches are built; imaging, pathology, "
-        "ctDNA and test import are planned and labeled so.\n"
+        "- The lab, mutation, data-layer and clinical documents workbenches and test import "
+        "are built, and the pathology workbench in a first version on an example region; "
+        "imaging and ctDNA are planned and labeled so. Imports last for the browser session.\n"
         "- The hospitals are simulated, and SYNTHETIC-001 is synthetic.\n"
         "- Research and decision support for clinicians; not a diagnosis or a prescription.")
 
