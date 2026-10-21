@@ -388,8 +388,9 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
     ("GDC masked somatic mutations and per-case MAFs (open access)",
      "observed driver mutations; allele fractions for clonal order", "as TCGA"),
     ("TCGA-BRCA diagnostic slides (GDC open access)",
-     "the patient's own sections in the slide workbench: derived numbers and small crops only",
-     "as TCGA"),
+     "the patient's own sections in the slide workbench: derived numbers, small crops, and the "
+     "section itself as JPEG tiles at about 1 µm/px for the slide viewer (release "
+     "slide-tiles-v1)", "as TCGA"),
     ("BCSS (Amgad et al., Bioinformatics 2019)", "labels for the breast tissue head", "CC0 1.0"),
     ("TCGA-BRCA radiology (The Cancer Imaging Archive, doi:10.7937/K9/TCIA.2016.AB2NAZRP)",
      "the radiology workbench's public MRI and mammography studies: 8-bit copies and derived "
