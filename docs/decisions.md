@@ -2,6 +2,23 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — Documents rules v2: HER2 legends and answers that slid a row are not results
+- **What:** the documents rules no longer read a HER2 status or IHC score from a scoring legend
+  (a list of categories with their scores, "2=INDETERMINATE", "are considered borderline"), nor a
+  HER2 status word that the IHC score in the same stretch argues against (positive with 0 or 1+,
+  or 2+ without amplification; negative with 3+). "zero or 1+" is read as the band "0 or 1+".
+- **Why:** case 545's report gave HER2 negative and positive, so the Evolution view showed HER2
+  as conflicting. The "positive" was not a legend: OCR slid the synoptic form's answers one row,
+  so PR's "positive" sits after "HER2/NEU:", and HER2's own answer is "zero or 1+". The same
+  template does this in six dev-half reports, and real legends exist at other sites. Bundled
+  case 58's "weakly positive (2+)" (FISH negative) read as HER2-positive. On the dev half, a
+  positive word next to 2+ disagreed with TCGA in 6 of 7 reports.
+- **Consequence:** HER2 precision on the held-out half rose from 80% to 81% (recall unchanged at
+  46%; ER, PR and the other fields unchanged). The Methods page, the Evolution view's note and
+  the overview cards show 81%. A document that contradicts itself ("Negative reaction ...
+  (Score=3+)") now states no HER2 status, only its score. The withholding never makes a status
+  from a score. Method text and FISH reference ranges are still misread (`docs/documents.md`).
+
 ## 2026-10-21 — One overview per patient file: a workbench contract for summaries and queues
 - **What:** every workbench module carries `summary(pf, version=None)` (a few finding cards:
   text, evidence label, source test, method and version, threshold source, trust, where it

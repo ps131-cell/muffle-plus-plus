@@ -68,8 +68,8 @@ def predicted(facts: list[dict]) -> dict:
     out = {k: _first(facts, k) for k in ("er", "pr", "histologic_type", "margins")}
     ish, word, ihc = (_first(facts, k) for k in ("her2_ish", "her2", "her2_ihc"))
     out["her2"] = ({"amplified": "positive", "not amplified": "negative"}.get(ish) or word
-                   or {"0": "negative", "1+": "negative", "2+": "equivocal",
-                       "3+": "positive"}.get(ihc))
+                   or {"0": "negative", "1+": "negative", "0 or 1+": "negative",
+                       "2+": "equivocal", "3+": "positive"}.get(ihc))
     pt, pn, stage = (_first(facts, k) for k in ("pT", "pN", "stage"))
     out["pT"] = re.sub(r"^y?pT(is|[0-4X]).*", r"T\1", pt) if pt else None
     out["pN"] = re.sub(r"^pN([0-3X]).*", r"N\1", pn) if pn else None
