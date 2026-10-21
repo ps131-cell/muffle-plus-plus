@@ -616,6 +616,8 @@ def land(pf: workspace.PatientFile, i: int, focus: dict):
             ss[f"{pf.id}_spot"] = labs._lab(row)
     if "variant" in focus:  # genomics: the variant browser narrowed to it, its Spot panel below
         ss[f"genomics-{pf.id}-{i}-search"] = focus["variant"]
+    if "gene" in focus:  # genomics: the copy-number landscape's Spot panel on the gene
+        ss[f"genomics-{pf.id}-{i}-gene"] = focus["gene"]
     if "slide" in focus:  # slides: the section, then the pointer in its Spot panel
         ss[f"{pf.id}-section"] = focus["slide"]
         if "tile" in focus:
@@ -913,7 +915,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
         labs.render(pf, events=workspace.record_events(pf), version=i)
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
         genomics.render(pf, version=i, lookup=EVIDENCE,
-                        table=civic.load_table() if EVIDENCE else None)
+                        table=civic.load_table() if EVIDENCE else None, case=CASES.get(pf.id),
+                        demo=demo)
     elif t.workbench == "slides":  # the patient's own scored sections, or a public example
         from workbenches import slides  # here, so a missing scipy can't break the whole app
 

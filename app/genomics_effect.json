@@ -1,0 +1,776 @@
+{
+ "snapshot": "2026-10-20",
+ "ensembl_release": "116",
+ "sources": {
+  "annotation": "Ensembl VEP REST (McLaren et al. 2016, doi:10.1186/s13059-016-0974-4), MANE Select transcript",
+  "clinvar": "ClinVar (Landrum et al. 2018, doi:10.1093/nar/gkx1153) as Ensembl serves it with the co-located dbSNP record",
+  "alphamissense": "AlphaMissense (Cheng et al. 2023, doi:10.1126/science.adg7492), hg38 table, https://doi.org/10.5281/zenodo.10813168; predictions CC BY 4.0"
+ },
+ "alphamissense_class_ranges": {
+  "ambiguous": [
+   0.34,
+   0.564
+  ],
+  "likely_benign": [
+   0.0001,
+   0.34
+  ],
+  "likely_pathogenic": [
+   0.564,
+   1.0
+  ]
+ },
+ "variants": {
+  "AKT1 E17K": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000649815.2:c.49G>A",
+   "hgvsp": "ENSP00000497822.1:p.Glu17Lys",
+   "transcript": "ENST00000649815",
+   "mane": "NM_001382430.1",
+   "position": "14:104780214 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.9977,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000554848.5",
+    "protein_variant": "E17K",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV000013983"
+   }
+  },
+  "ARID1A S711*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000324856.13:c.2132C>G",
+   "hgvsp": "ENSP00000320485.7:p.Ser711Ter",
+   "transcript": "ENST00000324856",
+   "mane": "NM_006015.6",
+   "position": "1:26761067 C/G (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "CBFB I102N": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000412916.7:c.305T>A",
+   "hgvsp": "ENSP00000415151.2:p.Ile102Asn",
+   "transcript": "ENST00000412916",
+   "mane": "NM_022845.3",
+   "position": "16:67066704 T/A (GRCh38)",
+   "alphamissense": {
+    "score": 0.9998,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000290858.11",
+    "protein_variant": "I102N",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "CBFB Q134*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000412916.7:c.400C>T",
+   "hgvsp": "ENSP00000415151.2:p.Gln134Ter",
+   "transcript": "ENST00000412916",
+   "mane": "NM_022845.3",
+   "position": "16:67082213 C/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "CDH1 K668*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000261769.10:c.2002A>T",
+   "hgvsp": "ENSP00000261769.4:p.Lys668Ter",
+   "transcript": "ENST00000261769",
+   "mane": "NM_004360.5",
+   "position": "16:68823464 A/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "CDH1 N166Mfs*49": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000261769.10:c.497del",
+   "hgvsp": "ENSP00000261769.4:p.Asn166MetfsTer49",
+   "transcript": "ENST00000261769",
+   "mane": "NM_004360.5",
+   "position": "16:68808530 A/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "CDH1 Q255*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000261769.10:c.763C>T",
+   "hgvsp": "ENSP00000261769.4:p.Gln255Ter",
+   "transcript": "ENST00000261769",
+   "mane": "NM_004360.5",
+   "position": "16:68810272 C/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {
+    "germline": [
+     "pathogenic"
+    ],
+    "somatic": "",
+    "record": "VCV002584208"
+   }
+  },
+  "CDH1 Q765Pfs*4": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000261769.10:c.2293dup",
+   "hgvsp": "ENSP00000261769.4:p.Gln765ProfsTer4",
+   "transcript": "ENST00000261769",
+   "mane": "NM_004360.5",
+   "position": "16:68828301 -/C (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "DNMT3A R882H": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000321117.10:c.2645G>A",
+   "hgvsp": "ENSP00000324375.5:p.Arg882His",
+   "transcript": "ENST00000321117",
+   "mane": "NM_022552.5",
+   "position": "2:25234373 G/A (GRCh38)",
+   "alphamissense": {
+    "score": 0.9953,
+    "class": "likely_pathogenic",
+    "source": "Ensembl VEP"
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "Acute myeloid leukemia(Tier II - Potential:prognostic:poor outcome); Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV000375879"
+   }
+  },
+  "ESR1 D538G": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000206249.8:c.1613A>G",
+   "hgvsp": "ENSP00000206249.3:p.Asp538Gly",
+   "transcript": "ENST00000206249",
+   "mane": "NM_000125.4",
+   "position": "6:152098791 A/G (GRCh38)",
+   "alphamissense": {
+    "score": 0.9634,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000206249.7",
+    "protein_variant": "D538G",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV003764845"
+   }
+  },
+  "ESR1 P222S": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000206249.8:c.664C>T",
+   "hgvsp": "ENSP00000206249.3:p.Pro222Ser",
+   "transcript": "ENST00000206249",
+   "mane": "NM_000125.4",
+   "position": "6:151880675 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.9975,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000206249.7",
+    "protein_variant": "P222S",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "GATA3 A441Wfs*33": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000379328.9:c.1323_1326del",
+   "hgvsp": "ENSP00000368632.3:p.Ala442TrpfsTer33",
+   "transcript": "ENST00000379328",
+   "mane": "NM_001002295.2",
+   "position": "10:8074010 CCGC/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "GATA3 R364Hfs*10": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000379328.9:c.1083_1092dup",
+   "hgvsp": "ENSP00000368632.3:p.Arg365HisfsTer10",
+   "transcript": "ENST00000379328",
+   "mane": "NM_001002295.2",
+   "position": "10:8073771 -/CATCCAGACC (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "GATA3 X308 splice": {
+   "consequence": "splice_acceptor_variant",
+   "hgvsc": "ENST00000379328.9:c.925-3_925-2del",
+   "hgvsp": null,
+   "transcript": "ENST00000379328",
+   "mane": "NM_001002295.2",
+   "position": "10:8069470 CA/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {
+    "germline": [
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Likely oncogenic)",
+    "record": "VCV001685841"
+   }
+  },
+  "KMT2C E547K": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000262189.11:c.1639G>A",
+   "hgvsp": "ENSP00000262189.6:p.Glu547Lys",
+   "transcript": "ENST00000262189",
+   "mane": "NM_170606.3",
+   "position": "7:152250949 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.2502,
+    "class": "likely_benign",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000355193.6",
+    "protein_variant": "E547K",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "KMT2C P4577Cfs*4": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000262189.11:c.13729_13730del",
+   "hgvsp": "ENSP00000262189.6:p.Pro4577CysfsTer4",
+   "transcript": "ENST00000262189",
+   "mane": "NM_170606.3",
+   "position": "7:152148197 GG/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "KMT2C Q2018Sfs*7": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000262189.11:c.6051dup",
+   "hgvsp": "ENSP00000262189.6:p.Gln2018SerfsTer7",
+   "transcript": "ENST00000262189",
+   "mane": "NM_170606.3",
+   "position": "7:152181809 -/A (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "KMT2C S3394N": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000262189.11:c.10181G>A",
+   "hgvsp": "ENSP00000262189.6:p.Ser3394Asn",
+   "transcript": "ENST00000262189",
+   "mane": "NM_170606.3",
+   "position": "7:152163396 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.2535,
+    "class": "likely_benign",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000355193.6",
+    "protein_variant": "S3394N",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "KMT2C S4239 N4240del": {
+   "consequence": "inframe_deletion",
+   "hgvsc": "ENST00000262189.11:c.12716_12721del",
+   "hgvsp": "ENSP00000262189.6:p.Ser4239_Asn4240del",
+   "transcript": "ENST00000262189",
+   "mane": "NM_170606.3",
+   "position": "7:152150953 TATTAC/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "KMT2C S771*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000262189.11:c.2312C>A",
+   "hgvsp": "ENSP00000262189.6:p.Ser771Ter",
+   "transcript": "ENST00000262189",
+   "mane": "NM_170606.3",
+   "position": "7:152248122 G/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "MAP2K4 L385P": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000353533.10:c.1154T>C",
+   "hgvsp": "ENSP00000262445.5:p.Leu385Pro",
+   "transcript": "ENST00000353533",
+   "mane": "NM_003010.4",
+   "position": "17:12141214 T/C (GRCh38)",
+   "alphamissense": {
+    "score": 0.9943,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000353533.10",
+    "protein_variant": "L385P",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "MAP2K4 X363 splice": {
+   "consequence": "splice_acceptor_variant",
+   "hgvsc": "ENST00000353533.10:c.1087-1G>C",
+   "hgvsp": null,
+   "transcript": "ENST00000353533",
+   "mane": "NM_003010.4",
+   "position": "17:12141146 G/C (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {
+    "germline": [],
+    "somatic": "",
+    "record": "VCV001339354"
+   }
+  },
+  "MAP3K1 P769S": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000399503.4:c.2305C>T",
+   "hgvsp": "ENSP00000382423.3:p.Pro769Ser",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56881208 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.3753,
+    "class": "ambiguous",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000399503.4",
+    "protein_variant": "P769S",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "MAP3K1 Q525*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000399503.4:c.1573C>T",
+   "hgvsp": "ENSP00000382423.3:p.Gln525Ter",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56872892 C/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "MAP3K1 R1428Vfs*7": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000399503.4:c.4282_4300del",
+   "hgvsp": "ENSP00000382423.3:p.Arg1428ValfsTer7",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56888243 GTATGGAAGGAGCTGTGAT/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "MAP3K1 S1434R": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000399503.4:c.4302T>A",
+   "hgvsp": "ENSP00000382423.3:p.Ser1434Arg",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56888270 T/A (GRCh38)",
+   "alphamissense": {
+    "score": 0.9994,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000399503.4",
+    "protein_variant": "S1434R",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "MAP3K1 S588Ffs*3": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000399503.4:c.1762dup",
+   "hgvsp": "ENSP00000382423.3:p.Ser588PhefsTer3",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56875105 -/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "MAP3K1 S901Kfs*8": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000399503.4:c.2701_2737del",
+   "hgvsp": "ENSP00000382423.3:p.Ser901LysfsTer8",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56881901 TCCCCTGAGTGCACAGTCCATTTAGAGAAAACTGGAA/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "MAP3K1 S976F": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000399503.4:c.2927C>T",
+   "hgvsp": "ENSP00000382423.3:p.Ser976Phe",
+   "transcript": "ENST00000399503",
+   "mane": "NM_005921.2",
+   "position": "5:56882127 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.2134,
+    "class": "likely_benign",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000399503.4",
+    "protein_variant": "S976F",
+    "ensembl_agrees": true
+   },
+   "clinvar": {}
+  },
+  "PIK3CA E469delinsDK": {
+   "consequence": "protein_altering_variant",
+   "hgvsc": "ENST00000263967.4:c.1406_1407insTAA",
+   "hgvsp": "ENSP00000263967.3:p.Glu469delinsAspLys",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179210432 -/ATA (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "PIK3CA E545A": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000263967.4:c.1634A>C",
+   "hgvsp": "ENSP00000263967.3:p.Glu545Ala",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179218304 A/C (GRCh38)",
+   "alphamissense": {
+    "score": 0.9665,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000263967.4",
+    "protein_variant": "E545A",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "pathogenic"
+    ],
+    "somatic": "",
+    "record": "VCV000222469"
+   }
+  },
+  "PIK3CA E545K": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000263967.4:c.1633G>A",
+   "hgvsp": "ENSP00000263967.3:p.Glu545Lys",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179218303 G/A (GRCh38)",
+   "alphamissense": {
+    "score": 0.9878,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000263967.4",
+    "protein_variant": "E545K",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "drug_response",
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Likely oncogenic); Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV000375896"
+   }
+  },
+  "PIK3CA G1049R": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000263967.4:c.3145G>C",
+   "hgvsp": "ENSP00000263967.3:p.Gly1049Arg",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179234302 G/C (GRCh38)",
+   "alphamissense": {
+    "score": 0.9553,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000263967.4",
+    "protein_variant": "G1049R",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "",
+    "record": "VCV000376053"
+   }
+  },
+  "PIK3CA H1047R": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000263967.4:c.3140A>G",
+   "hgvsp": "ENSP00000263967.3:p.His1047Arg",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179234297 A/G (GRCh38)",
+   "alphamissense": {
+    "score": 0.5381,
+    "class": "ambiguous",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000263967.4",
+    "protein_variant": "H1047R",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV000013653"
+   }
+  },
+  "PIK3CA N345K": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000263967.4:c.1035T>A",
+   "hgvsp": "ENSP00000263967.3:p.Asn345Lys",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179203765 T/A (GRCh38)",
+   "alphamissense": {
+    "score": 0.9973,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000263967.4",
+    "protein_variant": "N345K",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV000376051"
+   }
+  },
+  "PIK3CA N345T": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000263967.4:c.1034A>C",
+   "hgvsp": "ENSP00000263967.3:p.Asn345Thr",
+   "transcript": "ENST00000263967",
+   "mane": "NM_006218.4",
+   "position": "3:179203764 A/C (GRCh38)",
+   "alphamissense": {
+    "score": 0.9282,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000263967.4",
+    "protein_variant": "N345T",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "pathogenic"
+    ],
+    "somatic": "",
+    "record": "VCV002580765"
+   }
+  },
+  "RUNX1 D96Gfs*15": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000675419.1:c.367dup",
+   "hgvsp": "ENSP00000501943.1:p.Asp123GlyfsTer15",
+   "transcript": "ENST00000675419",
+   "mane": "NM_001754.5",
+   "position": "21:34880698 -/C (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "RUNX1 E116 A120del": {
+   "consequence": "inframe_deletion",
+   "hgvsc": "ENST00000675419.1:c.427_441del",
+   "hgvsp": "ENSP00000501943.1:p.Glu143_Ala147del",
+   "transcript": "ENST00000675419",
+   "mane": "NM_001754.5",
+   "position": "21:34880624 AGCATTTCTCAGCTC/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "TBX3 K247 R256del": {
+   "consequence": "inframe_deletion",
+   "hgvsc": "ENST00000349155.7:c.679_708del",
+   "hgvsp": "ENSP00000257567.2:p.Lys227_Arg236del",
+   "transcript": "ENST00000349155",
+   "mane": "NM_005996.4",
+   "position": "12:114679601 TCTTACAATGTGGAACCGGGGCTGGTATTT/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "TBX3 Y149*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000349155.7:c.446dup",
+   "hgvsp": "ENSP00000257567.2:p.Tyr149Ter",
+   "transcript": "ENST00000349155",
+   "mane": "NM_005996.4",
+   "position": "12:114681090 -/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "TP53 E285Rfs*54": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000269305.9:c.853_871del",
+   "hgvsp": "ENSP00000269305.4:p.Glu285ArgfsTer54",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7673749 TGCGGAGATTCTCTTCCTC/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "TP53 L265R": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000269305.9:c.794T>G",
+   "hgvsp": "ENSP00000269305.4:p.Leu265Arg",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7673826 A/C (GRCh38)",
+   "alphamissense": {
+    "score": 0.8691,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000445888.6",
+    "protein_variant": "L265R",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic",
+     "uncertain_significance"
+    ],
+    "somatic": "",
+    "record": "VCV002764543"
+   }
+  },
+  "TP53 P318Tfs*15": {
+   "consequence": "frameshift_variant",
+   "hgvsc": "ENST00000269305.9:c.951_961del",
+   "hgvsp": "ENSP00000269305.4:p.Pro318ThrfsTer15",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7673567 TCTTCTTTGGC/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "TP53 R110del": {
+   "consequence": "inframe_deletion",
+   "hgvsc": "ENST00000269305.9:c.329_331del",
+   "hgvsp": "ENSP00000269305.4:p.Arg110del",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7676038 GAC/- (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {}
+  },
+  "TP53 R175H": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000269305.9:c.524G>A",
+   "hgvsp": "ENSP00000269305.4:p.Arg175His",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7675088 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.9857,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000445888.6",
+    "protein_variant": "R175H",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV000182963"
+   }
+  },
+  "TP53 R196*": {
+   "consequence": "stop_gained",
+   "hgvsc": "ENST00000269305.9:c.586C>T",
+   "hgvsp": "ENSP00000269305.4:p.Arg196Ter",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7674945 G/A (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {
+    "germline": [
+     "pathogenic",
+     "uncertain_significance"
+    ],
+    "somatic": "",
+    "record": "VCV000232344"
+   }
+  },
+  "TP53 R273H": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000269305.9:c.818G>A",
+   "hgvsp": "ENSP00000269305.4:p.Arg273His",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7673802 C/T (GRCh38)",
+   "alphamissense": {
+    "score": 0.9889,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000445888.6",
+    "protein_variant": "R273H",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic); pancreatic neuroendocrine tumor(oncogenicity:Likely oncogenic)",
+    "record": "VCV000012366"
+   }
+  },
+  "TP53 X225 splice": {
+   "consequence": "splice_acceptor_variant",
+   "hgvsc": "ENST00000269305.9:c.673-1G>A",
+   "hgvsp": null,
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7674291 C/T (GRCh38)",
+   "alphamissense": null,
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic"
+    ],
+    "somatic": "",
+    "record": "VCV000379336"
+   }
+  },
+  "TP53 Y126C": {
+   "consequence": "missense_variant",
+   "hgvsc": "ENST00000269305.9:c.377A>G",
+   "hgvsp": "ENSP00000269305.4:p.Tyr126Cys",
+   "transcript": "ENST00000269305",
+   "mane": "NM_000546.6",
+   "position": "17:7675235 T/C (GRCh38)",
+   "alphamissense": {
+    "score": 0.8716,
+    "class": "likely_pathogenic",
+    "source": "AlphaMissense hg38 table (https://doi.org/10.5281/zenodo.10813168)",
+    "transcript": "ENST00000445888.6",
+    "protein_variant": "Y126C",
+    "ensembl_agrees": true
+   },
+   "clinvar": {
+    "germline": [
+     "likely_pathogenic",
+     "pathogenic",
+     "uncertain_significance"
+    ],
+    "somatic": "Neoplasm(oncogenicity:Oncogenic)",
+    "record": "VCV001054765"
+   }
+  }
+ }
+}

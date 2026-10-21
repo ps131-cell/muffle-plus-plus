@@ -19,6 +19,30 @@ Newest at the top. One entry per decision: date, what, why.
   (Score=3+)") now states no HER2 status, only its score. The withholding never makes a status
   from a score. Method text and FISH reference ranges are still misread (`docs/documents.md`).
 
+## 2026-10-21 — Genomics workbench: the genome as a picture; two ploidies; AlphaMissense's license
+- **What:** the genomics workbench gains, for the TCGA cases, a copy-number landscape (ASCAT3 gene
+  level, the model's own call rule, placeholder cutoffs), mutation burden and allele fractions,
+  predicted effect (Ensembl VEP, ClinVar via Ensembl, AlphaMissense), a curated pathway map and a
+  variant table over time (`docs/genomics.md`). Purity and a second ploidy come from TCGA
+  PanCanAtlas's ABSOLUTE table; when the two ploidy estimates are 1.5-fold apart or more (7 of 40
+  cases) the page warns and offers calls relative to ABSOLUTE's ploidy.
+- **Why:** calls must match the model's copy-number input (7,993 of 7,999 equal; the rest are
+  ambiguous gene symbols), so the median-copy-number ploidy stays the default; but that rule gives
+  ploidy 1 for case 49 (ABSOLUTE 1.58) and 4 for case 741 (ABSOLUTE 1.53), turning ordinary copy
+  numbers into amplifications or losses, which a reader must see. ASCAT's own purity and ploidy
+  are not in the open gene-level file. The burden rate uses the 38 Mb exome size Chalmers et al.
+  2017 used for TCGA; KEYNOTE-158's 10 per Mb belongs to another assay and other cancers, so it is
+  named and not applied.
+- **License:** AlphaMissense's README and its Zenodo record (10.5281/zenodo.10813168) license the
+  predictions CC BY 4.0 (read 2026-10-20); the 2023 table's own header still says "CC BY-NC-SA
+  4.0". We follow the licensor's current statement, ship only the 21 scores we use, with
+  attribution, and Ensembl serves the same scores (they agree for 20 of 20). If the licensor's
+  statement changes, the scores can come from Ensembl alone.
+- **Consequence:** the ladder's "predicted effect" rung is model inference when a prediction
+  exists. PIK3CA H1047R scores "ambiguous" (0.538) while ClinVar and CIViC call it oncogenic: the
+  page keeps prediction and interpretation apart and says why. The variant table's ctDNA columns read
+  `timeline.CTDNA` (#94).
+
 ## 2026-10-21 — One overview per patient file: a workbench contract for summaries and queues
 - **What:** every workbench module carries `summary(pf, version=None)` (a few finding cards:
   text, evidence label, source test, method and version, threshold source, trust, where it
