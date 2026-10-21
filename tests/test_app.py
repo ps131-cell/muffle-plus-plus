@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import torch
 
+from muffle import workspace
 from muffle.demo import build_demo, pick_cases, save_bundle, subset
 from muffle.hotreload import source_digest
 from muffle.models import MuffleNet
@@ -89,6 +90,14 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.selectbox(key="patient").select(case).run()
     at.segmented_control(key="view").set_value("Tests").run()
     assert "Genomics workbench" in shown(at) and "PIK3CA H1047R" in shown(at)
+    for kind, layer in (("Data layer", "rna"), ("Clinical record", "clinical")):
+        at.session_state[f"picked-{case}"] = (kind, None, workspace.ASSAYS[layer])
+        at.run()  # the omics workbench; this test cohort has no precomputed scores
+        assert "Expression, methylation and protein" in shown(at) and not at.exception, layer
+        assert "No precomputed subtype" in " ".join(w.value for w in at.warning)
+    at.selectbox(key=f"omics-spot-{case}").select_index(0).run()
+    next(s for s in at.segmented_control if s.label == "Your mark").set_value("agree").run()
+    assert any(k.startswith(f"{case}|omics|") for k in at.session_state.reviews)
     for view in VIEWS:
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view

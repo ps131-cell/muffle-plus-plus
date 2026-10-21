@@ -311,6 +311,8 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "lab": "the marker key ('ca153'), the value's month",
     "variant": "the variant ('PIK3CA H1047R'), the sequencing test's month",
     "slide": "the slide ('TCGA-AN-A0AS-DX1'), the tile ('r12c34')",
+    "omics": "the layer or block ('rna', 'subtype', 'pathway', 'receptor', 'score'), the feature "
+             "or finding ('ESR1', 'E2F_TARGETS', 'ER: IHC vs RNA')",
 }
 
 

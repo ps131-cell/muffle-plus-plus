@@ -54,7 +54,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
     sys._muffle_code_digest = CODE_DIGEST
 
 import charts  # noqa: E402
-from workbenches import genomics, labs  # noqa: E402
+from workbenches import genomics, labs, omics  # noqa: E402
 
 from muffle import crosstest, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
@@ -733,39 +733,12 @@ def tests_view(pf: workspace.PatientFile, i: int):
 
         slides.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
-        layer_workbench(CASES[pf.id], t.details["layer"], pf.versions[i])
+        omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo)
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
         st.markdown(f"**Report text** {tags(OBSERVED)}: {t.result}")
         st.info(PLANNED_WORKBENCHES[t.workbench] + " Planned, pending the model and dataset "
                 "survey's shortlist (docs/WORKSPACE.md).", icon="🧭")
-
-
-def layer_workbench(case, layer: str, v: workspace.Version):
-    tools = demo.tools(case)
-    effect = tools.modality_contributions()["log_risk_added_by_layer"].get(layer)
-    st.markdown(f"#### {'Clinical record' if layer == 'clinical' else LAYER_NAMES[layer]} "
-                f"{badge(workspace.IMPLEMENTED)}")
-    st.markdown(f"Measured {tags(OBSERVED)}: {workspace.ASSAYS[layer]}.")
-    if layer == "clinical":
-        st.markdown("\n".join(f"- **{k}:** {val}" for k, val in v.observed))
-    if effect is not None:
-        st.markdown(f"Effect on this patient's predicted log-risk compared with a typical patient: "
-                    f"**{effect:+.3f}** {tags(INFERENCE)}")
-    feats = tools.top_features(layer, 10)["features"]
-    if feats:
-        st.altair_chart(charts.contributions({f["name"]: f["score"] for f in feats},
-                                             title="effect on log-risk (gradient × input)",
-                                             fmt="+.4f"), width="stretch")
-        st.caption("The features that move this patient's predicted risk most: an inference "
-                   "about the model, not a biological finding about the tumor.")
-    else:
-        st.caption("No single feature in this layer moves this patient's risk measurably.")
-    st.info(f"{badge(workspace.PLANNED)} " + (
-        "Clinical documents with their source sentences highlighted: extracted diagnoses, "
-        "procedures, drugs and dates." if layer == "clinical" else
-        "Expression distributions and ranked genes against the cohort, pathway and subtype "
-        "scores (PAM50) with their reference definitions, batch and quality checks."))
 
 
 def timeline_view(pf: workspace.PatientFile, i: int):
@@ -909,6 +882,8 @@ def methods_page():
             + TL["model_note"] + " Some features reflect care, not only biology (how often labs "
             "and treatments are recorded). Whether the probabilities are calibrated has not "
             "been checked.")
+
+    omics.methods_section()
 
     st.subheader("Alert rules")
     st.dataframe(pd.DataFrame([
