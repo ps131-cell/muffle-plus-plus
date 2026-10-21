@@ -1,0 +1,479 @@
+{
+ "built": "2026-10-20",
+ "source": "GDC open-access masked somatic mutation calls (exome, Aliquot Ensemble Somatic Variant Merging and Masking), TCGA-BRCA primary tumors: t_alt_count and t_depth per driver call; total copy number of the gene from ASCAT3 (gene level, UCSC Xena GDC hub)",
+ "purity": null,
+ "cases": {
+  "564": {
+   "variants": [
+    {
+     "variant": "MAP3K1 R1428Vfs*7",
+     "alt": 30,
+     "depth": 133,
+     "copies": 2.0
+    },
+    {
+     "variant": "MAP3K1 S901Kfs*8",
+     "alt": 40,
+     "depth": 183,
+     "copies": 2.0
+    }
+   ]
+  },
+  "47": {
+   "variants": [
+    {
+     "variant": "TP53 R196*",
+     "alt": 212,
+     "depth": 328,
+     "copies": 2.0
+    }
+   ]
+  },
+  "1043": {
+   "variants": [
+    {
+     "variant": "TP53 R175H",
+     "alt": 15,
+     "depth": 45,
+     "copies": 2.0
+    }
+   ]
+  },
+  "545": {
+   "variants": [
+    {
+     "variant": "ESR1 P222S",
+     "alt": 42,
+     "depth": 123,
+     "copies": 2.0
+    },
+    {
+     "variant": "GATA3 R364Hfs*10",
+     "alt": 38,
+     "depth": 157,
+     "copies": 3.0
+    }
+   ]
+  },
+  "601": {
+   "variants": [
+    {
+     "variant": "TP53 E285Rfs*54",
+     "alt": 77,
+     "depth": 123,
+     "copies": 3.0
+    }
+   ]
+  },
+  "299": {
+   "variants": [
+    {
+     "variant": "MAP3K1 S588Ffs*3",
+     "alt": 83,
+     "depth": 192,
+     "copies": 2.0
+    },
+    {
+     "variant": "TP53 R110del",
+     "alt": 110,
+     "depth": 230,
+     "copies": 2.0
+    }
+   ]
+  },
+  "85": {
+   "variants": [
+    {
+     "variant": "PIK3CA N345K",
+     "alt": 10,
+     "depth": 48,
+     "copies": 4.0
+    }
+   ]
+  },
+  "937": {
+   "variants": [
+    {
+     "variant": "CBFB Q134*",
+     "alt": 8,
+     "depth": 28,
+     "copies": 1.0
+    }
+   ]
+  },
+  "926": {
+   "variants": [
+    {
+     "variant": "CBFB I102N",
+     "alt": 78,
+     "depth": 238,
+     "copies": 1.0
+    },
+    {
+     "variant": "CDH1 K668*",
+     "alt": 21,
+     "depth": 68,
+     "copies": 1.0
+    },
+    {
+     "variant": "PIK3CA H1047R",
+     "alt": 23,
+     "depth": 76,
+     "copies": 2.0
+    }
+   ]
+  },
+  "741": {
+   "variants": [
+    {
+     "variant": "AKT1 E17K",
+     "alt": 33,
+     "depth": 50,
+     "copies": 3.0
+    },
+    {
+     "variant": "KMT2C S4239_N4240del",
+     "alt": 6,
+     "depth": 53,
+     "copies": 2.0
+    }
+   ]
+  },
+  "681": {
+   "variants": [
+    {
+     "variant": "KMT2C S771*",
+     "alt": 10,
+     "depth": 123,
+     "copies": 4.0
+    }
+   ]
+  },
+  "901": {
+   "variants": [
+    {
+     "variant": "TP53 R175H",
+     "alt": 25,
+     "depth": 40,
+     "copies": 3.0
+    }
+   ]
+  },
+  "432": {
+   "variants": [
+    {
+     "variant": "ARID1A S711*",
+     "alt": 26,
+     "depth": 65,
+     "copies": 2.0
+    },
+    {
+     "variant": "CDH1 Q255*",
+     "alt": 30,
+     "depth": 56,
+     "copies": 1.0
+    }
+   ]
+  },
+  "485": {
+   "variants": [
+    {
+     "variant": "GATA3 X308_splice",
+     "alt": 36,
+     "depth": 137,
+     "copies": 2.0
+    },
+    {
+     "variant": "RUNX1 E116_A120del",
+     "alt": 53,
+     "depth": 183,
+     "copies": 2.0
+    }
+   ]
+  },
+  "444": {
+   "variants": [
+    {
+     "variant": "PIK3CA E545K",
+     "alt": 16,
+     "depth": 74,
+     "copies": 6.0
+    }
+   ]
+  },
+  "61": {
+   "variants": [
+    {
+     "variant": "PIK3CA E469delinsDK",
+     "alt": 24,
+     "depth": 103,
+     "copies": 6.0
+    },
+    {
+     "variant": "PIK3CA H1047R",
+     "alt": 82,
+     "depth": 137,
+     "copies": 6.0
+    }
+   ]
+  },
+  "128": {
+   "variants": [
+    {
+     "variant": "PIK3CA N345T",
+     "alt": 36,
+     "depth": 94,
+     "copies": 2.0
+    }
+   ]
+  },
+  "49": {
+   "variants": [
+    {
+     "variant": "TP53 P318Tfs*15",
+     "alt": 74,
+     "depth": 333,
+     "copies": 1.0
+    }
+   ]
+  },
+  "537": {
+   "variants": [
+    {
+     "variant": "KMT2C Q2018Sfs*7",
+     "alt": 32,
+     "depth": 123,
+     "copies": 2.0
+    },
+    {
+     "variant": "PIK3CA E545A",
+     "alt": 33,
+     "depth": 150,
+     "copies": 2.0
+    },
+    {
+     "variant": "TBX3 K247_R256del",
+     "alt": 35,
+     "depth": 238,
+     "copies": 2.0
+    }
+   ]
+  },
+  "140": {
+   "variants": [
+    {
+     "variant": "MAP2K4 L385P",
+     "alt": 18,
+     "depth": 33,
+     "copies": 2.0
+    },
+    {
+     "variant": "PIK3CA H1047R",
+     "alt": 19,
+     "depth": 51,
+     "copies": 6.0
+    }
+   ]
+  },
+  "715": {
+   "variants": [
+    {
+     "variant": "TP53 R273H",
+     "alt": 56,
+     "depth": 86,
+     "copies": 1.0
+    }
+   ]
+  },
+  "864": {
+   "variants": [
+    {
+     "variant": "MAP3K1 S976F",
+     "alt": 5,
+     "depth": 28,
+     "copies": 4.0
+    },
+    {
+     "variant": "TP53 R196*",
+     "alt": 22,
+     "depth": 38,
+     "copies": 3.0
+    }
+   ]
+  },
+  "234": {
+   "variants": [
+    {
+     "variant": "CDH1 Q765Pfs*4",
+     "alt": 61,
+     "depth": 171,
+     "copies": 1.0
+    },
+    {
+     "variant": "TBX3 Y149*",
+     "alt": 40,
+     "depth": 148,
+     "copies": 2.0
+    }
+   ]
+  },
+  "469": {
+   "variants": [
+    {
+     "variant": "MAP3K1 Q525*",
+     "alt": 48,
+     "depth": 122,
+     "copies": 2.0
+    },
+    {
+     "variant": "MAP3K1 S1434R",
+     "alt": 101,
+     "depth": 252,
+     "copies": 2.0
+    }
+   ]
+  },
+  "406": {
+   "variants": [
+    {
+     "variant": "GATA3 A441Wfs*33",
+     "alt": 26,
+     "depth": 52,
+     "copies": 3.0
+    },
+    {
+     "variant": "PIK3CA H1047R",
+     "alt": 141,
+     "depth": 171,
+     "copies": 3.0
+    }
+   ]
+  },
+  "135": {
+   "variants": [
+    {
+     "variant": "PIK3CA H1047R",
+     "alt": 30,
+     "depth": 72,
+     "copies": 2.0
+    }
+   ]
+  },
+  "611": {
+   "variants": [
+    {
+     "variant": "KMT2C S3394N",
+     "alt": 43,
+     "depth": 149,
+     "copies": 2.0
+    },
+    {
+     "variant": "MAP2K4 X363_splice",
+     "alt": 51,
+     "depth": 155,
+     "copies": 1.0
+    },
+    {
+     "variant": "TP53 Y126C",
+     "alt": 22,
+     "depth": 47,
+     "copies": 1.0
+    }
+   ]
+  },
+  "305": {
+   "variants": [
+    {
+     "variant": "TP53 X225_splice",
+     "alt": 77,
+     "depth": 95,
+     "copies": 1.0
+    }
+   ]
+  },
+  "328": {
+   "variants": [
+    {
+     "variant": "TP53 L265R",
+     "alt": 57,
+     "depth": 157,
+     "copies": 1.0
+    }
+   ]
+  },
+  "754": {
+   "variants": [
+    {
+     "variant": "CDH1 N166Mfs*49",
+     "alt": 13,
+     "depth": 52,
+     "copies": 2.0
+    }
+   ]
+  },
+  "43": {
+   "variants": [
+    {
+     "variant": "PIK3CA G1049R",
+     "alt": 23,
+     "depth": 109,
+     "copies": 4.0
+    },
+    {
+     "variant": "RUNX1 D96Gfs*15",
+     "alt": 118,
+     "depth": 409,
+     "copies": 14.0
+    },
+    {
+     "variant": "TP53 R196*",
+     "alt": 81,
+     "depth": 151,
+     "copies": 2.0
+    }
+   ]
+  },
+  "318": {
+   "variants": [
+    {
+     "variant": "KMT2C P4577Cfs*4",
+     "alt": 27,
+     "depth": 91,
+     "copies": 2.0
+    },
+    {
+     "variant": "PIK3CA E545K",
+     "alt": 51,
+     "depth": 114,
+     "copies": 2.0
+    }
+   ]
+  },
+  "96": {
+   "variants": [
+    {
+     "variant": "MAP3K1 P769S",
+     "alt": 15,
+     "depth": 94,
+     "copies": 4.0
+    },
+    {
+     "variant": "TP53 X225_splice",
+     "alt": 18,
+     "depth": 36,
+     "copies": 4.0
+    }
+   ]
+  },
+  "345": {
+   "variants": [
+    {
+     "variant": "KMT2C E547K",
+     "alt": 52,
+     "depth": 192,
+     "copies": 2.0
+    }
+   ]
+  }
+ }
+}

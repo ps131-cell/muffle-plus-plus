@@ -2,6 +2,27 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-20 — Tumor evolution as a cited table, ranked per file; clonal order as alternatives
+- **What:** an Evolution view in every patient file (`docs/evolution.md`). Its core is a table of
+  18 context → event rows (ESR1 under aromatase inhibitors; RB1, FAT1, AKT1 and PTEN under
+  CDK4/6 inhibitors; PTEN under PI3Kα inhibitors; BRCA1/2 reversion; ERBB2, NF1, FGFR, ESR1
+  fusions and ARID1A under endocrine therapy; receptor conversion; TP53 by subtype; PIK3CA in
+  HER2-positive disease) from 37 papers, each PMID and DOI checked against PubMed, each statement
+  taken from the abstract. `hypothesis_set` raises a file's rows from its recorded treatment
+  classes, receptor status and observed drivers and orders them by a fixed rule. Clonal order uses
+  GDC read counts and ASCAT3 copy number for the TCGA cases and lists the consistent orderings as
+  alternatives. Trials come live from ClinicalTrials.gov ("<GENE> mutation", breast cancer,
+  recruiting or not yet), with a bundled dated snapshot.
+- **Why:** VISION parts two and three, built only from what the app holds: the knowledge is
+  literature, not a model, so it can be cited and checked, and nothing claims a forecast. A
+  fixed ordering rule instead of a score keeps "hypothesis" honest; the frequency shown is always a
+  named cohort's. The bare gene symbol is not used as the trial query because the registry expands
+  synonyms ("ESR1" returned 155 estrogen-receptor trials, "ESR1 mutation" 37).
+- **Consequence:** the report's "Evolutionary hypotheses" line is no longer planned; it names the
+  top three and opens the view. The GDC MAFs carry no purity, so no variant is called clonal;
+  SYNTHETIC-001 has no allele fraction and says so. The snapshot needs `scripts/refresh_trials.py`
+  before a release (the registry terms ask for current data with its date).
+
 ## 2026-10-20 — Omics workbench: PAM50 centered on an ER-balanced subset of the cohort
 - **What:** the PAM50 call in the omics workbench centers each gene on its median over an
   ER-balanced subset of TCGA-BRCA (every ER-negative tumor by IHC and as many ER-positive, seed 0;
