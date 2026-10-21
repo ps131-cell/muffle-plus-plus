@@ -1,6 +1,6 @@
 {
- "rules": "documents rules v1 (2026-10-20)",
- "measured": "2026-10-20",
+ "rules": "documents rules v2 (2026-10-21)",
+ "measured": "2026-10-21",
  "reports": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
  "reference": "TCGA-BRCA clinical fields (UCSC Xena TCGA hub, BRCA_clinicalMatrix; TCGA open access)",
  "sets": {
@@ -30,9 +30,9 @@
      "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
      "with_value": 475,
      "extracted": 262,
-     "right": 208,
-     "precision": 0.7938931297709924,
-     "recall": 0.4378947368421053
+     "right": 212,
+     "precision": 0.8091603053435115,
+     "recall": 0.4463157894736842
     },
     {
      "field": "pT",
@@ -124,9 +124,9 @@
      "field": "her2",
      "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
      "with_value": 422,
-     "extracted": 241,
+     "extracted": 239,
      "right": 194,
-     "precision": 0.8049792531120332,
+     "precision": 0.8117154811715481,
      "recall": 0.4597156398104265
     },
     {
