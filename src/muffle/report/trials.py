@@ -16,7 +16,6 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
-from functools import lru_cache
 from pathlib import Path
 
 API = "https://clinicaltrials.gov/api/v2/studies"
@@ -76,13 +75,18 @@ def _study(s: dict) -> dict:
             "countries": list(dict.fromkeys(countries))}
 
 
-@lru_cache(maxsize=1)
+_stamp = {"at": 0.0, "value": ""}
+
+
 def data_timestamp() -> str:
-    """When ClinicalTrials.gov last processed its data ("" if it can't be reached)."""
-    try:
-        return _get(VERSION_API).get("dataTimestamp", "")
-    except Exception:
-        return ""
+    """When ClinicalTrials.gov last processed its data, asked at most once a day ("" if it has
+    not been reached yet)."""
+    if time.time() - _stamp["at"] > TTL:
+        try:
+            _stamp.update(value=_get(VERSION_API).get("dataTimestamp", ""), at=time.time())
+        except Exception:  # unreachable: keep the last answer, ask again next time
+            pass
+    return _stamp["value"]
 
 
 def fetch(gene: str, n: int = PAGE) -> dict:
