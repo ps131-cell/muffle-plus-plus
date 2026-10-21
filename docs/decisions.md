@@ -19,7 +19,7 @@ Newest at the top. One entry per decision: date, what, why.
 
 ## 2026-10-21 — Slide viewer: OpenSeadragon on release-hosted Deep Zoom pyramids at 1 µm/px
 - **What:** the pathology workbench draws its analysis on the patient's own section in a
-  pan-and-zoom viewer (`docs/pathology.md` §8): a Streamlit component (plain JavaScript and
+  pan-and-zoom viewer (`docs/pathology.md` §7): a Streamlit component (plain JavaScript and
   OpenSeadragon 6.1.1, vendored, no build step) over Deep Zoom pyramids cut from each scan's
   own level nearest 1 µm/px, JPEG quality 80. One zip per section on the release
   `slide-tiles-v1`; the app downloads a section's zip when its viewer first opens, checks its
