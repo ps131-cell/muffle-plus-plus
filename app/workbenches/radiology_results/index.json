@@ -1,0 +1,41 @@
+{
+ "source": {
+  "collection": "TCGA-BRCA radiology (The Cancer Imaging Archive)",
+  "doi": "10.7937/K9/TCIA.2016.AB2NAZRP",
+  "license": "CC BY 3.0",
+  "attribution": "Lingle W, Erickson BJ, Zuley ML, et al. The Cancer Genome Atlas Breast Invasive Carcinoma Collection (TCGA-BRCA), version 3. The Cancer Imaging Archive, 2016. doi:10.7937/K9/TCIA.2016.AB2NAZRP. Downsampled to 8-bit copies here; not the diagnostic originals."
+ },
+ "cases": {
+  "563": [
+   {
+    "barcode": "TCGA-BH-A0H5",
+    "study": "2001-06-20",
+    "modality": "MR",
+    "name": "Breast MRI (dynamic contrast-enhanced), public TCIA study (2001-06-20)",
+    "result": "GE MEDICAL SYSTEMS SIGNA EXCITE 1.5 T, 5 phases; model contour C1 18.8 mm, plateau delayed phase (model inference)",
+    "folder": "TCGA-BH-A0H5"
+   }
+  ],
+  "926": [
+   {
+    "barcode": "TCGA-EW-A1J2",
+    "study": "2002-10-26",
+    "modality": "MG",
+    "name": "Mammography (four standard views), public TCIA study (2002-10-26)",
+    "result": "4 views; dense-pixel share (placeholder rule) 27% on the CC views",
+    "folder": "TCGA-EW-A1J2"
+   }
+  ],
+  "937": [
+   {
+    "barcode": "TCGA-EW-A1P3",
+    "study": "2000-08-24",
+    "modality": "MR",
+    "name": "Breast MRI (dynamic contrast-enhanced), public TCIA study (2000-08-24)",
+    "result": "SIEMENS Sonata 1.5 T, 4 phases; model contour C1 26.2 mm, plateau delayed phase (model inference)",
+    "folder": "TCGA-EW-A1P3"
+   }
+  ]
+ },
+ "note": "TCGA-BRCA patients in the app's held-out set with a processed public study"
+}

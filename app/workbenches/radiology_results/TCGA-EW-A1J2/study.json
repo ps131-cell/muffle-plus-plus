@@ -1,0 +1,132 @@
+{
+ "barcode": "TCGA-EW-A1J2",
+ "cohort_index": 926,
+ "modality": "MG",
+ "kind": "Mammography (four standard views)",
+ "study": {
+  "date": "2002-10-26",
+  "uid_suffix": "640615435881",
+  "description": "DIGITAL BILAT SCREENING MAMMO",
+  "scanner": "LORAD Lorad Selenia",
+  "presentation": "FOR PRESENTATION"
+ },
+ "source": {
+  "collection": "TCGA-BRCA radiology (The Cancer Imaging Archive)",
+  "doi": "10.7937/K9/TCIA.2016.AB2NAZRP",
+  "license": "CC BY 3.0",
+  "attribution": "Lingle W, Erickson BJ, Zuley ML, et al. The Cancer Genome Atlas Breast Invasive Carcinoma Collection (TCGA-BRCA), version 3. The Cancer Imaging Archive, 2016. doi:10.7937/K9/TCIA.2016.AB2NAZRP. Downsampled to 8-bit copies here; not the diagnostic originals."
+ },
+ "report": {
+  "procedure": "DIGITAL BILAT SCREENING MAMMO",
+  "laterality": "Both breasts",
+  "birads": "6 - Known biopsy proven malignancy",
+  "pathology": "Invasive lobular carcinoma",
+  "er": "Positive",
+  "pr": "Positive",
+  "her2": "Negative"
+ },
+ "views": [
+  {
+   "key": "R-CC",
+   "laterality": "R",
+   "view": "CC",
+   "series": 1,
+   "image": "R-CC.jpg",
+   "native": [
+    3328,
+    2560
+   ],
+   "native_pixel_mm": [
+    0.07,
+    0.07
+   ],
+   "pixel_mm": 0.455,
+   "dense": {
+    "dense_fraction": 0.255,
+    "breast_pixels": 4341521,
+    "evidence": "model inference",
+    "status": "implemented, placeholder rule",
+    "source": "mammography dense pixels: above an Otsu threshold inside the breast; a pixel share, not a BI-RADS density category"
+   }
+  },
+  {
+   "key": "L-CC",
+   "laterality": "L",
+   "view": "CC",
+   "series": 2,
+   "image": "L-CC.jpg",
+   "native": [
+    3328,
+    2560
+   ],
+   "native_pixel_mm": [
+    0.07,
+    0.07
+   ],
+   "pixel_mm": 0.455,
+   "dense": {
+    "dense_fraction": 0.277,
+    "breast_pixels": 4498316,
+    "evidence": "model inference",
+    "status": "implemented, placeholder rule",
+    "source": "mammography dense pixels: above an Otsu threshold inside the breast; a pixel share, not a BI-RADS density category"
+   }
+  },
+  {
+   "key": "L-MLO",
+   "laterality": "L",
+   "view": "MLO",
+   "series": 3,
+   "image": "L-MLO.jpg",
+   "native": [
+    3328,
+    2560
+   ],
+   "native_pixel_mm": [
+    0.07,
+    0.07
+   ],
+   "pixel_mm": 0.455,
+   "dense": {
+    "dense_fraction": 0.29,
+    "breast_pixels": 5164401,
+    "evidence": "model inference",
+    "status": "implemented, placeholder rule",
+    "source": "mammography dense pixels: above an Otsu threshold inside the breast; a pixel share, not a BI-RADS density category"
+   }
+  },
+  {
+   "key": "R-MLO",
+   "laterality": "R",
+   "view": "MLO",
+   "series": 4,
+   "image": "R-MLO.jpg",
+   "native": [
+    3328,
+    2560
+   ],
+   "native_pixel_mm": [
+    0.07,
+    0.07
+   ],
+   "pixel_mm": 0.455,
+   "dense": {
+    "dense_fraction": 0.317,
+    "breast_pixels": 5221294,
+    "evidence": "model inference",
+    "status": "implemented, placeholder rule",
+    "source": "mammography dense pixels: above an Otsu threshold inside the breast; a pixel share, not a BI-RADS density category"
+   }
+  }
+ ],
+ "dense_cc_mean": 0.266,
+ "screening_score": {
+  "status": "planned",
+  "why": "mammoscreen (Apache-2.0) not run yet: its weights need remote code and a crop model; see docs/radiology.md"
+ },
+ "pipeline": {
+  "script": "scripts/radiology_pipeline.py mammo",
+  "version": "1",
+  "run_at": "2026-10-20 18:06 UTC"
+ }
+}

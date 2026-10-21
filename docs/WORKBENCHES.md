@@ -191,19 +191,26 @@ measurements, flags, risk map, certainty) carries over, re-implemented; its tiss
 
 ## 6. Radiology workbench (CT, MRI, PET, mammography)
 
-Planned [data, model]. Today the record holds imaging reports (text), not images, so the page is
-report-driven and honest about it.
+First version built 2026-10-20 (method, cutoffs and known failures: [`radiology.md`](radiology.md)).
+The synthetic record holds imaging reports (text), so its page is report-driven and honest about
+it; three held-out TCGA cases have public TCIA studies, which open the image viewer.
 
-- **Report-driven now** [now]: each imaging report as an event with "read as progression / stable"
-  observed, new sites listed, the lesion vocabulary extracted ("new liver lesions"), and a lesion
-  table that tracks named sites across reports with their dates.
-- **Image viewer** [data]: slice navigation, window and level, series selection, multiplanar
-  where the modality supports it; contours with their source (model or reader); registration
-  between dates with a confidence estimate and "unreliable here" marks; measurements with method,
-  reader and uncertainty; RECIST-style sums labeled as computed, not as a response call.
-- **Protocol and scanner differences** [data] flagged before any "larger" or "smaller".
-- **Spot panel per lesion** [data]: size over time, density or uptake, the reports that mention
-  it, the model that segmented it and its validation.
+- **Report-driven** [now, built]: each imaging read with "read as progression / stable" observed
+  in the report's words, new sites listed, the lesion vocabulary extracted ("new liver lesions"),
+  a lesion table that tracks named sites across reports with their dates ("no measurements
+  recorded"), and lead and lag against CA 15-3.
+- **Image viewer** [built on public studies]: slice navigation, window and level, series
+  selection (pre, early, delayed, subtraction), zoom, contours with their source (MedSAM from a
+  seed rule's box; no reader contours exist), measurements with method and uncertainty (longest
+  diameter ± a pixel, volume with a one-pixel range), DCE kinetics in the BI-RADS lexicon's terms
+  with literature cutoffs as placeholders. [planned] multiplanar views, registration between
+  dates with "unreliable here" marks, RECIST-style sums labeled as computed, mammography contours
+  and a screening score.
+- **Protocol and scanner differences** [data] flagged before any "larger" or "smaller": no
+  processed patient has two study dates yet (20 TCIA patients do; none is in the held-out set).
+- **Spot panel per lesion** [built for one study]: size, volume, kinetics curve, how its box was
+  chosen, the model and its published validation ("not validated on breast MRI here"); size over
+  time needs a prior [data].
 
 ## 7. Expression, methylation and protein workbench
 
@@ -269,9 +276,10 @@ discrepancy queue and "what would reduce uncertainty"; the lab workbench's Spot 
 kinetics, confirmation tracker, treatment windows, baseline band, lead-and-lag, cross-marker view,
 search and export; the genomics workbench's evidence ladder, resistance watchlist, provenance
 strip, conflicting evidence, Spot panel, search and export; the omics layer cards; the
-report-driven radiology page; the clinical documents workbench and test import (built
-2026-10-20). The pathology and radiology viewers and every **model** item show as planned with
-their design and their data plan.
+report-driven radiology page with a first image viewer on public TCIA studies, and the
+clinical documents workbench and test import (both built 2026-10-20). The pathology viewer's
+planned parts and every remaining **model** item show as planned with their design and their
+data plan.
 
 ## 11. What is never claimed
 
