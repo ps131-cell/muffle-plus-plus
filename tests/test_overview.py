@@ -63,7 +63,7 @@ def check_contract(pf: PatientFile, i: int, lookup=None):
             assert tuple(c) == CARD_KEYS and c["trust"] in TRUST
             assert any(label in c["evidence"] for label in LABELS), c
             assert c["text"] and c["source"] and c["method"] and c["threshold"]
-            assert not c["opens"] or c["opens"][0] in ("Tests", "Timeline")
+            assert not c["opens"] or c["opens"][0] in ("Tests", "Timeline", "Evolution")
             if c["opens"][:1] == ("Tests",):  # it opens a test the file holds at this version
                 assert tuple(c["opens"][1:]) in {(t.kind, t.month, t.name) for v in
                                                  pf.versions[: i + 1] for t in v.tests}
@@ -129,7 +129,7 @@ def test_a_tcga_case_built_from_the_test_cohort(cohort, small_cfg, tmp_path):
         ("PIK3CA H1047R", 1, "moderate")]
     head = overview.header(pf, 0, sums, overview.attention(pf, 0, overview.queues(pf, 0), []))
     assert [c["what"] for c in head] == ["Stage and receptors", "Key drivers", "Cohort risk",
-                                         "SOS"]
+                                         "What to watch next", "SOS"]
     assert head[-1]["text"] == "nothing alarming in this version or before"
 
 
@@ -299,7 +299,8 @@ def test_one_queue_merges_alerts_discrepancies_and_workbench_items():
     pf = synthetic()
     dis = crosstest.discrepancies(pf, 11)
     q = overview.attention(pf, 11, overview.queues(pf, 11), dis)
-    assert [x["n"] for x in q] == list(range(1, len(q) + 1)) and len(q) == 8
+    assert [x["n"] for x in q] == list(range(1, len(q) + 1)) and len(q) == 11
+    assert [x["kind"] for x in q].count("evolution") == 3  # rows the record raises, weak trust
     assert all(a["priority"] >= b["priority"] for a, b in zip(q, q[1:], strict=False))
     assert q[0]["what"].startswith("Progression on imaging") and q[0]["new"]
     rise = next(x for x in q if x["what"].startswith("CA 15-3 rose"))
@@ -324,7 +325,8 @@ def test_the_header_cards_and_open_sos_alerts():
     q = overview.attention(pf, 11, overview.queues(pf, 11), crosstest.discrepancies(pf, 11))
     head = overview.header(pf, 11, sums, q, {})
     assert [c["what"] for c in head] == ["Stage and receptors", "Key drivers", "Imaging",
-                                         "12-month risk", "SOS"]
+                                         "12-month risk", "What to watch next", "SOS"]
+    assert head[4]["evidence"] == HYPOTHESIS and head[4]["opens"] == ("Evolution",)
     stage = head[0]
     assert [k for k, *_ in stage["sides"]] == ["Recorded", "Documented"]
     assert head[2]["text"] == "month 12: Imaging: new liver lesions, read as progression"

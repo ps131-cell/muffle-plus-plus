@@ -412,10 +412,10 @@ def report_view(pf: workspace.PatientFile, i: int):
         st.markdown(f"**Tests that disagree** · {len(disagree)}")
         for d in disagree:
             with st.container(border=True):
-                st.markdown(f"**{md(d['what'])}** {tags(d['evidence'])} "
+                st.markdown(f"**{esc(d['what'])}** {tags(d['evidence'])} "
                             f":{TRUST_COLORS[d['trust']]}-badge[trust: {d['trust']}]")
-                st.caption(" vs ".join(d["sources"]) + f" · {md(d['why'])}")
-                st.markdown(f"What would settle it: {md(d['would_settle'])}")
+                st.caption(" vs ".join(d["sources"]) + f" · {esc(d['why'])}")
+                st.markdown(f"What would settle it: {esc(d['would_settle'])}")
                 if d["basis"] and d["basis"] not in d["would_settle"]:
                     st.caption(f"Basis: {d['basis']}")
     reducers = ov["reducers"]
@@ -442,12 +442,7 @@ def report_view(pf: workspace.PatientFile, i: int):
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
 MARKS = workspace.MARKS[1:]  # "reviewed" comes from the "Mark reviewed" button
-KINDS = {"SOS": ":red-badge[SOS]", "discrepancy": ":violet-badge[tests disagree]"}
-
-
-def md(text) -> str:
-    """Text for st.markdown: a variant such as "TP53 R196*" must not open italics."""
-    return str(text).replace("*", r"\*")
+KINDS = {"SOS": chip("SOS", "red"), "discrepancy": chip("tests disagree")}
 
 
 def overview_data(pf: workspace.PatientFile, i: int) -> dict:
@@ -487,16 +482,16 @@ def finding_card(pf: workspace.PatientFile, i: int, c: dict):
              f"**{c['what']}**")
     st.markdown(f"{title}  \n{tags(c['evidence'])}")
     if "sides" in c:
-        st.markdown("  \n".join(f"*{k}:* {md(text)}" for k, text, _ in c["sides"]))
+        st.markdown("  \n".join(f"*{k}:* {esc(text)}" for k, text, _ in c["sides"]))
     else:
-        st.markdown(md(c["text"]))
-    placeholder = " :orange-badge[placeholder threshold]" if "placeholder" in c["threshold"] \
+        st.markdown(esc(c["text"]))
+    placeholder = " " + chip("placeholder threshold") if "placeholder" in c["threshold"] \
         else ""
     st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}")
     with st.container(horizontal=True, gap="small"):  # wraps in a narrow card
         with st.popover("Why?"):
-            st.markdown(f"**Source test:** {md(c['source'])}  \n**Method and version:** "
-                        f"{md(c['method'])}  \n**Threshold:** {md(c['threshold'])}  \n"
+            st.markdown(f"**Source test:** {esc(c['source'])}  \n**Method and version:** "
+                        f"{esc(c['method'])}  \n**Threshold:** {esc(c['threshold'])}  \n"
                         f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
         if c["opens"]:
             st.button("Open", key=f"card-{pf.id}-{i}-{c['what']}", on_click=open_evidence,
@@ -551,8 +546,8 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
                 line, act = st.columns([10, 1], vertical_alignment="center")
                 done = reviews.get(x["key"])
                 text = (f"{x['n']} · " + (f"`{x['pointer']}` " if x["pointer"] else "")
-                        + md(x["what"]) + f" · {kind_badge(x)}"
-                        + (" :blue-badge[new]" if x["new"] else "")
+                        + esc(x["what"]) + f" · {kind_badge(x)}"
+                        + (" · **new**" if x["new"] else "")
                         + f" :{TRUST_COLORS[x['trust']]}-badge[{x['trust']}]"
                         + (f" · ✓ {done['mark']}" if done else "")
                         + (" · 📌" if x["key"] in pins else ""))
@@ -566,28 +561,28 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
 
 
 def kind_badge(x: dict) -> str:
-    return KINDS.get(x["kind"]) or f":gray-badge[{overview.NAMES.get(x['kind'], x['kind'])}]"
+    return KINDS.get(x["kind"]) or chip(overview.NAMES.get(x["kind"], x["kind"]))
 
 
 def queue_item(x: dict, k: int, total: int, reviews: dict):
     """The current item in full: what, why, the evidence label, trust, consequence, where else
     it was raised, what would settle it, and its review box."""
     done = reviews.get(x["key"])
-    placeholder = " :orange-badge[placeholder threshold]" if "placeholder" in x["threshold"] \
+    placeholder = " " + chip("placeholder threshold") if "placeholder" in x["threshold"] \
         else ""
     st.markdown(f"**{k + 1}/{total} · " + (f"`{x['pointer']}` " if x["pointer"] else "")
-                + f"{md(x['what'])}** {tags(x['evidence'])} {kind_badge(x)} "
+                + f"{esc(x['what'])}** {tags(x['evidence'])} {kind_badge(x)} "
                 f":{TRUST_COLORS[x['trust']]}-badge[trust: {x['trust']}]"
-                f" :gray-badge[consequence {x['consequence']}]{placeholder}")
+                f" {chip('consequence ' + str(x['consequence']))}{placeholder}")
     shown = x["threshold"] and x["threshold"] not in x["settle"]  # a basis the settle line cites
     label = "basis" if x["kind"] == "discrepancy" else "threshold"
-    st.caption(f"{md(x['source'])} · {md(x['why'])}"
-               + (f" · {label}: {md(x['threshold'])}" if shown else "")
+    st.caption(f"{esc(x['source'])} · {esc(x['why'])}"
+               + (f" · {label}: {esc(x['threshold'])}" if shown else "")
                + (f" · also raised by {', '.join(x['also'])}" if x["also"] else "")
                + (f" · {done['mark']} by {done['by'] or 'no initials'}, {done['at']}"
                   if done else ""))
     if x["settle"]:
-        st.markdown(f"What would settle it: {md(x['settle'])}")
+        st.markdown(f"What would settle it: {esc(x['settle'])}")
     review_box(x["key"], x["what"])
 
 

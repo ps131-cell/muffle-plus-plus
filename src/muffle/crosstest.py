@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from statistics import median
 
+from muffle import evolution
 from muffle.demo import ordinal
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import documents, omics, slides
@@ -523,6 +524,9 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                      if rx in ENDOCRINE]
         if seq and endocrine and now > seq[-1]:
             rx = ", ".join(f"{name} (month {m})" for name, m in endocrine)
+            # the ESR1 rows the Evolution view raises for this file, with their own sources
+            esr1 = [it for it in evolution.hypothesis_set(pf, i)["items"]
+                    if "ESR1" in it["genes"]][:1]
             out.append({
                 "open_question": f"Has the tumor acquired resistance alterations (ESR1 and "
                                  f"others) since the sequencing at month {seq[-1]}, under "
@@ -531,8 +535,12 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                 "expectation": "an emerging ESR1 mutation would be an observed finding that "
                                "changes the evidence base; none found narrows the hypothesis. "
                                "The cited trials followed patients on aromatase inhibitors; "
-                               "this record's agents differ, so the transfer is a hypothesis.",
-                "source": CTDNA_SOURCE, "evidence": HYPOTHESIS})
+                               "this record's agents differ, so the transfer is a hypothesis."
+                               + "".join(f" The Evolution view ranks “{it['event']}” "
+                                         f"here; when it would matter: {it['matters']}"
+                                         for it in esr1),
+                "source": CTDNA_SOURCE + "".join(f"; {it['frequency']}" for it in esr1),
+                "evidence": HYPOTHESIS})
 
         # imaging older than IMAGING_AGE months while a marker rose since it
         imaging = _imaging(pf, i)
