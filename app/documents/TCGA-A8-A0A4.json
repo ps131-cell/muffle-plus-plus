@@ -1,0 +1,16 @@
+{
+ "barcode": "TCGA-A8-A0A4",
+ "case_index": 234,
+ "license": "CC BY 4.0",
+ "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "documents": [
+  {
+   "id": "TCGA-A8-A0A4.25F8F043-2CD0-4344-9B4A-5BBB691B5BF9",
+   "title": "Pathology report (TCGA-Reports)",
+   "kind": "Document",
+   "month": null,
+   "text": "Diagnosis: 1. Invasive lobular breast carcinoma in the classical differentiation. variant (G II) with extensive infiltration of the skin but no ulceration of the skin (tumor. diameter 3 cm, minimum distance from dorsal resection margin 2.5 cm). Summary tumor classification: invasive lobular breast carcinoma, G II,. pT2pN0(0/10)LOVORO, positive for estrogen and progesterone receptors, negative for. C-erb B-2 oncoprotein. Follow-up finding: three times) A metastatic infiltration and also an influx of. individual cells of the invasive lobular beast carcinoma into the excised axillary lymph. node is definitely excluded. The pNO status is thus confirmed.",
+   "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report for TCGA-A8-A0A4"
+  }
+ ]
+}

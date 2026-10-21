@@ -18,6 +18,8 @@ tier and add it here **before** using it.
 | **MSigDB Hallmark gene sets** v2025.1.Hs (Liberzon et al., *Cell Syst* 2015, [10.1016/j.cels.2015.12.004](https://doi.org/10.1016/j.cels.2015.12.004)) | pathway scores in the omics workbench | open download (no account) | **CC BY 4.0**; attribution | `scripts/omics_scores.py` | set names and sizes, set membership of the genes the model reads, per-case set scores |
 | **TCGA published PAM50 calls and receptor IHC** via cBioPortal: `brca_tcga_pan_can_atlas_2018` (SUBTYPE; Hoadley et al., *Cell* 2018) and `brca_tcga` (Firehose 2016-01-28: ER_STATUS_BY_IHC, PR_STATUS_BY_IHC, IHC_HER2, HER2_FISH_STATUS) | validating the subtype call; receptor consistency against recorded IHC | open (cBioPortal public API) | TCGA open-access clinical data; cite TCGA and cBioPortal | `scripts/omics_scores.py` | agreement numbers and the confusion matrix (aggregate); per bundled case its published call and recorded ER / PR / HER2 status, as with the stage already shown |
 | **HM450 probe map** (`HM450.hg38.manifest.gencode.v36.probeMap`, UCSC Xena GDC hub) | the gene a methylation CpG lies near, in the omics Spot panel | open | as TCGA above | `scripts/omics_scores.py` | CpG → gene names for the 500 CpGs the model reads |
+| **TCGA-Reports** (Kefeli and Tatonetti, *Patterns* 2024, [10.1016/j.patter.2024.100933](https://doi.org/10.1016/j.patter.2024.100933); Mendeley Data [10.17632/hyg5xkznpx.1](https://doi.org/10.17632/hyg5xkznpx.1)): 9,523 OCR'd, cleaned TCGA pathology reports as text, keyed by barcode | the bundled TCGA cases' pathology reports in the clinical documents workbench; measuring the extraction rules on the 1,005 TCGA-BRCA reports | open download (`TCGA_Reports.csv.zip`, 11 MB) | **CC BY 4.0**: attribution, shown with each report and on the Methods page | `scripts/prepare_documents.py`, `muffle.workbench.documents` | the 38 bundled cases' report text (`app/documents/<barcode>.json`, 240 KB) with attribution; aggregate precision and recall (`app/documents/validation.json`, `docs/documents.md`) |
+| **TCGA-BRCA clinical matrix** (UCSC Xena TCGA hub, `TCGA.BRCA.sampleMap/BRCA_clinicalMatrix`): receptor status, pT, pN, stage, histology, margins, node counts | the reference the extraction is measured against | open (TCGA open-access clinical data) | as TCGA above | `scripts/prepare_documents.py` (read locally) | counts only; no patient-level field |
 | **Synthetic cohort** (`scripts/make_synthetic.py`) | development and tests | generated | MIT (this repo) | `muffle.data.synthetic` | code only |
 | **Synthetic timeline patient** SYNTHETIC-001 (hand-written) | the demo's patient timeline | generated | MIT (this repo) | `muffle.timeline` | its record and scores, labeled synthetic |
 
@@ -75,7 +77,7 @@ hosted app.
 |---|---|---|---|
 | Nebius Token Factory | hosts the Nemotron models (OpenAI-compatible API) | Nebius terms; hackathon credits | see Models above; never raw omics, nothing from MSK-CHORD |
 | Tavily | literature and clinical-trial search for the case note | Tavily API terms | one query per gene with the cancer type |
-| Streamlit Community Cloud | hosts the demo | Streamlit terms | the public repo and the demo bundle |
+| Streamlit Community Cloud | hosts the demo | Streamlit terms | the public repo and the demo bundle; files a user imports stay in that browser session's memory and are never written to disk |
 
 ## Code reused from the team's other project
 
@@ -96,7 +98,9 @@ disclose the reuse (CLAUDE.md).
 NVIDIA FLARE ≥ 2.8 (Apache-2.0) · PyTorch (BSD-3-Clause) · scikit-learn (BSD-3-Clause) ·
 scikit-survival (GPL-3.0; metrics only, not redistributed) · pandas, NumPy (BSD-3-Clause) ·
 Streamlit (Apache-2.0) · Altair (BSD-3-Clause) · openai-python (Apache-2.0) · tavily-python (MIT) ·
-SciPy (BSD-3-Clause) · for the slide pipeline only (not in the app): OpenSlide (LGPL-2.1, via
+SciPy (BSD-3-Clause) · pypdf (BSD-3-Clause; text layer of an imported PDF) · pydicom (MIT;
+header of an imported DICOM file, pixels not read) · Pillow (MIT-CMU; checks an imported
+image, already a Streamlit dependency) · for the slide pipeline only (not in the app): OpenSlide (LGPL-2.1, via
 `openslide-bin`), scikit-image (BSD-3-Clause), Transformers (Apache-2.0), TensorFlow CPU
 (Apache-2.0), StarDist and CSBDeep (BSD-3-Clause) · for `scripts/omics_scores.py` only (not in
 the app): rdata (MIT), to read genefu's `.rda` file.

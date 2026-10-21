@@ -12,3 +12,5 @@ altair>=5.4
 openai>=1.40
 tavily-python>=0.5
 python-dotenv>=1.0
+pypdf>=4.0             # Import tests: a PDF report's text layer
+pydicom>=2.4           # Import tests: a DICOM file's header (pixels not read)

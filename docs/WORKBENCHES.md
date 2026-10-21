@@ -232,9 +232,25 @@ Built 2026-10-20 (`app/workbenches/omics.py`, method and numbers in [`omics.md`]
 
 ## 8. Clinical documents workbench
 
-Planned [data]. Full-text search, extracted facts (diagnoses, procedures, drugs, dates) that open
-the exact source sentence, documented kept apart from inferred, conflicting reports preserved
-side by side, and a timeline built from the documents' own dates.
+Built 2026-10-20 (`app/workbenches/documents.py`; rules and their measurement in
+[`documents.md`](documents.md)) on SYNTHETIC-001's record entries, the TCGA cases' pathology
+reports (TCGA-Reports, CC BY 4.0) and imported reports and notes.
+
+- **Breast pathology facts with their source sentence** [now, rules]: histologic type, Nottingham
+  grade and components, size, margins, lymphovascular invasion, nodes, pT / pN, stage, ER / PR
+  (status, %, Allred), HER2 (status, IHC, ISH, ratio), Ki-67, laterality, specimen, drugs, ECOG,
+  dates; each highlighted at its characters, status "documented", nothing derived.
+- **Measured** [now]: precision and recall per field against TCGA's clinical fields on the
+  held-out half of 1,005 TCGA-BRCA reports and on the bundled cases (Methods and validation).
+- **Facts table that jumps to the sentence**, **documented kept apart from inferred** (the
+  report summary and the case note), **conflicts side by side**, **a timeline from the
+  documents' own dates**, **plain-word search** with "no document mentions that", **marks, pins
+  and exports** (JSON, CSV) [now].
+- **Import** [now]: a report (text or PDF) or a clinician note joins the file and is read the
+  same way.
+- **Diagnoses and procedures beyond breast pathology, negation and hedging, specimen linking**
+  [model]: need a clinical language model run locally and its own validation; a named-entity
+  model for highlights did not fit the hosted app (documents.md).
 
 ## 9. Cross-test intelligence
 
@@ -253,8 +269,9 @@ discrepancy queue and "what would reduce uncertainty"; the lab workbench's Spot 
 kinetics, confirmation tracker, treatment windows, baseline band, lead-and-lag, cross-marker view,
 search and export; the genomics workbench's evidence ladder, resistance watchlist, provenance
 strip, conflicting evidence, Spot panel, search and export; the omics layer cards; the
-report-driven radiology page. The pathology and radiology viewers, the clinical documents
-workbench and every **model** item show as planned with their design and their data plan.
+report-driven radiology page; the clinical documents workbench and test import (built
+2026-10-20). The pathology and radiology viewers and every **model** item show as planned with
+their design and their data plan.
 
 ## 11. What is never claimed
 

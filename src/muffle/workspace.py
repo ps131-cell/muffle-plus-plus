@@ -13,7 +13,7 @@ must never look validated (CLAUDE.md).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from muffle.data.tcga import DRIVERS as TCGA_PANEL
 from muffle.demo import ordinal
@@ -86,6 +86,7 @@ class Version:
     alerts: list[Alert] = field(default_factory=list)
     tests: list[Test] = field(default_factory=list)       # added in this version
     treatments: list[str] = field(default_factory=list)   # started in this version
+    imported: str = ""  # who added it in this session, and when ("" = from the record)
 
 
 @dataclass
@@ -115,6 +116,9 @@ def _event_tests(e: dict) -> list[Test]:
                         {"scope": "example region, first version"}))
     if e["kind"] == "Imaging":
         out.append(Test("Imaging", m, "Imaging report", e["text"], "imaging", PLANNED))
+    if e["kind"] == "Clinic visit":  # the note's text is a document of the record
+        out.append(Test("Clinic note", m, "Clinic visit", e["text"], "documents", IMPLEMENTED,
+                        {"document": f"m{m}-clinic-visit"}))
     if "mutations" in e:
         found = [f"{g} {c}" for g, c in e["mutations"]]
         out.append(Test("Sequencing", m, "Tumor sequencing", ", ".join(found)
@@ -123,8 +127,27 @@ def _event_tests(e: dict) -> list[Test]:
     for key, (name, unit) in MARKERS.items():
         if key in e:
             out.append(Test("Lab", m, name, f"{e[key]:g} {unit}", "labs", IMPLEMENTED,
-                            {"marker": key}))
+                            {"marker": key, "value": float(e[key])}))
     return out
+
+
+def marker_rise(key: str, value: float, before: float | None, month: int,
+                limit: tuple[float, str] | None = None) -> Alert | None:
+    """The tumor-marker rise alert (EGTM): ``value`` above the reference limit and at least
+    ``RISE`` above the previous value ``before``; None otherwise. ``limit`` is (value, where it
+    comes from), the record's ``REFERENCE_LIMITS`` entry by default; a marker without one never
+    raises it."""
+    name, unit = MARKERS[key]
+    limit = limit or REFERENCE_LIMITS.get(key)
+    if not (limit and before and value > limit[0] and value >= before * (1 + RISE)):
+        return None
+    return Alert(
+        f"{name} rose from {before:g} to {value:g} {unit} ({value / before - 1:+.0%}), above the "
+        f"reference limit of {limit[0]:g}", month, f"{name}, month {month}", OBSERVED,
+        f"above the reference limit and at least {RISE:.0%} above the previous value; "
+        "unconfirmed until a second specimen within a month",
+        f"limit from {limit[1]}; the {RISE:.0%} rise from {EGTM}", "moderate",
+        "measured values, but no confirming second specimen yet", 2, ("Tests", "Lab", month, name))
 
 
 def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
@@ -146,21 +169,11 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
                 alerts.append(Alert(f"New metastatic site: {site.lower()}", m, source, OBSERVED,
                                     "a site not in the record before", "none: recorded",
                                     "strong", "recorded in the imaging report", 3, imaging))
-        for key, (name, unit) in MARKERS.items():
-            if key not in e:
-                continue
-            value, before = float(e[key]), last.get(key)
-            last[key] = value
-            limit = REFERENCE_LIMITS.get(key)
-            if limit and before and value > limit[0] and value >= before * (1 + RISE):
-                alerts.append(Alert(
-                    f"{name} rose from {before:g} to {value:g} {unit} ({value / before - 1:+.0%}),"
-                    f" above the reference limit of {limit[0]:g}", m, f"{name}, month {m}",
-                    OBSERVED, f"above the reference limit and at least {RISE:.0%} above the "
-                    "previous value; unconfirmed until a second specimen within a month",
-                    f"limit from {limit[1]}; the {RISE:.0%} rise from {EGTM}", "moderate",
-                    "measured values, but no confirming second specimen yet", 2,
-                    ("Tests", "Lab", m, name)))
+        for key in MARKERS:
+            if key in e:
+                rise = marker_rise(key, float(e[key]), last.get(key), m)
+                last[key] = float(e[key])
+                alerts += [rise] if rise else []
         for gene, change in e.get("mutations", []):
             variant = f"{gene} {change}"
             if variant in seen_drivers:
@@ -205,12 +218,14 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
          "endpoint": tl["task"], "status": VALIDATED, "note": tl["model_note"]})
 
 
-def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
-              ) -> PatientFile:
+def case_file(case, c_index: float | None = None, slides: list[str] | tuple = (),
+              documents: list[dict] | tuple = ()) -> PatientFile:
     """A held-out TCGA case (``muffle.demo.Case``): one report version, its data layers and
     mutation panel as tests, and no alerts, since nothing earlier exists to compare with.
     ``slides``: the names of this patient's scored diagnostic sections, when the slide pipeline
-    ran on them (``app/workbenches/slides_results/cases.json``); they add a pathology test."""
+    ran on them (``app/workbenches/slides_results/cases.json``); they add a pathology test.
+    ``documents``: its pathology reports (``muffle.workbench.documents.case_documents``), each a
+    Document test."""
     muts = None if case.mutations is None else [m.replace(" p.", " ") for m in case.mutations]
     tests = [Test("Clinical record" if m == "clinical" else "Data layer", None, ASSAYS[m],
                   "measured", "record" if m == "clinical" else "omics", IMPLEMENTED, {"layer": m})
@@ -225,6 +240,9 @@ def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
                           "cancer drivers (exome sequencing)", ", ".join(muts) or "none of the "
                           "panel's genes mutated", "mutations", IMPLEMENTED,
                           {"variants": muts, "panel": TCGA_PANEL}))
+    tests += [Test("Document", None, d["title"], "pathology report text, read by the documents "
+                   "rules", "documents", IMPLEMENTED, {"document": d["id"], **d})
+              for d in documents]
     observed = [
         ["Stage", case.stage or "not recorded"],
         ["Age band", age_band(case.age)],
@@ -249,6 +267,53 @@ def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
         {"name": "FedAvg clinical-anchored residual model (NVIDIA FLARE, 3 simulated hospitals)",
          "endpoint": "overall survival, as a relative risk shown by cohort percentile",
          "status": VALIDATED})
+
+
+def add_version(pf: PatientFile, tests: list[Test], month: int, event: str, by: str, at: str,
+                observed: list[list[str]] = ()) -> PatientFile:
+    """``pf`` with one more report version, for tests that arrived (an import); earlier versions
+    stay as they were. ``observed`` rows replace the latest version's rows of the same name or
+    are added. The marker-rise rule runs on each new lab value (``details``: "marker", "value"
+    and optionally "limit") against the file's previous value of that marker. The other alert
+    rules need what an import does not carry (an imaging read, a sequenced driver, a new risk
+    estimate). The risk is not re-estimated: the synthetic patient's models are not run on new
+    data here, so its version has none; a TCGA risk rests on the tumor sample alone, which an
+    import doesn't change, so it carries over."""
+    prev, last = pf.latest, {}
+    for t in pf.tests:
+        if t.kind == "Lab" and "value" in t.details:
+            last[t.details["marker"]] = t.details["value"]
+    alerts = []
+    for t in sorted(tests, key=lambda t: t.month):
+        d = t.details
+        if t.kind == "Lab" and "value" in d:
+            rise = marker_rise(d["marker"], d["value"], last.get(d["marker"]), t.month,
+                               d.get("limit"))
+            last[d["marker"]] = d["value"]
+            alerts += [rise] if rise else []
+    alerts.sort(key=lambda a: -a.priority)
+    rows = dict(prev.observed) | dict(observed)
+    if pf.kind == "synthetic":
+        risk = None
+        estimate = next((v.label for v in reversed(pf.versions) if v.risk), None)
+        summary = ("No new risk estimate: the risk models are not run on imported results"
+                   + (f"; the last estimate is in the version {estimate}." if estimate else "."))
+    else:
+        risk, summary = prev.risk, (f"{prev.summary} The estimate rests on the tumor sample "
+                                    "alone, which this import does not change.")
+    who = f"imported by {by or 'no initials'} at {at}"
+    v = Version(month, f"month {month} · {who}", event, [[k, val] for k, val in rows.items()],
+                risk, summary, alerts=alerts, tests=list(tests),
+                imported=f"{who}; kept for this browser session only")
+    return replace(pf, versions=[*pf.versions, v])
+
+
+def record_events(pf: PatientFile, events: list[dict] = EVENTS) -> list[dict]:
+    """The file's record as events (the shape of ``muffle.timeline.EVENTS``) for the lab
+    workbench: the synthetic patient's record, then each imported lab value."""
+    imported = [t.details["event"] for t in pf.tests if "event" in t.details]
+    return sorted((list(events) if pf.kind == "synthetic" else []) + imported,
+                  key=lambda e: e["month"])
 
 
 def lab_series(events: list[dict], key: str) -> list[dict]:
@@ -313,6 +378,7 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "slide": "the slide ('TCGA-AN-A0AS-DX1'), the tile ('r12c34')",
     "omics": "the layer or block ('rna', 'subtype', 'pathway', 'receptor', 'score'), the feature "
              "or finding ('ESR1', 'E2F_TARGETS', 'ER: IHC vs RNA')",
+    "document": "the document's id, the fact ('ER status: positive')",
 }
 
 
@@ -390,6 +456,11 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     out += ["", "## Model and sources",
             f"- {pf.model['name']} ({pf.model['status']}); endpoint: {pf.model['endpoint']}"]
     out += [f"- {s}" for s in sources]
+    imports = [w for w in pf.versions[: i + 1] if w.imported]
+    if imports:
+        out += ["", "## Imported in this session (kept for this browser session only)"]
+        out += [f"- {w.label}: {w.event}; tests: " + ", ".join(
+            f"{t.kind} {t.name} ({t.status})" for t in w.tests) for w in imports]
     marks = [r for k, r in reviews.items() if k.startswith(pf.id + "|")]
     out += ["", "## Review marks"] + ([f"- {r['what']}: {r['mark']} ({r['by'] or 'no initials'}, "
                                        f"{r['at']})" for r in marks] or ["- none"])

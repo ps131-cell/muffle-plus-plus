@@ -1,0 +1,16 @@
+{
+ "barcode": "TCGA-E9-A1N9",
+ "case_index": 864,
+ "license": "CC BY 4.0",
+ "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
+ "documents": [
+  {
+   "id": "TCGA-E9-A1N9.39D6D1DE-2CAE-470F-836B-926242F46E67",
+   "title": "Pathology report (TCGA-Reports)",
+   "kind": "Document",
+   "month": null,
+   "text": "BREAST TISSUE CHECKLIST. Specimen type: Radical mastectomy. Specimen size: Not specified. Tumor site: Breast. Tumor size: 3.2 X 2.5 X 1.5 cm. Grossly evident lesion: Yes. Histologic type: Infiltrating ductal and lobular carcinoma. Histologic grade: Tumor extent: Not specified. Lymph nodes: 0/8 positive for metastasis (Regional 0/8). Right) lower. Extracapsular invasion of the lymph nodes: Not specified. outer. Margins: Not specified. quasrant. Nottingham Histologic Score. Tubule formation: Not specified. Nuclear pleomorphism: Not specified. Mitotic count (25x): Not specified. Mitotic count (40x): Not specified. Total Nottingham Score: Score cannot be determined. Evidence of neo-adjuvant treatment: Not specified. Additional pathologic findings: Not specified. Comments: None.",
+   "source": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report for TCGA-E9-A1N9"
+  }
+ ]
+}
