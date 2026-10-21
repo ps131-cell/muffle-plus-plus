@@ -283,6 +283,17 @@ def _rna_protein(case, demo, omics_scores: dict | None, genes: list[str]) -> dic
     return out
 
 
+def _picked(ev, param: str, state: str) -> None:
+    """A gene clicked on a chart becomes ``st.session_state[state]``, once per click: a choice
+    made afterwards elsewhere (the gene box) is not overridden by the chart's standing
+    selection."""
+    sel = ((ev or {}).get("selection") or {}).get(param) if ev else None
+    gene = sel[0].get("gene") if isinstance(sel, list) and sel else None
+    if gene and st.session_state.get(f"{state}-clicked") != gene:
+        st.session_state[state] = gene
+    st.session_state[f"{state}-clicked"] = gene
+
+
 def _cn_chart(rows: list[dict]) -> alt.LayerChart:
     df = pd.DataFrame([{**r, "y": max(-2.6, min(2.6, r["log2"])) if r["log2"] is not None
                         else None, "pathways": ", ".join(r["pathways"]) or "none",
@@ -293,12 +304,13 @@ def _cn_chart(rows: list[dict]) -> alt.LayerChart:
     chroms = df.groupby("chrom", sort=False).agg(lo=("rank", "min"), hi=("rank", "max"))
     chroms = chroms.reset_index().assign(mid=lambda d: (d["lo"] + d["hi"]) / 2,
                                          shade=lambda d: d.index % 2 == 0)
-    sel = alt.selection_point(name="gene", fields=["gene"], on="click", clear="dblclick")
+    sel = alt.selection_point(name="gene", fields=["gene"], on="click", clear="dblclick",
+                              nearest=True)
     x = alt.X("rank:Q", axis=None, scale=alt.Scale(domain=[-1, len(df)]))
     bands = alt.Chart(chroms[chroms["shade"]]).mark_rect(opacity=0.07, color="gray").encode(
-        x=alt.X("lo:Q"), x2="hi:Q")
+        x=alt.X("lo:Q", axis=None), x2="hi:Q")  # every layer hides x: mixed axes break Vega-Lite
     labels = alt.Chart(chroms).mark_text(dy=-4, fontSize=10, color="gray").encode(
-        x=alt.X("mid:Q"), y=alt.value(0), text="chrom:N")
+        x=alt.X("mid:Q", axis=None), y=alt.value(0), text="chrom:N")
     tip = [alt.Tooltip("gene:N", title="gene"), alt.Tooltip("chrom:N", title="chromosome"),
            alt.Tooltip("start_mb:Q", title="position (Mb)"), alt.Tooltip("copies:Q"),
            alt.Tooltip("ploidy:Q", title="ploidy estimate"),
@@ -319,7 +331,7 @@ def _cn_chart(rows: list[dict]) -> alt.LayerChart:
     ploidy = alt.Chart(pd.DataFrame({"y": [0.0]})).mark_rule(color="gray").encode(y="y:Q")
     amp = alt.Chart(pd.DataFrame({"y": [1.0], "t": ["amplification: ≥ 2× ploidy (placeholder)"]}))
     amp = amp.mark_rule(color="#c8362b", strokeDash=[6, 4]).encode(y="y:Q") + amp.mark_text(
-        align="left", dx=4, dy=-6, fontSize=10, color="#c8362b").encode(x=alt.value(0), y="y:Q",
+        align="left", dx=4, dy=10, fontSize=10, color="#c8362b").encode(x=alt.value(0), y="y:Q",
                                                                          text="t:N")
     return (bands + ploidy + amp + points + names + labels).properties(height=320)
 
@@ -472,8 +484,8 @@ def _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key) -> None:
                    "ABSOLUTE purity: not called for this tumor"))
     pc = gx.ploidy_check(block)
     if pc and pc["disagree"]:
-        st.warning(pc["text"][0].upper() + pc["text"][1:] + f" (a gap of {gx.PLOIDY_GAP:g} or "
-                   "more copies, placeholder).")
+        st.warning(pc["text"][0].upper() + pc["text"][1:] + f" (flagged at {gx.PLOIDY_RATIO:g}-"
+                   "fold or more, a placeholder).")
     if ab:
         st.radio("Calls relative to", ["the median gene copy number (the model's rule)",
                                        f"ABSOLUTE's ploidy ({ab['ploidy']:.2f})"],
@@ -482,8 +494,10 @@ def _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key) -> None:
                       "expression workbench's ERBB2 line uses the median rule.")
     st.caption(" · ".join(f"{c['name']}: {c['rule']} [{c['tag']}]" for c in gx.CUTOFFS[1:])
                + f". {gx.LEVELS_NOTE}")
-    show = st.radio("Genes", ["all measured", "breast drivers and pathway genes", "altered only"],
-                    horizontal=True, key=f"{key}-cnshow")
+    show = st.radio("Genes", ["breast drivers and pathway genes", "all measured", "altered only"],
+                    horizontal=True, key=f"{key}-cnshow",
+                    help="All measured adds the model's 200 most variable copy-number genes, "
+                         "which cluster in a few amplicons (8p11-12, 8q24, 11q13, 17q).")
     shown = [r for r in rows if show == "all measured"
              or (show == "altered only" and r["call"] in gx.ALTERED)
              or (show.startswith("breast") and (r["interest"] or r["pathways"]))]
@@ -491,9 +505,7 @@ def _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key) -> None:
     if shown:
         ev = st.altair_chart(_cn_chart(shown), on_select="rerun", selection_mode=["gene"],
                              key=f"{key}-cnchart-{show}", width="stretch")
-        sel = ((ev or {}).get("selection") or {}).get("gene") if ev else None
-        if isinstance(sel, list) and sel and sel[0].get("gene"):
-            st.session_state[gene_key] = sel[0]["gene"]
+        _picked(ev, "gene", gene_key)
         st.caption("Genes in genome order, evenly spaced (not to scale); larger points: the breast "
                    "drivers of interest. Hover for the numbers, click a gene for its Spot panel "
                    "(double-click clears).")
@@ -534,13 +546,13 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
         c[0].metric("Somatic calls (observed)", bur["calls"])
         c[1].metric("Protein-altering (observed)", bur["altering"])
         c[2].metric(f"Per Mb (derived, ÷ {bur['exome_mb']:g})", f"{bur['rate']:.2f}")
-        c[3].metric("Cohort percentile", gx._pct(bur["pct"]))
+        c[3].metric("Cohort percentile", gx._pct(bur["pct"]).split(" ")[0])
         q = (data or {}).get("burden", {}).get("rate_quantiles") or []
         if q:
             df = pd.DataFrame({"rate": q, "pct": [i * 100 / (len(q) - 1) for i in range(len(q))]})
             line = alt.Chart(df).mark_line(color="gray").encode(
                 x=alt.X("rate:Q", title="somatic calls per Mb (log scale)",
-                        scale=alt.Scale(type="symlog")),
+                        scale=alt.Scale(type="log"), axis=alt.Axis(format="~g")),
                 y=alt.Y("pct:Q", title="cohort percentile"))
             me = alt.Chart(pd.DataFrame({"rate": [bur["rate"]], "pct": [bur["pct"]],
                                          "t": ["this tumor"]}))
@@ -582,16 +594,17 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
                         "c_hi": (a["clonal_range"] or (None, None))[1]}
                        for a in afs if a["lo"] is not None])
     if not df.empty:
-        y = alt.Y("variant:N", title=None)
+        y = alt.Y("variant:N", title=None, axis=alt.Axis(labelLimit=220))
         band = alt.Chart(df.dropna(subset=["c_lo"])).mark_bar(opacity=0.25, color="#7b3fa0",
-                                                             height=14).encode(
-            x=alt.X("c_lo:Q", title="allele fraction", scale=alt.Scale(domain=[0, 1])),
+                                                             height=18).encode(
+            x=alt.X("c_lo:Q", title="allele fraction", scale=alt.Scale(domain=[0, 1]),
+                    axis=alt.Axis(format="%", tickCount=5)),
             x2="c_hi:Q", y=y, tooltip=[alt.Tooltip("c_lo:Q", format=".1%", title="clonal from"),
                                        alt.Tooltip("c_hi:Q", format=".1%", title="clonal to")])
         err = alt.Chart(df).mark_rule(color="black").encode(x="lo:Q", x2="hi:Q", y=y)
         pt = alt.Chart(df).mark_point(filled=True, color="black", size=60).encode(
             x="vaf:Q", y=y, tooltip=[alt.Tooltip("vaf:Q", format=".1%")])
-        st.altair_chart((band + err + pt).properties(height=40 + 34 * len(df)), width="stretch")
+        st.altair_chart((band + err + pt).properties(height=50 + 44 * len(df)), width="stretch")
         st.caption("Black: observed allele fraction with its 95% interval (observed). Shaded: the "
                    "fraction a clonal mutation would show at this purity and copy number, one "
                    "mutant copy to all (model inference, Carter et al. 2012). Purity is ABSOLUTE's "
@@ -637,10 +650,14 @@ def _effect_view(vs, effects, afs) -> None:
 def _pathway_chart(nodes: list[dict]) -> alt.LayerChart:
     df = pd.DataFrame([{**n, "variants": ", ".join(n["variants"]) or "none",
                         "marks": ", ".join(n["statuses"]) or n["status"],
-                        "copies_text": "" if n["copies"] is None else f"{n['copies']:g}"}
+                        "copies_text": "" if n["copies"] is None else f"{n['copies']:g}",
+                        "ring": n["statuses"][1] if n["status"] == "mutated"
+                        and len(n["statuses"]) > 1 else "none"}
                        for n in nodes])
+    rings = ["amplification", "gain", "loss", "deep deletion", "none"]
     order = list(gx.PATHWAYS)
-    sel = alt.selection_point(name="node", fields=["gene"], on="click", clear="dblclick")
+    sel = alt.selection_point(name="node", fields=["gene"], on="click", clear="dblclick",
+                              nearest=True)
     x = alt.X("pathway:N", sort=order, title=None, axis=alt.Axis(labelAngle=0, orient="top",
                                                                  labelLimit=140))
     y = alt.Y("slot:O", axis=None)
@@ -648,9 +665,12 @@ def _pathway_chart(nodes: list[dict]) -> alt.LayerChart:
                                                                         "tumor"),
            alt.Tooltip("variants:N", title="variants"), alt.Tooltip("call:N", title="copy number"),
            alt.Tooltip("copies_text:N", title="copies")]
-    dots = alt.Chart(df).mark_circle(size=1500, stroke="#888", strokeWidth=1).encode(
-        x=x, y=y, color=alt.Color("status:N", title="this tumor", scale=alt.Scale(
+    dots = alt.Chart(df).mark_circle(size=1500, strokeWidth=4).encode(
+        x=x, y=y, fill=alt.Fill("status:N", title="this tumor", scale=alt.Scale(
             domain=gx.STATUS_ORDER, range=[NODE_COLORS[s] for s in gx.STATUS_ORDER])),
+        stroke=alt.Stroke("ring:N", title="ring: copy number of a mutated gene",
+                          scale=alt.Scale(domain=rings, range=[NODE_COLORS.get(r, "#999999")
+                                                               for r in rings])),
         opacity=alt.condition(sel, alt.value(1.0), alt.value(0.45)), tooltip=tip).add_params(sel)
     text = alt.Chart(df).mark_text(fontSize=11, fontWeight="bold").encode(
         x=x, y=y, text="gene:N", color=alt.condition(
@@ -665,9 +685,7 @@ def _pathway_view(file, nodes, g, vs, table, omics_view, reviews, key, gene_key,
     st.markdown(f"{badge('hypothesis')} {gx.PATHWAY_NOTE}")
     ev = st.altair_chart(_pathway_chart(nodes), on_select="rerun", selection_mode=["node"],
                          key=f"{key}-pathchart", width="stretch")
-    sel = ((ev or {}).get("selection") or {}).get("node") if ev else None
-    if isinstance(sel, list) and sel and sel[0].get("gene"):
-        st.session_state[f"{key}-pgene"] = sel[0]["gene"]
+    _picked(ev, "node", f"{key}-pgene")
     st.caption("Purple: a sequenced mutation; red and blue: copy-number amplification and deep "
                "deletion, lighter for gain and loss; gray: measured, not altered; white: not "
                "measured (unknown, not normal). Click a gene for its Spot panel.")

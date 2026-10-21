@@ -145,22 +145,22 @@ def case_block(data: dict | None, file, log_risk: float | None = None) -> dict |
     return block if pct is not None and abs(block["percentile"] - pct) <= 0.5 else None
 
 
-PLOIDY_GAP = 1.0  # PLACEHOLDER: the two ploidy estimates disagree when this far apart (copies)
+PLOIDY_RATIO = 1.5  # PLACEHOLDER: the two ploidy estimates disagree when one is 1.5x the other
 
 
 def ploidy_check(block: dict | None) -> dict | None:
     """The model's ploidy estimate (median gene copy number) against ABSOLUTE's; None without
-    both. When they are ``PLOIDY_GAP`` or more apart, every call relative to the median rule is
-    in doubt: a ploidy of 1 makes 2 copies an amplification."""
+    both. When one is ``PLOIDY_RATIO`` times the other or more, every call relative to the median
+    rule is in doubt: a ploidy of 1 makes 2 copies an amplification."""
     if not block or "ploidy" not in block or not block.get("absolute"):
         return None
     med, ab = block["ploidy"], block["absolute"]["ploidy"]
-    gap = abs(med - ab)
-    return {"median": med, "absolute": ab, "gap": round(gap, 2), "disagree": gap >= PLOIDY_GAP,
+    ratio = max(med, ab) / min(med, ab)
+    off = ratio >= PLOIDY_RATIO
+    return {"median": med, "absolute": ab, "ratio": round(ratio, 2), "disagree": off,
             "text": f"ploidy {med:g} by the median rule against {ab:.2f} by ABSOLUTE"
-                    + (f": {gap:.1f} copies apart, so calls relative to the median rule are in "
-                       "doubt; compare the calls relative to ABSOLUTE's ploidy"
-                       if gap >= PLOIDY_GAP else "")}
+                    + (f" ({ratio:.1f}-fold): calls relative to the median rule are in doubt; "
+                       "compare the calls relative to ABSOLUTE's ploidy" if off else "")}
 
 
 def landscape(block: dict, genes: dict, ploidy: float | None = None) -> list[dict]:
@@ -751,9 +751,10 @@ def card(data: dict | None, effects: dict | None,
         {"what": "purity and ploidy", "rule": "ABSOLUTE calls of TCGA PanCanAtlas",
          "source": f"{ref('carter2012')}; {ref('taylor2018')}", "tag": INFERENCE,
          "status": IMPLEMENTED},
-        {"what": "ploidy estimates disagree", "rule": f"median rule and ABSOLUTE {PLOIDY_GAP:g} "
-         "or more copies apart", "source": "this project's rule; the page then offers calls "
-         "relative to ABSOLUTE's ploidy", "tag": PLACEHOLDER, "status": IMPLEMENTED},
+        {"what": "ploidy estimates disagree", "rule": f"one of the median rule and ABSOLUTE at "
+         f"least {PLOIDY_RATIO:g} times the other", "source": "this project's rule; the page "
+         "warns and offers calls relative to ABSOLUTE's ploidy", "tag": PLACEHOLDER,
+         "status": IMPLEMENTED},
         {"what": "mutation burden rate", "rule": f"somatic calls / {EXOME_MB:g} Mb",
          "source": f"exome size as in {ref('chalmers2017')} for TCGA", "tag": LITERATURE,
          "status": IMPLEMENTED},
