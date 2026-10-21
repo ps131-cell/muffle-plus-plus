@@ -20,13 +20,13 @@ Newest at the top. One entry per decision: date, what, why.
   a re-read of a document).
 - **Why:** seven workbenches landed in a week, each knowing only itself; the user's product is
   one evidence-linked picture of a patient. A shared shape lets the report, the export and the
-  patient list read every workbench the same way, and lets radiology and evolution join by
-  adding two functions.
+  patient list read every workbench the same way, and lets the next workbench join by adding
+  two functions (radiology and evolution, which landed the same day, did).
 - **Consequence:** nothing new is computed for the overview: it reads what each workbench
   already decided, with its labels and threshold sources, and "open" lands on the pointer by
   setting the workbench page's own widget state. Trust and consequence per item are the rule
-  author's choice, listed in the export with the placeholder weights. Radiology and evolution
-  add nothing until their modules carry the two functions. Keyboard triage uses j, k, p, u and
+  author's choice, listed in the export with the placeholder weights. An SOS alert and the
+  workbench finding it is about share one review key. Keyboard triage uses j, k, p, u and
   o; "mark reviewed" is m, because Streamlit reserves r (and c) for its own shortcuts.
 
 ## 2026-10-21 — Evolution view: receptor status from the file's documents when the record has none

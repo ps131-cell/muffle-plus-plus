@@ -69,8 +69,8 @@ measurement. Every workbench follows it.
      "month"}`, `{"variant"}`, `{"slide", "pointer", "tile"}`, `{"omics": key}`, `{"doc",
      "sentence"}`), and the report's "open" lands there.
    - Pure: no Streamlit, no model run, nothing new computed (`tests/test_overview.py`). Labs,
-     genomics, slides (with the invasion results), omics and documents carry them; radiology
-     and evolution join the overview as soon as their modules carry the two functions.
+     genomics, slides (with the invasion results), omics, documents, radiology and evolution
+     carry them; a new workbench joins the overview by adding the two functions.
 
 ## 2. Patient file and report
 
@@ -81,9 +81,10 @@ observed / inference / hypothesis blocks, risk, what changed):
   summaries: the open SOS alerts (alerts without a review mark), stage and receptors (recorded
   and documented side by side), the PAM50 call with its margin, key drivers with their best
   CIViC level, the slide picture (main tumor area, infiltrative arcs, breakaway candidates,
-  immune pattern) for scored sections, imaging (the latest report's own words until the
-  radiology workbench carries the contract), the 12-month or cohort risk, and the top
-  evolution hypothesis once that module carries it. Each card has its evidence label and
+  immune pattern) for scored sections, imaging (the lesion table of the imaging reports, or a
+  public study's headline: contour size, kinetics or screening score, with the study's
+  BI-RADS), the 12-month or cohort risk, and the top evolution hypothesis (what to watch
+  next, with why this file raises it). Each card has its evidence label and
   trust, "Why?" (source test, method and version, threshold source, trust) and "Open"; a line
   under the row names what the file lacks.
 - **One attention queue** [built 2026-10-21], replacing the SOS tile: the SOS alerts, the
