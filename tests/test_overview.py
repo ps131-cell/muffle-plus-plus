@@ -433,3 +433,16 @@ def test_list_rows_search_and_filters():
     assert finding_key(syn, "lab", "ca153", 11) in by["SYNTHETIC-001"]["alerts"]
     seen = {k: {"mark": "reviewed"} for k in by["SYNTHETIC-001"]["alerts"]}
     assert ids(open_sos=True, reviews=seen) == []
+
+
+def test_the_export_keeps_variant_names_out_of_italics():
+    case = SimpleNamespace(index=1, site="site-1", percentile=40.0, group="medium", age=61.0,
+                           stage="II", layers=["clinical"], missing=[],
+                           mutations=["TP53 p.R196*", "RUNX1 p.D96Gfs*15"])
+    pf = case_file(case, 0.7)
+    page = report_markdown(pf, 0, {"TP53 R196*": [], "RUNX1 D96Gfs*15": []},
+                           summaries=overview.summaries(pf, 0),
+                           queue=overview.attention(pf, 0, overview.queues(pf, 0), []))
+    assert "TP53 R196\*" in page and "RUNX1 D96Gfs\*15" in page
+    assert "R196*" not in page and "Gfs*15" not in page  # every occurrence escaped
+    assert "**Key drivers**" in page  # meant emphasis stays

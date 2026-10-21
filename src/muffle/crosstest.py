@@ -27,6 +27,7 @@ ENDOCRINE = {"letrozole", "anastrozole", "exemestane", "tamoxifen", "fulvestrant
              "camizestrant"}
 SITES = ("bone", "liver", "lung", "brain", "pleura", "skin", "lymph node", "peritoneum", "adrenal")
 IMAGING_AGE = 6  # months; PLACEHOLDER: when the latest imaging counts as old after a marker rise
+CTDNA_CADENCE = 3  # months: SERENA-6 sampled ctDNA every 2 to 3 months (literature, CTDNA_SOURCE)
 IMMUNE_HIGH = 75  # cohort percentile; PLACEHOLDER: a "high" immune RNA score against a slide desert
 UNSURE_SHARE = 0.2  # PLACEHOLDER: a section share of unsure tiles worth a second model's opinion
 # Cited bases (each PMID and DOI checked on PubMed, 2026-10-21)
@@ -517,20 +518,25 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                     "expectation": expect,
                     "source": CONFIRM, "evidence": HYPOTHESIS})
 
-        # not sequenced since the last tumor sequencing while on endocrine therapy
+        # not sequenced since the last tumor sequencing while on endocrine therapy; a ctDNA
+        # series sampled within the trials' cadence already answers it (the ctDNA workbench)
         seq = [t.month for ver in pf.versions[:i + 1] for t in ver.tests
                if t.kind == "Sequencing" and t.month is not None]
+        ctdna = [t.month for ver in pf.versions[:i + 1] for t in ver.tests
+                 if t.workbench == "ctdna" and t.month is not None]
         endocrine = [(rx, ver.month) for ver in pf.versions[:i + 1] for rx in ver.treatments
                      if rx in ENDOCRINE]
-        if seq and endocrine and now > seq[-1]:
+        last = max(seq[-1:] + ctdna, default=None)
+        if seq and endocrine and now > seq[-1] and not (ctdna and now - last <= CTDNA_CADENCE):
             rx = ", ".join(f"{name} (month {m})" for name, m in endocrine)
+            since = (f"the last ctDNA sample at month {last}" if ctdna and last > seq[-1]
+                     else f"the sequencing at month {seq[-1]}")
             # the ESR1 rows the Evolution view raises for this file, with their own sources
             esr1 = [it for it in evolution.hypothesis_set(pf, i)["items"]
                     if "ESR1" in it["genes"]][:1]
             out.append({
                 "open_question": f"Has the tumor acquired resistance alterations (ESR1 and "
-                                 f"others) since the sequencing at month {seq[-1]}, under "
-                                 f"endocrine therapy ({rx})?",
+                                 f"others) since {since}, under endocrine therapy ({rx})?",
                 "test": "ctDNA sequencing for ESR1 and other endocrine-resistance alterations",
                 "expectation": "an emerging ESR1 mutation would be an observed finding that "
                                "changes the evidence base; none found narrows the hypothesis. "
@@ -539,7 +545,9 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                                + "".join(f" The Evolution view ranks “{it['event']}” "
                                          f"here; when it would matter: {it['matters']}"
                                          for it in esr1),
-                "source": CTDNA_SOURCE + "".join(f"; {it['frequency']}" for it in esr1),
+                "source": CTDNA_SOURCE + "".join(f"; {it['frequency']}" for it in esr1)
+                + (f"; a ctDNA sample older than {CTDNA_CADENCE} months is outside SERENA-6's "
+                   "cadence" if ctdna else ""),
                 "evidence": HYPOTHESIS})
 
         # imaging older than IMAGING_AGE months while a marker rose since it

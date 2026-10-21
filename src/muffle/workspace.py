@@ -470,7 +470,9 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     by finding kind. ``evidence`` maps "GENE CHANGE" to its CIViC items (None: the table couldn't
     load); ``reviews`` maps ``finding_key`` names to {"what", "mark", "by", "at"}; ``disagree``
     and ``reducers`` are ``muffle.crosstest``'s lists; ``summaries`` and ``queue`` are
-    ``muffle.overview``'s."""
+    ``muffle.overview``'s. Variant names keep their stars and underscores (``esc``)."""
+    from muffle.workbench.grammar import esc  # here, not at the top: grammar imports this module
+
     v, evidence, reviews = pf.versions[i], evidence or {}, reviews or {}
     when = "" if v.month is None else f" (month {v.month})"
     out = [f"# {pf.id} · report {v.label}", "", f"_{pf.title} · {pf.diagnosis}_", "",
@@ -480,26 +482,26 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     out += ["## Summary", f"Latest in the record: {v.event}{when} [{OBSERVED}]", "",
             f"{v.summary}" + (f" [{INFERENCE}]" if v.risk else ""), "",
             "## SOS alerts in this version"]
-    out += [f"- {a.what} [{a.evidence}; trust {a.trust}: {a.why_trust}]. Rule: {a.rule}. "
+    out += [f"- {esc(a.what)} [{a.evidence}; trust {a.trust}: {a.why_trust}]. Rule: {a.rule}. "
             f"Threshold: {a.threshold}." for a in v.alerts] or ["- none"]
     marks = {k: r for k, r in reviews.items() if k.startswith(pf.id + "|")}
     if summaries:
         out += ["", "## Findings by workbench"]
     for s in (summaries or {}).values():
         out += ["", f"### {s['title']}"] + [
-            f"- **{c['what']}**: {c['text']} [{c['evidence']}; trust {c['trust']}]. Source: "
+            f"- **{c['what']}**: {esc(c['text'])} [{c['evidence']}; trust {c['trust']}]. Source: "
             f"{c['source']}. Method: {c['method']}. Threshold: {c['threshold']}."
             for c in s["cards"]] + ([f"- {s['note']}"] if s.get("note") else [])
     if queue is not None:
         out += ["", f"## Attention queue ({QUEUE_ORDER})"]
-        out += [f"{x['n']}. [{x['label']}] " + (f"{x['pointer']} · " if x["pointer"] else "")
-                + f"{x['what']} [{x['evidence']}; trust {x['trust']}; consequence "
-                f"{x['consequence']}]: {x['why']}"
-                + (f" What would settle it: {x['settle']}" if x["settle"] else "")
+        out += [f"{x['n']}. [{x['label']}] " + (f"{esc(x['pointer'])} · " if x["pointer"] else "")
+                + f"{esc(x['what'])} [{x['evidence']}; trust {x['trust']}; consequence "
+                f"{x['consequence']}]: {esc(x['why'])}"
+                + (f" What would settle it: {esc(x['settle'])}" if x["settle"] else "")
                 + (f" Also raised by {', '.join(x['also'])}." if x["also"] else "")
                 + (f" Review: {marks[x['key']]['mark']}." if x["key"] in marks else "")
                 for x in queue] or ["- nothing needs attention"]
-    out += ["", f"## Observed [{OBSERVED}]"] + [f"- {k}: {val}" for k, val in v.observed]
+    out += ["", f"## Observed [{OBSERVED}]"] + [f"- {k}: {esc(val)}" for k, val in v.observed]
     out += ["", f"## Model inference [{INFERENCE}]"]
     r = v.risk or {}
     if "value" in r:
@@ -521,9 +523,9 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     for var in [var for t in sequencing_tests(pf, i) for var in t.details["variants"]]:
         items = evidence.get(var)
         if not items:
-            out.append(f"- {var}: " + ("CIViC not available here" if items is None else
+            out.append(f"- {esc(var)}: " + ("CIViC not available here" if items is None else
                                        "no CIViC breast cancer evidence"))
-        out += [f"- {var} · CIViC level {e['evidence_level']} ({e['level_meaning']}) · "
+        out += [f"- {esc(var)} · CIViC level {e['evidence_level']} ({e['level_meaning']}) · "
                 f"{e['therapies'].replace(',', ', ')} · {str(e['significance']).lower()} · "
                 f"{e['citation']} {e['url']}" for e in items or []]
     if not sequencing_tests(pf, i):
@@ -532,13 +534,14 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     out += [f"- {m}" for m in missing_data(pf, i)]
     if disagree:
         out += ["", "## Tests that disagree"] + [
-            f"- {d['what']} [{d['evidence']}" + (f"; trust {d['trust']}" if "trust" in d else "")
-            + f"]: {d['why']} Sources: {' vs '.join(d['sources'])}. What would settle it: "
+            f"- {esc(d['what'])} [{d['evidence']}" + (f"; trust {d['trust']}" if "trust" in d
+                                                      else "")
+            + f"]: {esc(d['why'])} Sources: {' vs '.join(d['sources'])}. What would settle it: "
             f"{d['would_settle']}" + (f" Basis: {d['basis']}." if d.get("basis") and d["basis"]
                                      not in d["would_settle"] else "") for d in disagree]
     if reducers:
         out += ["", f"## What would reduce uncertainty [{HYPOTHESIS}; evidence, not an order]"]
-        out += [f"- {r['open_question']} → {r['test']}: {r['expectation']} (source: "
+        out += [f"- {esc(r['open_question'])} → {r['test']}: {esc(r['expectation'])} (source: "
                 f"{r['source']})" for r in reducers]
     placeholders = [  # the rules this file's alerts use; a TCGA file has no alerts
         f"An alert when the 12-month risk rises at least {RISK_JUMP} points",
@@ -547,7 +550,7 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     if queue is not None:  # the queue's order, then every placeholder threshold shown above
         placeholders.append(f"Attention queue: {QUEUE_ORDER}")
         placeholders += list(dict.fromkeys(
-            f"{x['what']}: {x['threshold']}" for x in [
+            f"{esc(x['what'])}: {x['threshold']}" for x in [
                 *(c for s in (summaries or {}).values() for c in s["cards"]), *queue]
             if "placeholder" in x["threshold"].lower()))
     out += ["", "## Placeholders (not validated)"] + [f"- {p}" for p in placeholders or ["none"]]
@@ -557,11 +560,12 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     imports = [w for w in pf.versions[: i + 1] if w.imported]
     if imports:
         out += ["", "## Imported in this session (kept for this browser session only)"]
-        out += [f"- {w.label}: {w.event}; tests: " + ", ".join(
-            f"{t.kind} {t.name} ({t.status})" for t in w.tests) for w in imports]
+        out += [f"- {w.label}: {esc(w.event)}; tests: " + ", ".join(
+            f"{t.kind} {esc(t.name)} ({t.status})" for t in w.tests) for w in imports]
     out += ["", "## Review marks"] + ([] if marks else ["- none"])
     for kind in FINDING_KINDS:  # by kind: alerts, CIViC items, lab values, slide tiles, ...
         mine = [r for k, r in marks.items() if k.split("|")[1] == kind]
         out += [f"### {kind}"] * bool(mine) + [
-            f"- {r['what']}: {r['mark']} ({r['by'] or 'no initials'}, {r['at']})" for r in mine]
+            f"- {esc(r['what'])}: {r['mark']} ({r['by'] or 'no initials'}, {r['at']})"
+            for r in mine]
     return "\n".join(out) + "\n"
