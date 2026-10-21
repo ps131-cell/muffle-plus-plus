@@ -260,7 +260,7 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
         for n in names:
             v = next(x for x in vs if x["variant"] == n)
-            col.markdown(f"- {n} · "
+            col.markdown(f"- {esc(n)} · "
                          f"{wb.mark_text(reviews.get(wb.variant_key(file, v))) or 'no mark yet'}")
         if not names:
             col.caption("none")
