@@ -205,8 +205,10 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     assert not at.exception
     at.segmented_control(key="view").set_value("Report").run()
     assert 'Progression on imaging: "New pulmonary nodules' in shown(at)
-    # the new-site alert shares its mark with the radiology workbench's item for that site
-    assert "Lung: named new at month 27" in shown(at) and not at.exception
+    # the new-site alert and the radiology workbench's item for that site are one finding, both
+    # trust moderate (the import's text rule read the site): the alert is kept, on the item's
+    # pointer
+    assert "`Lung` New metastatic site: lung" in shown(at) and not at.exception
 
     at.selectbox(key="patient").select(case).run()
     at.segmented_control(key="view").set_value("Tests").run()
