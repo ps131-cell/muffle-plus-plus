@@ -765,6 +765,10 @@ def tests_view(pf: workspace.PatientFile, i: int):
         from workbenches import imports
 
         imports.render_test(pf, t)
+    elif t.workbench == "ctdna":  # the synthetic patient's ctDNA series, labeled synthetic
+        from workbenches import ctdna
+
+        ctdna.render(pf, version=i)
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
         st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.result)}")

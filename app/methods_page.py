@@ -16,11 +16,14 @@ import streamlit as st
 
 import charts
 from workbenches import documents, omics
+from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
 from muffle import crosstest, workspace
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.nemotron import DEFAULT_MODEL, WRITER_MODEL, model_name
+from muffle.timeline import CTDNA
+from muffle.workbench import ctdna as ctdna_rules
 from muffle.workbench import genomics as genomics_rules
 from muffle.workbench import labs as lab_rules
 from muffle.workbench import omics as omics_rules
@@ -69,15 +72,15 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     survival_card(demo, res)
     landmark_card(tl)
     slide_model_cards()
-    radiology_model_cards()
+    radiology_page.methods_card()
     omics.methods_section()
     case_note_card(demo)
 
     st.header("Rules")
     alert_card()
     lab_card()
+    ctdna_card()
     slide_rule_card()
-    radiology_rule_card()
     genomics_card()
     st.subheader("Clinical documents: extraction rules")
     st.markdown(f"{chip(workspace.IMPLEMENTED)} · breast pathology facts from report text, each "
@@ -289,50 +292,6 @@ def alert_card() -> None:
     st.caption("A tumor marker out of range is not evidence of progression by itself.")
 
 
-def radiology_model_cards() -> None:
-    card("Lesion contours (MedSAM, breast MRI)", workspace.IMPLEMENTED,
-         "promptable contours from a seed rule's boxes, precomputed offline · the radiology "
-         "workbench")
-    st.markdown(
-        f"- **Design:** {radiology_rules.MEDSAM}; a box prompt per slice from the seed rule, the "
-        "authors' preprocessing, sigmoid above 0.5; longest diameter, volume and DCE kinetics "
-        "are measured on its contours.\n"
-        "- **Published validation:** the paper's own tasks (1,570,263 image-mask pairs, 10 "
-        "modalities, 86 internal and 60 external validation tasks). **Not validated on breast "
-        "MRI here**: no reader contour exists for these studies.\n"
-        "- **Data:** three held-out TCGA cases with a public TCIA study (CC BY 3.0); the hosted "
-        "app reads 8-bit copies and derived numbers and runs no model.")
-    card("Screening score (mammoscreen, mammography)", workspace.IMPLEMENTED,
-         "cancer score and BI-RADS density per breast, precomputed offline · the radiology "
-         "workbench")
-    st.markdown(
-        "- **Design:** three EfficientNetV2-S nets on the CC and MLO views of a breast "
-        "(Apache-2.0), re-built from the published code with the pinned weights, so no remote "
-        "code runs; crops from a threshold mask, not the authors' crop model.\n"
-        "- **Published validation:** the model card's AUROC 0.945 on held-out splits of the "
-        "RSNA 2023 screening data; uncalibrated, not validated here, and the one study is a "
-        "known cancer whose report does not record the side.")
-
-
-def radiology_rule_card() -> None:
-    c = radiology_rules.CUTOFFS
-    n = sum(1 for _, tag, _ in c.values() if tag == radiology_rules.PLACEHOLDER)
-    card("Radiology: report reading, seed and kinetics rules", workspace.IMPLEMENTED,
-         "reads in the report's words, where to look, curve types · the radiology workbench")
-    st.markdown(
-        f"Imaging reports are read in their own words ({chip(OBSERVED)}): the read, the sites "
-        "named new, a lesion table across reads, and no measurement where none is recorded. On "
-        "images, the seed rule proposes boxes from the subtraction inside the breast region and "
-        "kinetics follow the BI-RADS MRI lexicon's curve types (Kuhl et al. 1999). "
-        f"**{n} of {len(c)} cutoffs are placeholders**; the kinetics cutoffs are literature "
-        "values used as placeholders until calibrated. Method and known failures: "
-        "docs/radiology.md.")
-    with st.expander("Every radiology cutoff and its source"):
-        st.dataframe(pd.DataFrame([{"cutoff": k, "value": str(v), "source": tag, "note": note}
-                                   for k, (v, tag, note) in c.items()]),
-                     hide_index=True, width="stretch")
-
-
 def lab_card() -> None:
     c = lab_rules.rules_card()
     card("Lab result rules", workspace.IMPLEMENTED,
@@ -343,6 +302,17 @@ def lab_card() -> None:
                "(model inference, placeholder method), drawn as an extrapolation with its band; "
                "within-person baseline, therapy caution window and the hook-effect check are "
                "placeholder definitions (see every placeholder below).")
+
+
+def ctdna_card() -> None:
+    c = ctdna_rules.rules_card(CTDNA)
+    card("ctDNA monitor rules", workspace.IMPLEMENTED,
+         "allele fractions over time, calls, origin, the ESR1 rule · the ctDNA monitor")
+    st.markdown(f"{c['kind']}. **Inputs:** {c['inputs']}. **Validation:** {c['validation']}. "
+                "The only series in the app is SYNTHETIC-001's, written by hand and labeled "
+                f"synthetic; the ESR1 rule is {chip(HYPOTHESIS)}, evidence for clinician review, "
+                "never a recommendation to switch.")
+    st.dataframe(pd.DataFrame(c["thresholds"]), hide_index=True, width="stretch")
 
 
 def slide_rule_card() -> None:
@@ -498,6 +468,7 @@ def known_failures() -> None:
          "often in an earlier biopsy report)" + ("; weak fields: " + ", ".join(weak) if weak
                                                  else "") + "."),
         *(("Lab rules", f) for f in lab_rules.rules_card()["known_failures"]),
+        *(("ctDNA rules", f) for f in ctdna_rules.rules_card(CTDNA)["known_failures"]),
         ("Case note", "The grounding check catches numbers, genes and links no tool returned, "
          "not a wrong reading of a right number or an overstated sentence."),
         ("Evolution view", "A cohort's frequency is not this patient's probability; purity is "
@@ -528,14 +499,19 @@ def placeholders() -> None:
          "values"),
         ("Labs", "hook-effect check", f"a value {lab_rules.HOOK_FACTOR}× the limit"),
         ("Labs", "within-person baseline", "longest run of results with no rise or fall flag"),
+        ("Labs", "large rise or fall (analytes other than tumor markers)",
+         f"{lab_rules.CHANGE:.0%} from the previous value"),
+        ("Labs", "cross-analyte hypothesis window",
+         f"{lab_rules.HYPOTHESIS_MONTHS} months before the imaging report"),
+        *(("ctDNA", t["name"], t["value"]) for t in ctdna_rules.rules_card(CTDNA)["thresholds"]
+          if t["status"] == ctdna_rules.PLACEHOLDER),
         ("Omics", "borderline subtype call", f"centroid margin under {omics_rules.LOW_MARGIN}"),
         ("Omics", "ERBB2 amplification from copy number", "at least twice the tumor ploidy"),
         *(("Slides", k, f"{v} ({note})") for k, (v, tag, note) in
           {**slide_rules.CUTOFFS, **invasion.CUTOFFS}.items() if tag == slide_rules.PLACEHOLDER),
         ("Slides", "risk map points and levels", ", ".join(
             f"{k} {v}" for k, v in invasion.RISK_POINTS.items())),
-        *(("Radiology", k, f"{v} ({note})") for k, (v, tag, note) in
-          radiology_rules.CUTOFFS.items() if tag != radiology_rules.DESIGN),
+        *(("Radiology", what, value) for what, value in radiology_rules.PLACEHOLDERS),
     ]
     st.header("Every placeholder in the app")
     st.caption(f"{len(rows)} values nobody has validated yet. Each workbench marks its own "

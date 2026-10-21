@@ -25,15 +25,16 @@ import streamlit as st  # noqa: E402
 
 from muffle import imports as intake  # noqa: E402
 from muffle.workbench.documents import FIELDS, extract  # noqa: E402
+from muffle.workbench import labs_reference as ref  # noqa: E402
 from muffle.workbench.grammar import chip  # noqa: E402
-from muffle.workspace import IMPLEMENTED, MARKERS, PatientFile, Test  # noqa: E402
+from muffle.workspace import IMPLEMENTED, PatientFile, Test  # noqa: E402
 
 KINDS = ("Lab results (CSV)", "Report (text or PDF)", "Slide region image", "DICOM file",
          "Clinician note")
 SESSION_ONLY = ("Imports are kept for this browser session only: nothing is saved to the server, "
                 "the patient data or the repository, and closing the tab discards them. Only "
                 "public or synthetic data may be imported.")
-EXAMPLE = "month,marker,value,unit,reference limit\n27,CA 15-3,58,U/mL,30\n27,CEA,4.1,ng/mL,5\n"
+EXAMPLE = intake.LAB_EXAMPLE
 
 
 def render_view(file: PatientFile) -> None:
@@ -112,10 +113,14 @@ def dialog(file: PatientFile) -> None:
 
 def _labs(file: PatientFile, when: str) -> dict | None:
     up = st.file_uploader("Lab results (CSV): month or date, marker, value, unit, and optionally "
-                          "reference limit", type=["csv"], key="import-csv")
-    st.caption(f"Markers read: {', '.join(name for name, _ in MARKERS.values())}, in the record's "
-               f"units ({', '.join(u for _, u in MARKERS.values())}). {when}; a value must be at "
-               f"or after the latest report. Example: `{EXAMPLE.splitlines()[1]}`")
+                          "the lab report's reference interval", type=["csv"], key="import-csv")
+    known = [a["name"] for a in ref.ANALYTES.values() if not a.get("derived")]
+    st.caption(f"Any analyte. The reference table knows {len(known)} ({', '.join(known)}) and "
+               "converts their usual units (µmol/L, mmol/L, g/L, µkat/L, /µL ...); any other "
+               "analyte is kept as reported, flagged only against its own interval. A reference "
+               "interval reads 3.5-5.0, <30 or >60; the lab report's own interval wins over the "
+               f"table's. {when}; a value must be at or after the latest report. Example: "
+               f"`{EXAMPLE.splitlines()[1]}`")
     st.download_button("Example CSV", EXAMPLE, file_name="lab_results_example.csv",
                        mime="text/csv", key="import-example")
     anchor = st.date_input("Date of month 0 (only for a CSV with dates)", value=None,
@@ -131,7 +136,10 @@ def _labs(file: PatientFile, when: str) -> dict | None:
         return None
     if ok:
         st.markdown(f"**Accepted** · {len(ok)} row(s)")
-        st.dataframe(pd.DataFrame(ok)[["row", "month", "marker", "value", "unit", "limit"]],
+        st.dataframe(pd.DataFrame(ok)[["row", "month", "marker", "value", "unit", "low", "limit",
+                                       "reported"]].rename(columns={
+                         "low": "lower limit", "limit": "upper limit",
+                         "reported": "as reported (converted)"}),
                      hide_index=True, width="stretch")
     if bad:
         st.markdown(f"**Rejected** · {len(bad)} row(s), with the reason")
@@ -139,11 +147,10 @@ def _labs(file: PatientFile, when: str) -> dict | None:
     if not ok:
         st.error("No row was accepted: nothing to add.")
         return None
-    for r in ok:
-        if r["key"] == "ca153" and r["limit"] and r["limit"] != 30:
-            st.caption(f"Row {r['row']}: its reference limit {r['limit']:g} differs from the "
-                       "record's 30; the alert rule uses the imported limit, the lab "
-                       "workbench's chart still draws the record's.")
+    unlisted = sorted({r["marker"] for r in ok if r["key"] not in ref.ANALYTES})
+    if unlisted:
+        st.caption(f"{', '.join(unlisted)}: {ref.UNLISTED}; kept in the unit reported and flagged "
+                   "only against the interval given with it.")
     tests, observed = intake.lab_tests(ok)
     month = max(r["month"] for r in ok)
     return {"kind": "Lab results", "rejected": bad, "version": {

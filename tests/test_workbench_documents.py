@@ -183,15 +183,15 @@ def test_bundled_tcga_reports_load_by_case_index():
 
 def test_lab_csv_is_checked_row_by_row():
     csv = (b"month,marker,value,unit,reference limit\n27,CA 15-3,45,U/mL,30\n27,CA 15-3,46,U/mL,"
-           b"\n28,ALT,30,U/L,\n28,CEA,abc,ng/mL,\n28,CEA,3,ug/L,\n20,CEA,3,ng/mL,\n29,cea,6.5,"
+           b"\n28,ALT,30,U/L,\n28,CEA,abc,ng/mL,\n28,CEA,3,mmol/L,\n20,CEA,3,ng/mL,\n29,cea,6.5,"
            b"ng/mL,5\n,,,,\n")
     ok, bad = parse_labs(csv, after=24, existing={("ca153", 24)})
     assert [(r["month"], r["key"], r["value"], r["limit"]) for r in ok] == [
-        (27, "ca153", 45.0, 30.0), (29, "cea", 6.5, 5.0)]
+        (27, "ca153", 45.0, 30.0), (28, "alt", 30.0, None), (29, "cea", 6.5, 5.0)]
     reasons = {r["row"]: r["reason"] for r in bad}
-    assert "already has a value at month 27" in reasons[3]
-    assert "not one the lab workbench reads" in reasons[4] and "not a number" in reasons[5]
-    assert "not the record's ng/mL" in reasons[6] and "before the latest report" in reasons[7]
+    assert "already has a value at month 27" in reasons[3] and "not a number" in reasons[5]
+    assert "not one the reference table converts for CEA" in reasons[6]
+    assert "before the latest report" in reasons[7]
     with pytest.raises(IntakeError, match="Missing column"):
         parse_labs(b"marker,value\nCEA,3\n")
     with pytest.raises(IntakeError, match="empty"):
