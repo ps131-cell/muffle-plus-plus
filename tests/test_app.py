@@ -13,7 +13,7 @@ import torch
 from muffle import evolution, workspace
 from muffle.demo import build_demo, pick_cases, save_bundle, subset
 from muffle.hotreload import source_digest
-from muffle.imports import lab_tests, parse_labs
+from muffle.imports import imaging_test, lab_tests, parse_labs, sequencing_test
 from muffle.models import MuffleNet
 from muffle.report import civic, trials
 
@@ -135,6 +135,28 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         shown(at)
     at.segmented_control(key="view").set_value("Timeline").run()
     assert not at.exception
+    # imported sequencing joins the genomics workbench; an imported imaging report raises its
+    # alerts, which open the report's page with what the rule read
+    seq = sequencing_test([{"variant": "ESR1 Y537S", "allele_fraction": "not read"}],
+                          {"format": "VCF", "sample": "T"}, 27, "s.vcf", ["ESR1"], "")
+    scan = imaging_test("CT CAP", "New pulmonary nodules, consistent with progression.", 27,
+                        "import-3", "")
+    imports = at.session_state["imports"]
+    imports["SYNTHETIC-001"] = imports["SYNTHETIC-001"] + [
+        {"kind": kind, "rejected": [], "version": {"tests": [t], "month": 27, "event": kind,
+                                                   "observed": [], "by": "AB", "at": "14:05"}}
+        for kind, t in (("Sequencing", seq), ("Imaging report", scan))]
+    at.session_state["imports"] = imports
+    at.run()
+    at.select_slider(key="version-SYNTHETIC-001").set_value(18).run()
+    at.segmented_control(key="view").set_value("Tests").run()
+    at.session_state["picked-SYNTHETIC-001"] = ("Sequencing", 27, seq.name)
+    at.run()
+    assert "Genomics workbench" in shown(at) and "ESR1 Y537S" in shown(at) and not at.exception
+    at.segmented_control(key="view").set_value("Report").run()
+    assert "1/" in shown(at) and "Progression on imaging" in shown(at)
+    button(at, "Open the test").click().run()
+    assert "New distant sites named:** Lung" in shown(at) and not at.exception
 
     at.selectbox(key="patient").select(case).run()
     at.segmented_control(key="view").set_value("Tests").run()

@@ -150,6 +150,28 @@ def marker_rise(key: str, value: float, before: float | None, month: int,
         "measured values, but no confirming second specimen yet", 2, ("Tests", "Lab", month, name))
 
 
+def driver_alert(variant: str, items: list[dict] | None, month: int,
+                 test: str = "Tumor sequencing") -> Alert | None:
+    """The newly-sequenced-driver alert: ``variant`` ("GENE CHANGE") has level A or B CIViC
+    treatment evidence among ``items``; None otherwise (also when CIViC isn't loaded)."""
+    levels = sorted(i["evidence_level"] for i in items or [])
+    if not levels or levels[0] not in ("A", "B"):
+        return None
+    return Alert(
+        f"Newly sequenced driver {variant} has CIViC level {levels[0]} treatment evidence, for "
+        "clinician review", month, f"Sequencing, month {month}",
+        f"{OBSERVED} (mutation), {HYPOTHESIS} (treatment evidence)",
+        "a sequenced driver with level A or B CIViC evidence", "CIViC curated evidence levels",
+        "strong", "a sequenced variant; the evidence level is CIViC's", 2,
+        ("Tests", "Sequencing", month, test))
+
+
+def _sites(row: str) -> list[str]:
+    """The site names of an observed "Metastatic sites" row ("Bone (month -1), Liver (month
+    12)")."""
+    return [] if row == "none" else [s.split(" (")[0] for s in row.split(", ")]
+
+
 def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
     """SYNTHETIC-001 with one report version per event of its record. ``tl`` is
     ``app/timeline_synthetic.json``, whose updates are row-aligned with ``events``."""
@@ -179,16 +201,8 @@ def synthetic_file(tl: dict, events: list[dict] = EVENTS) -> PatientFile:
             if variant in seen_drivers:
                 continue
             seen_drivers.add(variant)
-            levels = sorted(i["evidence_level"] for i in evidence.get(variant, []))
-            if levels and levels[0] in ("A", "B"):
-                alerts.append(Alert(
-                    f"Newly sequenced driver {variant} has CIViC level {levels[0]} treatment "
-                    "evidence, for clinician review", m, f"Sequencing, month {m}",
-                    f"{OBSERVED} (mutation), {HYPOTHESIS} (treatment evidence)",
-                    "a sequenced driver with level A or B CIViC evidence",
-                    "CIViC curated evidence levels", "strong",
-                    "a sequenced variant; the evidence level is CIViC's", 2,
-                    ("Tests", "Sequencing", m, "Tumor sequencing")))
+            found = driver_alert(variant, evidence.get(variant, []), m)
+            alerts += [found] if found else []
         risk = None
         if "risk" in u:
             model = tl["models"][str(u["landmark"])]
@@ -270,20 +284,29 @@ def case_file(case, c_index: float | None = None, slides: list[str] | tuple = ()
 
 
 def add_version(pf: PatientFile, tests: list[Test], month: int, event: str, by: str, at: str,
-                observed: list[list[str]] = ()) -> PatientFile:
+                observed: list[list[str]] = (), evidence=None) -> PatientFile:
     """``pf`` with one more report version, for tests that arrived (an import); earlier versions
     stay as they were. ``observed`` rows replace the latest version's rows of the same name or
-    are added. The marker-rise rule runs on each new lab value (``details``: "marker", "value"
-    and optionally "limit") against the file's previous value of that marker. The other alert
-    rules need what an import does not carry (an imaging read, a sequenced driver, a new risk
-    estimate). The risk is not re-estimated: the synthetic patient's models are not run on new
-    data here, so its version has none; a TCGA risk rests on the tumor sample alone, which an
-    import doesn't change, so it carries over."""
+    are added. The alert rules run on the new tests against the file so far:
+    * the marker rise on each lab value (``details``: "marker", "value", optionally "limit");
+    * a newly sequenced driver with level A or B CIViC evidence on each variant of a sequencing
+      test (``details["variants"]``) not sequenced before; ``evidence(variant)`` gives its CIViC
+      items (None: CIViC isn't loaded, so no alert can be raised);
+    * progression on imaging and a new metastatic site on an imaging read (``details``: "read",
+      "words", "new_sites", from ``muffle.imports.imaging_read``); a site counts as new when the
+      "Metastatic sites" row lacks it. These read the report's words by a text rule, not a
+      person, so their trust is moderate.
+    The driver, sites and progressions rows follow the new tests. The risk is not re-estimated:
+    the synthetic patient's models are not run on new data here, so its version has none; a
+    TCGA risk rests on the tumor sample alone, which an import doesn't change, so it carries
+    over."""
     prev, last = pf.latest, {}
     for t in pf.tests:
         if t.kind == "Lab" and "value" in t.details:
             last[t.details["marker"]] = t.details["value"]
-    alerts = []
+    rows = dict(prev.observed) | dict(observed)
+    seen = {var for t in pf.tests if t.workbench == "mutations" for var in t.details["variants"]}
+    sites, alerts = _sites(rows.get("Metastatic sites", "none")), []
     for t in sorted(tests, key=lambda t: t.month):
         d = t.details
         if t.kind == "Lab" and "value" in d:
@@ -291,8 +314,43 @@ def add_version(pf: PatientFile, tests: list[Test], month: int, event: str, by: 
                                d.get("limit"))
             last[d["marker"]] = d["value"]
             alerts += [rise] if rise else []
+        if t.workbench == "mutations":
+            new = [var for var in d["variants"] if var not in seen]
+            seen |= set(new)
+            found = [driver_alert(var, evidence(var) if evidence else None, t.month, t.name)
+                     for var in new]
+            alerts += [a for a in found if a]
+            had = rows.get("Driver mutations", "")
+            had = [] if had.startswith(("not sequenced", "sequenced")) or not had else [had]
+            rows["Driver mutations"] = ", ".join(
+                had + [f"{var} (month {t.month}, imported)" for var in new]) or \
+                f"sequenced (month {t.month}, imported): none of the panel's genes in the file"
+            genes = {var.split()[0] for var in new}
+            if "Sequenced, not found" in rows:  # an earlier panel's genes, now found
+                rows["Sequenced, not found"] = ", ".join(
+                    g for g in rows["Sequenced, not found"].split(", ") if g not in genes)
+        if t.kind == "Imaging" and "read" in d:
+            opens, source = ("Tests", "Imaging", t.month, t.name), f"Imaging, month {t.month}"
+            why = "the report's own words, read by a text rule (not yet by a person)"
+            if d["read"] == "progression":
+                words = d["words"] if len(d["words"]) <= 160 else d["words"][:157] + "…"
+                alerts.append(Alert(f"Progression on imaging: \"{words}\"", t.month, source,
+                                    OBSERVED, "the imported report states progression "
+                                    f"({d['rule']})", "none: the report's words", "moderate",
+                                    why, 3, opens))
+                n = int(rows.get("Progressions on imaging", "0").split(",")[0]) + 1
+                rows["Progressions on imaging"] = f"{n}, last at month {t.month}"
+            for site in d["new_sites"]:
+                if site not in sites:
+                    sites.append(site)
+                    alerts.append(Alert(f"New metastatic site: {site.lower()}", t.month, source,
+                                        OBSERVED, "the imported report names a new site not in "
+                                        f"the record before ({d['rule']})",
+                                        "none: the report's words", "moderate", why, 3, opens))
+                    had = rows.get("Metastatic sites", "none")
+                    rows["Metastatic sites"] = ("" if had == "none" else had + ", ") + \
+                        f"{site} (month {t.month}, imported report)"
     alerts.sort(key=lambda a: -a.priority)
-    rows = dict(prev.observed) | dict(observed)
     if pf.kind == "synthetic":
         risk = None
         estimate = next((v.label for v in reversed(pf.versions) if v.risk), None)

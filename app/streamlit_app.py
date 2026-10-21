@@ -30,6 +30,7 @@ import os
 import sys
 import tempfile
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 
 APP = Path(__file__).parent
@@ -196,9 +197,24 @@ for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percent
     pf = workspace.case_file(c, demo.c_index, slides=SLIDE_CASES.get(str(c.index), ()),
                              documents=case_documents(c.index))
     FILES[pf.id], CASES[pf.id] = pf, c
+
+
+def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
+    """CIViC items for a variant: the synthetic patient's record variants are frozen with the
+    timeline file; others (a TCGA file's, an imported one's) come from the live table (None if
+    it couldn't load)."""
+    if pf.kind == "synthetic" and variant in TL["evidence"]:
+        return TL["evidence"][variant]
+    if EVIDENCE is None:
+        return None
+    gene, change = variant.split(maxsplit=1)
+    return EVIDENCE(gene, change)
+
+
 for pid, records in st.session_state.imports.items():  # each import adds a report version
     for r in records:
-        FILES[pid] = workspace.add_version(FILES[pid], **r["version"])
+        FILES[pid] = workspace.add_version(FILES[pid], **r["version"],
+                                           evidence=partial(civic_items, FILES[pid]))
 
 # --- sidebar: what is running ----------------------------------------------------------------
 with st.sidebar:
@@ -581,17 +597,6 @@ def case_why(case):
                       delta_color="inverse")
 
 
-def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
-    """CIViC items for a variant: frozen with the timeline file for the synthetic patient, else
-    from the live table (None if it couldn't load)."""
-    if pf.kind == "synthetic":
-        return TL["evidence"].get(variant, [])
-    if EVIDENCE is None:
-        return None
-    gene, change = variant.split(maxsplit=1)
-    return EVIDENCE(gene, change)
-
-
 def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
     items = civic_items(pf, variant)
     with st.container(border=True):
@@ -763,7 +768,11 @@ def tests_view(pf: workspace.PatientFile, i: int):
         imports.render_test(pf, t)
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
-        st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.result)}")
+        st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.details.get('text', t.result))}")
+        if "read" in t.details:  # an imported imaging report, read by the intake rule
+            from workbenches import imports
+
+            imports.read_details(t.details)
         st.info(PLANNED_WORKBENCHES[t.workbench] + " Planned, pending the model and dataset "
                 "survey's shortlist (docs/WORKSPACE.md).", icon="🧭")
 
@@ -927,9 +936,12 @@ def methods_page():
 
     st.subheader("Alert rules")
     st.dataframe(pd.DataFrame([
-        ("Progression on imaging", OBSERVED, "the imaging report reads progression",
-         "recorded"),
-        ("New metastatic site", OBSERVED, "a site not in the record before", "recorded"),
+        ("Progression on imaging", OBSERVED, "the imaging report reads progression; an "
+         "imported report: a clause states it, not negated or hedged (trust moderate)",
+         "recorded; an imported report: its words"),
+        ("New metastatic site", OBSERVED, "a site not in the record before; an imported "
+         "report: a clause names a new distant site, not negated or hedged (trust moderate)",
+         "recorded; an imported report: its words"),
         ("Tumor marker rise", OBSERVED,
          f"above the reference limit and at least {workspace.RISE:.0%} above the previous "
          "value; to be confirmed with a second specimen within a month",

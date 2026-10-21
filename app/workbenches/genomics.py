@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -138,6 +139,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     key = f"genomics-{file.id}-{'latest' if version is None else version}"  # widget keys
     month = None if version is None else file.versions[version].month
     events = wb.events_until(events, month)
+    if version is not None:  # imported sequencing as of that version too
+        file = replace(file, versions=file.versions[: version + 1])
     vs = wb.variants(file, events, evidence, lookup)
     queue, card, lon = wb.review_queue(vs), wb.data_card(), wb.longitudinal(file, events)
     strip, coverage = wb.provenance(file, events), wb.panel_coverage(file, events)
