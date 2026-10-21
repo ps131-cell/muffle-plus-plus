@@ -176,7 +176,8 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     cards = " ".join(s.value for s in at.subheader)
     for card in ("Multi-omic survival model", "MSK-CHORD landmark models", "Breast tissue head",
                  "Nuclei (StarDist)", "Case note", "SOS alerts", "Lab result rules",
-                 "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution"):
+                 "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution",
+                 "Lesion contours (MedSAM", "Screening score (mammoscreen", "Radiology: report"):
         assert card in cards, card
     placeholders = next(d.value for d in at.dataframe if "Placeholder" in d.value.columns)
     assert f"{workspace.RISK_JUMP} points of 12-month risk" in placeholders["Value"].tolist()

@@ -47,13 +47,13 @@ from PIL import Image, ImageDraw  # noqa: E402
 from muffle.report.case_tools import INFERENCE, OBSERVED  # noqa: E402
 from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench import radiology as rad  # noqa: E402
+from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
 
 RESULTS = APP / "workbenches" / "radiology_results"
 COLORS = {"C1": (230, 73, 72), "C2": (235, 160, 52), "C3": (64, 160, 230)}
 HEX = {k: "#%02x%02x%02x" % v for k, v in COLORS.items()}
 ZOOM = 2  # shipped slices are at most 256 px; drawn at twice that
-NEAR_WALL_MM = 5  # PLACEHOLDER: a candidate this close to the search limit is flagged
 NO_MARK = "no mark"
 PHASE_NAMES = {"pre": "Pre-contrast", "early": "Early post-contrast", "late": "Delayed",
                "sub": "Subtraction (early − pre)"}
@@ -63,10 +63,9 @@ KUHL_NUMBERS = ("in Kuhl et al. 1999 (266 lesions), type III curves were seen in
 
 
 def chips(*labels: str) -> None:
-    color = {"placeholder": "orange", "literature, placeholder until calibrated": "orange",
-             INFERENCE: "violet", OBSERVED: "blue", PLANNED: "gray", "public example": "violet",
-             "synthetic patient": "orange"}
-    st.caption(" ".join(f":{color.get(label, 'gray')}-badge[{label}]" for label in labels))
+    """The shared badges (``muffle.workbench.grammar``); a placeholder is always orange."""
+    st.caption(" ".join(chip(label, "orange" if label == "synthetic patient" else None)
+                        for label in labels))
 
 
 # --- review marks and pins (the workspace's shared stores) ----------------------------------------
@@ -380,7 +379,7 @@ def look_here(study: dict) -> list[dict]:
             out.append({"candidate": c["id"], "why": "washout curve (type III)"})
         gap = (study["region"]["limit_row"] - c["seed"]["bbox"][3]) * \
             study["display"]["native_pixel_mm"][0]
-        if gap < NEAR_WALL_MM:
+        if gap < rad.CUTOFFS["near_wall_mm"][0]:
             out.append({"candidate": c["id"], "why": f"{gap:.0f} mm from the search region's "
                         "posterior limit: chest-wall muscle and internal mammary vessels enhance "
                         "there too"})
@@ -480,13 +479,13 @@ def prior(study: dict, pf: PatientFile) -> None:
 
 
 def _cannot_see(rows: list[tuple]) -> None:
-    st.markdown("#### What this test cannot show")
+    st.markdown(f"#### {CANNOT_SEE}")
     st.dataframe(pd.DataFrame([{"not shown here": w, "why": why, "what can": how}
                                for w, why, how, _ in rows]), hide_index=True, width="stretch")
 
 
 def model_card(study: dict) -> None:
-    with st.expander("Model and validation card"):
+    with st.expander(CARD):
         m = study.get("medsam")
         rows = [("Training data", "MedSAM: the paper's dataset (1,570,263 image-mask pairs, 10 "
                  "modalities, over 30 cancer types); this study is not in it as far as known"),
@@ -501,9 +500,7 @@ def model_card(study: dict) -> None:
                  "MedSAM looks"),
                 ("Uncertainty", "three candidates shown; contours flagged unsure when empty or "
                  "larger than their box; volume shown as a one-pixel range"),
-                ("Known failures", "chest-wall and axillary lesions are not proposed (posterior "
-                 "limit); non-mass enhancement and vessel-like shapes are left out by the shape "
-                 "rules; small foci (< 5 mm) are partial-volume dominated"),
+                ("Known failures", " ".join(rad.KNOWN_FAILURES[:4])),
                 ("Reproducibility", (f"{study['pipeline']['script']} v"
                                      f"{study['pipeline']['version']}, run "
                                      f"{study['pipeline']['run_at']}; model revision "
@@ -606,7 +603,7 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
     _cannot_see(rad.CANNOT_SEE)
     score = study["screening_score"]
     if score.get("status") == "implemented":
-        with st.expander("Model and validation card: mammoscreen"):
+        with st.expander(f"{CARD}: mammoscreen"):
             card = score["card"]
             st.dataframe(pd.DataFrame([
                 ("Training data", card["training"]),
@@ -651,7 +648,7 @@ def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[
 
 
 def _export(pf: PatientFile, study: dict | None, table: list[dict], extra: dict | None = None):
-    st.markdown("#### Export")
+    st.markdown(f"#### {EXPORT}")
     marks = {k: v for k, v in st.session_state.get("reviews", {}).items()
              if k.startswith(f"{pf.id}|imaging|")}
     body = {"file": pf.id, "exported": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -663,7 +660,8 @@ def _export(pf: PatientFile, study: dict | None, table: list[dict], extra: dict 
         body["study"] = {k: v for k, v in study.items() if k != "folder"}
     name = f"{pf.id}_{study['barcode'] if study else 'imaging_reports'}".replace(" ", "_")
     e1, e2 = st.columns(2)
-    e1.download_button("Download JSON", json.dumps(body, indent=1, default=str),
+    e1.download_button("Download the study (JSON)" if study else "Download the reads (JSON)",
+                       json.dumps(body, indent=1, default=str),
                        file_name=f"{name}.json", mime="application/json",
                        key=f"rad-json-{name}")
     e2.download_button("Download the lesion table (CSV)", pd.DataFrame(table).to_csv(index=False),

@@ -62,6 +62,9 @@ CUTOFFS = {
     "chest_margin_mm": (10, PLACEHOLDER, "candidates are searched anterior to the intermammary "
                         "cleft plus this margin, so the heart and chest wall are left out"),
     "skin_mm": (3, PLACEHOLDER, "the first 3 mm under the skin surface are left out"),
+    "near_wall_mm": (5, PLACEHOLDER, "a candidate this close to the search region's posterior "
+                     "limit is flagged: chest-wall muscle and internal mammary vessels enhance "
+                     "there too"),
     "box_pad": (0.15, DESIGN, "a candidate's box on each slice is its seed extent plus 15% "
                 "(at least 2 pixels) on every side"),
     "mask_threshold": (0.5, DESIGN, "MedSAM's mask = sigmoid output above 0.5, as in the "
@@ -69,6 +72,21 @@ CUTOFFS = {
     "dense_threshold": ("Otsu", PLACEHOLDER, "mammography dense pixels: above an Otsu threshold "
                         "inside the breast; a pixel share, not a BI-RADS density category"),
 }
+
+# what the workbench gets wrong, as far as it has been seen (docs/radiology.md §3)
+KNOWN_FAILURES = [
+    "Lesions behind the cleft-plus-margin line (deep, at the chest wall, in the axilla) are never "
+    "proposed; non-mass enhancement and vessel-like or plate-like shapes are left out by the "
+    "shape rules; foci under about 4 mm vanish in the opening.",
+    "The seed rule ranks brightness × size: background enhancement can outrank a small cancer, "
+    "and a chest-wall strip (case 563, C2) and a vessel segment (case 937, C3) made the top three.",
+    "MedSAM is not validated on breast MRI here; a narrow box makes it overshoot (flagged unsure "
+    "on the page).",
+    "Kinetics are a mean inside a contour that mixes enhancing and non-enhancing parts; GE phase "
+    "times count from the first phase, not the injection, and Siemens times are nominal.",
+    "The mammography screening score moves with the crop (right breast 0.42 or 0.37 for two "
+    "crops of the same views) and nothing in the record can check it.",
+]
 
 SITE_WORDS = {"bone": "Bone", "liver": "Liver", "lung": "Lung", "brain": "Brain",
               "lymph node": "Lymph node", "nodal": "Lymph node", "pleural": "Pleura",
