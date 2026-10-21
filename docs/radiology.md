@@ -31,6 +31,11 @@ clinic note "Imaging stable"). The page reads each one:
 Review marks use `workspace.finding_key(pf, "imaging", "report", month, "read")` for a read and
 `(…, "report", first month, site)` for a site.
 
+The page reads the file's own record (`radiology.file_events`, i.e. `workspace.record_events`
+up to the report version's month): the synthetic record's events and every imported imaging
+report, which reaches the page as the read its import found. A TCGA file with an imported report
+reads only that report, never the synthetic record.
+
 ## 2. Public images (TCGA-BRCA radiology on TCIA)
 
 **Data.** The TCGA-BRCA radiology collection on The Cancer Imaging Archive (139 patients, MR and
