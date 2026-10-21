@@ -7,9 +7,11 @@ SMALL_DIMS = {"genomic": 20, "rna": 50, "methylation": 30, "protein": 10, "clini
 
 @pytest.fixture(autouse=True)
 def _spend_ledger(tmp_path, monkeypatch):
-    """Keep tests away from the real Token Factory spend ledger in the home directory."""
+    """Keep tests away from the real Token Factory spend ledger in the home directory, and from
+    downloading slide tile pyramids."""
     monkeypatch.setenv("MUFFLE_SPEND_LEDGER", str(tmp_path / "spend.json"))
     monkeypatch.delenv("TOKEN_FACTORY_BUDGET_USD", raising=False)
+    monkeypatch.setenv("MUFFLE_SLIDE_TILES", "off")
 
 
 @pytest.fixture(autouse=True)

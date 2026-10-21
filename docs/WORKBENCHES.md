@@ -170,13 +170,17 @@ panel coverage, review queue, longitudinal note, limits, data card):
 
 ## 5. Pathology workbench (H&E slides)
 
-Built in two rounds (2026-10-19, 2026-10-20; `pathology.md`) on the patient's own TCGA
-diagnostic sections for three cases (two more follow), scored offline; the colon analyzer's pipeline (tissue mask →
+Built in three rounds (2026-10-19, 2026-10-20, 2026-10-21; `pathology.md`) on the patient's own
+TCGA diagnostic sections for five cases, scored offline; the colon analyzer's pipeline (tissue mask →
 224 px tiles at 0.5 µm/px → embeddings → tissue classes → smoothed maps → front, zones,
 measurements, flags, risk map, certainty) carries over, re-implemented; its tissue heads do not
 (colon-trained): a five-class BCSS head validated on 3 held-out slides stands in. Tags below:
 **now** = built; **model** = needs a model or validation that does not exist yet.
 
+- **Slide viewer** [now]: pan and zoom over the patient's own section at about 1 µm/px with
+  every layer and mark below drawn on the tissue and the counted nuclei at high zoom; hover,
+  click to the Spot panel, jump to and n / p through the pointers; sections side by side with
+  linked zoom; the tile map is the fallback (`pathology.md` §7).
 - **Tissue map** for breast [now: invasive carcinoma, stroma, lymphocytes, necrosis, fat;
   model: DCIS, normal breast, vessels (too few BCSS tiles), a second model's opinion]:
   probabilities on hover; layers for tissue, certainty, QC, zones, immune and risk. Data: BCSS (CC0 region masks on TCGA-BRCA slides) to

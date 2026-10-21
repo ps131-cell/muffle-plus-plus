@@ -3,6 +3,8 @@
 /data/
 /outputs/
 /workspaces/
+# slide viewer tile pyramids, downloaded at run time (app/workbenches/slide_viewer.py)
+/app/static/slides/
 *.pt
 *.pth
 *.ckpt
