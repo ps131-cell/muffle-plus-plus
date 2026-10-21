@@ -15,7 +15,7 @@ from muffle.demo import build_demo
 from muffle.imports import document_test, lab_tests, parse_labs
 from muffle.models import MuffleNet
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
-from muffle.workbench import documents, genomics, labs, omics, slides
+from muffle.workbench import documents, genomics, labs, omics, radiology, slides
 from muffle.workspace import (
     CARD_KEYS,
     FINDING_KINDS,
@@ -42,14 +42,14 @@ def synthetic() -> PatientFile:
 
 
 def tcga(index: int, stage=None, slides=(), docs=None, mutations=None, layers=None,
-         log_risk="real") -> PatientFile:
+         log_risk="real", imaging=None) -> PatientFile:
     """A bundled TCGA case as the app builds it, with its real precomputed scores."""
     case = SimpleNamespace(
         index=index, site="site-1", percentile=60.0, group="medium", age=55.0, stage=stage,
         layers=layers or ["clinical", "genomic", "rna", "protein"], missing=["methylation"],
         mutations=mutations, log_risk=SCORES["cases"][str(index)]["log_risk"]
         if log_risk == "real" else log_risk)
-    return case_file(case, 0.7, slides=slides,
+    return case_file(case, 0.7, slides=slides, imaging=imaging,
                      documents=documents.case_documents(index) if docs is None else docs)
 
 
@@ -148,6 +148,23 @@ def test_slide_summary_and_queue_read_the_scored_sections():
     text = slides.summary(several)["cards"][0]["text"]
     assert "section TCGA-PL-A8LZ-DX3, the largest tumor of 3 sections" in text
     assert all(x["what"].endswith(x["focus"]["slide"]) for x in slides.queue(several))
+
+
+def test_radiology_summary_and_queue_for_report_text_and_a_public_study():
+    pf = synthetic()
+    q = {x["pointer"]: x for x in radiology.queue(pf, 11)}
+    assert (q["Liver"]["consequence"], q["Liver"]["trust"]) == (3, "strong")
+    assert q["Liver"]["key"] == finding_key(pf, "imaging", "report", 12, "Liver")
+    merged = next(x for x in overview.attention(pf, 11, overview.queues(pf, 11), [])
+                  if x["what"] == "New metastatic site: liver")  # the SOS alert, one finding
+    assert merged["pointer"] == "Liver" and merged["also"] == ["the imaging workbench (Liver)"]
+    studies = radiology.load_index(radiology.RESULTS)[563]
+    mri = tcga(563, docs=[], imaging=studies)
+    card = radiology.summary(mri)["cards"][0]
+    assert "model contour C1 18.8 mm" in card["text"] and "BI-RADS 6" in card["text"]
+    assert card["trust"] == "weak" and card["opens"][1] == "Imaging"
+    assert all(x["evidence"] == INFERENCE and x["trust"] == "weak"
+               for x in radiology.queue(mri))
 
 
 def test_omics_summary_and_queue_use_the_precomputed_scores_of_this_build():
@@ -324,12 +341,13 @@ def test_the_header_cards_and_open_sos_alerts():
     sums = overview.summaries(pf, 11)
     q = overview.attention(pf, 11, overview.queues(pf, 11), crosstest.discrepancies(pf, 11))
     head = overview.header(pf, 11, sums, q, {})
-    assert [c["what"] for c in head] == ["Stage and receptors", "Key drivers", "Imaging",
+    assert [c["what"] for c in head] == ["Stage and receptors", "Key drivers", "Imaging lesions",
                                          "12-month risk", "What to watch next", "SOS"]
     assert head[4]["evidence"] == HYPOTHESIS and head[4]["opens"] == ("Evolution",)
     stage = head[0]
     assert [k for k, *_ in stage["sides"]] == ["Recorded", "Documented"]
-    assert head[2]["text"] == "month 12: Imaging: new liver lesions, read as progression"
+    assert head[2]["text"] == ("Bone named new at month -1; Liver named new at month 12; latest "
+                               "read (month 12): progression; no measurements recorded")
     assert head[3]["evidence"] == INFERENCE and head[-1]["open"] == 7
     reviewed = {x["key"]: {"mark": "reviewed"} for x in q if x["sos"]}
     assert overview.header(pf, 11, sums, q, reviewed)[-1]["open"] == 0

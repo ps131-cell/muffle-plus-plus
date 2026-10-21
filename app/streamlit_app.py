@@ -625,6 +625,8 @@ def land(pf: workspace.PatientFile, i: int, focus: dict):
         ss[f"omics-spot-{pf.id}"] = focus["omics"]
     if "doc" in focus:  # documents: the document at the sentence
         ss[f"docs-jump-{pf.id}"] = (focus["doc"], tuple(focus["sentence"]))
+    if "site" in focus:  # radiology: the lesion table's Spot panel on the site
+        ss[f"rad-site-{pf.id}"] = focus["site"]
 
 
 def mark(key: str, what: str, value: str | None):

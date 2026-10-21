@@ -6,30 +6,20 @@ from each workbench's ``summary``; the queue merges each workbench's ``queue``, 
 ``muffle.crosstest.discrepancies``, de-duplicated by finding key (an alert on a lab value and the
 lab workbench's flag of that value are one finding) and ordered by consequence × trust
 (``workspace.TRUST``, placeholder weights). Radiology and evolution join once their modules carry
-the contract (``summary`` and ``queue``); until then they add nothing.
+the contract; every workbench module here does (labs, genomics, slides, omics, documents,
+radiology, evolution).
 """
 
 from __future__ import annotations
 
-from muffle import crosstest
+from muffle import crosstest, evolution
 from muffle.demo import ordinal
 from muffle.report.case_tools import INFERENCE, OBSERVED
-from muffle.workbench import documents, genomics, labs, omics, slides
+from muffle.workbench import documents, genomics, labs, omics, radiology, slides
 from muffle.workspace import QUEUE_ORDER, TRUST, PatientFile, card, finding_key
 
-try:  # in progress elsewhere: joins the overview once it has summary() and queue()
-    from muffle.workbench import radiology
-except ImportError:
-    radiology = None
-try:
-    from muffle import evolution
-except ImportError:
-    evolution = None
-
 WORKBENCHES = {"labs": labs, "genomics": genomics, "slides": slides, "omics": omics,
-               "documents": documents}
-WORKBENCHES |= {name: m for name, m in (("radiology", radiology), ("evolution", evolution))
-                if hasattr(m, "summary") and hasattr(m, "queue")}
+               "documents": documents, "radiology": radiology, "evolution": evolution}
 NAMES = {"labs": "Labs", "genomics": "Genomics", "slides": "Slides", "omics": "Expression",
          "documents": "Documents", "radiology": "Imaging", "evolution": "Evolution"}
 ORDER_RULE = QUEUE_ORDER
@@ -154,14 +144,20 @@ def absent(sums: dict) -> list[str]:
 
 def alert_key(pf: PatientFile, a) -> str:
     """An alert's review key: the finding it is about when a workbench names that finding (a
-    lab value, a sequenced driver), so the queue, the workbench and the patient list share one
-    mark; else the alert's own ``finding_key``."""
+    lab value, a sequenced driver, a site or read in an imaging report), so the queue, the
+    workbench and the patient list share one mark; else the alert's own ``finding_key``."""
     kind, month, name = (tuple(a.opens) + (None, None, None))[1:4]
     if kind == "Lab" and name in MARKER_KEYS:
         return finding_key(pf, "lab", MARKER_KEYS[name], month)
     driver = DRIVER.search(a.what)
     if kind == "Sequencing" and driver:
         return finding_key(pf, "variant", driver.group(1), month)
+    if kind == "Imaging" and a.what.startswith("New metastatic site: "):
+        site = a.what.split(": ", 1)[1]
+        return finding_key(pf, "imaging", "report", month,
+                           radiology.SITE_WORDS.get(site, site.capitalize()))
+    if kind == "Imaging" and a.what.startswith("Progression on imaging"):
+        return finding_key(pf, "imaging", "report", month, "read")
     return finding_key(pf, "alert", a.month, a.what)
 
 
