@@ -20,6 +20,10 @@ def test_source_digest_changes_when_a_source_file_changes(tmp_path):
     (tmp_path / "notes.txt").write_text("still ignored, longer")
     assert source_digest([tmp_path]) == source_digest([tmp_path])
     assert source_digest([tmp_path / "missing"]) == source_digest([])  # a missing root is skipped
+    before = source_digest([tmp_path])
+    (tmp_path / "static" / "slides").mkdir(parents=True)  # the slide viewer's tiles: not code
+    (tmp_path / "static" / "slides" / "overlay-1.json").write_text("{}")
+    assert source_digest([tmp_path]) == before
 
 
 def test_purge_modules_drops_only_the_named_prefixes():

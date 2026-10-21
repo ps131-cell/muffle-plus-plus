@@ -12,21 +12,30 @@ clears Streamlit's caches, whose objects were built by the old code.
 from __future__ import annotations
 
 import hashlib
+import os
 import sys
 from collections.abc import Iterable
+from fnmatch import fnmatch
 from pathlib import Path
 
 
-def source_digest(roots: Iterable[Path], patterns: tuple[str, ...] = ("*.py", "*.json")) -> str:
-    """A hash of every matching file's path, size and modification time under ``roots``."""
+def source_digest(roots: Iterable[Path], patterns: tuple[str, ...] = ("*.py", "*.json"),
+                  skip: tuple[str, ...] = ("static", "__pycache__")) -> str:
+    """A hash of every matching file's path, size and modification time under ``roots``.
+    Folders named in ``skip`` are not entered: ``app/static`` holds the slide viewer's tiles and
+    overlay files, written while the app runs; walking them on every run would be slow, and a
+    new file there would clear every cache as if the code had changed."""
     h = hashlib.sha1()
     for root in roots:
         if not root.is_dir():
             continue
-        for pattern in patterns:
-            for p in sorted(root.rglob(pattern)):
-                s = p.stat()
-                h.update(f"{p.relative_to(root).as_posix()}:{s.st_size}:{s.st_mtime_ns}\n".encode())
+        found = []
+        for folder, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in skip]
+            found += [Path(folder) / f for f in files if any(fnmatch(f, pat) for pat in patterns)]
+        for p in sorted(found):
+            s = p.stat()
+            h.update(f"{p.relative_to(root).as_posix()}:{s.st_size}:{s.st_mtime_ns}\n".encode())
     return h.hexdigest()
 
 

@@ -2,6 +2,29 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — Slide viewer: OpenSeadragon on release-hosted Deep Zoom pyramids at 1 µm/px
+- **What:** the pathology workbench draws its analysis on the patient's own section in a
+  pan-and-zoom viewer (`docs/pathology.md` §7): a Streamlit component (plain JavaScript and
+  OpenSeadragon 6.1.1, vendored, no build step) over Deep Zoom pyramids cut from each scan's
+  own level nearest 1 µm/px, JPEG quality 80. One zip per section on the release
+  `slide-tiles-v1`; the app downloads a section's zip when its viewer first opens, checks its
+  SHA-256 and serves the tiles through Streamlit's static serving. Overlays are drawn on a
+  canvas from a JSON the app writes next to the tiles from the same analysis the page shows;
+  nuclei are drawn from the pipeline's own nucleus table, now kept in `nuclei.json`.
+- **Why:** the user asked for overlays on the actual slide, at every magnification. Release
+  assets keep 661 MB of tiles out of the repository and need nothing but the repository's own
+  release; static serving keeps the tiles same-origin with the app, so no second site or CORS
+  set-up is needed (GitHub Pages stays the fallback if Streamlit Cloud's static serving fails).
+  The scan's own 4× level avoids resampling and sits at 0.99–1.01 µm/px.
+- **Consequence:** four large sections are 103–175 MB instead of the 10–40 MB aimed for (H&E
+  at 1 µm/px is about 20 KB per tile at quality 80; quality 70 saves only 20%), so the first
+  open of those sections waits for the download. Nuclei are circles of their area, not
+  outlines (the polygons were never kept); the side-by-side view links zoom by physical size
+  and pan by distance but does not register the sections, and says so. The tile map remains
+  as the fallback, and every overlay keeps its evidence label in the viewer's legend. Static
+  serving is read when the server starts, so until a hot-updated server restarts the tiles are
+  served from the component's own folder.
+
 ## 2026-10-21 — Documents rules v2: HER2 legends and answers that slid a row are not results
 - **What:** the documents rules no longer read a HER2 status or IHC score from a scoring legend
   (a list of categories with their scores, "2=INDETERMINATE", "are considered borderline"), nor a

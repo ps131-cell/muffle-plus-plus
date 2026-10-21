@@ -21,11 +21,14 @@ import hashlib
 import json
 import math
 import sys
+import time
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
+if str(APP) not in sys.path:  # standalone: streamlit run app/workbenches/slides.py
+    sys.path.insert(0, str(APP))
 
 import altair as alt  # noqa: E402
 import numpy as np  # noqa: E402
@@ -46,6 +49,7 @@ from muffle.workbench.slides import (  # noqa: E402
 )
 from muffle.workbench.grammar import CANNOT_SEE, CARD, chip  # noqa: E402
 from muffle.workspace import MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
+from workbenches import slide_viewer  # noqa: E402
 
 EXAMPLE = APP / "workbenches" / "slides_example"
 RESULTS = APP / "workbenches" / "slides_results"
@@ -116,6 +120,30 @@ def mark_box(pf: PatientFile, key: str, what: str) -> None:
         st.caption(f"{r['mark']} · {r['by'] or 'no initials'} · {r['at']}")
 
 
+# --- the viewer and the Spot panel follow each other --------------------------------------
+
+def go_to(k: str, slide: str, tile: str) -> None:
+    """Point the viewer and the Spot panel at a tile ("r12c34"); a callback, so it runs before
+    the page is drawn again."""
+    try:
+        rr, cc = (int(v) for v in tile.strip()[1:].split("c"))
+    except ValueError:
+        return
+    st.session_state[f"{k}-spot"] = tile.strip()
+    st.session_state[f"{k}-goto"] = {"slide": slide, "row": rr, "col": cc, "nonce": time.time()}
+
+
+def viewer_event(pid: str, key: str) -> None:
+    """A click, n / p or "jump to" in a viewer opens its tile in that section's Spot panel; a
+    browser that cannot load the tiles switches the page to its tile map."""
+    ev = st.session_state.get(key) or {}
+    if ev.get("failed"):
+        st.session_state[f"{pid}|{ev['slide']}-viewer-failed"] = ev["failed"]
+    elif ev.get("tile"):
+        st.session_state[f"{pid}-section"] = ev["slide"]
+        st.session_state[f"{pid}|{ev['slide']}-spot"] = ev["tile"]
+
+
 # --- the patient's own slide -------------------------------------------------------------
 
 def load_slide(folder: Path) -> dict | None:
@@ -128,7 +156,7 @@ def load_slide(folder: Path) -> dict | None:
     if nuc.get("tiles") and nuc["tiles"].get("data"):
         summ = pd.DataFrame(nuc["tiles"]["data"], columns=nuc["tiles"]["columns"])
         tiles = tiles.merge(summ, on=["row", "col"], how="left")
-    return {"tiles": tiles, "meta": meta, "points": nuc.get("points", {}),
+    return {"tiles": tiles, "meta": meta, "points": nuc.get("points", {}), "nuclei": nuc,
             "thumbnail": folder / "thumbnail.jpg" if (folder / "thumbnail.jpg").exists()
             else None, "crops": folder / "crops", "folder": folder}
 
@@ -157,7 +185,7 @@ def frame(res: dict, classes: list[str]) -> pd.DataFrame:
                                          np.where(df["n_lymph"].fillna(0) >= 5, "some", "few")))
     else:
         df["nuclei"], df["immune"] = "not counted", "not counted"
-    df["dist"] = df["dist_to_front_um"].map(lambda v: f"{v:+.0f} µm from the front"
+    df["dist"] = df["dist_to_front_um"].map(lambda v: f"{v + 0.0:+.0f} µm from the front"
                                             if pd.notna(v) else "no front") \
         if "dist_to_front_um" in df else "no front"
     df["where"] = df["tile"] + " · " + df["zone"].replace("", "no zone") + " · " + df["dist"]
@@ -338,8 +366,13 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
             checks.append(f"excluded for {t['qc']}: judge the tissue by eye")
         st.markdown("**What to check by eye:** " + ("; ".join(checks) if checks else
                                                      "nothing specific flagged here"))
-        mark_box(pf, slide_key(pf, slide, t["tile"]),
-                 f"Slide {slide}, tile {t['tile']}: {t['class']} ({t['zone'] or 'no zone'})")
+        hs = res["hotspot"]
+        if hs and (r, c) == (hs["row"], hs["col"]):  # one mark per finding on the page
+            st.caption("This tile is the counting field's centre: your mark for it is with the "
+                       "breakaway candidates above.")
+        else:
+            mark_box(pf, slide_key(pf, slide, t["tile"]),
+                     f"Slide {slide}, tile {t['tile']}: {t['class']} ({t['zone'] or 'no zone'})")
 
 
 def head_card(meta: dict, classes: list[str]) -> None:
@@ -482,28 +515,58 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
 
     # --- map ------------------------------------------------------------------------------
     st.markdown("#### Slide map")
-    l1, l2 = st.columns([1, 2])
-    layer = l1.radio("Layer", LAYERS, horizontal=True, key=f"{k}-layer")
-    overlays = l2.pills("Overlays", OVERLAYS, selection_mode="multi",
-                        default=["front", "arrows", "pointers"], key=f"{k}-overlays")
-    h, w = res["grid_shape"]
-    px = max(3, min(8, int(640 / max(h, w))))
-    st.caption("Hover a tile for its scores, zone, nuclei and risk points. Each tile is one "
-               "score for 112 µm of tissue; classes are model inferences smoothed over 3×3 "
-               "tiles. Arrows: one per arc, length by push; the dashed circle is the counting "
-               "field; squares are the pointers.")
-    mc, tc = st.columns([3, 2])
-    with mc:
-        st.altair_chart(slide_map(df, res, layer, overlays or [], classes, px), width="content")
-    with tc:
-        if result["thumbnail"]:
-            st.image(str(result["thumbnail"]), caption="The scored region (H&E, the patient's "
-                     "own section)", width="stretch")
-        if res["rose"] and res["normals"] is not None and len(res["normals"]):
-            st.altair_chart(rose_chart(res["rose"]), width="content")
-            st.caption("Rose of the front normals, push-weighted: the direction the front "
-                       "points and how much tumor probability lies beyond it. A hypothesis "
-                       "about this section.")
+    src = slide_viewer.source(slide)
+    failed = st.session_state.get(f"{k}-viewer-failed")
+    has_rose = bool(res["rose"]) and res["normals"] is not None and len(res["normals"]) > 0
+    rose_text = ("Rose of the front normals, push-weighted: the direction the front points and "
+                 "how much tumor probability lies beyond it. A hypothesis about this section.")
+    if isinstance(src, dict) and not failed:
+        st.caption(
+            f"The patient's own section (H&E) at {src['mpp']:.2f} µm per pixel, the scan's own "
+            "level nearest 1 µm. Scroll or double-click to zoom from the whole section down to "
+            "single nuclei, drag to pan; the minimap (top right) shows where you are. Colour the "
+            "tiles by tissue class, certainty, quality control, zones, lymphocyte-like nuclei or "
+            "risk level, and draw the front line, the arcs with their arrows, breakaway "
+            "candidates with the counting field, islands, risk regions, the pointers and, zoomed "
+            "in, every nucleus StarDist found on the counted tiles. Hover a tile for its scores; "
+            "click it to open it in the Spot panel; n and p step through the pointers."
+            + (" Only the tumor-centred window (dashed) was scored: the rest of the section is "
+               "shown, not analysed." if src["window"] else ""))
+        slide_viewer.show([src], key=f"{k}-viewer", goto=st.session_state.get(f"{k}-goto"),
+                          on_change=lambda: viewer_event(pf.id, f"{k}-viewer"))
+        rc, pc = st.columns([1, 3])
+        if has_rose:
+            rc.altair_chart(rose_chart(res["rose"]), width="content")
+            rc.caption(rose_text)
+        pc.caption(f"Tiles: a Deep Zoom pyramid of {slide} (GDC open access; JPEG, cut with "
+                   "OpenSlide); viewer: OpenSeadragon 6.1.1. Each coloured tile is one score for "
+                   f"{TILE_UM:.0f} µm of tissue; classes are model inferences smoothed over 3×3 "
+                   "tiles, so their edges are a tile's width, not a cell's.")
+    else:
+        st.info(f"The slide viewer is not available here: {failed or src}. The tile map below "
+                "draws the same analysis on the scored grid, next to a picture of the scored "
+                "region.")
+        l1, l2 = st.columns([1, 2])
+        layer = l1.radio("Layer", LAYERS, horizontal=True, key=f"{k}-layer")
+        overlays = l2.pills("Overlays", OVERLAYS, selection_mode="multi",
+                            default=["front", "arrows", "pointers"], key=f"{k}-overlays")
+        h, w = res["grid_shape"]
+        px = max(3, min(8, int(640 / max(h, w))))
+        st.caption("Hover a tile for its scores, zone, nuclei and risk points. Each tile is one "
+                   "score for 112 µm of tissue; classes are model inferences smoothed over 3×3 "
+                   "tiles. Arrows: one per arc, length by push; the dashed circle is the counting "
+                   "field; squares are the pointers.")
+        mc, tc = st.columns([3, 2])
+        with mc:
+            st.altair_chart(slide_map(df, res, layer, overlays or [], classes, px),
+                            width="content")
+        with tc:
+            if result["thumbnail"]:
+                st.image(str(result["thumbnail"]), caption="The scored region (H&E, the "
+                         "patient's own section)", width="stretch")
+            if has_rose:
+                st.altair_chart(rose_chart(res["rose"]), width="content")
+                st.caption(rose_text)
 
     # --- direction of invasion --------------------------------------------------------------
     st.markdown("#### Direction of invasion: arcs of the front")
@@ -617,8 +680,8 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
                 with cols[i % len(cols)]:
                     st.markdown(f"**{c['card']} · level {c['level']}** ({c['points']} points, "
                                 f"{c['mm2']} mm²)  \n" + ", ".join(c["features"]))
-                    if st.button(f"Open {c['card']} in the Spot panel", key=f"{k}-card-{i}"):
-                        st.session_state[f"{k}-spot"] = f"r{c['row']}c{c['col']}"
+                    st.button(f"Open {c['card']} in the Spot panel", key=f"{k}-card-{i}",
+                              on_click=go_to, args=(k, slide, f"r{c['row']}c{c['col']}"))
         else:
             st.caption("No region reaches level 2.")
 
@@ -628,9 +691,13 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
         f"{c['why']} · r{c['row']}c{c['col']}" for c in meta.get("crops", [])
         if not any((c["row"], c["col"]) == (p["row"], p["col"]) for p in res["queue"])]
     s1, s2 = st.columns([2, 1])
-    pick = s1.selectbox("A pointer or a stored crop", options, key=f"{k}-pick")
-    typed = s2.text_input("or a tile (r12c34)", key=f"{k}-spot",
-                          placeholder="r12c34").strip()
+    pick = s1.selectbox("A pointer or a stored crop", options, key=f"{k}-pick",
+                        on_change=lambda: go_to(k, slide, (st.session_state[f"{k}-pick"]
+                                                           or "").split("· ")[-1]))
+    typed = s2.text_input("or a tile (r12c34), or click one in the viewer", key=f"{k}-spot",
+                          placeholder="r12c34",
+                          on_change=lambda: go_to(k, slide, st.session_state[f"{k}-spot"])
+                          ).strip()
     target = typed or (pick.split("· ")[-1] if pick else "")
     try:
         rr, cc = target[1:].split("c")
@@ -734,6 +801,35 @@ def render_own(pf: PatientFile, slides: list[str], version: int | None) -> None:
         st.caption("Differences in the immune pattern, the tumor–stroma ratio and the "
                    "breakaway count are between placeholder-rule outputs, not validated "
                    "measurements.")
+        side_by_side(pf, slides)
+
+
+def side_by_side(pf: PatientFile, slides: list[str]) -> None:
+    """Two or three sections in viewers next to each other, pan and zoom linked in µm."""
+    st.markdown("**The sections side by side**")
+    srcs = {n: slide_viewer.source(n) for n in slides
+            if not st.session_state.get(f"{pf.id}|{n}-viewer-failed")}
+    ok = [n for n, s in srcs.items() if isinstance(s, dict)]
+    if len(ok) < 2:
+        st.caption("Side by side needs the slide viewer for two sections, and it is not "
+                   "available here: " + "; ".join(f"{n}: {s}" for n, s in srcs.items()
+                                                  if isinstance(s, str)) + ".")
+        return
+    show = st.multiselect("Sections", ok, default=ok[:3], max_selections=3, key=f"{pf.id}-side")
+    if len(show) < 2:
+        st.caption("Pick two or three sections.")
+        return
+    mpp = ", ".join(f"{n} {srcs[n]['mpp']:.3f}" for n in show)
+    ratio = max(srcs[n]["mpp"] for n in show) / min(srcs[n]["mpp"] for n in show)
+    st.caption((f"The sections' scales match ({mpp} µm per pixel)" if ratio <= 1.01 else
+                f"The sections' scales differ by {ratio - 1:.1%} ({mpp} µm per pixel)")
+               + ": zoom is linked by physical size, one screen pixel showing the same µm in "
+               "each, and pan moves every section by the same distance. The sections are not "
+               "registered to each other: linked pan does not line up their anatomy, and each "
+               "is one plane through the block. Untick \"link pan and zoom\" to move them "
+               "apart; click a tile to open it in that section's Spot panel above.")
+    slide_viewer.show([srcs[n] for n in show], key=f"{pf.id}-compare", height=520,
+                      on_change=lambda: viewer_event(pf.id, f"{pf.id}-compare"))
 
 
 def render_example(pf: PatientFile, result: dict | None) -> None:

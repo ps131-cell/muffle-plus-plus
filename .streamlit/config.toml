@@ -6,6 +6,9 @@ toolbarMode = "minimal"
 
 [server]
 headless = true
+# app/static/ is served at /app/static/: the slide viewer's tile pyramids, unzipped there on
+# first use (app/workbenches/slide_viewer.py; the folder's content is git-ignored)
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false

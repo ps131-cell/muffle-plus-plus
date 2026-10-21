@@ -92,11 +92,14 @@ the queue tiles may be shipped; embeddings never are.
    islands, the densest unsure spot; each with its evidence type, status and what to check by
    eye.
 10. **Output** (`write_result`): `tiles.json` (row, col, quality verdict, class probabilities),
-    `nuclei.json` (per-tile counts for the counted tiles; nucleus centroids for the crop tiles
-    only), `summary.json` (everything above plus the head card, timings and the uptime they were
-    measured under), `thumbnail.jpg` (the scored region) and `crops/` (≤ 60 JPEG crops of 224
-    px: the queue, the field, the cards, the roughest front tiles, breakaway and unsure tiles).
-    No embeddings, no nucleus masks, no tile stack.
+    `nuclei.json` (per-tile counts for the counted tiles; every counted nucleus's centroid,
+    area and solidity, packed per tile, for the viewer's cell layer: `slide_pipeline.py cells`
+    adds them from a run's cached nucleus table without re-running anything), `summary.json`
+    (everything above plus the head card, timings and the uptime they were measured under),
+    `thumbnail.jpg` (the scored region) and `crops/` (≤ 60 JPEG crops of 224 px: the queue,
+    the field, the cards, the roughest front tiles, breakaway and unsure tiles). No embeddings,
+    no nucleus masks, no tile stack; under 3 MB per section (the largest, TCGA-D8-A1XF-DX1,
+    1.8 MB).
 
 ## 3. Every cutoff and its source
 
@@ -160,10 +163,94 @@ reads 81% necrosis-or-debris with almost no invasive carcinoma, and its "breakaw
 sit on tissue the head could not place: a case where the map should not be trusted and says so
 through its unsure share and queue.
 
-## 7. What is left
+## 7. The slide viewer
+
+Round 3 (2026-10-21): the page draws the analysis on the patient's own section and moves the
+way a pathologist moves through a slide, from the whole section to a region, a tile and its
+nuclei. Code: `app/workbenches/slide_viewer.py` (download, overlay file, component call), the
+component in `app/workbenches/slide_viewer_frontend/` (OpenSeadragon 6.1.1, BSD-3-Clause,
+vendored with its license, and plain JavaScript that speaks Streamlit's component protocol; no
+build step), the geometry in `muffle.workbench.viewer`, the tiles from `scripts/slide_pyramid.py`.
+
+- **Tiles.** `slide_pyramid.py build` cuts a Deep Zoom (DZI) pyramid from the scan's own level
+  nearest 1 µm per pixel (the 4× level of these 40× scans: 0.99–1.01 µm/px, so nothing is
+  resampled beyond OpenSlide's own pyramid) and every halving below it: JPEG quality 80, tiles
+  of 254 px with a 1 px overlap (256 px files); a bare-glass tile (grey-level standard deviation
+  under 2.5; tissue, fat included, sits far above) is written flat in its mean colour. OpenSlide's
+  level sizes are checked against the DZI convention (`viewer.dz_levels`) before a tile is
+  written. `slide_pyramid.py manifest` records each section's size, µm per pixel, levels, tile
+  count and zip SHA-256 in `app/workbenches/slides_results/pyramids.json`. No separate 2.5 µm/px
+  overview image is made: the pyramid's own lower levels are the overview and the minimap.
+- **Hosting.** One zip per section on the release
+  [`slide-tiles-v1`](https://github.com/ps131-cell/muffle-plus-plus/releases/tag/slide-tiles-v1)
+  of this repository, never in the repository itself. The first time a section's viewer opens,
+  the app streams its zip to disk, checks the SHA-256, unzips it into `app/static/slides/<slide>/`
+  (git-ignored; `app/static/.gitkeep` keeps the folder) and Streamlit serves it at
+  `/app/static/…` (`enableStaticServing = true` in `.streamlit/config.toml`). The analysis layers
+  are written next to the tiles as one JSON file named by its content hash, from the same
+  `invasion.analyze_slide` result the page shows. Streamlit reads `enableStaticServing` when the
+  server starts, so a server that has not restarted since (a hot-updated deployment) or runs
+  without the config unpacks into the component's own folder
+  (`slide_viewer_frontend/static/slides/`, git-ignored), which Streamlit serves with the
+  component. A failed download is retried after 10 minutes.
+  `MUFFLE_SLIDE_TILES` points at another folder of zips (`file:///…` for local work) or switches
+  downloads off (`off`; the tests do).
+- **Sizes** (built 2026-10-20 in WSL, three processes at `nice -n 10`, the load average at the
+  start in brackets):
+
+  | Section | Top level (px) | µm/px | Tiles (glass) | Zip MB | Built in |
+  |---|---|---|---|---|---|
+  | TCGA-AN-A0AS-DX1 | 14,756 × 10,985 | 0.992 | 3,494 (1,524) | 41.9 | 154 s (11.2) |
+  | TCGA-EW-A1J2-DX1 | 29,446 × 21,801 | 0.994 | 13,346 (5,340) | 103.1 | 376 s (13.5) |
+  | TCGA-PL-A8LZ-DX1 | 19,920 × 5,025 | 1.011 | 2,134 (1,126) | 13.2 | 111 s (10.9) |
+  | TCGA-PL-A8LZ-DX2 | 19,920 × 7,251 | 1.010 | 3,115 (1,505) | 24.5 | 33 s (11.5) |
+  | TCGA-PL-A8LZ-DX3 | 29,382 × 8,718 | 1.010 | 5,483 (3,541) | 36.5 | 207 s (11.8) |
+  | TCGA-D8-A1XF-DX1 | 19,516 × 19,891 | 0.987 | 8,190 (2,212) | 109.0 | 383 s (11.1) |
+  | TCGA-D8-A1XF-DX2 | 23,904 × 21,747 | 1.011 | 10,952 (2,682) | 157.3 | 305 s (4.3) |
+  | TCGA-BH-A0H5-DX1 | 34,565 × 22,194 | 1.002 | 16,146 (3,623) | 175.4 | 309 s (3.8) |
+
+  661 MB in all. Four sections fit the 10–40 MB first aimed for; the four with 100–245 mm² of
+  tissue do not, because H&E at 1 µm/px costs about 20 KB per 256 px tile at quality 80
+  (measured on 60 tissue tiles of TCGA-D8-A1XF-DX1: 13.4 KB at quality 60, 15.9 at 70, 19.9 at
+  80; WebP saved 9%). Only the 2 µm/px level would bring them under 40 MB, and it no longer
+  shows nuclei, so the sections stay at 1 µm/px and each is fetched only when its viewer opens.
+- **What is drawn**, in the pyramid's pixels (a grid tile of 112 µm is 111–114 pyramid px):
+  tiles coloured by tissue class, certainty, quality control, zones, lymphocyte-like nuclei or
+  risk level (translucent, opacity adjustable, or off to see the tissue alone); the front line
+  (the sides of main-tumor tiles that face non-tumor tissue); the arcs as arrows (length by
+  push, red infiltrative, dark pushing); breakaway candidates and the dashed 0.785 mm² counting
+  field; island and risk-region outlines; pointers T1…Tn; the scored window, dashed, with
+  "not analysed" outside it; and, from about 0.5 screen pixels per µm, every nucleus StarDist
+  found on the counted tiles as a circle of its own area (not its outline: the pipeline keeps
+  centroid, area and solidity, not the polygon), coloured by the page's rules: lymphocyte-like,
+  tumor candidate, member of a breakaway cluster, other. A scale bar, a minimap and a legend that
+  carries the evidence labels (classes are model inferences; the front, zones, arcs, islands,
+  field and points are rules on them; the arrows are a hypothesis about this section; the nuclei
+  are pretrained StarDist, not validated on breast here).
+- **Interaction.** Hover shows a tile's class and top score, certainty, zone and distance to the
+  front, nuclei counts and risk points, or the nucleus, arrow or pointer under the cursor. A
+  click opens the tile in the Spot panel. "Jump to" (pointers, risk regions, arcs, the counting
+  field, islands) and the n / p keys fly the viewer and move the Spot panel; the risk cards and
+  the Spot panel's own pick fly the viewer. The sections of one patient (cases 730 and 1043)
+  open side by side with zoom linked by physical size (the same µm per screen pixel in each) and
+  pan by the same distance; the page says whether their scales match (TCGA-D8-A1XF-DX1 and DX2
+  differ by 2.4%) and that the sections are not registered, so linked pan does not line up
+  anatomy.
+- **Fallback.** Without the pyramid (offline, download failed, static serving off, or a browser
+  that cannot load the tiles, which the viewer reports back), the page says why and shows the
+  tile map and the picture of the scored region.
+- **Adding a section.** Score it (`slide_pipeline.py run`, then `cells` if needed and `index`),
+  then `slide_pyramid.py build --slide X.svs --out OUT`, `slide_pyramid.py manifest --out OUT
+  --into app/workbenches/slides_results/pyramids.json`, and `gh release upload slide-tiles-v1
+  OUT/<slide>.zip` (`--clobber` for a rebuilt section; a server that already unzipped the old
+  one keeps it until it restarts).
+
+## 8. What is left
 
 - A pathologist's review of one scored slide, and a measured error for StarDist on breast
   tiles (a few hand-counted tiles would do).
+- Nucleus outlines (a re-run that keeps StarDist's polygons) and registration of a patient's
+  sections, so side by side could line up anatomy.
 - A stronger encoder behind `HF_TOKEN` (another session owns `slide_spike.ENCODERS`); the
   result files are designed so only `encoder` changes.
 - Vessels, DCIS and normal breast as classes (more labeled tiles); blood, folds and stain

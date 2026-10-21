@@ -22,6 +22,10 @@ texture measures, encoder loading and head (``scripts/slide_spike.py``,
   python scripts/slide_pipeline.py index --results app/workbenches/slides_results \
       --case 299=TCGA-AN-A0AS-DX1 --case 730=TCGA-D8-A1XF-DX1,TCGA-D8-A1XF-DX2 ...
       writes cases.json: cohort index -> its slide folders (the page's lookup)
+  python scripts/slide_pipeline.py cells --work WORK --results app/workbenches/slides_results \
+      --slide TCGA-AN-A0AS-DX1 ...
+      adds every nucleus of the cached nuclei.csv (centroid, area, solidity) to nuclei.json
+      for the slide viewer's cell layer; nothing is re-run
 
 Work files (WORK/<slide>/: grid.csv, embeddings.npy, tiles.csv, nuclei.csv, selection.json)
 stay local. A re-run with another encoder (``--model``) only changes "encoder" in summary.json
@@ -48,6 +52,7 @@ from slide_spike import ENCODERS, embed_stack, texture  # noqa: E402
 
 from muffle.workbench import invasion as inv  # noqa: E402
 from muffle.workbench.slides import MPP, TILE_PX, analyze, quality  # noqa: E402
+from muffle.workbench.viewer import cells_json  # noqa: E402
 
 TISSUE_SAT = 12       # placeholder: the colon analyzer's saturation rule, as in slide_spike count
 TISSUE_MIN_SHARE = 0.5  # design: a tile is tissue when half its pixels are
@@ -315,6 +320,7 @@ def write_result(slide, region: dict, sel: dict, tiles: pd.DataFrame, nuclei: pd
             if len(g):
                 nuc_out["points"][f"{r}_{c}"] = [[float(x), float(y), int(lab)] for x, y, lab in
                                                  zip(g.x_um, g.y_um, lymph[g.index], strict=True)]
+        nuc_out["cells"] = cells_json(nuclei)
     (out / "nuclei.json").write_text(json.dumps(nuc_out))
     # crops
     crops = out / "crops"
@@ -470,6 +476,19 @@ def cmd_run(a):
     print(json.dumps(res["numbers"], indent=1, default=_json))
 
 
+def cmd_cells(a):
+    for name in a.slide:
+        path, csv = Path(a.results) / name / "nuclei.json", Path(a.work) / name / "nuclei.csv"
+        if not csv.exists():
+            log(f"{name}: no nuclei.csv (nuclei not run), skipped")
+            continue
+        nuc = json.loads(path.read_text())
+        nuc["cells"] = cells_json(pd.read_csv(csv))
+        path.write_text(json.dumps(nuc))
+        log(f"{name}: {sum(len(v) for v in nuc['cells']['tiles'].values()) // 4} nuclei, "
+            f"nuclei.json {path.stat().st_size / 1e6:.2f} MB")
+
+
 def cmd_index(a):
     cases = {}
     for item in a.case:
@@ -496,8 +515,12 @@ if __name__ == "__main__":
     r.add_argument("--threads", type=int, default=4)
     r.add_argument("--batch", type=int, default=32)
     r.add_argument("--skip-nuclei", action="store_true")
+    c = sub.add_parser("cells")
+    c.add_argument("--work", required=True)
+    c.add_argument("--results", required=True)
+    c.add_argument("--slide", action="append", required=True)
     i = sub.add_parser("index")
     i.add_argument("--results", required=True)
     i.add_argument("--case", action="append", required=True, help="INDEX=SLIDE[,SLIDE]")
     args = p.parse_args()
-    {"run": cmd_run, "index": cmd_index}[args.cmd](args)
+    {"run": cmd_run, "index": cmd_index, "cells": cmd_cells}[args.cmd](args)
