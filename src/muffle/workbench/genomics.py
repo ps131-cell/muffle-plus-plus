@@ -4,7 +4,8 @@ sequencing (DNA)"): pure functions, no Streamlit, no model.
 Every variant keeps its evidence apart, rung by rung: **detected** (observed: which test, when,
 which sample; allele fractions are not in GDC's open masked calls, so none is shown),
 **interpreted** (hypothesis: CIViC evidence items, for clinician review, never a recommendation),
-**predicted effect** (hypothesis: only CIViC's own significance and direction wording),
+**predicted effect** (model inference: AlphaMissense and the Ensembl VEP consequence, from
+``muffle.workbench.genome``; without them, CIViC's own wording, as hypothesis),
 **therapy evidence** (hypothesis, for clinician review) and **resistance mechanisms**
 (hypothesis: CIViC resistance items and the literature cited in docs/VISION.md). A gene that was
 not tested is unknown, never wild type. One sample is one place and one time: with a single
@@ -18,19 +19,21 @@ import io
 import json
 import re
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from muffle.data.tcga import DRIVERS
-from muffle.report.case_tools import HYPOTHESIS, OBSERVED
+from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.civic import CACHE, LEVELS
-from muffle.workspace import MARKS, finding_key
+from muffle.workbench import genome
+from muffle.workspace import MARKS, card, finding_key, look
 
 IMPLEMENTED, PLANNED = "implemented", "planned"
 FOUND, NOT_FOUND = "found", "tested and not found"
 NOT_TESTED = "not tested (unknown, not wild type)"
 PANEL_NOT_STATED = "panel not stated (unknown, not wild type)"
 ESTABLISHED, UNCERTAIN, NO_ITEMS = "established", "uncertain", "hypothesis only"
-NO_ALLELE_FRACTION = "allele fraction: not available in the open masked calls"
+NO_ALLELE_FRACTION = "allele fraction: read counts not available for this sample"
 NO_ALLELE_FRACTION_RECORD = "allele fraction: not stated in the record"
 CIVIC = "CIViC clinical evidence summaries (civicdb.org, CC0)"
 SYNTHETIC_JSON = Path(__file__).resolve().parents[3] / "app" / "timeline_synthetic.json"
@@ -59,10 +62,13 @@ LITERATURE = [
 PLANNED_ROWS = [
     ("ctDNA (liquid biopsy)", "variants over time with allele fractions; the practical follow-up "
                               "after a tissue sample"),
-    ("allele fractions", "need the controlled-access calls or a local pipeline; the open masked "
-                         "calls carry none"),
     ("read-level inspection", "aligned reads around each call (needs BAM access)"),
-    ("pathway views", "which pathways the found variants sit in, with their references"),
+    ("copy-number segments", "arm-level versus focal changes need ASCAT's segments, not the "
+                             "gene-level values shown"),
+    ("allele-specific copy number", "loss of heterozygosity and the mutant copy count need "
+                                    "allele-specific calls"),
+    ("predicted effect beyond missense", "no predictor is shown for truncating, splice or "
+                                         "in-frame changes"),
 ]
 
 
@@ -80,6 +86,7 @@ def events_until(events, month: int | None):
     return events if month is None else [e for e in events if e["month"] <= month]
 
 
+@lru_cache(maxsize=1)  # a file in the repo: read once per process
 def _synthetic_evidence() -> dict:
     if not SYNTHETIC_JSON.exists():
         return {}
@@ -100,9 +107,18 @@ def _imported(file):
     return [t for v in file.versions if v.imported for t in v.tests if t.workbench == "mutations"]
 
 
-def _detections(file, events) -> list[dict]:
-    """gene, change, month, sample, assay, test and allele fraction (the open masked calls carry
-    none, the synthetic record states none, an imported MAF may) per observed variant."""
+def _af_text(reads: dict | None, name: str, default: str) -> str:
+    r = (reads or {}).get(name)
+    if not r or not r.get("depth"):
+        return default
+    return f"allele fraction {r['alt'] / r['depth']:.1%} ({r['alt']} of {r['depth']} reads)"
+
+
+def _detections(file, events, reads: dict | None = None) -> list[dict]:
+    """gene, change, month, sample, assay, test and allele fraction per observed variant; the
+    allele fraction comes from ``reads`` ({"GENE CHANGE": {"alt", "depth"}}, the per-case GDC
+    files' read counts) when given; the synthetic record states none; an imported file carries
+    its own (a MAF's read counts) or says why not."""
     if file.kind == "synthetic":
         out = [{"gene": g, "change": c, "month": e["month"], "sample": "bone biopsy",
                 "assay": "tumor sequencing panel", "test": "Tumor sequencing",
@@ -114,24 +130,27 @@ def _detections(file, events) -> list[dict]:
             {"gene": n.partition(" ")[0], "change": n.partition(" ")[2], "month": None,
              "sample": "primary tumor (TCGA)",
              "assay": "exome sequencing, GDC open-access masked calls", "test": test.name,
-             "allele_fraction": NO_ALLELE_FRACTION} for n in _panel_names(test)]
+             "allele_fraction": _af_text(reads, n, NO_ALLELE_FRACTION)}
+            for n in _panel_names(test)]
     return out + [{"gene": n.partition(" ")[0], "change": n.partition(" ")[2], "month": t.month,
                    "sample": t.details["sample"], "assay": t.details["assay"], "test": t.name,
                    "allele_fraction": t.details["allele_fractions"][n]}
                   for t in _imported(file) for n in t.details["variants"]]
 
 
-def variants(file, events=None, evidence: dict | None = None, lookup=None) -> list[dict]:
+def variants(file, events=None, evidence: dict | None = None, lookup=None,
+             reads: dict | None = None) -> list[dict]:
     """The observed variants of a ``muffle.workspace.PatientFile``, each with its detection,
     interpretation and predicted effect kept apart. ``evidence`` maps "GENE CHANGE" to CIViC
     items; ``lookup(gene, change)`` (e.g. ``muffle.report.civic.evidence``) serves a variant the
-    mapping lacks; the synthetic file falls back to ``app/timeline_synthetic.json``."""
+    mapping lacks; the synthetic file falls back to ``app/timeline_synthetic.json``; ``reads``
+    gives TCGA variants their allele fraction (see ``_detections``)."""
     events = _events(events)
     evidence = dict(evidence or {})
     if file.kind == "synthetic" and not evidence and lookup is None:
         evidence = _synthetic_evidence()
     out = []
-    for d in _detections(file, events):
+    for d in _detections(file, events, reads):
         name = f"{d['gene']} {d['change']}"
         items = evidence.get(name)
         if items is None:
@@ -151,9 +170,9 @@ def variants(file, events=None, evidence: dict | None = None, lookup=None) -> li
                                "note": None if items else
                                "no CIViC item for this variant in breast cancer"},
             "effect": {"evidence": HYPOTHESIS, "statements": effect,
-                       "note": ("CIViC's own significance and direction wording; nothing is "
-                                "predicted here beyond it") if items else
-                       "no CIViC statement: predicted effect unknown"},
+                       "note": ("CIViC's own significance and direction wording; a model's "
+                                "prediction, where one exists, is shown apart") if items else
+                       "no CIViC statement on the effect"},
         })
     return out
 
@@ -219,22 +238,26 @@ def data_card() -> dict:
     return {
         "name": "Genomics workbench (tumor sequencing)",
         "status": IMPLEMENTED,
-        "model": "none: observed calls and curated evidence, no prediction",
+        "model": "no model runs here: observed calls, curated evidence, and AlphaMissense's "
+                 "precomputed predictions shown as model inference",
         "data": {"TCGA-BRCA": "GDC open-access masked somatic calls (exome), the 16-gene breast "
-                              "cancer driver panel of src/muffle/data/tcga.py; no allele fractions",
+                              "cancer driver panel of src/muffle/data/tcga.py; allele fractions "
+                              "from the per-case files' read counts; ASCAT3 gene-level copy "
+                              "number",
                  "SYNTHETIC-001": "a hand-written record (synthetic, not a real person)",
                  "evidence": CIVIC + downloaded,
                  "literature": "resistance under endocrine therapy: PADA-1 (Bidard et al. 2022), "
                                "SERENA-6 (Bidard et al. 2025), as cited in docs/VISION.md"},
         "evidence_levels": LEVELS,
-        "labels": {"detected": OBSERVED, "interpreted": HYPOTHESIS, "predicted effect": HYPOTHESIS,
+        "labels": {"detected": OBSERVED, "interpreted": HYPOTHESIS, "predicted effect": INFERENCE,
                    "therapy evidence": HYPOTHESIS, "resistance mechanisms": HYPOTHESIS,
                    "watchlist": HYPOTHESIS},
         "limits": ["one sample is one place and one time",
                    "tumor purity and sequencing depth are unknown, so a negative is not proof "
                    "of absence",
                    "panel genes only: nothing is said about genes outside the panel",
-                   "no allele fractions in the open masked calls",
+                   "allele fractions only for the TCGA cases (read counts); the synthetic "
+                   "record states none",
                    "CIViC items are evidence for clinician review, never a recommendation"],
         "planned": [{"what": w, "note": n, "status": PLANNED} for w, n in PLANNED_ROWS],
     }
@@ -291,9 +314,31 @@ def variant_resistance(variant: dict, table=None) -> list[dict]:
     return resistance_items(variant["gene"], therapies, table)
 
 
-def ladder(variant: dict, resistance: list[dict] | None = None) -> list[dict]:
+def _predicted_rung(variant: dict, predicted: dict) -> dict:
+    """Rung 3 from a model: AlphaMissense's score and class (model inference) and Ensembl VEP's
+    consequence of the call (``muffle.workbench.genome.effect``)."""
+    p, a = predicted["prediction"], predicted["annotation"]
+    lines = []
+    if p["score"] is not None:
+        lines.append(f"{p['predictor']}: {p['score']:.3f}, {p['class']} (model inference; not "
+                     "approved for clinical use)")
+    elif not p["applies"]:
+        lines.append(f"{p['predictor']}: not applicable (missense changes only)")
+    protein = a["hgvsp"] or "no protein change"
+    lines.append(f"consequence: {(a['consequence'] or '?').replace('_', ' ')} on "
+                 f"{a['transcript'] or 'the canonical transcript'} ({protein}), Ensembl VEP")
+    return {"rung": 3, "label": "predicted effect", "evidence": INFERENCE,
+            "status": "present" if p["score"] is not None else "none", "lines": lines,
+            "items": [], "strengthen": "a functional assay for this exact change; the predictor "
+                                      "scores pathogenicity, not somatic oncogenicity"}
+
+
+def ladder(variant: dict, resistance: list[dict] | None = None,
+           predicted: dict | None = None) -> list[dict]:
     """Five rungs for one variant, each with its own evidence type and what would strengthen
-    it: detected, interpreted, predicted effect, therapy evidence, resistance mechanisms."""
+    it: detected, interpreted, predicted effect, therapy evidence, resistance mechanisms.
+    ``predicted``: the variant's ``muffle.workbench.genome.effect``; with it, rung 3 is the
+    model's prediction (model inference), otherwise CIViC's own effect wording."""
     d, items = variant["detection"], variant["interpretation"]["items"]
     specific = [i for i in items if (i.get("match") or "").startswith("this variant")]
     levels = sorted({i.get("evidence_level", "?") for i in items})
@@ -310,7 +355,7 @@ def ladder(variant: dict, resistance: list[dict] | None = None) -> list[dict]:
     else:
         strengthen2 = ("nothing more from CIViC: a validated association for the variant itself; "
                        "what remains open is this patient's own response")
-    return [
+    rungs = [
         {"rung": 1, "label": "detected", "evidence": OBSERVED, "status": "observed",
          "lines": [f"{d['test']} · {d['sample']} · {d['when']}", d["allele_fraction"]],
          "items": [], "strengthen": "allele fraction and depth from the full calls; the same "
@@ -346,6 +391,9 @@ def ladder(variant: dict, resistance: list[dict] | None = None) -> list[dict]:
          "items": resist, "literature": lit,
          "strengthen": "serial ctDNA while on therapy; a repeat biopsy at progression"},
     ]
+    if predicted and predicted.get("found"):
+        rungs[2] = _predicted_rung(variant, predicted)
+    return rungs
 
 
 def treatments(file, version: int | None = None) -> list[str]:
@@ -464,7 +512,10 @@ def provenance(file, events=None) -> list[tuple[str, str]]:
     return [("sample", "primary tumor (TCGA)"), ("site", "breast (surgery)"),
             ("date", "not in the open data"),
             ("assay", "exome sequencing, GDC open-access masked somatic calls"),
-            ("can show", can), ("cannot show", cannot)]
+            ("can show", can + "; with the same sample's read counts and ASCAT3 copy number: "
+                               "allele fractions and gene-level copy number"),
+            ("cannot show", "clonal structure for certain, germline variants, genes outside the "
+                            "panel, and anything that changed after this sample")]
 
 
 # ------------------------------------------------------------------ review marks and export
@@ -541,6 +592,82 @@ def report_markdown(file, variants: list[dict], ladders: dict[str, list[dict]],
     out += ["", "CIViC items (civicdb.org, CC0) are evidence for clinician review, never a "
             "recommendation. Not tested means unknown, not wild type.", ""]
     return "\n".join(out)
+
+
+# --------------------------------------------------- the workbench contract (WORKBENCHES.md §1)
+
+def file_variants(file, version: int | None = None, lookup=None) -> tuple[list[dict], bool]:
+    """``variants`` as of report version ``version`` and whether CIViC was available (the
+    synthetic record's frozen items, or ``lookup`` for a TCGA file): without it a variant's
+    evidence is unknown, never "none"."""
+    month = None if version is None else file.versions[version].month
+    return (variants(file, events_until(None, month), None, lookup),
+            file.kind == "synthetic" or lookup is not None)
+
+
+def _seq_opens(file, v: dict) -> tuple:
+    t = next((t for t in file.tests if t.workbench == "mutations" and t.name == v["test"]
+              and t.month == v["month"]), None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def summary(file, version: int | None = None, lookup=None) -> dict:
+    """The observed drivers with their strongest CIViC level (or "not sequenced")."""
+    vs, civic = file_variants(file, version, lookup)
+    seq = [t for v in file.versions[: (len(file.versions) if version is None else version + 1)]
+           for t in v.tests if t.workbench == "mutations"]
+    method = ("tumor sequencing panel in the record" if file.kind == "synthetic" else
+              f"exome sequencing, GDC open-access masked somatic calls, {len(DRIVERS)}-gene "
+              "breast cancer driver panel")
+    extra = genome.overview_cards(file)  # copy number and burden, for the TCGA cases
+    if not seq:
+        return {"workbench": "genomics", "title": "Tumor sequencing", "note": None, "cards": [
+            card("Driver mutations", "not sequenced: unknown, not wild type", OBSERVED,
+                 "no sequencing test in this file", "none", "none", "strong"), *extra]}
+    if not vs:
+        text, opens, focus = "sequenced: none of the panel's genes mutated", (
+            "Tests", seq[-1].kind, seq[-1].month, seq[-1].name), None
+    else:
+        text = ", ".join(v["variant"] + (f" (CIViC level {v['strongest_level']})"
+                                         if v["strongest_level"] else
+                                         " (no CIViC breast cancer item)" if civic else "")
+                         for v in vs) + ("" if civic else " · CIViC not loaded here")
+        top = min(vs, key=lambda v: "ABCDEZ".find(v["strongest_level"] or "Z"))
+        opens, focus = _seq_opens(file, top), {"variant": top["variant"]}
+    return {"workbench": "genomics", "title": "Tumor sequencing", "note": None, "cards": [card(
+        "Key drivers", text, f"{OBSERVED} (mutation), {HYPOTHESIS} (CIViC evidence, for "
+        "clinician review)", ", ".join(dict.fromkeys(f"{t.name}" + (
+            "" if t.month is None else f", month {t.month}") for t in seq)), method,
+        "CIViC curated evidence levels (A validated … E inferential)", "strong", opens, focus),
+        *extra]}
+
+
+def queue(file, version: int | None = None, lookup=None) -> list[dict]:
+    """One item per observed variant, by the strength of its CIViC evidence: level A or B
+    (consequence 2, trust strong), C to E (1, moderate), none (1, weak). Nothing without CIViC:
+    an unknown evidence base is not a finding to triage."""
+    vs, civic = file_variants(file, version, lookup)
+    if not civic:
+        return genome.overview_items(file)
+    out = []
+    for v in vs:
+        level, items = v["strongest_level"], v["interpretation"]["items"]
+        if level is None:
+            trust, consequence, why = "weak", 1, "no CIViC item for this variant in breast cancer"
+        else:
+            trust, consequence = ("strong", 2) if level in "AB" else ("moderate", 1)
+            therapies = sorted({t for i in items if i.get("evidence_level") == level
+                                for t in _therapies(i)})
+            why = (f"CIViC level {level} ({LEVELS.get(level, '?')}): {len(items)} item(s); "
+                   f"therapies named at that level: {', '.join(therapies) or 'none'}; evidence "
+                   "for clinician review, never a recommendation")
+        out.append(look(
+            v["variant"], f"{v['variant']} ({v['sample']}, {v['detection']['when']})", why,
+            f"{OBSERVED} (mutation), {HYPOTHESIS} (CIViC evidence)", trust, consequence,
+            _seq_opens(file, v), source=f"{v['test']}, {v['detection']['when']}",
+            key=variant_key(file, v), focus={"variant": v["variant"]}, month=v["month"],
+            threshold="CIViC curated evidence levels"))
+    return out + genome.overview_items(file)
 
 
 def report_csv(file, variants: list[dict], reviews: dict) -> str:

@@ -19,7 +19,15 @@ import re
 from pathlib import Path
 
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
-from muffle.workspace import DISCLAIMER, PatientFile, finding_key, sequencing_tests
+from muffle.workbench import documents
+from muffle.workspace import (
+    DISCLAIMER,
+    PatientFile,
+    card,
+    finding_key,
+    look,
+    sequencing_tests,
+)
 
 VERIFIED = "2026-10-20"  # every PMID and DOI in SOURCES, checked against PubMed that day
 VAF_JSON = Path(__file__).resolve().parents[2] / "app" / "evolution_vaf.json"
@@ -613,15 +621,97 @@ def _receptor(text: str, short: str, long: str) -> bool | None:
     return m.group(1).lower() in ("+", "positive")
 
 
+NAMES = {"HR": "hormone receptor", "HER2": "HER2"}
+WORDS = {True: "positive", False: "negative", None: "not recorded"}
+RECEPTOR_FACTS = {"HR": ("er", "pr", "hr"), "HER2": ("her2",)}  # the documents fields they read
+
+
+def _documented(facts: list[dict]) -> dict:
+    """"HR" and "HER2" -> {document id: (the statuses it states, its words)}, from the ER, PR,
+    hormone-receptor and HER2 status facts of ``muffle.workbench.documents``. Positive or negative
+    only: "equivocal", an IHC score or an ISH result is never turned into a status. A document
+    states hormone-receptor positive when it states ER or PR positive, negative when it states
+    both negative (or hormone receptors negative); ER or PR negative alone settles neither (no
+    status, its words kept). One document can state both (two specimens, or a legend read as a
+    result)."""
+    out = {k: {} for k in NAMES}
+    for doc in dict.fromkeys(f["doc"] for f in facts):
+        mine = [f for f in facts if f["doc"] == doc and f["value"] in ("positive", "negative")]
+        said = {(f["field"], f["value"]) for f in mine}
+        states = {"HER2": {v == "positive" for k, v in said if k == "her2"},
+                  "HR": {True} if said & {("er", "positive"), ("pr", "positive"),
+                                          ("hr", "positive")} else set()}
+        if ("hr", "negative") in said or {("er", "negative"), ("pr", "negative")} <= said:
+            states["HR"].add(False)
+        for k, fields in RECEPTOR_FACTS.items():
+            stated = [f"{f['label']} {f['value']}" for f in mine if f["field"] in fields]
+            if stated:
+                out[k][doc] = (states[k], ", ".join(stated))
+    return out
+
+
+def _docs(ids) -> str:
+    return ("document " if len(ids) == 1 else "documents ") + ", ".join(ids)
+
+
+def _rules_note() -> str:
+    """How far a document's status can be trusted: the rules' precision on held-out reports."""
+    path = documents.DOCS_DIR / "validation.json"
+    if not path.exists():
+        return f"Document statuses are read by the {documents.RULES_VERSION}."
+    test = json.loads(path.read_text())["sets"]["test"]
+    p = {r["field"]: r["precision"] for r in test["fields"]}
+    return (f"Document statuses are read by the {documents.RULES_VERSION}, precision on "
+            f"{test['patients']} held-out TCGA reports: ER {p['er']:.0%}, PR {p['pr']:.0%}, "
+            f"HER2 {p['her2']:.0%}. A rule match is not a pathologist's read: the sentence is in "
+            "the Clinical documents workbench.")
+
+
+def _receptor_status(record: dict, said: dict) -> tuple[dict, dict, list[str]]:
+    """Each receptor status with where it comes from: the record's own when it has one (a
+    document stating otherwise is named, never outvoted), else the documents' when they agree,
+    else unknown (documents that disagree are named, none is picked)."""
+    status, origin, notes = {}, {}, []
+    for k, name in NAMES.items():
+        docs, label = said[k], name[0].upper() + name[1:]
+        states = {s for st, _ in docs.values() for s in st}
+        settling = [d for d, (st, _) in docs.items() if st]
+        other = [d for d in settling if record[k] is not None and docs[d][0] - {record[k]}]
+        words = "; ".join(f"{d} states {docs[d][1]}" for d in other or docs)
+        if record[k] is not None:
+            status[k], origin[k] = record[k], "in the record"
+            if other:
+                origin[k] += (f" ({_docs(other)} "
+                              f"{'states' if len(other) == 1 else 'state'} otherwise)")
+                notes.append(f"{label} status: the record says {WORDS[record[k]]}; {words}. The "
+                             "record's status is used; which is right is not settled here.")
+        elif len(states) == 1:
+            status[k], origin[k] = states.pop(), f"observed in {_docs(settling)}"
+            notes.append(f"{label} status {WORDS[status[k]]}, observed: {words}.")
+        elif states:
+            status[k], origin[k] = None, f"conflicting statuses in {_docs(settling)}"
+            notes.append(f"{label} status: conflicting statuses, {words}. None is picked; rows "
+                         "that need it are shown as conditional.")
+        else:
+            status[k], origin[k] = None, f"not settled by {_docs(docs)}" if docs else ""
+            if docs:
+                notes.append(f"{label} status: {words}, which settles neither (positive needs "
+                             "ER or PR positive, negative needs both negative).")
+    return status, origin, notes + ([_rules_note()] if notes else [])
+
+
 def context(pf: PatientFile, version: int | None = None) -> dict:
     """What the file says as of report version ``version`` (the latest when None): receptor
-    status, observed drivers, recorded treatments with their class and setting, the first
-    recorded metastatic site. All observed; nothing inferred."""
+    status with its source (``receptor_from``; ``receptor_notes`` give what each document states
+    and every disagreement), observed drivers, recorded treatments with their class and setting,
+    the first recorded metastatic site. All observed; nothing inferred."""
     i = len(pf.versions) - 1 if version is None else version
     vs = pf.versions[: i + 1]
     dx = dict(vs[-1].observed).get("Diagnosis", "") + " " + pf.diagnosis
-    receptors = {"HR": _receptor(dx, "HR", "hormone[- ]receptor"),
-                 "HER2": _receptor(dx, "HER2", "HER2")}
+    record = {"HR": _receptor(dx, "HR", "hormone[- ]receptor"),
+              "HER2": _receptor(dx, "HER2", "HER2")}
+    said = _documented(documents.facts(documents.file_documents(pf, i)))
+    receptors, receptor_from, receptor_notes = _receptor_status(record, said)
     drivers = {}
     for t in sequencing_tests(pf, i):
         for v in t.details.get("variants", []):
@@ -637,13 +727,20 @@ def context(pf: PatientFile, version: int | None = None) -> dict:
                        if v.month < first_met else "after the first recorded metastatic site")
             treatments.append({"agent": agent, "class": cls, "month": v.month,
                                "setting": setting})
-    return {"version": i, "month": vs[-1].month, "receptors": receptors, "drivers": drivers,
+    return {"version": i, "month": vs[-1].month, "receptors": receptors,
+            "receptor_from": receptor_from, "receptor_notes": receptor_notes, "drivers": drivers,
             "treatments": treatments, "first_met": first_met, "kind": pf.kind}
 
 
-def receptor_text(receptors: dict) -> str:
-    words = {True: "positive", False: "negative", None: "not recorded"}
-    return (f"hormone receptor {words[receptors['HR']]}, HER2 {words[receptors['HER2']]}")
+def receptor_text(receptors: dict, sources: dict | None = None, keys=NAMES) -> str:
+    """"hormone receptor positive in the record, HER2 not recorded": each status (of ``keys``),
+    with where it comes from when ``sources`` (``context``'s "receptor_from") is given."""
+    out = []
+    for k in keys:
+        src = (sources or {}).get(k, "")
+        word = "unknown:" if receptors[k] is None and src else WORDS[receptors[k]]
+        out.append(f"{NAMES[k]} {word} {src}".strip())
+    return ", ".join(out)
 
 
 def _subtype(want: dict, receptors: dict) -> str:
@@ -672,13 +769,16 @@ def hypothesis_set(pf: PatientFile, version: int | None = None, lookup=None) -> 
     does not raise are listed in ``not_raised`` with the reason. Never advice."""
     ctx = context(pf, version)
     rec, drivers, rx = ctx["receptors"], ctx["drivers"], ctx["treatments"]
+    src = ctx["receptor_from"]
     notes = []
     if not rx:
         notes.append("No treatment recorded as of this version." if pf.kind == "synthetic"
                      else "No treatment recorded; these hypotheses assume none.")
+    if ctx["receptor_notes"]:
+        notes.append(" ".join(ctx["receptor_notes"]))
     if None in rec.values():
-        notes.append(f"Receptor status: {receptor_text(rec)} in this file; rows that need it "
-                     "are shown as conditional.")
+        notes.append(f"Receptor status in this file: {receptor_text(rec, src)}; rows that need "
+                     "it are shown as conditional.")
     ranked, skipped = [], []
     for n, row in enumerate(TABLE):
         sub = _subtype(row["subtype"], rec)
@@ -687,7 +787,8 @@ def hypothesis_set(pf: PatientFile, version: int | None = None, lookup=None) -> 
         present = _present(row, drivers)
         reason = None
         if sub == "not met":
-            reason = f"needs {_wanted(row['subtype'])} disease; this file: {receptor_text(rec)}"
+            reason = (f"needs {_wanted(row['subtype'])} disease; this file: "
+                      f"{receptor_text(rec, src, row['subtype'])}")
         elif row["needs"] and not need:
             reason = f"needs an observed {' or '.join(row['needs'])} alteration; none in this file"
         elif row["under"] and not under and not present:
@@ -702,10 +803,9 @@ def hypothesis_set(pf: PatientFile, version: int | None = None, lookup=None) -> 
         why += [f"observed {drivers[g][0]}" + ("" if drivers[g][1] is None else
                                               f" (month {drivers[g][1]})")
                 for g in dict.fromkeys(need + present)]
-        if sub == "met":
-            why.append(f"{_wanted(row['subtype'])} in the record")
-        elif sub == "unknown":
-            why.append(f"applies if {_wanted(row['subtype'])}: not recorded in this file")
+        why += [f"{_wanted({k: want})} {src[k]}" if rec[k] is not None else
+                f"applies if {_wanted({k: want})}: {src[k] or 'not recorded in this file'}"
+                for k, want in row["subtype"].items()]
         status = (f"already observed: {', '.join(drivers[g][0] for g in present)}; this table "
                   "does not judge whether the exact change is the event described"
                   if present else "not observed in this file")
@@ -978,3 +1078,40 @@ def report_markdown(pf: PatientFile, version: int | None, hs: dict, panel: dict,
     out += ["", f"Table checked against PubMed on {VERIFIED}; frequencies are cohort figures, "
             "not this patient's probability.", ""]
     return "\n".join(out)
+
+
+# --------------------------------------------- the workbench contract (docs/WORKBENCHES.md §1)
+
+def _raised(item: dict) -> bool:
+    """A row this file raises itself (a recorded treatment or an observed driver), not one that
+    applies to any breast cancer."""
+    return any("recorded from month" in w or w.startswith("observed") for w in item["why"])
+
+
+def summary(pf: PatientFile, version: int | None = None) -> dict:
+    """The top hypothesis of what to watch next, with why this file raises it."""
+    hs = hypothesis_set(pf, version)
+    if not hs["items"]:
+        return {"workbench": "evolution", "title": "Evolution", "cards": [],
+                "note": "no row of the evolution table is raised by this file"}
+    it = hs["items"][0]
+    return {"workbench": "evolution", "title": "Evolution", "note": None, "cards": [card(
+        "What to watch next", f"{it['event']}: {'; '.join(it['why'])}", HYPOTHESIS,
+        "this file's recorded treatments, drivers and receptor status",
+        f"a cited table of {len(TABLE)} rows (PubMed checked {VERIFIED}), ranked by a fixed "
+        f"rule; strongest support: {it['strength']}",
+        f"none: a hypothesis to watch, never advice; detect with {it['detect']}", "weak",
+        ("Evolution",))]}
+
+
+def queue(pf: PatientFile, version: int | None = None, k: int = 3) -> list[dict]:
+    """The first ``k`` rows the file raises itself, as hypotheses worth a look (consequence 1,
+    trust weak); the Evolution view holds the rest and the rows that apply to any patient."""
+    out = []
+    for it in [it for it in hypothesis_set(pf, version)["items"] if _raised(it)][:k]:
+        out.append(look(
+            it["id"], f"Watch for {it['event']}", f"{'; '.join(it['why'])}; when it would "
+            f"matter: {it['matters']}; detect with {it['detect']}", HYPOTHESIS, "weak", 1,
+            ("Evolution",), source="the Evolution view's cited table", key=it["key"],
+            threshold=f"none: a hypothesis ({it['strength']}); frequency {it['frequency']}"))
+    return out

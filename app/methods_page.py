@@ -16,14 +16,18 @@ import streamlit as st
 
 import charts
 from workbenches import documents, omics
+from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
 from muffle import crosstest, workspace
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.nemotron import DEFAULT_MODEL, WRITER_MODEL, model_name
+from muffle.timeline import CTDNA
+from muffle.workbench import ctdna as ctdna_rules
 from muffle.workbench import genomics as genomics_rules
 from muffle.workbench import labs as lab_rules
 from muffle.workbench import omics as omics_rules
+from muffle.workbench import radiology as radiology_rules
 from muffle.workbench.grammar import chip
 
 APP = Path(__file__).parent
@@ -68,12 +72,14 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     survival_card(demo, res)
     landmark_card(tl)
     slide_model_cards()
+    radiology_page.methods_card()
     omics.methods_section()
     case_note_card(demo)
 
     st.header("Rules")
     alert_card()
     lab_card()
+    ctdna_card()
     slide_rule_card()
     genomics_card()
     st.subheader("Clinical documents: extraction rules")
@@ -96,7 +102,9 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
         "federation matches pooling and beats a single hospital.\n"
         "- TCGA holds one tumor sample per patient, so its files have one version and no "
         "alerts.\n"
-        "- The radiology and ctDNA workbenches are planned; an imported image or DICOM file is "
+        "- The radiology workbench reads the synthetic patient's imaging reports as text and "
+        "shows model contours and a screening score on three public TCGA-BRCA studies only, not "
+        "validated here; the ctDNA workbench is planned; an imported image or DICOM file is "
         "registered and queued for the local pipeline, not analyzed. Imports last for the "
         "browser session.\n"
         "- No finding has been reviewed against outcomes by a clinician, and no slide by a "
@@ -299,6 +307,17 @@ def lab_card() -> None:
                "placeholder definitions (see every placeholder below).")
 
 
+def ctdna_card() -> None:
+    c = ctdna_rules.rules_card(CTDNA)
+    card("ctDNA monitor rules", workspace.IMPLEMENTED,
+         "allele fractions over time, calls, origin, the ESR1 rule · the ctDNA monitor")
+    st.markdown(f"{c['kind']}. **Inputs:** {c['inputs']}. **Validation:** {c['validation']}. "
+                "The only series in the app is SYNTHETIC-001's, written by hand and labeled "
+                f"synthetic; the ESR1 rule is {chip(HYPOTHESIS)}, evidence for clinician review, "
+                "never a recommendation to switch.")
+    st.dataframe(pd.DataFrame(c["thresholds"]), hide_index=True, width="stretch")
+
+
 def slide_rule_card() -> None:
     from muffle.workbench import invasion
     from muffle.workbench import slides as slide_rules
@@ -375,6 +394,13 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
      "the patient's own sections in the slide workbench: derived numbers and small crops only",
      "as TCGA"),
     ("BCSS (Amgad et al., Bioinformatics 2019)", "labels for the breast tissue head", "CC0 1.0"),
+    ("TCGA-BRCA radiology (The Cancer Imaging Archive, doi:10.7937/K9/TCIA.2016.AB2NAZRP)",
+     "the radiology workbench's public MRI and mammography studies: 8-bit copies and derived "
+     "numbers", "CC BY 3.0, with attribution"),
+    ("MedSAM ViT-B (Ma et al., Nat Commun 2024; wanglab/medsam-vit-base)",
+     "lesion contours, run offline", "Apache-2.0"),
+    ("mammoscreen (ianpan/mammoscreen)", "the mammography screening score and density, run "
+     "offline", "Apache-2.0"),
     ("QuiltNet-B-32 (Ikezogwo et al., NeurIPS 2023)", "the tile encoder, run offline", "MIT"),
     ("StarDist 2D_versatile_he (Schmidt et al. 2018; Weigert et al. 2020)",
      "nuclei on front-band tiles, run offline", "BSD-3-Clause"),
@@ -445,6 +471,7 @@ def known_failures() -> None:
          "often in an earlier biopsy report)" + ("; weak fields: " + ", ".join(weak) if weak
                                                  else "") + "."),
         *(("Lab rules", f) for f in lab_rules.rules_card()["known_failures"]),
+        *(("ctDNA rules", f) for f in ctdna_rules.rules_card(CTDNA)["known_failures"]),
         ("Imported imaging report", "A word rule, tested on sample sentences only: it misses "
          "progression stated without the word (\"enlarging lesions\"), a new site phrased "
          "another way and negations it doesn't list; it reads no measurements, so no RECIST."),
@@ -455,6 +482,7 @@ def known_failures() -> None:
          "not a wrong reading of a right number or an overstated sentence."),
         ("Evolution view", "A cohort's frequency is not this patient's probability; purity is "
          "unknown, so no variant is called clonal."),
+        *(("Radiology", f) for f in radiology_rules.KNOWN_FAILURES),
     ]
     st.header("Known failures")
     st.caption("What each module gets wrong, as far as it has been measured or seen. Each "
@@ -480,12 +508,19 @@ def placeholders() -> None:
          "values"),
         ("Labs", "hook-effect check", f"a value {lab_rules.HOOK_FACTOR}× the limit"),
         ("Labs", "within-person baseline", "longest run of results with no rise or fall flag"),
+        ("Labs", "large rise or fall (analytes other than tumor markers)",
+         f"{lab_rules.CHANGE:.0%} from the previous value"),
+        ("Labs", "cross-analyte hypothesis window",
+         f"{lab_rules.HYPOTHESIS_MONTHS} months before the imaging report"),
+        *(("ctDNA", t["name"], t["value"]) for t in ctdna_rules.rules_card(CTDNA)["thresholds"]
+          if t["status"] == ctdna_rules.PLACEHOLDER),
         ("Omics", "borderline subtype call", f"centroid margin under {omics_rules.LOW_MARGIN}"),
         ("Omics", "ERBB2 amplification from copy number", "at least twice the tumor ploidy"),
         *(("Slides", k, f"{v} ({note})") for k, (v, tag, note) in
           {**slide_rules.CUTOFFS, **invasion.CUTOFFS}.items() if tag == slide_rules.PLACEHOLDER),
         ("Slides", "risk map points and levels", ", ".join(
             f"{k} {v}" for k, v in invasion.RISK_POINTS.items())),
+        *(("Radiology", what, value) for what, value in radiology_rules.PLACEHOLDERS),
     ]
     st.header("Every placeholder in the app")
     st.caption(f"{len(rows)} values nobody has validated yet. Each workbench marks its own "

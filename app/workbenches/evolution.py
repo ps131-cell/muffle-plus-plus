@@ -42,9 +42,10 @@ KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78
                "sequencing": "#7b4fd6", "marker": "#1a9e8f", "alert": "#e34948"}
 GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
 REVIEW_MARKS = MARKS[1:]  # agree, disagree, second look; "reviewed" belongs to the SOS queue
-PROVENANCE = (f"Data: this file's record (observed). Method: a table of {len(evolution.TABLE)} "
-              f"rows from {len(evolution.SOURCES)} papers, each PMID and DOI checked against "
-              f"PubMed on {evolution.VERIFIED}; only what each abstract reports; a fixed "
+PROVENANCE = ("Data: this file's record and its documents (observed). Method: a table of "
+              f"{len(evolution.TABLE)} rows from {len(evolution.SOURCES)} papers, each PMID and "
+              f"DOI checked against PubMed on {evolution.VERIFIED}; only what each abstract "
+              "reports; receptor status from the documents rules when the record has none; a fixed "
               "ordering rule; allele-fraction arithmetic for clonal order. No model is trained "
               "or run here. Status: implemented; the hypotheses are not validated predictions.")
 
@@ -321,6 +322,15 @@ def method_card() -> None:
             "row whose source could not be verified was dropped. CIViC items (CC0) are matched "
             "to each event by its molecular profile. The full table with references: "
             f"[docs/evolution.md]({DOCS}).")
+        st.markdown(
+            "**Receptor status** (observed): the record's own, from its diagnosis; when it has "
+            "none, the ER, PR and HER2 status the Clinical documents workbench reads in this "
+            "file's documents (a TCGA case's pathology report, an imported report), named by "
+            "document id. Hormone-receptor positive when a document states ER or PR positive, "
+            "negative when it states both negative; an IHC score, an ISH result or 'equivocal' is "
+            "never turned into a status. A document that disagrees with the record is named next "
+            "to the record's status, which is used; documents that disagree with each other "
+            "leave the status unknown and the rows that need it conditional.")
 
 
 def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
@@ -346,7 +356,8 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
         + (f"{len(ev)} dated events" if ev else "One timepoint, no dated events")
         + "; drivers " + (esc(", ".join(d for d, _ in ctx["drivers"].values()))
                           or "none observed")
-        + f"; {evolution.receptor_text(ctx['receptors'])}; treatments: {treated or 'none recorded'}"
+        + f"; {evolution.receptor_text(ctx['receptors'], ctx['receptor_from'])}; treatments: "
+        f"{treated or 'none recorded'}"
         + f".  \n{badge(INFERENCE)} Clonal order: {panel['status']}."
         + f"  \n{badge(HYPOTHESIS)} {len(hs['items'])} things to watch; "
         f"{len(hs['not_raised'])} rows of the table not raised for this file."
@@ -397,7 +408,9 @@ def methods_card() -> None:
         f"cohort and frequency included; a row whose source could not be verified was dropped "
         f"([docs/evolution.md]({DOCS})).\n"
         "- **What to watch next:** the rows a file raises from its recorded treatments, "
-        "receptor status and observed drivers, ordered by a fixed rule (how much of the row's "
+        "receptor status (the record's, else the ER, PR and HER2 status its pathology reports "
+        "state, read by the documents rules and named by document; a disagreement is shown, "
+        "never resolved) and observed drivers, ordered by a fixed rule (how much of the row's "
         "context the file shows, then the most recent matching treatment, then the strength of "
         "the evidence), each with its evidence for and against. A cohort's frequency is never "
         "this patient's probability; nothing is worded as advice.\n"
@@ -423,13 +436,15 @@ EXAMPLE_CASE = SimpleNamespace(  # case 43 as the release bundle demo-bundle-v2 
 
 
 def main() -> None:
+    from muffle.workbench.documents import case_documents
     from muffle.workspace import case_file, synthetic_file
     st.set_page_config(page_title="Tumor evolution", layout="wide")
     tl = json.loads((APP / "timeline_synthetic.json").read_text(encoding="utf-8"))
     choice = st.radio("Example file", ["SYNTHETIC-001 (synthetic patient)",
                                        f"Case {EXAMPLE_CASE.index} (TCGA-BRCA public data)"],
                       horizontal=True)
-    render(synthetic_file(tl) if choice.startswith("SYNTHETIC") else case_file(EXAMPLE_CASE))
+    render(synthetic_file(tl) if choice.startswith("SYNTHETIC") else
+           case_file(EXAMPLE_CASE, documents=case_documents(EXAMPLE_CASE.index)))
 
 
 if __name__ == "__main__":

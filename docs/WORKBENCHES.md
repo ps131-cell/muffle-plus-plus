@@ -48,32 +48,88 @@ measurement. Every workbench follows it.
    known failures, like the analyzer's "what didn't work" page.
 8. **Change over time.** "Since the last version" on every workbench where it is valid; never a
    comparison across an assay or protocol change without saying so.
+9. **One contract for the patient file** (built 2026-10-21). Every workbench module
+   (`src/muffle/workbench/<name>.py`) carries two pure functions that the report, the export
+   and the patient list read the same way (`muffle.overview`):
+   - `summary(pf, version=None) -> {"workbench", "title", "cards", "note"}`: a few key
+     findings as cards (`workspace.card`): `what`, `text`, `evidence` (observed, model
+     inference or hypothesis; a documented fact is observed), `source` (the test it comes
+     from), `method` (rule or model, with its version), `threshold` (where it comes from:
+     guideline, literature, calibrated or placeholder), `trust` (strong, moderate, weak),
+     `opens` and `focus`. `note` says why there is no card ("no scored section of this
+     tumor").
+   - `queue(pf, version=None) -> [item]`: what is worth a look now (`workspace.look`):
+     `pointer` (L5, T2, the variant, "ER: IHC vs RNA", D1), `what`, `why`, `evidence`, `trust`,
+     `consequence` (3 changes the picture of the disease, 2 may change care, 1 worth a look),
+     `opens`, `focus`, `source`, `key` (its `finding_key`, so a mark made from the report is
+     the workbench's own mark), `month` and `threshold`. The workbench page may list more
+     (older flags, standing caveats such as a layer's known failure).
+   - `opens` has the shape of `Alert.opens` (`("Tests", kind, month, name)` or
+     `("Timeline",)`); `focus` says where inside the workbench the evidence is (`{"marker",
+     "month"}`, `{"variant"}`, `{"slide", "pointer", "tile"}`, `{"omics": key}`, `{"doc",
+     "sentence"}`), and the report's "open" lands there.
+   - Pure: no Streamlit, no model run, nothing new computed (`tests/test_overview.py`). Labs,
+     ctDNA, genomics, slides (with the invasion results), omics, documents, radiology and
+     evolution carry them; a new workbench joins the overview by adding the two functions.
 
 ## 2. Patient file and report
 
-The report is where the workbenches meet. Beyond what the shell already shows (summary, SOS
-tile, observed / inference / hypothesis blocks, risk, what changed):
+The report is where the workbenches meet. Beyond what the shell already shows (summary,
+observed / inference / hypothesis blocks, risk, what changed):
 
-- **SOS ordering by trust × consequence** [now]: an observed progression on imaging outranks a
-  placeholder-rule marker rise; each alert says since when, which rule, the threshold's source,
-  its trust, and has two buttons, "open the test" (the pointer lands on the evidence) and "mark
-  reviewed".
+- **Overview header** [built 2026-10-21]: one row of finding cards from the workbenches'
+  summaries: the open SOS alerts (alerts without a review mark), stage and receptors (recorded
+  and documented side by side), the PAM50 call with its margin, key drivers with their best
+  CIViC level, the slide picture (main tumor area, infiltrative arcs, breakaway candidates,
+  immune pattern) for scored sections, imaging (the lesion table of the imaging reports, or a
+  public study's headline: contour size, kinetics or screening score, with the study's
+  BI-RADS), the 12-month or cohort risk, and the top evolution hypothesis (what to watch
+  next, with why this file raises it). Each card has its evidence label and
+  trust, "Why?" (source test, method and version, threshold source, trust) and "Open"; a line
+  under the row names what the file lacks.
+- **One attention queue** [built 2026-10-21], replacing the SOS tile: the SOS alerts, the
+  discrepancies below and every workbench's queue, ordered by consequence × trust (placeholder
+  weights), then new in this version, then the latest; de-duplicated by finding key, so an
+  alert takes the pointer of the workbench item behind it (the marker rise is L4 in the lab
+  workbench, one item with one mark) and says where else it was raised. One item at a time
+  with keyboard triage: j next, k previous, p pin, m mark reviewed (Streamlit keeps r for its
+  own rerun), u the unsure list (marked "second look", or weak trust), o open; "open" lands on
+  the pointer (the lab value's Spot panel, the slide tile, the omics finding, the variant, the
+  document's sentence). Exported with the report.
+- **SOS ordering by trust × consequence** [built]: an observed progression on imaging outranks
+  a placeholder-rule marker rise; each alert says since when, which rule, the threshold's
+  source and its trust.
 - **Version diff** [now]: any two versions side by side in the three evidence columns, with added,
   removed and changed items highlighted and the "what changed and why" attribution underneath.
 - **Evidence chain** [now]: every sentence of the case note links to the tool output behind it
   (the grounding trace rendered as a chain: sentence → tool → measurement → raw value), with the
   trust at each step. This is the analyzer's "why" made navigable.
-- **Discrepancy queue** [now]: tests that disagree: a marker rising while imaging reads stable; the
-  12-month risk up while labs fall; two notes that differ. Each item names both sources and what
-  would settle it.
-- **What would reduce uncertainty** [now]: the open hypotheses and the test that would resolve
-  each (a repeat specimen within a month for an unconfirmed marker rise; ctDNA for mutation status
-  after treatment), with the source of that expectation. Evidence for the clinician's judgment,
-  never an order.
+- **Discrepancy queue** [built]: tests that disagree, each naming both sources, the evidence
+  labels, what would settle it and its cited basis where one exists: a marker rising while
+  imaging reads stable; the 12-month risk up while labs fall; sites that drop out of a summary;
+  level A/B evidence with no treatment change (a question); since 2026-10-21 also ERBB2 copy
+  number against the recorded or documented HER2 status (ASCO/CAP HER2 guideline, Wolff 2018);
+  ESR1 RNA and ER-alpha protein against the recorded or documented ER status (ASCO/CAP ER/PR
+  guideline, Allison 2020); a documented receptor status against the recorded one; PAM50
+  Basal-like with an ER-positive status (Prat 2015); a slide section read as an immune desert
+  while the RNA's cytolytic score is high (TILs Working Group, Salgado 2015; the "high" cutoff
+  is a placeholder); documents that disagree with each other; documented stage, laterality or
+  specimen type against the clinical record (today's records hold a stage, not a side or a
+  specimen); an imported lab value against the record's value of that month.
+- **What would reduce uncertainty** [built]: the open hypotheses and the test that would
+  resolve each (a repeat specimen within a month for an unconfirmed marker rise; ctDNA for
+  mutation status after treatment; a repeat IHC or ISH for a receptor disagreement; a second
+  encoder's tile classes where the slide head is unsure, cited with the head's own held-out
+  accuracy below and above its certainty cutoff; a re-read of a document), with the source of
+  that expectation. Evidence for the clinician's judgment, never an order.
 - **Missing data and what it limits** [now]: "not sequenced since month 0" and the inferences
   that therefore carry wider uncertainty.
-- **Report export** [now]: one page per version with figures, numbers, sources, placeholders,
-  model versions and reviewer marks.
+- **Report export** [built]: one page per version with every workbench's finding cards, the
+  attention queue with each item's mark, the discrepancies with their sources and basis,
+  numbers, sources, every placeholder (the queue's weights and each placeholder threshold
+  shown), model versions and the reviewer marks by finding kind.
+- **Imports** [built]: an imported test adds a report version; it shows in the timeline and the
+  version diff, its lab values and alerts join the attention queue, and the export lists it.
 
 ## 3. Blood and lab workbench
 
@@ -104,13 +160,40 @@ table, flags with rule and source, quality checks, look-here queue, rules card):
   preceded the imaging progression at month 12; shown as a fact of this record, not a rule.
 - **Cross-marker view** [now]: CA 15-3 and CEA on one axis with their own limits; concordant and
   discordant rises named; correlation is not causation, said in the panel.
-- **Assay and unit change detection** [data]: a changed method or reference interval splits the
-  series and blocks comparisons across the split.
-- **CBC and differential, derived ratios** [data]: absolute counts versus percentages, ratios only
-  where clinically established, each with its source.
-- **Search** [now]: "values above the limit", "after palbociclib", "rising"; "can't see that" for
-  anything the panel lacks.
+- **Any analyte, from a reference table** [now, built 2026-10-21; `docs/labs.md`]: tumor
+  markers, liver and bone chemistry, kidney (eGFR by the 2021 CKD-EPI equation) and a CBC, each
+  with Mayo Clinic Laboratories' adult interval by sex (a reference laboratory's, tagged so), units
+  and conversions, and why it matters with its citation; the lab report's own interval always
+  wins; any other analyte flows through flagged against its own interval. Out-of-interval flags
+  are observed against the named source, the EGTM rise rule applies to tumor markers only,
+  other change flags are placeholders, low counts carry their CTCAE v5.0 grade.
+- **Assay and unit change detection** [now, partly]: units convert at the import boundary (an
+  unknown unit is rejected with the reason); a changed reference interval is a quality issue
+  ("compare across it with care"). A changed method the record does not state stays invisible
+  [data].
+- **CBC and differential, derived ratios** [now for absolute counts, via import; ratios planned]:
+  hemoglobin, white cells, absolute neutrophils and platelets with CTCAE grades; ratios only where
+  clinically established, each with its source.
+- **Cross-analyte hypotheses** [now, hypothesis]: raised or rising ALP and calcium next to an
+  imaging report naming bone, liver enzymes next to one naming the liver, each naming the report,
+  its literature and the other causes; a same-month GGT says which source fits a raised ALP.
+- **Search** [now]: "values above the limit", "after palbociclib", "rising", an analyte or a
+  panel; "can't see that" for anything the panel lacks, naming the panel that would show it.
 - **Export** [now]: the chart, the table, the flags with sources, the reviewer marks.
+
+### ctDNA monitor (liquid biopsy)
+
+- **Variant allele fractions over time** [now, synthetic series; `docs/ctdna.md`]: SYNTHETIC-001
+  carries a hand-written series (PIK3CA H1047R tracking burden, ESR1 D538G emerging under
+  letrozole, DNMT3A R882H flat), labeled synthetic on every screen; no open serial breast ctDNA
+  data exists [data]. Detection limit and calls (new, rising, falling, cleared) are placeholders.
+- **ESR1 under an aromatase inhibitor** [now, literature: PADA-1, SERENA-6]: evidence for
+  clinician review with how this record differs from the trials, never a switch recommendation.
+- **Clonal hematopoiesis** [now, literature: Razavi 2019, Jaiswal 2014]: a variant the tumor
+  sequencing did not find, in a clonal-hematopoiesis gene, is flagged and kept out of the tumor
+  picture; every variant keeps the matched white-cell caveat.
+- **Lead and lag, Spot panel, review marks, cannot see, rules card, exports** [now]; links to the
+  genomics workbench and the Evolution view.
 
 ## 4. Genomics workbench
 
@@ -118,9 +201,13 @@ The analyzer's "detection, then interpretation, then what to check" becomes an *
 ladder** per variant. Beyond the first page (variant browser, the three separated blocks,
 panel coverage, review queue, longitudinal note, limits, data card):
 
+Built in two rounds (2026-10-19, 2026-10-20/21; method and numbers in
+[`genomics.md`](genomics.md)). Tags: **now** = built.
+
 - **Evidence ladder** [now]: for each variant, five rungs with their own evidence type: detected
-  (observed: test, sample, date; allele fraction "not available in these calls"), interpreted
-  (CIViC items by level, direction and date), predicted effect (CIViC's own wording only),
+  (observed: test, sample, date; allele fraction from the read counts for the TCGA cases),
+  interpreted (CIViC items by level, direction and date), predicted effect (model inference:
+  AlphaMissense and the Ensembl VEP consequence; CIViC's own wording when no prediction exists),
   therapy evidence for clinician review, resistance mechanisms (CIViC "Resistance" items and the
   literature already cited in `VISION.md`: ESR1 under aromatase inhibitors). Each rung names what
   would strengthen it.
@@ -133,13 +220,27 @@ panel coverage, review queue, longitudinal note, limits, data card):
   the same association, with their levels and dates; no averaging.
 - **Variant Spot panel** [now]: click a variant: the ladder, the CIViC items as a table with links,
   the panel's view of the gene, the sample it came from, the review marks.
-- **Longitudinal variant table** [data]: one row per variant per sample with dates and assay
-  differences; "not re-sequenced" cells stay blank, never "absent".
-- **Pathway view** [roadmap]: which observed variants fall on which known pathways, from a named
-  reference, as hypotheses.
+- **Copy-number landscape** [now, placeholder cutoffs]: ASCAT3 gene-level copy number in genome
+  order, calls relative to the ploidy (the model's rule, or ABSOLUTE's when the two disagree),
+  cohort percentiles, a Spot panel per gene (CIViC items for its copy-number change, the
+  expression workbench's RNA and protein, its pathway, neighbors), the ERBB2-versus-HER2 line
+  reused from the omics workbench.
+- **Mutation burden and allele fractions** [now]: observed call count, rate over the 38 Mb exome
+  (Chalmers 2017), cohort percentile; allele fractions with 95% intervals, ABSOLUTE purity and the
+  clonal range (model inference).
+- **Predicted effect** [now]: detected (VEP consequence), interpreted (CIViC, ClinVar) and
+  predicted (AlphaMissense, not approved for clinical use) kept apart; bundled snapshot, live
+  Ensembl lookup by name for imported variants.
+- **Longitudinal variant table** [now; ctDNA when its series lands]: one row per variant per
+  sample (tumor sequencing, imported sequencing, ctDNA) with allele fractions; "not re-sequenced"
+  cells stay blank, never "absent"; each variant links to the Evolution view's escape routes.
+- **Pathway view** [now, hypothesis]: seven breast-cancer pathways with their sources (PubMed-
+  checked), this tumor's mutations and copy-number changes on each node, CIViC items per pathway
+  for clinician review.
 - **Search** [now]: "level A", "resistance", a gene; "this panel does not include that gene" when
-  it is not covered.
-- **Export** [now]: the variant table, the ladder, the sources, the reviewer marks.
+  it is not covered; in the genome views "amplified", a gene, "PI3K pathway", "high burden".
+- **Export** [now]: the variant table, the ladder, the sources, the reviewer marks; the genome
+  sections, the copy-number table (CSV) and the genome findings (JSON).
 
 ## 5. Pathology workbench (H&E slides)
 
@@ -191,19 +292,27 @@ measurements, flags, risk map, certainty) carries over, re-implemented; its tiss
 
 ## 6. Radiology workbench (CT, MRI, PET, mammography)
 
-Planned [data, model]. Today the record holds imaging reports (text), not images, so the page is
-report-driven and honest about it.
+First version built 2026-10-20 (method, cutoffs and known failures: [`radiology.md`](radiology.md)).
+The synthetic record holds imaging reports (text), so its page is report-driven and honest about
+it; three held-out TCGA cases have public TCIA studies, which open the image viewer.
 
-- **Report-driven now** [now]: each imaging report as an event with "read as progression / stable"
-  observed, new sites listed, the lesion vocabulary extracted ("new liver lesions"), and a lesion
-  table that tracks named sites across reports with their dates.
-- **Image viewer** [data]: slice navigation, window and level, series selection, multiplanar
-  where the modality supports it; contours with their source (model or reader); registration
-  between dates with a confidence estimate and "unreliable here" marks; measurements with method,
-  reader and uncertainty; RECIST-style sums labeled as computed, not as a response call.
-- **Protocol and scanner differences** [data] flagged before any "larger" or "smaller".
-- **Spot panel per lesion** [data]: size over time, density or uptake, the reports that mention
-  it, the model that segmented it and its validation.
+- **Report-driven** [now, built]: each imaging read with "read as progression / stable" observed
+  in the report's words, new sites listed, the lesion vocabulary extracted ("new liver lesions"),
+  a lesion table that tracks named sites across reports with their dates ("no measurements
+  recorded"), and lead and lag against CA 15-3.
+- **Image viewer** [built on public studies]: slice navigation, window and level, series
+  selection (pre, early, delayed, subtraction), zoom, contours with their source (MedSAM from a
+  seed rule's box; no reader contours exist), measurements with method and uncertainty (longest
+  diameter ± a pixel, volume with a one-pixel range), DCE kinetics in the BI-RADS lexicon's terms
+  with literature cutoffs as placeholders. [planned] multiplanar views, registration between
+  dates with "unreliable here" marks, RECIST-style sums labeled as computed, mammography contours.
+  [built for one study] a mammoscreen screening score and density per breast, and MONAI's
+  density per view as a second opinion (model inference).
+- **Protocol and scanner differences** [data] flagged before any "larger" or "smaller": no
+  processed patient has two study dates yet (20 TCIA patients do; none is in the held-out set).
+- **Spot panel per lesion** [built for one study]: size, volume, kinetics curve, how its box was
+  chosen, the model and its published validation ("not validated on breast MRI here"); size over
+  time needs a prior [data].
 
 ## 7. Expression, methylation and protein workbench
 
@@ -269,9 +378,10 @@ discrepancy queue and "what would reduce uncertainty"; the lab workbench's Spot 
 kinetics, confirmation tracker, treatment windows, baseline band, lead-and-lag, cross-marker view,
 search and export; the genomics workbench's evidence ladder, resistance watchlist, provenance
 strip, conflicting evidence, Spot panel, search and export; the omics layer cards; the
-report-driven radiology page; the clinical documents workbench and test import (built
-2026-10-20). The pathology and radiology viewers and every **model** item show as planned with
-their design and their data plan.
+report-driven radiology page with a first image viewer on public TCIA studies, and the
+clinical documents workbench and test import (both built 2026-10-20). The pathology viewer's
+planned parts and every remaining **model** item show as planned with their design and their
+data plan.
 
 ## 11. What is never claimed
 

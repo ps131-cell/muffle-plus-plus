@@ -18,13 +18,16 @@ from __future__ import annotations
 import csv
 import io
 import json
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from muffle.data.preprocess import zscore
 from muffle.demo import ordinal
-from muffle.report.case_tools import OBSERVED
+from muffle.report.case_tools import INFERENCE, OBSERVED
+from muffle.workspace import ASSAYS, card, finding_key, look
 
 IMPLEMENTED, VALIDATED, PLANNED = "implemented", "experimentally validated", "planned"
 AGREE, DISAGREE, NO_COMPARISON = "agree", "disagree", "nothing to compare"
@@ -317,3 +320,151 @@ def report_csv(findings: list[dict], reviews: dict) -> str:
         r = reviews.get(f.get("key"), {})
         w.writerow({**f, "mark": r.get("mark", ""), "by": r.get("by", ""), "at": r.get("at", "")})
     return out.getvalue()
+
+
+# --- the workbench contract (docs/WORKBENCHES.md §1): the patient file's overview ----------------
+
+SCORES = Path(__file__).resolve().parents[3] / "app" / "omics_scores.json"
+
+
+@lru_cache(maxsize=2)
+def scores(path: Path = SCORES) -> dict:
+    """``app/omics_scores.json`` (scripts/omics_scores.py), read once; {} when absent."""
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def case_scores(pf) -> dict | None:
+    """A TCGA file's precomputed block of ``omics_scores.json``, or None: not a TCGA file, not
+    computed, or computed for another build of the cohort (its log-risk differs, the page's
+    guard)."""
+    if pf.kind != "TCGA-BRCA":
+        return None
+    cs = scores().get("cases", {}).get(pf.id.removeprefix("Case "))
+    log_risk = (pf.versions[0].risk or {}).get("log_risk")
+    if cs is None or log_risk is None or abs(cs["log_risk"] - log_risk) > 1e-3:
+        return None
+    return cs
+
+
+def file_lines(pf) -> list[dict]:
+    """``receptor_lines`` of a TCGA file with the cohort's calibration ([] without scores)."""
+    cs = case_scores(pf)
+    return [] if cs is None else receptor_lines(
+        cs["receptors"], scores().get("validation", {}).get("receptors", {}))
+
+
+def _opens(pf) -> tuple:
+    """The omics workbench opens from the RNA layer's test, else any data-layer test."""
+    tests = [t for t in pf.tests if t.workbench in ("omics", "record")]
+    t = next((t for t in tests if t.details.get("layer") == "rna"), tests[0] if tests else None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def published(sub: dict) -> str:
+    if sub.get("published") is None:
+        return "no published call"
+    return ("agrees with TCGA's published call" if sub["agrees"] else
+            f"differs from TCGA's published call ({SUBTYPES[sub['published']]})")
+
+
+def recorded_text(receptors: dict) -> str:
+    """"ER positive, PR positive, HER2 negative (IHC equivocal, ISH negative)": the recorded
+    status, per ASCO/CAP for HER2 (``status``), with the IHC and ISH it rests on."""
+    out = []
+    for name, r in receptors.items():
+        status = (r.get("status") or "not recorded").lower()
+        if name == "HER2" and r.get("ihc") == "Equivocal":
+            status += f" (IHC equivocal, ISH {(r.get('fish') or 'not recorded').lower()})"
+        out.append(f"{name} {status}")
+    return ", ".join(out)
+
+
+def summary(pf, version: int | None = None) -> dict:
+    """The PAM50 call with its margin, the recorded receptor status, how RNA, copy number and
+    protein agree with it, and the proliferation and immune scores."""
+    cs = case_scores(pf)
+    if cs is None:
+        return {"workbench": "omics", "title": "Expression, methylation, protein", "cards": [],
+                "note": "no expression, methylation or protein scores in this file"}
+    data, sub, opens = scores(), cs["pam50"], _opens(pf)
+    runner = sorted(sub["cor"], key=lambda k: -sub["cor"][k])[1]
+    focus = {"omics": finding_key(pf, "omics", "subtype", "PAM50")}
+    trust = ("weak" if sub["margin"] < LOW_MARGIN else
+             "moderate" if sub.get("published") and not sub["agrees"] else "strong")
+    val = data.get("validation", {}).get("pam50", {})
+    cards = [card(
+        "PAM50 subtype", f"{SUBTYPES[sub['call']]}, margin {sub['margin']:.2f} over "
+        f"{SUBTYPES[runner]}; {published(sub)}", INFERENCE, ASSAYS["rna"],
+        f"PAM50 nearest centroid (Parker 2009, genefu), ER-balanced centering; "
+        f"{data.get('version', '?')}; agrees with TCGA's published calls for "
+        f"{val.get('share', 0):.1%} of {val.get('n', '?')} tumors",
+        f"a margin under {LOW_MARGIN} is called borderline (placeholder)", trust, opens, focus)]
+    lines = file_lines(pf)
+    compared = [x for x in lines if x["status"] != NO_COMPARISON]
+    off = [x for x in compared if x["status"] == DISAGREE]
+    first = (off or compared or lines or [None])[0]
+    receptor = None if first is None else {"omics": finding_key(
+        pf, "omics", "receptor", f"{first['receptor']}: {first['compare']}")}
+    cards.append(card(
+        "Recorded receptors", recorded_text(cs["receptors"]), OBSERVED,
+        "TCGA clinical data (IHC; ISH for HER2)", REFERENCES["ihc"],
+        "the recording laboratory's; HER2 per ASCO/CAP (IHC 3+, or 2+ with ISH)", "strong",
+        opens, receptor))
+    if compared:
+        cards.append(card(
+            "Receptors in RNA and protein", f"{len(compared) - len(off)} of {len(compared)} "
+            "comparisons agree with the recorded status" + (
+                "; disagree: " + "; ".join(x["short"] for x in off) if off else ""),
+            f"{OBSERVED} (IHC, RNA, copy number, protein)", "RNA, copy number and RPPA layers",
+            "receptor consistency (omics workbench)", "cutoffs calibrated in-sample on this "
+            "cohort's IHC (Youden); ERBB2 amplified at twice the ploidy (placeholder)",
+            "moderate", opens, receptor))
+    prolif, immune = cs["scores"]["proliferation"], cs["scores"]["immune"]
+    cards.append(card(
+        "Proliferation and immune", f"proliferation at the {ordinal(prolif[1])} percentile, "
+        f"immune cytolytic activity at the {ordinal(immune[1])} (this cohort)", INFERENCE,
+        ASSAYS["rna"], "cohort z-scores of the PAM50 proliferation genes and of GZMA and PRF1 "
+        "(Rooney 2015)", "none: relative to this cohort", "moderate", opens,
+        {"omics": finding_key(pf, "omics", "score", "immune")}))
+    return {"workbench": "omics", "title": "Expression, methylation, protein", "cards": cards,
+            "note": None}
+
+
+def queue(pf, version: int | None = None) -> list[dict]:
+    """Receptor comparisons that disagree with the recorded status (consequence 2 for ER and
+    HER2, which decide endocrine and anti-HER2 eligibility; 1 for PR), a subtype call that differs
+    from the published one or barely beats the runner-up. The copy-number layer's known failure
+    is a standing caveat of the page, not a finding about this patient."""
+    cs = case_scores(pf)
+    if cs is None:
+        return []
+    opens, out = _opens(pf), []
+    for x in file_lines(pf):
+        if x["status"] != DISAGREE:
+            continue
+        name = f"{x['receptor']}: {x['compare']}"
+        out.append(look(
+            name, f"{x['receptor']}, {x['compare']}: disagree", f"{x['short']}; check: "
+            f"{x['check']}", x["evidence"], "weak" if "copy number" in x["compare"] else
+            "moderate", 2 if x["receptor"] in ("ER", "HER2") else 1, opens,
+            source=f"{ASSAYS['rna']} and the recorded {x['receptor']} status",
+            key=finding_key(pf, "omics", "receptor", name),
+            focus={"omics": finding_key(pf, "omics", "receptor", name)},
+            threshold=x["evidence"].split("; ", 1)[-1]))
+    sub = cs["pam50"]
+    pam50 = {"omics": finding_key(pf, "omics", "subtype", "PAM50")}
+    if sub.get("published") and not sub["agrees"]:
+        out.append(look(
+            "PAM50", f"PAM50 {SUBTYPES[sub['call']]} {published(sub)}", "the same method agrees "
+            "with the published calls for most tumors of this cohort; a differing call is worth "
+            "a look at its correlations", INFERENCE, "moderate", 1, opens, source=ASSAYS["rna"],
+            key=finding_key(pf, "omics", "subtype", "PAM50"), focus=pam50,
+            threshold="nearest centroid, experimentally validated on this cohort"))
+    elif sub["margin"] < LOW_MARGIN:
+        out.append(look(
+            "PAM50", f"PAM50 {SUBTYPES[sub['call']]} is borderline (margin {sub['margin']:.2f})",
+            f"the call beats the runner-up by under {LOW_MARGIN} in correlation", INFERENCE,
+            "weak", 1, opens, source=ASSAYS["rna"],
+            key=finding_key(pf, "omics", "subtype", "PAM50"), focus=pam50,
+            threshold=f"margin {LOW_MARGIN} (placeholder)"))
+    return out

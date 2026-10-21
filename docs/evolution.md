@@ -28,8 +28,26 @@ Code: `src/muffle/evolution.py` (table, hypothesis set, events, clonal order, ex
 2. **What to watch next** (hypothesis): the table rows this file raises, ranked. A row is raised
    when a recorded treatment belongs to its class (letrozole is an aromatase inhibitor), when its
    gene is already observed, or, for rows without a treatment context, when its driver is observed
-   or its receptor status matches. A receptor status the file does not record makes the row
+   or its receptor status matches. A receptor status the file does not give makes the row
    conditional ("applies if HER2-positive: not recorded in this file"); a known mismatch drops it.
+   **Where the receptor status comes from** (observed): the record's own diagnosis ("HR+",
+   "HER2−"); when the record has none, as in every TCGA file, the ER, PR and HER2 status the
+   Clinical documents workbench (`src/muffle/workbench/documents.py`) reads in the file's
+   documents: the case's TCGA-Reports pathology report, or a report imported in the session. The
+   why line names the document ("hormone-receptor-positive observed in document
+   TCGA-A2-A0CW.7D1C…"), and a note gives what it states. A document states hormone-receptor
+   positive when it states ER or PR positive and negative when it states both negative; ER or PR
+   negative alone settles neither, and an IHC score, an ISH result or "equivocal" is never turned
+   into a status. When the record and a document disagree, the record's status is used and the
+   document is named beside it ("in the record (document import-1 states otherwise)"); when
+   documents disagree with each other, or one report states both (two specimens, or a misread),
+   none is picked and the rows that need it stay conditional. These are rule matches, not a
+   pathologist's read: a note gives the rules' precision on 481 held-out TCGA reports (ER 95%, PR
+   93%, HER2 81% with documents rules v2). With those rules, 15 of the 38 bundled reports settle
+   the hormone-receptor status and 14 the HER2 status; the other files stay conditional. Rules v1
+   read case 545's report as HER2 negative and positive (its synoptic form's answers slid a row)
+   and case 58's "weakly positive (2+)" as HER2-positive; v2 reads case 545 as negative and
+   leaves case 58 unsettled (`docs/documents.md`).
    TCGA files record no treatment: "No treatment recorded; these hypotheses assume none." Every row
    not raised is listed with the reason. The order is a fixed rule, not a probability: two points
    for a recorded treatment of the row's class, one for an observed driver, one for a matching
@@ -342,6 +360,10 @@ Code: `src/muffle/evolution.py` (table, hypothesis set, events, clonal order, ex
   over time would make it far more reliable.
 - The TCGA driver panel (16 genes) does not include RB1, FAT1, BRCA1/2 or the FGFR genes, so rows
   needing them can't be raised from a TCGA file's own calls.
+- A receptor status read from a report is a rule match: about 1 in 5 HER2 reads disagreed with
+  TCGA's clinical fields on held-out reports, and a HER2-negative read drops the HER2-positive row
+  (named in "Not raised", with its document). Recall is about 40%: many TCGA surgical reports refer
+  receptor results to an earlier biopsy report that is not in the dataset.
 - Trials come from the registry's own relevance order (the first 20 per gene); eligibility is not
   assessed.
 

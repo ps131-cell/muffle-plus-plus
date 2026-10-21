@@ -2,6 +2,106 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — Documents rules v2: HER2 legends and answers that slid a row are not results
+- **What:** the documents rules no longer read a HER2 status or IHC score from a scoring legend
+  (a list of categories with their scores, "2=INDETERMINATE", "are considered borderline"), nor a
+  HER2 status word that the IHC score in the same stretch argues against (positive with 0 or 1+,
+  or 2+ without amplification; negative with 3+). "zero or 1+" is read as the band "0 or 1+".
+- **Why:** case 545's report gave HER2 negative and positive, so the Evolution view showed HER2
+  as conflicting. The "positive" was not a legend: OCR slid the synoptic form's answers one row,
+  so PR's "positive" sits after "HER2/NEU:", and HER2's own answer is "zero or 1+". The same
+  template does this in six dev-half reports, and real legends exist at other sites. Bundled
+  case 58's "weakly positive (2+)" (FISH negative) read as HER2-positive. On the dev half, a
+  positive word next to 2+ disagreed with TCGA in 6 of 7 reports.
+- **Consequence:** HER2 precision on the held-out half rose from 80% to 81% (recall unchanged at
+  46%; ER, PR and the other fields unchanged). The Methods page, the Evolution view's note and
+  the overview cards show 81%. A document that contradicts itself ("Negative reaction ...
+  (Score=3+)") now states no HER2 status, only its score. The withholding never makes a status
+  from a score. Method text and FISH reference ranges are still misread (`docs/documents.md`).
+
+## 2026-10-21 — Genomics workbench: the genome as a picture; two ploidies; AlphaMissense's license
+- **What:** the genomics workbench gains, for the TCGA cases, a copy-number landscape (ASCAT3 gene
+  level, the model's own call rule, placeholder cutoffs), mutation burden and allele fractions,
+  predicted effect (Ensembl VEP, ClinVar via Ensembl, AlphaMissense), a curated pathway map and a
+  variant table over time (`docs/genomics.md`). Purity and a second ploidy come from TCGA
+  PanCanAtlas's ABSOLUTE table; when the two ploidy estimates are 1.5-fold apart or more (7 of 40
+  cases) the page warns and offers calls relative to ABSOLUTE's ploidy.
+- **Why:** calls must match the model's copy-number input (7,993 of 7,999 equal; the rest are
+  ambiguous gene symbols), so the median-copy-number ploidy stays the default; but that rule gives
+  ploidy 1 for case 49 (ABSOLUTE 1.58) and 4 for case 741 (ABSOLUTE 1.53), turning ordinary copy
+  numbers into amplifications or losses, which a reader must see. ASCAT's own purity and ploidy
+  are not in the open gene-level file. The burden rate uses the 38 Mb exome size Chalmers et al.
+  2017 used for TCGA; KEYNOTE-158's 10 per Mb belongs to another assay and other cancers, so it is
+  named and not applied.
+- **License:** AlphaMissense's README and its Zenodo record (10.5281/zenodo.10813168) license the
+  predictions CC BY 4.0 (read 2026-10-20); the 2023 table's own header still says "CC BY-NC-SA
+  4.0". We follow the licensor's current statement, ship only the 21 scores we use, with
+  attribution, and Ensembl serves the same scores (they agree for 20 of 20). If the licensor's
+  statement changes, the scores can come from Ensembl alone.
+- **Consequence:** the ladder's "predicted effect" rung is model inference when a prediction
+  exists. PIK3CA H1047R scores "ambiguous" (0.538) while ClinVar and CIViC call it oncogenic: the
+  page keeps prediction and interpretation apart and says why. The variant table's ctDNA columns read
+  `timeline.CTDNA` (#94).
+
+## 2026-10-21 — One overview per patient file: a workbench contract for summaries and queues
+- **What:** every workbench module carries `summary(pf, version=None)` (a few finding cards:
+  text, evidence label, source test, method and version, threshold source, trust, where it
+  opens) and `queue(pf, version=None)` (look-here items with pointer, why, trust, consequence
+  1–3, where it opens and the finding's key), in one shape (`workspace.card` and
+  `workspace.look`, `docs/WORKBENCHES.md` §1). `muffle.overview` builds the report's header from
+  the summaries and one attention queue from every queue, the SOS alerts and the cross-test
+  discrepancies, ordered by consequence × trust (the placeholder weights) and de-duplicated by
+  finding key, so an SOS alert and the lab workbench's flag of the same value are one item with
+  one review mark. The queue replaces the report's SOS tile; the header's SOS card counts the
+  alerts without a mark. Seven cross-test rules join (ERBB2 copy number against HER2, ESR1 RNA
+  and ER-alpha protein against ER, PAM50 Basal-like with ER positive, a slide immune desert
+  against a high immune RNA score, documents that disagree, documents against the record, an
+  imported lab value against the record), each with its cited basis where one exists (PMIDs
+  checked on PubMed), and three reducers (repeat IHC or ISH, a second encoder for unsure tiles,
+  a re-read of a document).
+- **Why:** seven workbenches landed in a week, each knowing only itself; the user's product is
+  one evidence-linked picture of a patient. A shared shape lets the report, the export and the
+  patient list read every workbench the same way, and lets the next workbench join by adding
+  two functions (radiology, evolution and ctDNA, which landed the same day, did).
+- **Consequence:** nothing new is computed for the overview: it reads what each workbench
+  already decided, with its labels and threshold sources, and "open" lands on the pointer by
+  setting the workbench page's own widget state. Trust and consequence per item are the rule
+  author's choice, listed in the export with the placeholder weights. An SOS alert and the
+  workbench finding it is about share one review key. Keyboard triage uses j, k, p, u and
+  o; "mark reviewed" is m, because Streamlit reserves r (and c) for its own shortcuts.
+
+## 2026-10-21 — Evolution view: receptor status from the file's documents when the record has none
+- **What:** `evolution.context` reads the ER, PR and HER2 status the documents rules find in a
+  file's documents (a TCGA case's pathology report, an imported report) when the record states
+  none, as in every TCGA file. Hormone-receptor positive when a document states ER or PR positive,
+  negative when both negative; no IHC score or ISH result is turned into a status. The record's
+  own status wins and a disagreeing document is named beside it; documents that disagree with
+  each other leave the status unknown. Each why line names the document.
+- **Why:** the receptor-conditional rows were never definite for a TCGA file, though 15 of the 39
+  bundled reports state the hormone-receptor status and 14 the HER2 status.
+- **Consequence:** a document's HER2-negative now drops the HER2-positive row although the HER2
+  rule's precision is 80% on held-out reports; the drop is listed under "Not raised" with its
+  document and the precision is shown in the view, so the read can be checked.
+
+## 2026-10-20 — Radiology workbench, first version: report text plus public TCIA studies
+- **What:** Tests → Imaging opens `app/workbenches/radiology.py`. For SYNTHETIC-001 it reads the
+  imaging reports as text (reads, new sites, a lesion table, "no measurements recorded", lead and
+  lag against CA 15-3); its imaging tests become implemented ("report text, no images"). Three
+  held-out TCGA cases with a public TCIA study (563 and 937 breast MRI, 926 mammography) get an
+  imaging test that opens an image viewer on small 8-bit copies, with MedSAM contours drawn
+  offline from a seed rule's top three boxes, longest diameter, volume and DCE kinetics
+  (`scripts/radiology_pipeline.py`, `docs/radiology.md`); the mammogram gets a mammoscreen score
+  and density per breast (Apache-2.0, re-built with timm so no remote code runs).
+- **Why:** TCGA-BRCA radiology (CC BY 3.0) is the only imaging that joins the omics cohort, and
+  5 of the 40 held-out cases have a study; MedSAM ViT-B is Apache-2.0, ungated and runs on this
+  CPU at 12–21 s per slice, so contours can be precomputed. The best-annotated breast MRI sets and
+  their nnU-Net weights are non-commercial (model survey §3).
+- **Consequence:** every contour, measurement and curve type is a model inference, not validated
+  on breast MRI here; the seed rule's cutoffs are placeholders and the kinetics cutoffs are
+  literature values used as placeholders. No processed patient has two study dates, so prior
+  comparison stays planned; 134 of the 139 TCIA patients are in the omics cohort and 20 have two
+  dates, which a future bundle could include (needs a new release).
+
 ## 2026-10-20 — Tumor evolution as a cited table, ranked per file; clonal order as alternatives
 - **What:** an Evolution view in every patient file (`docs/evolution.md`). Its core is a table of
   18 context → event rows (ESR1 under aromatase inhibitors; RB1, FAT1, AKT1 and PTEN under

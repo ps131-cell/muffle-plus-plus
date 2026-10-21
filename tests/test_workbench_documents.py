@@ -102,6 +102,35 @@ def test_receptors_their_numbers_and_what_is_not_a_result():
     assert v["her2_ihc"] == ["0"] and v["er_percent"] == ["75%"] and "er" not in v
 
 
+def test_her2_legends_and_answers_that_slid_a_row_are_not_results():
+    # case 545's form: PR's "positive" slid under HER2's label, whose own answer is "zero or 1+"
+    v = values("TUMOR PREVIOUSLY REPORTED TO BE POSITIVE FOR ER AND PR, AND NEGATIVE FOR "
+               "HER-2/NEU. ESTROGEN RECEPTORS: PROGESTERONE RECEPTORS: positive. HER2/NEU: "
+               "positive. zero or 1+.")
+    assert (v["pr"], v["her2"], v["her2_ihc"]) == (["positive"], ["negative"], ["0 or 1+"])
+    assert values(wb.case_documents(545)[0]["text"])["her2"] == ["negative"]
+    # scoring legends and reference ranges
+    v = values("Scores of 0 or 1 are considered negative for over-expression of HER2/neu "
+               "oncoprotein. Those with a staining intensity score of 2 are considered borderline. "
+               "HER2/neu: 0,1=NEGATIVE FOR OVEREXPRESSION, 2=INDETERMINATE. HER-2/NEU "
+               "IMMUNOHISTOCHEMISTRY [NEGATIVE:0,1+ EQUIVOCAL: 2+; POSITIVE: 3+]. Her2 Negative "
+               "<10.7 Positive 11.5 Equivocal = 10.7 - 11.4.")
+    assert "her2" not in v and "her2_ihc" not in v
+    v = values("Her-2/neu: NEGATIVE. Score: 1+. Reference Range: Negative 0 - 1+. Equivocal 2+.")
+    assert (v["her2"], v["her2_ihc"]) == (["negative"], ["1+"])  # the result before its legend
+    v = values("HER-2/neu (c-erb B2). Negative (0). Negative (0 - 1+). p53. Negative.")
+    assert v["her2"] == ["negative"]  # a table row (result, normal range) is not a legend
+    # a status word its own IHC score argues against: "weakly positive (2+)", a comment that
+    # runs on; a word the score agrees with, or 2+ with amplification, is still read
+    v = values("HER2/NEU: WEAKLY POSITIVE BY IMMUNOHISTOCHEMISTRY (2+). NEGATIVE BY. FISH.")
+    assert "her2" not in v and v["her2_ihc"] == ["2+"]
+    assert "her2" not in values(wb.case_documents(58)[0]["text"])
+    assert "her2" not in values("HER2/NEU: 1+. Comment: since the sentinel node is positive,")
+    v = values("HER2: Positive (3+). HER-2/neu: positive (2+), amplified by FISH. ERBB2: "
+               "negative (0 / 1+).")
+    assert (v["her2"], v["her2_ihc"]) == (["positive", "negative"], ["3+", "2+", "0 or 1+"])
+
+
 def test_stage_tnm_nodes_drugs_and_dates():
     v = values("pT1c(m)NOMX. Summary stage: 2B. T Stage: 2 N Stage: 1. Metastatic carcinoma in 2 "
                "of 14 lymph nodes. ONE LYMPH NODE, FREE OF CARCINOMA (0/1). Seen 3/10/2011. No "
@@ -183,15 +212,15 @@ def test_bundled_tcga_reports_load_by_case_index():
 
 def test_lab_csv_is_checked_row_by_row():
     csv = (b"month,marker,value,unit,reference limit\n27,CA 15-3,45,U/mL,30\n27,CA 15-3,46,U/mL,"
-           b"\n28,ALT,30,U/L,\n28,CEA,abc,ng/mL,\n28,CEA,3,ug/L,\n20,CEA,3,ng/mL,\n29,cea,6.5,"
+           b"\n28,ALT,30,U/L,\n28,CEA,abc,ng/mL,\n28,CEA,3,mmol/L,\n20,CEA,3,ng/mL,\n29,cea,6.5,"
            b"ng/mL,5\n,,,,\n")
     ok, bad = parse_labs(csv, after=24, existing={("ca153", 24)})
     assert [(r["month"], r["key"], r["value"], r["limit"]) for r in ok] == [
-        (27, "ca153", 45.0, 30.0), (29, "cea", 6.5, 5.0)]
+        (27, "ca153", 45.0, 30.0), (28, "alt", 30.0, None), (29, "cea", 6.5, 5.0)]
     reasons = {r["row"]: r["reason"] for r in bad}
-    assert "already has a value at month 27" in reasons[3]
-    assert "not one the lab workbench reads" in reasons[4] and "not a number" in reasons[5]
-    assert "not the record's ng/mL" in reasons[6] and "before the latest report" in reasons[7]
+    assert "already has a value at month 27" in reasons[3] and "not a number" in reasons[5]
+    assert "not one the reference table converts for CEA" in reasons[6]
+    assert "before the latest report" in reasons[7]
     with pytest.raises(IntakeError, match="Missing column"):
         parse_labs(b"marker,value\nCEA,3\n")
     with pytest.raises(IntakeError, match="empty"):
