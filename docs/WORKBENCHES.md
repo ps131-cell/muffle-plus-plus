@@ -335,13 +335,28 @@ Built 2026-10-20 (`app/workbenches/omics.py`, method and numbers in [`omics.md`]
   this cohort).
 - **Receptor consistency** [now, built]: recorded IHC against RNA, ERBB2 copy number and RPPA,
   one labeled line each, with calibrated cutoffs.
+- **Protein pathway activity (RPPA)** [now, built 2026-10-21]: the ten pathway scores of Akbani
+  et al. 2014 (their member antibodies and signs), with a Spot panel per antibody (value,
+  percentile, its gene's RNA, protein-versus-RNA agreement, the genomics pathway map beside it)
+  and "RPPA is a targeted array" said; protein against RNA measured per antibody on the Methods
+  page.
+- **Promoter methylation** [now, built 2026-10-21]: ESR1, PGR, BRCA1, RASSF1A, GSTP1 and p16
+  from the Illumina manifest's core-promoter CpGs that are unmethylated in normal breast, the
+  case against the cohort, a placeholder "methylated" call and the gene's RNA beside it
+  (consistent with silencing or not); a CpG island hypermethylation index as a hypothesis.
+- **Immune and stromal picture** [now, built 2026-10-21]: ESTIMATE's gene lists by z-score
+  averaging, the RPPA immune-cell antibodies, and an immune picture that reads them with the
+  slide workbench's lymphocytes by zone (agree or disagree; a pathologist's TILs read settles
+  it). The cross-test "slide desert against high immune RNA" rule stays the one in
+  `muffle.crosstest`.
 - **Other signatures** (recurrence-score-like, immune deconvolution) [model]: only from a
   validated model with a named reference population; shown as planned.
 - **Batch and site effects** [now, built]: the known anti-predictive copy-number layer is stated
   as a known failure, with the numbers.
 - **RNA is not protein** [now, built]: the panel says which layer each claim comes from.
 - **Spot panel, search, marks, export** [now, built]: per feature, pathway, receptor line and
-  subtype; JSON and CSV.
+  subtype; JSON and CSV. Round 2 adds the protein pathways, antibodies, promoters, signatures
+  and the immune picture, with the finding kinds `pathway_protein` and `methylation`.
 
 ## 8. Clinical documents workbench
 

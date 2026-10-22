@@ -4,7 +4,8 @@ The workbench of the TCGA patient files' data layers (`docs/WORKBENCHES.md` §7)
 measured, what the risk model reads from it, a PAM50 subtype call, pathway scores, and whether the
 receptor measurements agree with the recorded IHC. Page: `app/workbenches/omics.py`; logic:
 `src/muffle/workbench/omics.py` (tests: `tests/test_workbench_omics.py`); scores:
-`scripts/omics_scores.py` → `app/omics_scores.json`.
+`scripts/omics_scores.py` (round 1) and `scripts/omics_scores_2.py` (round 2: protein pathways,
+promoter methylation, immune and stromal) → `app/omics_scores.json`.
 
 ## How the numbers are made
 
@@ -118,10 +119,129 @@ places it near), and the layer's own leave-one-hospital-out C-index (`app/result
 A layer that was not measured says so and what that limits. The what-if masks layers and shows
 the risk percentile move.
 
+## Round 2 (2026-10-21): protein pathways, promoter methylation, the immune picture
+
+`scripts/omics_scores_2.py` adds fields to `app/omics_scores.json` (round 1's fields and the
+per-case log-risk guard unchanged). It reads the local RPPA and TPM files, streams the 450K
+betas from the hub once (tumors and TCGA's 97 normal breast samples; the derived numbers are
+cached outside the repo) and ships derived numbers only: scores, percentiles, a gene-level mean
+promoter beta, cohort quantiles and correlations.
+
+```
+PYTHONPATH=src python scripts/omics_scores_2.py --data data/tcga_brca --raw data/raw/tcga_brca \
+    --extra data/raw/omics --scores app/omics_scores.json
+```
+
+### Protein pathway activity, RPPA [model inference, implemented]
+
+- **Members:** the ten pathway scores of Akbani et al. 2014 (Nat Commun 5:3887,
+  [10.1038/ncomms4887](https://doi.org/10.1038/ncomms4887)), with the antibodies and signs of
+  their Supplementary Table 13 (read from the article's supplementary PDF): PI3K/AKT, TSC/mTOR,
+  hormone receptor (ER-alpha, its pS118 form, PR), hormone signaling (AR, INPP4B, GATA3, BCL2),
+  RTK, cell cycle, DNA damage response, RAS/MAPK, apoptosis and EMT. Negative regulators (PTEN
+  and INPP4B in PI3K/AKT; BAD pS112, BCL2, BCL-xL, cIAP in apoptosis; claudin-7 and E-cadherin
+  in EMT) are subtracted. Akbani's HER3PY1298 is this file's HER3_pY1289. Each score sits beside
+  the genomics workbench's pathway-map group (`genome.PATHWAYS`): PI3K/AKT and TSC/mTOR beside
+  PI3K / AKT / mTOR, the two hormone scores beside ER signaling, RTK beside HER2 / RTK, DNA
+  damage beside TP53 and DNA repair, RAS/MAPK beside MAP kinase; apoptosis and EMT have none.
+- **Method:** Akbani's score up to scale. Each antibody median-centered and divided by its
+  standard deviation over the cohort's 854 RPPA tumors, the measured members' mean with the
+  negative regulators' sign flipped, z-scored again over the cohort. (Akbani first averaged
+  phospho-forms of one protein when they correlated above 0.85; that step is not repeated.)
+  Every member is measured in at least half of the tumors, so none is left out.
+- **Shown, not scored:** total AKT, p110-alpha, p85, total mTOR, S6 and p70S6K, total HER2,
+  EGFR and HER3, Rb and phospho-Rb, p16, c-Myc, beta-catenin, Snail. Ki-67 is not on the array.
+- **Protein versus RNA agreement** (Spearman over 851 tumors with both; 93 antibodies; median
+  0.22). Highest: ER-alpha 0.85 (ESR1), BCL2 0.81, GATA3 0.79, PR 0.78 (PGR), AR 0.76, INPP4B
+  0.73, cyclin B1 0.71, cyclin E1 0.68, ER-alpha pS118 0.64, HER2 0.61 (ERBB2), ZAP-70 0.60, LCK
+  0.59. Weak (under 0.3, a placeholder for "weak"): 32 of 37 phospho-site antibodies, expected
+  since a phosphorylation is not in the RNA (phospho-AKT S473 0.14, mTOR S2448 0.11, S6 S235/236
+  −0.15), and 23 of 56 total-protein antibodies: c-Myc 0.25, RAD50, collagen VI, Snail, ATM,
+  BCL-xL, RAD51, CD20 0.19, BAX, p53 0.17 (a mutant p53 accumulates as protein without more
+  RNA), p110-alpha 0.14, beta-catenin, cIAP, cleaved caspase-7, total mTOR, Ku80, BRCA2, BID,
+  N-cadherin, BAK, total S6, MRE11 and Granzyme B −0.24.
+- **Receptors against the recorded status** (round 1, unchanged): ER-alpha RPPA AUC 0.958, HER2
+  RPPA 0.772.
+- **Queue:** an observed mutation in the genomics map's PI3K / AKT / mTOR genes (PIK3CA, PTEN,
+  AKT1, PIK3R1) with the PI3K/AKT score from the 75th percentile (agree, trust moderate) or to
+  the 25th (disagree, trust weak); both cutoffs placeholders. The variant's CIViC evidence stays
+  in the genomics workbench, for clinician review.
+
+### Promoter methylation [observed betas, placeholder calls]
+
+- **Probes:** from the Illumina HumanMethylation450 v1.2 manifest, each gene's core promoter
+  (UCSC_RefGene_Group TSS200 or 1stExon; for RASSF1 the RASSF1A transcript NM_007182, for
+  CDKN2A p16INK4a NM_000077), kept where the median beta over TCGA's 97 normal breast samples is
+  under 0.2 (placeholder): ESR1 13 of 29 core-promoter CpGs, PGR 11 of 12, BRCA1 12 of 15,
+  RASSF1A 9 of 10, GSTP1 3 of 3, p16 1 of 1. Per tumor the mean beta over them.
+- **How the rule was chosen, honestly.** The first rule required the probe to lie in the
+  manifest's UCSC CpG island (TSS1500, TSS200, 5'UTR or first exon). It called BRCA1
+  methylated in 696 of 762 tumors: the manifest's island lies upstream of BRCA1's core
+  promoter (the NBR2 side), whose probes (cg19088651, cg08993267, ...) it calls shore, and the
+  island probes are methylated in most tumors and normal tissue alike. It also averaged
+  RASSF1A's and RASSF1C's promoters together. The core-promoter rule with the normal-breast
+  reference replaced it after that result, on the same tumors.
+- **Call:** methylated from a mean beta of 0.3 (placeholder). The gene's RNA percentile is shown
+  beside it: methylated with RNA at or under the 25th percentile (placeholder) is "consistent
+  with silencing", methylated with higher RNA is "not consistent". RASSF1A and p16 get no
+  consistency call: the RNA layer reads the whole gene (RASSF1A with RASSF1C, p16 with p14ARF).
+- **The check across the cohort** (762 tumors with both):
+
+| Gene | CpGs kept / core promoter | Methylated | RNA percentile, methylated (median) | RNA percentile, unmethylated (median) | Spearman, beta vs RNA |
+|---|---|---|---|---|---|
+| ESR1 | 13 / 29 | 2 | 11 | 50 | −0.33 |
+| PGR | 11 / 12 | 10 | 7 | 51 | −0.36 |
+| BRCA1 | 12 / 15 | 13 | 1 | 51 | −0.24 |
+| RASSF1 (RASSF1A) | 9 / 10 | 579 | 49 | 52 | −0.09 |
+| GSTP1 | 3 / 3 | 222 | 24 | 63 | −0.60 |
+| CDKN2A (p16) | 1 / 1 | 40 | 68 | 50 | −0.10 |
+
+  BRCA1 methylation is rare (13 tumors, 1.7%; methylation-specific PCR found 13% of 84 unselected
+  tumors, Esteller 2000) and those tumors' BRCA1 RNA sits at the 1st percentile: silencing.
+  GSTP1 is methylated in 29% (Esteller 1998: about 30%), with lower RNA. RASSF1A is methylated in
+  76% of tumors and p16 in 5%; their gene-level RNA does not follow, as said above.
+- **Hypermethylation index** [hypothesis]: the mean beta over the 76,449 autosomal CpG-island
+  promoter probes (of 89,258) whose median in normal breast is under 0.2, as a cohort
+  percentile over 766 tumors. Read as a CpG island methylator phenotype in the sense of Fang et
+  al. 2011 (B-CIMP, [10.1126/scitranslmed.3001875](https://doi.org/10.1126/scitranslmed.3001875));
+  this mean is not their classifier and is not validated here.
+- **Queue:** a methylated BRCA1 promoter (BRCA1 germline testing and a homologous-recombination
+  assay are the clinical tests), and a methylated ESR1 or PGR promoter while the receptor is
+  IHC positive. Trust weak (placeholder cutoffs).
+
+### Immune and stromal picture [model inference, implemented]
+
+- **Signatures:** ESTIMATE's 141-gene immune and stromal lists (Yoshihara et al. 2013,
+  [10.1038/ncomms3612](https://doi.org/10.1038/ncomms3612), Supplementary Data 1; 140 and 136
+  measured) by z-score averaging over the cohort, like the Hallmark scores; the ESTIMATE package
+  (GPL-2, single-sample enrichment) is not used. Immune-cell antibodies on the array (LCK,
+  ZAP-70, Granzyme B, CD20, CD4, CD45, VAV1, CD38), grouped here, not from a paper, averaged the
+  same way.
+- **Measured:** the immune signature against cytolytic activity (round 1) 0.87, against the
+  stromal signature 0.72 (1,059 tumors), against the immune-cell antibodies 0.55 (851 tumors;
+  Spearman). Granzyme B's antibody runs against its RNA (−0.24) and CD20's barely with it (0.19);
+  both stay in the predeclared group and are named here.
+- **Immune picture:** the RNA immune signature, the immune-cell proteins and each scored
+  section's lymphocytes near the front (the slide workbench's numbers computed as its page does:
+  the second lymphocyte model where it scored, else the tile head; precomputed per section with
+  its method version, so a re-run section falls back to the tile head) read together. A layer
+  calls "high" from the 75th percentile and "low" to the 25th (placeholders); a section calls
+  "low" when under 5% of its front-band tiles are lymphocytes (the slide workbench's desert
+  cutoff, placeholder) and makes no call otherwise, since not a desert is not inflamed. Agree when
+  every call is the same, disagree when one is high and another low; a pathologist's stromal TILs
+  read (Salgado et al. 2015) settles it. The report's tests-that-disagree list keeps
+  `muffle.crosstest`'s own "slide immune versus RNA immune" rule (a desert section against
+  cytolytic activity from the 75th percentile); this page names it when it fires and adds no
+  second rule.
+
 ## Placeholders
 
 - A PAM50 call whose margin to the runner-up is under 0.1 is flagged "borderline".
 - ERBB2 amplification at twice the ploidy (above).
+- Round 2: a promoter probe kept under a normal-breast median beta of 0.2; methylated from a mean
+  promoter beta of 0.3; RNA low at or under the 25th percentile; protein pathway high from the
+  75th, low to the 25th percentile; immune scores high from the 75th, low to the 25th; protein
+  against RNA called weak under a Spearman of 0.3 (`omics.PLACEHOLDERS`).
 
 ## Known failures
 
@@ -134,6 +254,14 @@ the risk percentile move.
   0.57 (copy number) at high specificity; the recorded status mixes IHC and in situ
   hybridization, and amplification calls from ASCAT are not ISH.
 - **Feature percentiles are approximate:** interpolated between cohort deciles.
+- **Protein pathways:** most phospho-site antibodies and 23 of 56 total-protein antibodies agree
+  weakly with their gene's RNA; a pathway score is relative to this cohort, read through the
+  antibodies the array carries, and not validated as activity.
+- **Promoter methylation:** calls at placeholder cutoffs on bulk DNA; the first probe rule (the
+  manifest's CpG island) called BRCA1 methylated in 91% of tumors and was replaced (above).
+  RASSF1A's and p16's methylation cannot be checked against their RNA here.
+- **Immune picture:** the slide side can only say "desert"; the scored sections are few (5 of the
+  40 cases) and their lymphocyte reads are not validated on breast by a pathologist.
 - The bundle's copy-number feature names and the rebuilt cohort's differ in order for a few genes
   with tied variance (neighbouring genes on the same segment); the percentiles are looked up by
   name.
@@ -148,5 +276,6 @@ recommendation.
 ## Planned
 
 Other signatures (recurrence-score-like, immune deconvolution) only from a validated model with a
-named reference population; expression distributions per gene across the cohort; methylation of
-named promoters (ESR1, BRCA1) with a validated cutoff.
+named reference population; expression distributions per gene across the cohort; a validated
+promoter-methylation cutoff (methylation-specific PCR or pyrosequencing on the same tumors);
+merging phospho-forms of one protein before a pathway score, as Akbani did.
