@@ -125,24 +125,88 @@ def survival_by_group(km: dict[str, tuple[np.ndarray, np.ndarray, int]]) -> alt.
     return (lines + points + labels).properties(height=280).configure_axis(**GRID)
 
 
-def _treatments(treatments: list[dict]) -> alt.Chart:
-    """Dashed rules where treatments start ({"month", "text"} each), named on hover."""
-    df = pd.DataFrame(list(treatments), columns=["month", "text"])
-    return alt.Chart(df).mark_rule(strokeDash=[2, 3], opacity=0.7, clip=True).encode(
-        x="month:Q", tooltip=[alt.Tooltip("month:Q"), alt.Tooltip("text:N", title="treatment")])
+TONES = {"from the record": BLUE, "imported in this session": ORANGE, "SOS alert": RED}
+MARKS = {"version": ("circle", 150), "test": ("circle", 60), "treatment": ("triangle-right", 70),
+         "alert": ("triangle-down", 120)}
 
 
-def risk_timeline(updates: list[dict], events: list[dict], month: float,
-                  treatments: list[dict] = ()) -> alt.Chart:
+def event_lanes(data: dict, viewing: int) -> alt.LayerChart:
+    """The record in lanes on one month axis (``muffle.timeline_view.lanes``): report versions on
+    top, tests, treatment starts and their bars, SOS alerts in red on the lane of the test that
+    raised them. Points after version ``viewing`` are faded behind a rule at its month. A click
+    selects a point's report version (the selection "node")."""
+    pts = pd.DataFrame(data["points"])
+    pts["alpha"] = np.where(pts["version"] > viewing, 0.3, 1.0)
+    lo, hi = pts["x"].min() - 1, pts["x"].max() + 1
+    x = alt.X("x:Q", title=data["axis"], scale=alt.Scale(domain=[lo, hi], nice=False))
+    y = alt.Y("lane:N", title=None, scale=alt.Scale(domain=data["lanes"]),
+              axis=alt.Axis(labelLimit=200, labelOverlap=False))
+    node = alt.selection_point(name="node", fields=["version"], on="click")
+    tones = [t for t in TONES if t in set(pts["tone"])]
+    points = alt.Chart(pts).mark_point(filled=True, opacity=1).encode(
+        x=x, y=y,
+        shape=alt.Shape("mark:N", scale=alt.Scale(domain=list(MARKS),
+                                                  range=[s for s, _ in MARKS.values()]),
+                        legend=None),
+        size=alt.Size("mark:N", scale=alt.Scale(domain=list(MARKS),
+                                                range=[z for _, z in MARKS.values()]),
+                      legend=None),
+        color=alt.Color("tone:N", scale=alt.Scale(domain=tones, range=[TONES[t] for t in tones]),
+                        legend=alt.Legend(orient="bottom", title=None)),
+        opacity=alt.Opacity("alpha:Q", scale=None),
+        tooltip=[alt.Tooltip("lane:N"), alt.Tooltip("when:N"), alt.Tooltip("what:N"),
+                 alt.Tooltip("result:N"), alt.Tooltip("evidence:N"),
+                 alt.Tooltip("version_label:N", title="report version"),
+                 alt.Tooltip("entry:N", title="the version's entry"),
+                 alt.Tooltip("source:N")]).add_params(node)
+    layers = []
+    if data["spans"]:
+        bars = pd.DataFrame(data["spans"])
+        bars["lane"], bars["alpha"] = "Treatments", np.where(bars["version"] > viewing, 0.3, 1.0)
+        bars["state"] = np.where(bars["open"], "no stop recorded (open)", "until the next entry")
+        tip = [alt.Tooltip("drug:N"), alt.Tooltip("start:Q"), alt.Tooltip("end:Q"),
+               alt.Tooltip("state:N", title="end"), alt.Tooltip("words:N", title="the record")]
+        base = alt.Chart(bars).encode(y=y, yOffset="track:N")
+        layers.append(base.mark_bar(height=7, cornerRadius=3, color="#86b6ef", clip=True).encode(
+            x="start:Q", x2="end:Q", opacity=alt.Opacity("alpha:Q", scale=None), tooltip=tip))
+        layers.append(base.transform_filter("datum.end - datum.start >= 6").mark_text(
+            align="left", dx=8, fontSize=10, clip=True).encode(x="start:Q", text="drug:N",
+                                                               tooltip=tip))  # room for a name
+    now = pts.loc[(pts["mark"] == "version") & (pts["version"] == viewing), "x"].min()
+    layers.append(alt.Chart(pd.DataFrame({"x": [now]})).mark_rule(
+        strokeDash=[4, 3], opacity=0.6).encode(x="x:Q"))
+    return alt.layer(*layers, points).properties(
+        height=34 * len(data["lanes"]) + 50).configure_axis(**GRID)
+
+
+OVERLAYS = ("CA 15-3", "ctDNA", "Treatments", "Imaging reads")
+VARIANT_COLORS = [BLUE, ORANGE, "#8a8f98"]  # the ctDNA workbench's colors, in its variants' order
+
+
+def risk_timeline(updates: list[dict], events: list[dict], month: float, ctx: dict | None = None,
+                  show=()) -> alt.Chart:
     """The synthetic patient's 12-month risk at each event: the record-so-far models (mean, and
-    their range over seeds as a band) and the diagnosis-only baseline; a rule marks ``month``,
-    dashed rules the treatment starts."""
+    their range over seeds as a band) and the diagnosis-only baseline; a rule marks ``month``.
+    ``show`` (from OVERLAYS) adds the record beside it from ``ctx``
+    (``muffle.timeline_view.context``): CA 15-3 on its own axis, treatment bars, imaging reads as
+    rules (progression red), ctDNA allele fractions in a panel below."""
     rows = [{"month": u["month"], "risk": u["risk"], "lo": u["risk_range"][0],
              "hi": u["risk_range"][1], "baseline": u["baseline"],
              "event": events[u["event"]]["text"]} for u in updates if "risk" in u]
-    df = pd.DataFrame(rows)
-    x = alt.X("month:Q", title="months since the first tumor sequencing",
-              scale=alt.Scale(domain=[df["month"].min() - 0.5, df["month"].max() + 3]))
+    df, ctx = pd.DataFrame(rows), ctx or {}
+    ca = pd.DataFrame(ctx.get("ca153", []) if "CA 15-3" in show else [],
+                      columns=["month", "value", "words", "source"])
+    dna = pd.DataFrame(ctx.get("ctdna", []) if "ctDNA" in show else [],
+                       columns=["month", "variant", "vaf"])
+    reads = pd.DataFrame(ctx.get("imaging", []) if "Imaging reads" in show else [],
+                         columns=["month", "words", "read"])
+    bars = pd.DataFrame(ctx.get("treatments", []) if "Treatments" in show else [],
+                        columns=["drug", "start", "end", "open", "track", "words"])
+    months = [*df["month"], *ca["month"], *dna["month"], *reads["month"], month]
+    lo = min(months) - 0.5
+    bars = bars[bars["end"] > lo].copy()  # only what runs within the axis
+    x = alt.X("month:Q", title="months from the first tumor sequencing (month 0)",
+              scale=alt.Scale(domain=[lo, max(months) + 3], nice=False))
     pct = alt.Axis(format="%")
     y = alt.Y("risk:Q", title="12-month risk", scale=alt.Scale(domain=[0, 1]), axis=pct)
     tip = [alt.Tooltip("month:Q", title="month"), alt.Tooltip("event:N"),
@@ -163,5 +227,51 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float,
                                  last.assign(v=last["baseline"], name="diagnosis only")])
                       ).mark_text(align="left", dx=8).encode(x="month:Q", y="v:Q", text="name:N")
     now = alt.Chart(pd.DataFrame({"month": [month]})).mark_rule(opacity=0.5).encode(x="month:Q")
-    return (band + line + baseline + _treatments(treatments) + dots + names + now).properties(
-        height=280).configure_axis(**GRID)
+    layers = []
+    if len(bars):
+        bars["state"] = np.where(bars["open"], "no stop recorded (open)", "until the next entry")
+        bars["ty"] = 0.97 - 0.05 * bars["track"]  # the labels' height, in risk units
+        bars["lx"] = bars["start"].clip(lower=lo)  # a bar from before the axis: named at its edge
+        tip = [alt.Tooltip("drug:N"), alt.Tooltip("start:Q"), alt.Tooltip("end:Q"),
+               alt.Tooltip("state:N", title="end"), alt.Tooltip("words:N", title="the record")]
+        b = alt.Chart(bars).encode(tooltip=tip)
+        layers += [b.mark_rect(color=BLUE, opacity=0.08, clip=True).encode(x="start:Q", x2="end:Q"),
+                   b.mark_text(align="left", dx=3, fontSize=10, clip=True).encode(
+                       x="lx:Q", y="ty:Q", text="drug:N")]
+    if len(reads):
+        layers.append(alt.Chart(reads).mark_rule(strokeDash=[2, 3], strokeWidth=2).encode(
+            x="month:Q", color=alt.Color("read:N", scale=alt.Scale(
+                domain=["progression", "no progression stated"], range=[RED, "#8a8f98"]),
+                legend=alt.Legend(orient="bottom", title="imaging read")),
+            tooltip=[alt.Tooltip("month:Q"), alt.Tooltip("read:N"),
+                     alt.Tooltip("words:N", title="the report")]))
+    top = alt.layer(*layers, band, line, baseline, dots, names, now).properties(height=280)
+    if len(ca):
+        y_ca = alt.Y("value:Q", title="CA 15-3 (U/mL)", axis=alt.Axis(orient="right"))
+        tip = [alt.Tooltip("month:Q"), alt.Tooltip("words:N", title="CA 15-3"),
+               alt.Tooltip("source:N")]
+        c = alt.Chart(ca).encode(x=x, y=y_ca)
+        top = alt.layer(top, c.mark_line(color=ORANGE, strokeWidth=1.5, strokeDash=[6, 2]) +
+                        c.mark_square(color=ORANGE, size=40, opacity=1).encode(tooltip=tip)
+                        ).resolve_scale(y="independent")
+    if not len(dna):
+        return top.configure_axis(**GRID)
+    dna["detected"] = np.where(dna["vaf"].notna(), "detected", "not detected (shown at 0)")
+    dna["shown"] = dna["vaf"].fillna(0.0)
+    color = alt.Color("variant:N", scale=alt.Scale(domain=list(dict.fromkeys(dna["variant"])),
+                                                   range=VARIANT_COLORS),
+                      legend=alt.Legend(orient="bottom", title="ctDNA (synthetic series)"))
+    tip = [alt.Tooltip("month:Q"), alt.Tooltip("variant:N"),
+           alt.Tooltip("vaf:Q", format=".2f", title="allele fraction (%)"),
+           alt.Tooltip("detected:N")]
+    d = alt.Chart(dna).encode(x=x, y=alt.Y("shown:Q", title="allele fraction (%)"), color=color)
+    lod = alt.Chart(pd.DataFrame({"lod": [ctx["lod"]]})).mark_rule(
+        strokeDash=[3, 3], opacity=0.6).encode(
+        y="lod:Q", tooltip=[alt.Tooltip("lod:Q", title="detection limit (placeholder), %")])
+    seen = d.transform_filter("datum.vaf != null")
+    panel = alt.layer(seen.mark_line(strokeWidth=1.5),
+                      seen.mark_point(size=40, filled=True, opacity=1).encode(tooltip=tip),
+                      d.transform_filter("datum.vaf == null").mark_point(size=40, opacity=1)
+                      .encode(tooltip=tip), lod).properties(height=130)
+    return alt.vconcat(top, panel).resolve_scale(x="shared", color="independent").configure_axis(
+        **GRID)
