@@ -68,7 +68,10 @@ validation page carries "Patients › Methods and validation".
 identity and diagnosis, the open SOS alerts ("SOS: 2 open", alerts no reviewer has marked yet,
 as of the report version shown; "SOS: none open" otherwise), the version shown when it isn't
 the latest, and the view control (Report, Tests, Timeline, Evolution, Import tests). The report
-version slider sits under it.
+version slider sits under it. It sticks below Streamlit's toolbar in windows 1024 px and wider
+(about 120 px tall at 1280 px); in a narrower window it wraps onto more lines and would cover a
+quarter of the screen, so there it scrolls away with the page. Streamlit 1.66 wraps the header
+in a layout wrapper of its own height, so the wrapper is what sticks (`app/navigation.py`).
 
 **The way back.** After an "Open" (an attention-queue item, an overview card), the workbench
 shows "← Back to the file" (the file's report, at its top) and, when it came from the queue,
@@ -222,7 +225,7 @@ What changed:
   Models and Rules, as links (a test keeps it complete).
 - **Phone width.** Columns stack, the breadcrumb line, the report's cards and the rows of
   metric tiles wrap, the patient list keeps its Patient column pinned, wide tables scroll inside
-  themselves; the sticky header holds the breadcrumbs, the patient line and the views.
+  themselves; the patient header scrolls away with the page (it sticks from 1024 px up).
 
 ## 7. Accessibility basics
 
@@ -230,7 +233,11 @@ What changed:
   weak, placeholder threshold), the open SOS count is "🔴 3 open" or "none", the maps have
   legends, and the look-here rows name the evidence and the trust in text.
 - **Contrast**: badges use Streamlit's own palette (dark text on a light tint); the sticky
-  header has an opaque background in both themes.
+  header is opaque with the page's own background and text colour in either theme, worked out
+  in CSS (it inherits the background Streamlit's app root paints, `Canvas` where a browser
+  lacks `:has()`), so changing the theme in the settings menu needs no rerun; a colour picked in
+  Python from `st.context.theme` went stale after a theme change and left a black band on a
+  light page.
 - **Alt text** on every image (slide crops and thumbnails, an imported image's preview) and on
   the main charts (each lab trend in words, the allele fractions, the copy-number landscape,
   the pathway map, the tile map, Evolution's record over time, the clonal allele fractions,

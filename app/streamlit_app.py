@@ -54,8 +54,9 @@ from muffle.hotreload import purge_modules, source_digest  # noqa: E402
 # on charts.risk_timeline, ImportError on muffle.demo.evidence_lookup). When the sources differ
 # from what this process last ran, drop those modules and the caches their old code built.
 CODE_DIGEST = source_digest([APP, APP.parent / "src" / "muffle"])
-if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
-    purge_modules(("charts", "methods_page", "muffle", "timeline_page", "workbenches"))
+if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:  # every module of app/ and src/muffle
+    purge_modules((*(p.stem for p in APP.glob("*.py") if p.stem != "streamlit_app"),
+                   "muffle", "workbenches"))
     st.cache_resource.clear()
     st.cache_data.clear()
     sys._muffle_code_digest = CODE_DIGEST

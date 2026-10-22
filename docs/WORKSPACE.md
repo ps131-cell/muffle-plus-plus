@@ -94,7 +94,8 @@ Three buttons lead on: **Import tests**, **Tests** and **Timeline**.
 Built 2026-10-22 ([`ux.md`](ux.md) §1–2):
 - **Breadcrumbs** head every screen ("Patients › Case 299 › Tests › Pathology slide"); the
   file's crumb is the file picker, so another patient is one pick away.
-- **A sticky patient header** keeps the patient, the open SOS alerts and the views on screen.
+- **A sticky patient header** keeps the patient, the open SOS alerts and the views on screen
+  (windows 1024 px and wider).
 - **The way back**: after an "Open", "← Back to the file" and "← Back to the queue, item n of
   N".
 - **Deep links**: `?patient`, `?view`, `?test`, `?pointer` and `?version` reopen exactly the
