@@ -586,8 +586,8 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                                 "the model takes a mask per layer, so the layer would enter the "
                                 "estimate directly; this file's model exposes no what-if numbers,"
                                 " so the effect is named, not quantified"),
-                "source": "model inference: the clinical-anchored residual model with a layer "
-                          "mask (tests/test_model.py)",
+                "source": "model inference: the clinical-anchored residual model, which takes "
+                          "a mask per data layer",
                 "evidence": INFERENCE})
 
     # a receptor status that other tests contradict: the clinical test that decides it
@@ -613,8 +613,7 @@ def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
                 "open_question": f"What tissue is in the {share:.0%} of section {s['slide']} the "
                                  "tile head is unsure about?",
                 "test": "A second encoder's tile classes on the unsure tiles (a stronger "
-                        "pathology encoder, docs/model_access.md), then the pathologist where "
-                        "the two disagree",
+                        "pathology encoder), then the pathologist where the two disagree",
                 "expectation": "tiles where two models agree firm up the map; the rest go to "
                                "the eye",
                 "source": f"the head's held-out accuracy: {head['accuracy_below_cutoff']:.0%} on "
