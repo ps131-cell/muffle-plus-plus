@@ -254,3 +254,32 @@ def test_patient_files_render_in_every_view(app):
         assert card in cards, card
     placeholders = next(d.value for d in at.dataframe if "Placeholder" in d.value.columns)
     assert f"{workspace.RISK_JUMP} points of 12-month risk" in placeholders["Value"].tolist()
+    # each card carries this session's review marks; a disagreement joins the known failures
+    assert "Clinician review · 0 findings reviewed, 0 disagreed this session" in shown(at)
+    reviews = at.session_state["reviews"]
+    reviews[f"{case}|risk|None"] = {"what": "Risk estimate, baseline", "mark": "disagree",
+                                    "by": "AB", "at": "2026-10-22 09:00"}
+    at.session_state["reviews"] = reviews
+    at.run()
+    assert "Clinician review · 1 finding reviewed, 1 disagreed this session (Multi-omic " \
+           "survival model)" in shown(at) and not at.exception
+    failures = next(d.value for d in at.dataframe if "Known failure" in d.value.columns)
+    assert any(f.startswith("Findings clinicians disagreed with this session: 1 of 1")
+               for f in failures["Known failure"])
+
+    # Feedback: the ledger, the signal per model or rule, the disagreed queue, the roadmap
+    at._page_hash = pages["feedback"]
+    at.run()
+    assert not at.exception and at.title[0].value == "Feedback"
+    ledger = at.dataframe[0].value
+    assert len(ledger) == len(reviews) and "Multi-omic survival model" in set(
+        ledger["Model or rule"])
+    assert "Findings you disagreed with · 1" in shown(at) and "planned" in shown(at)
+    assert "nothing is stored on the server or sent anywhere" in shown(at)
+    assert "Download the feedback ledger (JSON lines)" in [
+        b.label for b in at.get("download_button")]
+    at.multiselect(key="feedback-mark").set_value(["disagree"]).run()
+    assert len(at.dataframe[0].value) == 1
+    at.button(key="feedback-open-0").click().run()  # back to the file, on its report
+    assert not at.exception and at.session_state["patient"] == case
+    assert at.segmented_control(key="view").value == "Report" and "Risk" in shown(at)

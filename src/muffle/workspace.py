@@ -529,7 +529,8 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     """Report version ``i`` as one Markdown page: summary, alerts, every workbench's finding
     cards, the attention queue, the three kinds of finding, missing data, tests that disagree,
     what would reduce uncertainty, every placeholder, model and sources, what each version up to
-    ``i`` brought (``muffle.timeline_view.markdown``), and the reviewers' marks by finding kind.
+    ``i`` brought (``muffle.timeline_view.markdown``), the reviewers' marks by finding kind,
+    and the Feedback section (``muffle.feedback.report_section``).
     ``evidence`` maps "GENE CHANGE" to its CIViC items (None: the table couldn't load);
     ``reviews`` maps ``finding_key`` names to {"what", "mark", "by", "at"}; ``disagree``
     and ``reducers`` are ``muffle.crosstest``'s lists; ``summaries`` and ``queue`` are
@@ -634,4 +635,7 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
         out += [f"### {kind}"] * bool(mine) + [
             f"- {esc(r['what'])}: {r['mark']} ({r['by'] or 'no initials'}, {r['at']})"
             for r in mine]
+    from muffle.feedback import report_section  # feedback imports this module
+
+    out += [""] + report_section(reviews, pf.id, esc)
     return "\n".join(out) + "\n"

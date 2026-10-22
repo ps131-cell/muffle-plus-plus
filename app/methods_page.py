@@ -20,7 +20,7 @@ from workbenches import documents, omics
 from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
-from muffle import crosstest, workspace
+from muffle import crosstest, feedback, workspace
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.nemotron import DEFAULT_MODEL, WRITER_MODEL, model_name
 from muffle.timeline import CTDNA
@@ -92,6 +92,18 @@ def contents() -> None:
                                      if not cards))
 
 
+def records() -> list[dict]:
+    """This session's review marks as the feedback ledger (muffle.feedback)."""
+    return feedback.ledger(st.session_state.get("reviews", {}))
+
+
+def reviewed(heading: str) -> None:
+    """A card's line from this session's review marks: findings reviewed and disagreed (zero
+    when nothing was marked). Nothing a clinician marks changes the model or rule."""
+    st.caption("Clinician review · " + feedback.line(records(), heading)
+               + ". Marks stay in this browser session; nothing is trained on them (Feedback).")
+
+
 def render(demo, tl: dict | None, res: dict | None) -> None:
     st.title("Methods and validation")
     st.markdown(
@@ -107,18 +119,28 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
 
     st.header("Models")
     survival_card(demo, res)
-    landmark_card(tl)
+    reviewed(feedback.SURVIVAL)
+    if tl:
+        landmark_card(tl)
+        reviewed(feedback.LANDMARK)
     slide_model_cards()
+    reviewed(feedback.SLIDES)
     radiology_page.methods_card()
+    reviewed(feedback.RADIOLOGY)
     omics.methods_card()
+    reviewed(feedback.OMICS)
     case_note_card(demo)
 
     st.header("Rules")
     alert_card()
+    reviewed(feedback.ALERTS)
     lab_card()
+    reviewed(feedback.LABS)
     ctdna_card()
+    reviewed(feedback.CTDNA)
     slide_rule_card()
     genomics_card()
+    reviewed(feedback.GENOMICS)
     st.subheader("Clinical documents: the rules and a named-entity model, side by side")
     st.markdown(f"{chip(workspace.IMPLEMENTED)} · breast pathology facts from report text, each "
                 "with its source sentence · the clinical documents workbench")
@@ -130,7 +152,9 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
                 "model in the same local pipeline. Both readings measured on the same held-out "
                 "TCGA reports against TCGA's clinical fields:")
     documents.methods_card()
+    reviewed(feedback.DOCUMENTS)
     evolution_page.methods_card()
+    reviewed(feedback.EVOLUTION)
 
     federation(demo)
     sources()
@@ -547,12 +571,28 @@ def known_failures() -> None:
         ("Evolution view", "A cohort's frequency is not this patient's probability; purity is "
          "unknown, so no variant is called clonal."),
         *(("Radiology", f) for f in radiology_rules.KNOWN_FAILURES),
+        *clinician_disagreements(),
     ]
     st.header("Known failures")
     st.caption("What each module gets wrong, as far as it has been measured or seen. Each "
                "workbench repeats its own in its model and validation card.")
     st.dataframe(pd.DataFrame(rows, columns=["Module", "Known failure"]), hide_index=True,
                  width="stretch")
+
+
+def clinician_disagreements() -> list[tuple[str, str]]:
+    """Findings clinicians disagreed with this session, one row per model or rule; none when
+    nothing was marked disagree."""
+    recs = records()
+    rows = []
+    for g in feedback.rates(recs):
+        if g[feedback.DISAGREE]:
+            bad = [x["finding"] for x in feedback.disagreed(recs) if x["method"] == g["method"]]
+            rows.append((g["method"], "Findings clinicians disagreed with this session: "
+                         f"{g[feedback.DISAGREE]} of {g['n']} marked (" + "; ".join(bad[:3])
+                         + ("; …" if len(bad) > 3 else "") + "). A review mark, not a "
+                         "measured error rate."))
+    return rows
 
 
 def placeholders() -> None:
