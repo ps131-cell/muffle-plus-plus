@@ -287,7 +287,7 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                       key=f"docs-d-agree-{file.id}"):
         if not read:
             st.caption("The named-entity model has not read these documents. It runs on a local "
-                       "machine (scripts/documents_pipeline.py): the bundled TCGA reports carry "
+                       "machine, outside this app: the bundled TCGA reports carry "
                        "its spans; an imported document is queued for the local pipeline.")
         elif rows:
             st.dataframe(pd.DataFrame([{

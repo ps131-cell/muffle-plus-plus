@@ -101,7 +101,7 @@ Built 2026-10-22 ([`ux.md`](ux.md) §1–2):
   screen on display, with the pointer in its Spot panel; "Open" and a look-here "Spot" write
   them.
 - **Recently opened files** above the patient list.
-- **One page skeleton** for every workbench (the clinical documents page joins after its round
+- **One page skeleton** for every workbench (the clinical documents page joined with its round
   2): title, status chips, overview with the look-here queue, the picture, collapsed details
   with their counts, the Spot panel, the Model and validation card, what the test cannot see,
   export.

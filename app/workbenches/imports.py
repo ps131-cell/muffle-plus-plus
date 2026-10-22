@@ -439,7 +439,7 @@ def render_test(file: PatientFile, t: Test) -> None:
                 "registered, checked and kept for this session, not analyzed. "
                 + ("The slide workbench's tissue map runs on a local machine with its encoder."
                    if t.details.get("pipeline") == "slides" else
-                   "Scanned PDF: the local pipeline (scripts/documents_pipeline.py scan) reads "
+                   "Scanned PDF: the local pipeline, on a machine outside this app, reads "
                    "each page with ibm-granite/granite-docling-258M, then the documents rules and "
                    "the named-entity model read the text exactly as a text report's; the text it "
                    "writes is checked by a person and imported as a report. Text accuracy on "

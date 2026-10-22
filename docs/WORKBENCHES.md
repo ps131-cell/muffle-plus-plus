@@ -72,7 +72,7 @@ measurement. Every workbench follows it.
      ctDNA, genomics, slides (with the invasion results), omics, documents, radiology and
      evolution carry them; a new workbench joins the overview by adding the two functions.
 10. **One page skeleton** (built 2026-10-22, [`ux.md`](ux.md) §1). Every workbench page (the
-    clinical documents page after its round 2) draws the same parts in the same order through
+    clinical documents page since its round 2) draws the same parts in the same order through
     one helper (`app/workbenches/_page.py`): title, status chips, overview (paragraph, the
     look-here queue from `queue()`, search), the picture, collapsed details with their
     counts, the Spot panel, the Model and validation card, what the test cannot see, the
