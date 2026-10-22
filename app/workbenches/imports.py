@@ -51,13 +51,14 @@ ADAPTERS = [  # what each adapter accepts, what it checks on intake and what the
      f"at most {intake.MAX_ROWS} rows; an unknown unit, a value before the latest report or a "
      "value the record already holds is rejected with the reason; units converted to the "
      "reference table's", "one Lab test per row, read by the blood and lab workbench"),
-    (REPORT, "a text file or a PDF with a text layer (no OCR)",
-     f"at most {intake.MAX_CHARS:,} characters", "a document, read by the documents rules"),
+    (REPORT, "a text file or a PDF; a PDF without a text layer is a scan",
+     f"at most {intake.MAX_CHARS:,} characters", "a document, read by the documents rules; a "
+     "scanned PDF is queued for the local pipeline's page reader (its name and page count kept)"),
     (SEQUENCING, "an annotated VCF (VEP CSQ or SnpEff ANN) or a MAF, plain or gzip",
      f"at most {intake.MAX_RECORDS:,} records; PASS calls only; protein-altering variants in the "
      "file's breast panel; other rows rejected with the reason",
      "a Sequencing test, read by the genomics workbench"),
-    (IMAGING, "a text file or a PDF with a text layer",
+    (IMAGING, "a text file or a PDF (a scanned PDF is queued for the local pipeline)",
      "the read its clauses state; negated and hedged clauses set aside and listed",
      "an Imaging test, read by the radiology workbench"),
     (IMAGE, "a PNG or JPEG", f"at most {intake.MAX_IMAGE // 2**20} MB",
@@ -273,16 +274,25 @@ def _facts_preview(text: str) -> None:
                "shows each at its sentence.")
 
 
-def _upload_text(label: str, key: str, default: str) -> tuple[str, str] | None:
-    """A report uploaded (text or PDF) or pasted, checked on intake → (text, title)."""
-    up = st.file_uploader(f"{label} (text or PDF with a text layer)", type=["txt", "pdf", "md"],
-                          key=key)
+def _upload_text(label: str, key: str, default: str, month: int = 0):
+    """A report uploaded (text or PDF) or pasted, checked on intake → (text, title); a scanned
+    PDF → its queued record (a dict)."""
+    up = st.file_uploader(f"{label} (text or PDF; a scanned PDF is queued for the local "
+                          "pipeline)", type=["txt", "pdf", "md"], key=key)
     pasted = st.text_area("Or paste the report's text", key=f"{key}-text", height=120)
     if up is None and not pasted.strip():
         return None
     try:
         text = (intake.read_text(up.name, up.getvalue()) if up is not None
                 else intake.read_text("pasted.txt", pasted.encode()))
+    except intake.ScannedPDF as e:
+        test = intake.scanned_test(up.name, up.getvalue(), month, e.pages, label)
+        st.info(f"{e} The hosted app runs no models: the local pipeline reads the pages, then "
+                "the rules and the named-entity model read the text exactly as a text report's. "
+                "Kept here: the file's name and page count.", icon="⏳")
+        return {"kind": f"{label} (scanned)", "rejected": [], "version": {
+            "tests": [test], "month": month, "observed": [],
+            "event": f"Imported scanned report: {up.name} ({e.pages} pages, {intake.QUEUED})"}}
     except intake.IntakeError as e:
         st.error(str(e))
         return None
@@ -292,9 +302,9 @@ def _upload_text(label: str, key: str, default: str) -> tuple[str, str] | None:
 
 
 def _report(month: int, doc_id: str, source: str) -> dict | None:
-    got = _upload_text("Report", "import-report", "Pathology report")
-    if got is None:
-        return None
+    got = _upload_text("Report", "import-report", "Pathology report", month)
+    if got is None or isinstance(got, dict):
+        return got
     text, title = got
     _facts_preview(text)
     test, observed = intake.document_test("Document", title, text, month, doc_id, source)
@@ -343,9 +353,9 @@ def _sequencing(file: PatientFile, month: int, source: str) -> dict | None:
 
 
 def _imaging(month: int, doc_id: str, source: str) -> dict | None:
-    got = _upload_text("Imaging report", "import-imaging", "Imaging report")
-    if got is None:
-        return None
+    got = _upload_text("Imaging report", "import-imaging", "Imaging report", month)
+    if got is None or isinstance(got, dict):
+        return got
     text, title = got
     test = intake.imaging_test(title, text, month, doc_id, source)
     read_details(test.details)
@@ -405,6 +415,10 @@ def _details(t: Test) -> None:
         st.image(d["preview"], caption=f"{d['width']}×{d['height']} px {d['format']}, "
                                        f"{d['bytes'] / 1024:,.0f} KB as received (preview)",
                  alt=f"Preview of the imported image {d.get('file', '')}".strip())
+    if "pages" in d:
+        st.markdown(f"**{d['file']}** · scanned PDF, {d['pages']} page"
+                    f"{'s' if d['pages'] != 1 else ''}, {d['bytes'] / 1024:,.0f} KB, no text "
+                    "layer")
     if "header" in d:
         st.dataframe(pd.DataFrame(list(d["header"].items()), columns=["Header field", "Value"]),
                      hide_index=True, width="stretch")
@@ -425,6 +439,12 @@ def render_test(file: PatientFile, t: Test) -> None:
                 "registered, checked and kept for this session, not analyzed. "
                 + ("The slide workbench's tissue map runs on a local machine with its encoder."
                    if t.details.get("pipeline") == "slides" else
+                   "Scanned PDF: the local pipeline, on a machine outside this app, reads "
+                   "each page with ibm-granite/granite-docling-258M, then the documents rules and "
+                   "the named-entity model read the text exactly as a text report's; the text it "
+                   "writes is checked by a person and imported as a report. Text accuracy on "
+                   "four scans: Methods and validation."
+                   if t.details.get("pipeline") == "documents" else
                    "The radiology workbench's image viewer and lesion measurements run on a "
                    "local machine.")
                 + " Nothing below is a result.", icon="⏳")
@@ -435,7 +455,8 @@ def render_test(file: PatientFile, t: Test) -> None:
         st.markdown("**Intake rules** · rules, no model: the file's type and size are checked "
                     f"(at most {intake.MAX_IMAGE // 2**20} MB); a DICOM file's header is read "
                     "for its acquisition fields only, never its pixels or the patient's "
-                    "identifying fields. Tested on sample files, not validated.")
+                    "identifying fields; a PDF without a text layer is kept by its name and page "
+                    "count. Tested on sample files, not validated.")
     with page.cannot_see(["anything in the image: nothing was analyzed here",
                           "the patient's identity: identifying header fields are never read"]):
         pass

@@ -1,6 +1,6 @@
 {
  "rules": "documents rules v2 (2026-10-21)",
- "measured": "2026-10-21",
+ "measured": "2026-10-22",
  "reports": "TCGA-Reports (Kefeli and Tatonetti, Patterns 2024, 10.1016/j.patter.2024.100933; data 10.17632/hyg5xkznpx.1; CC BY 4.0): OCR'd, cleaned TCGA pathology report",
  "reference": "TCGA-BRCA clinical fields (UCSC Xena TCGA hub, BRCA_clinicalMatrix; TCGA open access)",
  "sets": {
@@ -289,5 +289,293 @@
     }
    ]
   }
+ },
+ "model": {
+  "method": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M (Apache-2.0), zero-shot named-entity model run offline on a local machine with 16 breast pathology labels, spans kept at a score of 0.5 or more (the model card's example threshold)",
+  "run": {
+   "date": "2026-10-22",
+   "documents": 495,
+   "characters": 1975857,
+   "seconds": 9291.1,
+   "seconds_per_1000_characters": 4.7,
+   "threads": 2,
+   "load_before": 7.4,
+   "load_after": 6.1,
+   "machine": "WSL2 on the team's Windows PC, CPU only"
+  },
+  "sets": {
+   "test": {
+    "patients": 481,
+    "fields": [
+     {
+      "field": "er",
+      "compared": "ER status (positive / negative)",
+      "with_value": 459,
+      "extracted": 2,
+      "right": 1,
+      "precision": 0.5,
+      "recall": 0.002178649237472767
+     },
+     {
+      "field": "pr",
+      "compared": "PR status (positive / negative)",
+      "with_value": 458,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "her2",
+      "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
+      "with_value": 422,
+      "extracted": 12,
+      "right": 8,
+      "precision": 0.6666666666666666,
+      "recall": 0.018957345971563982
+     },
+     {
+      "field": "pT",
+      "compared": "pT category (T1\u2013T4, Tis, TX; suffix ignored)",
+      "with_value": 481,
+      "extracted": 54,
+      "right": 52,
+      "precision": 0.9629629629629629,
+      "recall": 0.10810810810810811
+     },
+     {
+      "field": "pN",
+      "compared": "pN category (N0\u2013N3, NX; suffix ignored)",
+      "with_value": 481,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "stage",
+      "compared": "Stage group (I\u2013IV; A\u2013C ignored)",
+      "with_value": 468,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "histologic_type",
+      "compared": "Histologic type (ductal, lobular, mixed, special types)",
+      "with_value": 464,
+      "extracted": 14,
+      "right": 14,
+      "precision": 1.0,
+      "recall": 0.03017241379310345
+     },
+     {
+      "field": "margins",
+      "compared": "Margins (negative / positive / close)",
+      "with_value": 443,
+      "extracted": 3,
+      "right": 2,
+      "precision": 0.6666666666666666,
+      "recall": 0.004514672686230248
+     },
+     {
+      "field": "nodes_examined",
+      "compared": "Lymph nodes examined (count)",
+      "with_value": 441,
+      "extracted": 6,
+      "right": 0,
+      "precision": 0.0,
+      "recall": 0.0
+     },
+     {
+      "field": "nodes_positive",
+      "compared": "Lymph nodes positive (count, H&E)",
+      "with_value": 432,
+      "extracted": 6,
+      "right": 0,
+      "precision": 0.0,
+      "recall": 0.0
+     }
+    ]
+   },
+   "bundled": {
+    "patients": 38,
+    "fields": [
+     {
+      "field": "er",
+      "compared": "ER status (positive / negative)",
+      "with_value": 36,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "pr",
+      "compared": "PR status (positive / negative)",
+      "with_value": 36,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "her2",
+      "compared": "HER2 status (positive / negative / equivocal; ISH first, then IHC)",
+      "with_value": 34,
+      "extracted": 1,
+      "right": 1,
+      "precision": 1.0,
+      "recall": 0.029411764705882353
+     },
+     {
+      "field": "pT",
+      "compared": "pT category (T1\u2013T4, Tis, TX; suffix ignored)",
+      "with_value": 38,
+      "extracted": 8,
+      "right": 7,
+      "precision": 0.875,
+      "recall": 0.18421052631578946
+     },
+     {
+      "field": "pN",
+      "compared": "pN category (N0\u2013N3, NX; suffix ignored)",
+      "with_value": 38,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "stage",
+      "compared": "Stage group (I\u2013IV; A\u2013C ignored)",
+      "with_value": 36,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "histologic_type",
+      "compared": "Histologic type (ductal, lobular, mixed, special types)",
+      "with_value": 37,
+      "extracted": 1,
+      "right": 1,
+      "precision": 1.0,
+      "recall": 0.02702702702702703
+     },
+     {
+      "field": "margins",
+      "compared": "Margins (negative / positive / close)",
+      "with_value": 33,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "nodes_examined",
+      "compared": "Lymph nodes examined (count)",
+      "with_value": 36,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     },
+     {
+      "field": "nodes_positive",
+      "compared": "Lymph nodes positive (count, H&E)",
+      "with_value": 35,
+      "extracted": 0,
+      "right": 0,
+      "precision": null,
+      "recall": 0.0
+     }
+    ]
+   }
+  }
+ },
+ "scan": {
+  "measured": "2026-10-22",
+  "load": [
+   9.4,
+   14.6
+  ],
+  "note": "Scan reader: ibm-granite/granite-docling-258M on page images (pypdfium2, 144 dpi), DocTags converted to text by docling-core, in the local pipeline (scripts/documents_pipeline.py). Accuracy = 1 - edit distance / reference length, case and whitespace ignored. Synthetic scans: a bundled report's text typeset, rotated and speckled, so the reference is exact. Real scans: two bundled cases' original report PDFs from the NCI GDC (open access) with their text layer removed; the reference is TCGA-Reports' cleaned OCR of the same PDF, itself imperfect, so those numbers are a floor. \"Rules' facts kept\": facts the rules read in the reference that they also read in the scan's text. Four documents: a check, not a validation.",
+  "rows": [
+   {
+    "what": "synthetic scan of TCGA-E9-A1N9's report text",
+    "pages": 1,
+    "seconds": 290.9,
+    "characters": 784,
+    "char_accuracy": 0.9809,
+    "word_accuracy": 0.9223,
+    "facts_reference": 3,
+    "facts_scan": 2,
+    "facts_same": 2,
+    "looped": false
+   },
+   {
+    "what": "TCGA-BH-A0DS's original report PDF, text layer removed",
+    "pages": 1,
+    "seconds": 1002.2,
+    "characters": 2991,
+    "char_accuracy": 0.0752,
+    "word_accuracy": 0.0067,
+    "facts_reference": 19,
+    "facts_scan": 0,
+    "facts_same": 0,
+    "looped": true
+   },
+   {
+    "what": "synthetic scan of TCGA-A2-A0D2's report text",
+    "pages": 2,
+    "seconds": 481.8,
+    "characters": 2500,
+    "char_accuracy": 0.9924,
+    "word_accuracy": 0.933,
+    "facts_reference": 19,
+    "facts_scan": 17,
+    "facts_same": 17,
+    "looped": false
+   },
+   {
+    "what": "TCGA-A2-A0CW's original report PDF, text layer removed",
+    "pages": 3,
+    "seconds": 1436.4,
+    "characters": 3477,
+    "char_accuracy": 0.4958,
+    "word_accuracy": 0.1519,
+    "facts_reference": 17,
+    "facts_scan": 17,
+    "facts_same": 14,
+    "looped": true
+   },
+   {
+    "what": "TCGA-BH-A0DS's original report PDF, text layer removed, read in 2 bands per page",
+    "pages": 1,
+    "seconds": 1299.7,
+    "characters": 2991,
+    "char_accuracy": 0.2457,
+    "word_accuracy": 0.0292,
+    "facts_reference": 19,
+    "facts_scan": 4,
+    "facts_same": 2,
+    "looped": true
+   },
+   {
+    "what": "TCGA-A2-A0CW's original report PDF, text layer removed, read in 2 bands per page",
+    "pages": 3,
+    "seconds": 2748.8,
+    "characters": 3477,
+    "char_accuracy": 0.5171,
+    "word_accuracy": 0.2288,
+    "facts_reference": 17,
+    "facts_scan": 13,
+    "facts_same": 11,
+    "looped": true
+   }
+  ]
  }
 }

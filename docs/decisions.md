@@ -2,6 +2,28 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-22 — Clinical documents round 2: a named-entity model beside the rules, scanned reports
+- **What:** OpenMed's zero-shot oncology NER (Apache-2.0, 220M) reads the bundled TCGA reports
+  offline with 16 breast pathology labels we define; its spans ship as derived JSON
+  (`app/documents/<barcode>.ner.json`: label, offsets, score) and are drawn as a second layer
+  labeled model inference, set beside the rules per document, measured on the same held-out
+  reports with the same comparison, and a receptor or stage field they read differently is a
+  "models disagree" queue item (weak). A PDF without a text layer is queued for the local
+  pipeline, which reads it with Granite-Docling 258M (Apache-2.0) and then runs the rules and
+  the NER on the text. The documents' dated facts are set on the file's axis with their
+  changes; a conflict is settled only by the clinician's mark; "the record says X, the
+  documents say Y" reaches the discrepancy queue where the cross-test rules did not reach.
+- **Why:** the user asked for a model's reading next to the rules', measured, and for scanned
+  input. The model's value is read only from the characters it marked, so its numbers are its
+  own, not the rules' in disguise. Running both models offline keeps the hosted app within
+  1 GB and keeps report text on the machine (CLAUDE.md).
+- **Consequence:** the measurement shows the zero-shot model marks where a field is named far
+  more often than its result, so the rules stay the documented reading and the model is a
+  second opinion of weak trust (docs/documents.md, round 2). The page reader reads clean
+  scans well and fails on dense fax-quality scans (it loops; the pipeline flags that), so a
+  scanned report's text needs a person's check before import. Imported documents get the
+  rules at once and the model only through the local pipeline. The documents page now follows
+  the shared page skeleton (`workbenches._page`), as the 2026-10-22 skeleton entry planned.
 ## 2026-10-22 — The address reopens the screen; a failing part says so in words; hidden content loads when opened
 - **What:** breadcrumbs, a sticky patient header and "back to the queue" after an "Open"; the
   address carries ?patient, ?view, ?test, ?pointer and ?version, written after each run and

@@ -1,0 +1,89 @@
+{
+ "barcode": "TCGA-D8-A1JM",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 1453,
+  "seconds": 3.1,
+  "seconds_per_1000_characters": 2.15,
+  "threads": 2,
+  "load_before": 4.8,
+  "load_after": 4.7,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-D8-A1JM.947954F1-4CBA-42D3-99B2-6BE6E44E5239": [
+   {
+    "label": "lymph node status",
+    "start": 258,
+    "end": 283,
+    "score": 0.616
+   },
+   {
+    "label": "lymph node status",
+    "start": 369,
+    "end": 385,
+    "score": 0.601
+   },
+   {
+    "label": "lymph node status",
+    "start": 793,
+    "end": 809,
+    "score": 0.605
+   },
+   {
+    "label": "lymph node status",
+    "start": 838,
+    "end": 858,
+    "score": 0.653
+   },
+   {
+    "label": "lymph node status",
+    "start": 1116,
+    "end": 1136,
+    "score": 0.643
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 1286,
+    "end": 1308,
+    "score": 0.532
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 1343,
+    "end": 1347,
+    "score": 0.622
+   },
+   {
+    "label": "treatment",
+    "start": 1369,
+    "end": 1381,
+    "score": 0.581
+   }
+  ]
+ }
+}

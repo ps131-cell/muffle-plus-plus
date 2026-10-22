@@ -68,7 +68,8 @@ CONTENTS = {
     "Rules": ["SOS alerts and their order", "Lab result rules", "ctDNA monitor rules",
               "Slide geometry, invasion and breakaway rules",
               "Genomics: detection, interpretation and evidence",
-              "Clinical documents: extraction rules", "Tumor evolution and treatment evidence"],
+              "Clinical documents: the rules and a named-entity model, side by side",
+              "Tumor evolution and treatment evidence"],
     "Federated training across simulated hospitals": [], "Data sources and licenses": [],
     "Known failures": [], "Every placeholder in the app": [], "Limits": [],
 }
@@ -118,12 +119,16 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     ctdna_card()
     slide_rule_card()
     genomics_card()
-    st.subheader("Clinical documents: extraction rules")
+    st.subheader("Clinical documents: the rules and a named-entity model, side by side")
     st.markdown(f"{chip(workspace.IMPLEMENTED)} · breast pathology facts from report text, each "
                 "with its source sentence · the clinical documents workbench")
-    st.markdown("Regular expressions run where the app runs: no language model reads a report "
-                "and no report text leaves the machine. A fact is *documented*: the document "
-                "says it; nothing is derived from it. Measured against TCGA's clinical fields:")
+    st.markdown("Regular expressions run where the app runs; a fact is *documented*: the "
+                "document says it, nothing is derived from it. A second reading, *model "
+                "inference*, comes from a zero-shot named-entity model run offline on a local "
+                "machine (its spans ship for the bundled reports; no model runs in the app and "
+                "no report text leaves the machine). Scanned PDFs are read to text by a page "
+                "model in the same local pipeline. Both readings measured on the same held-out "
+                "TCGA reports against TCGA's clinical fields:")
     documents.methods_card()
     evolution_page.methods_card()
 
@@ -457,6 +462,13 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
      "used)", "gene names used as facts, cited; the article carries no CC license"),
     ("TCGA-Reports (Kefeli and Tatonetti, Patterns 2024; Mendeley Data 10.17632/hyg5xkznpx.1)",
      "the TCGA cases' pathology reports; measuring the extraction", "CC BY 4.0, attribution"),
+    ("OpenMed ZeroShot NER Oncology Base 220M (OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M; "
+     "arXiv:2508.01630, preprint)", "the documents' second reading (named-entity spans), run "
+     "offline", "Apache-2.0"),
+    ("Granite-Docling 258M (ibm-granite/granite-docling-258M)", "scanned PDF reports to text "
+     "in the local pipeline", "Apache-2.0"),
+    ("TCGA original pathology report PDFs (NCI GDC, open access)", "measuring the scan reader "
+     "on two real scanned reports (local only)", "TCGA open-access data"),
     ("TCGA-BRCA clinical matrix (UCSC Xena)", "the reference the extraction is measured "
      "against (counts only)", "as TCGA"),
     ("MSK-CHORD (Jee et al., Nature 2024)",
@@ -486,6 +498,7 @@ def sources() -> None:
 # --- one list of known failures, one table of placeholders ------------------------------------
 
 def known_failures() -> None:
+    from muffle.workbench import documents as doc_rules
     from muffle.workbench import invasion
 
     docs = documents.VALIDATION
@@ -520,6 +533,7 @@ def known_failures() -> None:
         ("Document extraction", "Recall is bounded by what a report states (receptors are "
          "often in an earlier biopsy report)" + ("; weak fields: " + ", ".join(weak) if weak
                                                  else "") + "."),
+        *(("Document named-entity model", f) for f in doc_rules.NER_FAILURES),
         *(("Lab rules", f) for f in lab_rules.rules_card()["known_failures"]),
         *(("ctDNA rules", f) for f in ctdna_rules.rules_card(CTDNA)["known_failures"]),
         ("Imported imaging report", "A word rule, tested on sample sentences only: it misses "

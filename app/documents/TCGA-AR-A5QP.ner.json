@@ -1,0 +1,83 @@
+{
+ "barcode": "TCGA-AR-A5QP",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 754,
+  "seconds": 1.5,
+  "seconds_per_1000_characters": 1.97,
+  "threads": 2,
+  "load_before": 4.4,
+  "load_after": 4.4,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-AR-A5QP.F2409024-D848-4B02-A371-92BEA1105EC4": [
+   {
+    "label": "histologic grade",
+    "start": 61,
+    "end": 79,
+    "score": 0.507
+   },
+   {
+    "label": "margin status",
+    "start": 356,
+    "end": 363,
+    "score": 0.548
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 382,
+    "end": 387,
+    "score": 0.583
+   },
+   {
+    "label": "margin status",
+    "start": 424,
+    "end": 435,
+    "score": 0.609
+   },
+   {
+    "label": "margin status",
+    "start": 449,
+    "end": 465,
+    "score": 0.651
+   },
+   {
+    "label": "lymph node status",
+    "start": 471,
+    "end": 481,
+    "score": 0.521
+   },
+   {
+    "label": "lymph node status",
+    "start": 517,
+    "end": 546,
+    "score": 0.578
+   }
+  ]
+ }
+}

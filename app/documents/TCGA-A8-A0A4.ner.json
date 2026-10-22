@@ -1,0 +1,95 @@
+{
+ "barcode": "TCGA-A8-A0A4",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 657,
+  "seconds": 1.0,
+  "seconds_per_1000_characters": 1.56,
+  "threads": 2,
+  "load_before": 4.2,
+  "load_after": 4.3,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-A8-A0A4.25F8F043-2CD0-4344-9B4A-5BBB691B5BF9": [
+   {
+    "label": "pathologic T stage",
+    "start": 91,
+    "end": 95,
+    "score": 0.618
+   },
+   {
+    "label": "margin status",
+    "start": 212,
+    "end": 235,
+    "score": 0.55
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 310,
+    "end": 314,
+    "score": 0.536
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 317,
+    "end": 323,
+    "score": 0.53
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 350,
+    "end": 358,
+    "score": 0.55
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 363,
+    "end": 375,
+    "score": 0.504
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 401,
+    "end": 410,
+    "score": 0.572
+   },
+   {
+    "label": "lymph node status",
+    "start": 579,
+    "end": 599,
+    "score": 0.655
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 628,
+    "end": 631,
+    "score": 0.614
+   }
+  ]
+ }
+}

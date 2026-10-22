@@ -1,0 +1,311 @@
+{
+ "barcode": "TCGA-A7-A26H",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 5762,
+  "seconds": 7.9,
+  "seconds_per_1000_characters": 1.37,
+  "threads": 2,
+  "load_before": 4.1,
+  "load_after": 4.2,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-A7-A26H.1159E2EF-6407-4D90-8ED6-7AB04CF4FB32": [
+   {
+    "label": "lymph node status",
+    "start": 139,
+    "end": 167,
+    "score": 0.559
+   },
+   {
+    "label": "specimen type",
+    "start": 172,
+    "end": 203,
+    "score": 0.523
+   },
+   {
+    "label": "lymph node status",
+    "start": 363,
+    "end": 382,
+    "score": 0.516
+   },
+   {
+    "label": "lymph node status",
+    "start": 409,
+    "end": 419,
+    "score": 0.531
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 435,
+    "end": 444,
+    "score": 0.55
+   },
+   {
+    "label": "lymph node status",
+    "start": 449,
+    "end": 468,
+    "score": 0.515
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 596,
+    "end": 605,
+    "score": 0.551
+   },
+   {
+    "label": "specimen type",
+    "start": 633,
+    "end": 641,
+    "score": 0.511
+   },
+   {
+    "label": "lymph node status",
+    "start": 816,
+    "end": 826,
+    "score": 0.667
+   },
+   {
+    "label": "margin status",
+    "start": 1188,
+    "end": 1194,
+    "score": 0.521
+   },
+   {
+    "label": "margin status",
+    "start": 1229,
+    "end": 1235,
+    "score": 0.504
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 1906,
+    "end": 1915,
+    "score": 0.719
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 2099,
+    "end": 2104,
+    "score": 0.652
+   },
+   {
+    "label": "margin status",
+    "start": 2108,
+    "end": 2119,
+    "score": 0.548
+   },
+   {
+    "label": "lymph node status",
+    "start": 2201,
+    "end": 2229,
+    "score": 0.597
+   },
+   {
+    "label": "lymph node status",
+    "start": 2276,
+    "end": 2287,
+    "score": 0.538
+   },
+   {
+    "label": "lymph node status",
+    "start": 2363,
+    "end": 2373,
+    "score": 0.708
+   },
+   {
+    "label": "lymph node status",
+    "start": 2428,
+    "end": 2432,
+    "score": 0.513
+   },
+   {
+    "label": "lymph node status",
+    "start": 2518,
+    "end": 2546,
+    "score": 0.52
+   },
+   {
+    "label": "lymph node status",
+    "start": 2615,
+    "end": 2626,
+    "score": 0.576
+   },
+   {
+    "label": "lymph node status",
+    "start": 2693,
+    "end": 2703,
+    "score": 0.626
+   },
+   {
+    "label": "specimen type",
+    "start": 2750,
+    "end": 2758,
+    "score": 0.515
+   },
+   {
+    "label": "specimen type",
+    "start": 2883,
+    "end": 2891,
+    "score": 0.531
+   },
+   {
+    "label": "margin status",
+    "start": 3012,
+    "end": 3019,
+    "score": 0.582
+   },
+   {
+    "label": "margin status",
+    "start": 3072,
+    "end": 3078,
+    "score": 0.537
+   },
+   {
+    "label": "margin status",
+    "start": 3084,
+    "end": 3090,
+    "score": 0.53
+   },
+   {
+    "label": "margin status",
+    "start": 3103,
+    "end": 3108,
+    "score": 0.552
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 3381,
+    "end": 3390,
+    "score": 0.508
+   },
+   {
+    "label": "margin status",
+    "start": 3410,
+    "end": 3416,
+    "score": 0.521
+   },
+   {
+    "label": "margin status",
+    "start": 3430,
+    "end": 3441,
+    "score": 0.545
+   },
+   {
+    "label": "margin status",
+    "start": 3566,
+    "end": 3589,
+    "score": 0.565
+   },
+   {
+    "label": "lymph node status",
+    "start": 3739,
+    "end": 3749,
+    "score": 0.573
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 4054,
+    "end": 4058,
+    "score": 0.51
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 4066,
+    "end": 4073,
+    "score": 0.583
+   },
+   {
+    "label": "margin status",
+    "start": 4159,
+    "end": 4165,
+    "score": 0.521
+   },
+   {
+    "label": "margin status",
+    "start": 4167,
+    "end": 4178,
+    "score": 0.543
+   },
+   {
+    "label": "tumor size",
+    "start": 4281,
+    "end": 4285,
+    "score": 0.504
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 4392,
+    "end": 4410,
+    "score": 0.519
+   },
+   {
+    "label": "lymph node status",
+    "start": 4424,
+    "end": 4434,
+    "score": 0.528
+   },
+   {
+    "label": "lymph node status",
+    "start": 4468,
+    "end": 4485,
+    "score": 0.51
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 4785,
+    "end": 4787,
+    "score": 0.544
+   },
+   {
+    "label": "specimen type",
+    "start": 4843,
+    "end": 4853,
+    "score": 0.501
+   },
+   {
+    "label": "lymph node status",
+    "start": 5158,
+    "end": 5169,
+    "score": 0.546
+   },
+   {
+    "label": "lymph node status",
+    "start": 5279,
+    "end": 5289,
+    "score": 0.541
+   },
+   {
+    "label": "lymph node status",
+    "start": 5647,
+    "end": 5658,
+    "score": 0.515
+   }
+  ]
+ }
+}

@@ -362,6 +362,47 @@ def _document_rules(pf: PatientFile, i: int) -> tuple[list[dict], dict, dict]:
             documents.doc_opens(pf, i, stage["doc"]),
             {"doc": stage["doc"], "sentence": tuple(stage["sentence"])},
             documents.measured(["stage"])))
+    restaged = [c for c in documents.changes(docs, facts) if c["field"] == "stage"]
+    if restaged and recorded:  # a later document restages: its stage against the record's
+        c = restaged[-1]
+        f, g = c["to_fact"], _stage_group(c["to"])
+        if g not in (None, recorded, _stage_group(stage["value"]) if stage else None):
+            out.append(_item(
+                pf, "documented vs recorded", "stage, restaged",
+                f"Stage: restaged {c['to']} at month {c['to_month']}, recorded {recorded}",
+                [titles[f["doc"]], "the clinical record's stage"], [c["to_month"], None],
+                f"The document of month {c['to_month']} reads {_quote(f)}; an earlier document "
+                f"read {c['from']} and the clinical record holds stage {recorded}. A restaging "
+                "the record has not taken up yet, or an error on one side.",
+                "A re-read of the source sentence and the record's staging (date and edition).",
+                f"{OBSERVED} (documented), {OBSERVED} (recorded)", "moderate", 3,
+                documents.doc_opens(pf, i, f["doc"]),
+                {"doc": f["doc"], "sentence": tuple(f["sentence"])},
+                documents.measured(["stage"])))
+    if omics.case_scores(pf) is None and obs.get("Diagnosis"):  # else _receptor_rules does it
+        said = re.sub(r"HR", "hormone receptor", obs["Diagnosis"].replace("−", "-"))
+        held = {r["field"]: r["value"] for r in documents.extract(said)  # "HR+, HER2−"
+                if r["field"] in ("er", "pr", "hr", "her2")}
+        for field, name in documents.RECEPTORS:
+            off = [f for f in facts if f["field"] == field and field in held
+                   and _pos(f["value"]) is not None and _pos(f["value"]) != _pos(held[field])]
+            if off:
+                f = off[-1]  # the latest document that says otherwise
+                out.append(_item(
+                    pf, "documented vs recorded receptor", name,
+                    f"{name}: documented {f['value']} in {titles[f['doc']]}, recorded "
+                    f"{held[field]}", [titles[f["doc"]], "the clinical record's diagnosis"],
+                    [None, None],
+                    f"The document reads {_quote(f)}; the record's diagnosis says {name} "
+                    f"{held[field]}. A receptor that changed (a new biopsy, a metastasis), "
+                    "another specimen, or an error on one side.",
+                    "A re-read of the source sentence; if it stands, the receptor on the new "
+                    f"specimen: {HER2_GUIDE if field == 'her2' else ER_GUIDE}.",
+                    f"{OBSERVED} (documented), {OBSERVED} (recorded)", "moderate",
+                    3 if field in ("er", "her2", "hr") else 2,
+                    documents.doc_opens(pf, i, f["doc"]),
+                    {"doc": f["doc"], "sentence": tuple(f["sentence"])},
+                    documents.measured([field])))
     for field, row in (("laterality", "Laterality"), ("specimen", "Specimen type")):
         held = obs.get(row)
         differ = [f for f in facts if f["field"] == field and held and f["value"] != held.lower()]

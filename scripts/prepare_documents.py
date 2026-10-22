@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import re
 from datetime import date
@@ -33,7 +32,15 @@ from pathlib import Path
 import numpy as np
 
 from muffle.demo import load_bundle
-from muffle.workbench.documents import RULES_VERSION, TCGA_REPORTS, extract
+from muffle.workbench.documents import (
+    NER_METHOD,
+    RULES_VERSION,
+    TCGA_REPORTS,
+    comparable,
+    extract,
+    measurement_half,
+    ner_facts,
+)
 
 STAGE = {"I": 1, "II": 2, "III": 3, "IV": 4}
 TYPES = {"Infiltrating Ductal Carcinoma": "invasive ductal carcinoma",
@@ -55,31 +62,32 @@ FIELDS = {  # measured field -> what is compared
 }
 
 
-def _first(facts: list[dict], field: str):
-    return next((f["value"] for f in facts if f["field"] == field), None)
-
-
 def predicted(facts: list[dict]) -> dict:
-    """One value per measured field from a report's facts: the first place the report states it.
-    HER2 for this comparison only: the ISH result if stated, else the status word, else the IHC
-    score read by the ASCO/CAP bands (0 and 1+ negative, 2+ equivocal, 3+ positive); node counts:
-    the total the report states, else the sum of its specimens' counts. The app itself shows
-    every fact as written and never derives a status or a total."""
-    out = {k: _first(facts, k) for k in ("er", "pr", "histologic_type", "margins")}
-    ish, word, ihc = (_first(facts, k) for k in ("her2_ish", "her2", "her2_ihc"))
-    out["her2"] = ({"amplified": "positive", "not amplified": "negative"}.get(ish) or word
-                   or {"0": "negative", "1+": "negative", "0 or 1+": "negative",
-                       "2+": "equivocal", "3+": "positive"}.get(ihc))
-    pt, pn, stage = (_first(facts, k) for k in ("pT", "pN", "stage"))
-    out["pT"] = re.sub(r"^y?pT(is|[0-4X]).*", r"T\1", pt) if pt else None
-    out["pN"] = re.sub(r"^pN([0-3X]).*", r"N\1", pn) if pn else None
-    out["stage"] = re.sub(r"^Stage (IV|I{1,3}|0).*", r"\1", stage) if stage else None
-    for k in ("nodes_examined", "nodes_positive"):  # the stated total, else each specimen's
-        total = next((f["value"] for f in facts if f["field"] == k
-                      and f["rule"] in ("nodes label", "nodes status")), None)
-        parts = [int(f["value"]) for f in facts if f["field"] == k and f["rule"] == "nodes k/n"]
-        out[k] = int(total) if total is not None else sum(parts) if parts else None
-    return out
+    """One value per measured field from a report's facts (``documents.comparable``: the first
+    place the report states it; HER2 ISH first, then the status word, then the IHC score by the
+    ASCO/CAP bands; node counts the stated total, else the sum of each specimen's). The app
+    itself shows every fact as written and never derives a status or a total."""
+    got = comparable(facts)
+    return {k: got[k][0] if k in got else None for k in FIELDS}
+
+
+SCAN_NOTE = ("Scan reader: ibm-granite/granite-docling-258M on page images (pypdfium2, 144 dpi), "
+             "DocTags converted to text by docling-core, in the local pipeline "
+             "(scripts/documents_pipeline.py). Accuracy = 1 - edit distance / reference length, "
+             "case and whitespace ignored. Synthetic scans: a bundled report's text typeset, "
+             "rotated and speckled, so the reference is exact. Real scans: two bundled cases' "
+             "original report PDFs from the NCI GDC (open access) with their text layer removed; "
+             "the reference is TCGA-Reports' cleaned OCR of the same PDF, itself imperfect, so "
+             "those numbers are a floor. \"Rules' facts kept\": facts the rules read in the "
+             "reference that they also read in the scan's text. Four documents: a check, not a "
+             "validation.")
+
+
+def scan_what(row: dict) -> str:
+    bc, bands = row["file"][:12], re.search(r"(\d+) bands per page", row["method"])
+    what = (f"synthetic scan of {bc}'s report text" if "synthetic-scan" in row["file"]
+            else f"{bc}'s original report PDF, text layer removed")
+    return what + (f", read in {bands.group(1)} bands per page" if bands else "")
 
 
 def truth(row: dict) -> dict:
@@ -129,10 +137,6 @@ def measure(pairs: list[tuple[dict, dict]]) -> list[dict]:
     return rows
 
 
-def split(barcode: str) -> str:
-    return "dev" if int(hashlib.sha1(barcode.encode()).hexdigest(), 16) % 2 == 0 else "test"
-
-
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--reports", type=Path, required=True)
@@ -140,6 +144,11 @@ def main(argv=None):
     p.add_argument("--cohort", type=Path, default=Path("data/tcga_brca/cohort.npz"))
     p.add_argument("--bundle", type=Path, default=Path("outputs/demo_bundle.pt"))
     p.add_argument("--out", type=Path, default=Path("app/documents"))
+    p.add_argument("--scan", type=Path, nargs="+", help="scan_eval.json files from "
+                   "documents_pipeline.py scan-eval: the scan reader's text accuracy")
+    p.add_argument("--ner", type=Path, help="the model's spans on the held-out half "
+                   "(scripts/documents_pipeline.py ner --reports ...); the bundled cases' come "
+                   "from <out>/<barcode>.ner.json")
     a = p.parse_args(argv)
 
     cohort = np.load(a.cohort, allow_pickle=True)
@@ -171,20 +180,45 @@ def main(argv=None):
             {"barcode": bc, "case_index": c.index, "license": "CC BY 4.0", "source": TCGA_REPORTS,
              "documents": docs}, indent=1) + "\n")
 
+    spans: dict[str, dict] = {}  # barcode -> document id -> the model's spans
+    if a.ner:
+        spans = json.loads(a.ner.read_text())["patients"]
+        for bc in bundled:
+            p = a.out / f"{bc}.ner.json"
+            if p.exists():
+                spans[bc] = json.loads(p.read_text(encoding="utf-8"))["documents"]
     sets: dict[str, list] = {"dev": [], "test": [], "bundled": []}
+    model: dict[str, list] = {"test": [], "bundled": []}
     for bc in sorted(set(reports) & set(map(str, barcodes))):
         if bc not in clinical:
             continue
         facts = [f for r in reports[bc] for f in extract(r["text"])]
         pair = (predicted(facts), truth(clinical[bc]))
-        sets[split(bc)].append(pair)
+        half = measurement_half(bc)
+        sets[half].append(pair)
         if bc in bundled:
             sets["bundled"].append(pair)
+        if bc in spans:
+            mine = [f for r in reports[bc] for f in ner_facts(
+                r["text"], spans[bc].get(r["patient_filename"], [])) if f["value"] is not None]
+            for k in [half] * (half == "test") + ["bundled"] * (bc in bundled):
+                model[k].append((predicted(mine), pair[1]))
     result = {"rules": RULES_VERSION, "measured": date.today().isoformat(),
               "reports": TCGA_REPORTS,
               "reference": "TCGA-BRCA clinical fields (UCSC Xena TCGA hub, BRCA_clinicalMatrix; "
                            "TCGA open access)",
               "sets": {k: {"patients": len(v), "fields": measure(v)} for k, v in sets.items()}}
+    if a.ner:
+        run = json.loads(a.ner.read_text())["run"]
+        result["model"] = {"method": NER_METHOD, "run": run, "sets": {
+            k: {"patients": len(v), "fields": measure(v)} for k, v in model.items()}}
+    if a.scan:
+        runs = [json.loads(p.read_text()) for p in a.scan]
+        result["scan"] = {"measured": runs[0]["date"], "load": [s["load"] for s in runs],
+                          "note": SCAN_NOTE, "rows": [{"what": scan_what(r), **{k: r[k] for k in (
+                              "pages", "seconds", "characters", "char_accuracy", "word_accuracy",
+                              "facts_reference", "facts_scan", "facts_same", "looped")}}
+                              for s in runs for r in s["rows"]]}
     (a.out / "validation.json").write_text(json.dumps(result, indent=1) + "\n")
     print(f"{len(bundled)} bundled cases with a report written to {a.out}")
     for k, v in result["sets"].items():
