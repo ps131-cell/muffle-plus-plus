@@ -6,6 +6,16 @@
   "attribution": "Lingle W, Erickson BJ, Zuley ML, et al. The Cancer Genome Atlas Breast Invasive Carcinoma Collection (TCGA-BRCA), version 3. The Cancer Imaging Archive, 2016. doi:10.7937/K9/TCIA.2016.AB2NAZRP. Downsampled to 8-bit copies here; not the diagnostic originals."
  },
  "cases": {
+  "537": [
+   {
+    "barcode": "TCGA-BH-A0DE",
+    "study": "2000-08-01",
+    "modality": "MR",
+    "name": "Breast MRI (dynamic contrast-enhanced), public TCIA study (2000-08-01)",
+    "result": "GE MEDICAL SYSTEMS SIGNA EXCITE 1.5 T, 5 phases; model contour C1 23.9 mm, persistent delayed phase (model inference)",
+    "folder": "TCGA-BH-A0DE"
+   }
+  ],
   "563": [
    {
     "barcode": "TCGA-BH-A0H5",
@@ -14,6 +24,16 @@
     "name": "Breast MRI (dynamic contrast-enhanced), public TCIA study (2001-06-20)",
     "result": "GE MEDICAL SYSTEMS SIGNA EXCITE 1.5 T, 5 phases; model contour C1 18.8 mm, plateau delayed phase (model inference)",
     "folder": "TCGA-BH-A0H5"
+   }
+  ],
+  "564": [
+   {
+    "barcode": "TCGA-BH-A0H6",
+    "study": "2002-02-03",
+    "modality": "MR",
+    "name": "Breast MRI (dynamic contrast-enhanced), public TCIA study (2002-02-03)",
+    "result": "GE MEDICAL SYSTEMS SIGNA EXCITE 1.5 T, 5 phases; model contour C1 15.5 mm, persistent delayed phase (model inference)",
+    "folder": "TCGA-BH-A0H6"
    }
   ],
   "926": [

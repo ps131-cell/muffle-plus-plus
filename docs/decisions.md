@@ -38,8 +38,9 @@ Newest at the top. One entry per decision: date, what, why.
 - **Consequence:** no new dependency and no new model. Every change rule is a placeholder
   (RECIST 1.1's sum rules borrowed per candidate) and the sum is never a response call. No open,
   permissive, CPU-ready mammography detector was found, so mammograms get no lesion candidates
-  and the page says so. Re-running 563 and 937 under version 2 may move their numbers slightly;
-  `docs/radiology.md` gives both.
+  and the page says so. Re-running 563 and 937 under version 2 reproduced every diameter, volume
+  and kinetic value; only the craniocaudal extent of candidates with empty end slices moved
+  (`docs/radiology.md` §2).
 
 ## 2026-10-21 — Slide workbench: a second opinion on lymphocytes from the WSInfer TIL model
 - **What:** `scripts/slide_pipeline.py til` scores the front-band and peritumoral tiles of a

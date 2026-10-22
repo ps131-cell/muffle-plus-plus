@@ -76,8 +76,10 @@ malignancy, in all five), the pathology and the receptors, shown as **observed**
 lesion size or position, so no reader measurement exists to compare with. The report also states
 race and health status, which the pipeline drops.
 
-**What ships** (`app/workbenches/radiology_results/<barcode>/`, under 5 MB each: 2.6, 2.7 and
-0.13 MB): 8-bit copies, one JPEG strip per phase (quality 80), at most 256 px wide and 128
+**What ships** (`app/workbenches/radiology_results/<barcode>/`, under 5 MB each: 563 3.98, 564
+3.16, 537 3.34, 937 3.32 and 926 0.13 MB; the example pair 2.3 and 2.2 MB in
+`radiology_example/`, so no release asset is needed): 8-bit copies, one JPEG strip per phase
+(quality 80; every phase since version 2), at most 256 px wide and 128
 slices, cropped to 30 mm behind the search region's posterior limit (the heart and lungs are cut
 off); mammograms at 512 px (0.46 mm per pixel; 256 px would be a thumbnail where nothing can be
 read). `study.json` holds the geometry, phases, report facts, candidates with per-slice contours,
@@ -149,9 +151,23 @@ and 6% of benign lesions, type I in 9% and 83%. Evidence about curve types, not 
 | 563 | C1 | right | 18.8 mm | 2.49 mL (2.08–2.93) | fast (114%), plateau (+3%) | 0 of 10 |
 | 563 | C2 | left | 20.0 mm | 1.83 mL (1.47–2.21) | fast (101%), washout (−17%) | 2 of 11 |
 | 563 | C3 | right | 19.8 mm | 0.99 mL (0.78–1.22) | medium (90%), plateau (+7%) | 0 of 6 |
+| 564 | C1 | right | 15.5 mm | 1.01 mL (0.81–1.22) | medium (55%), persistent (+19%) | 1 of 5 |
+| 564 | C2 | right | 10.9 mm | 0.12 mL (0.09–0.15) | medium (69%), persistent (+20%) | 2 of 3 |
+| 564 | C3 | right | 8.3 mm | 0.07 mL (0.05–0.09) | medium (89%), persistent (+31%) | 2 of 3 |
+| 537 | C1 | left | 23.9 mm | 2.25 mL (1.96–2.55) | slow (32%), persistent (+36%) | 6 of 6 |
+| 537 | C2 | left | 5.2 mm | 1.79 mL (1.49–2.11) | slow (25%), persistent (+27%) | 6 of 7 |
+| 537 | C3 | right | 15.6 mm | 0.71 mL (0.56–0.87) | medium (53%), persistent (+12%) | 0 of 5 |
 
-Checked by eye on contact sheets: in both studies C1 is a compact enhancing mass in the right
-breast and MedSAM's contour follows it on every central slice. 937-C3 is a curvilinear vessel
+Cases 563 and 937, re-run under version 2, reproduce every diameter, volume and kinetic value above; only the craniocaudal extent moved where a candidate has empty end slices, since it now counts the slices that hold a contour (563-C2 22 → 18 mm, 937-C2 8.1 → 7.2 mm, 937-C3 8.1 → 6.3 mm).
+
+Checked by eye on contact sheets: in 563 and 937 C1 is a compact enhancing mass in the right
+breast and MedSAM's contour follows it on every central slice; in 564 C1 is a compact enhancing
+mass in the right breast too, with C2 and C3 small enhancing foci deeper in (C3 flagged 1 mm from
+the search limit). In 537 C1 is a spiculated mass in the left breast that keeps enhancing through
+the delayed phase; MedSAM's contour covers it but runs past 1.5 times the small seed box on all
+six slices, so every slice is flagged unsure and its diameter rests on unsure contours only. C2
+lies beside it (6 of 7 slices unsure; its 5.2 mm diameter comes from the one sure slice while its
+1.79 mL volume holds the overshoot), and C3 sits at the chest wall (flagged). 937-C3 is a curvilinear vessel
 segment (MedSAM overshoots its narrow box on 8 of 9 slices, and the page flags it). 563-C2 is a
 strip along the chest wall just in front of the heart, 3 mm from the search limit, and washes
 out as vessels do; the page flags it as near the chest wall. Mammography (926): dense-pixel share
@@ -196,7 +212,10 @@ used for diagnostic purposes". 78 CPU seconds including the weights download (lo
 **Timings** (WSL, 8 shared cores, 4 threads, `nice -n 10`): MedSAM's image encoder took 21 s per
 1024² slice on a quiet machine (load 0.3, random input) and a median 12–17 s per slice in the
 runs (load 7–15 from other sessions); case 937 took 468 s for 32 slices, case 563 164 s for 13.
-The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes.
+The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes. Round 2 (same
+machine, load 8–21 from other sessions' runs): a median 46 s per slice for 563's 13 slices (load
+17–20), 56 s for 564's 7 (load 18), 53 s for 537's 18 (load 21), 28 s for 937's 32 (load 10–12); the example pair's
+26 and 36 s (load 8 and 12). Downloads for round 2: about 300 MB in under 2 minutes.
 
 ## 3. Change over time on real images (round 2): a public example pair
 
@@ -267,7 +286,7 @@ Results (model inference, not validated here):
 |---|---|---|---|---|---|---|
 | 2001-11-21 | C1 | right | 25.6 mm | 6.93 mL (5.40–8.57) | fast (123%), plateau (+2%) | 0 of 12 |
 | 2001-11-21 | C2 | right | 17.9 mm | 1.89 mL (1.32–2.51) | medium (87%), persistent (+19%) | 0 of 6 |
-| 2001-11-21 | C3 | right | 9.6 mm | 0.35 mL (0.18–0.54) | medium (100%), persistent (+17%) | 2 of 3 |
+| 2001-11-21 | C3 | right | 9.6 mm | 0.35 mL (0.18–0.54) | medium (99.9%), persistent (+17%) | 2 of 3 |
 | 2003-05-07 | C1 | right | 22.7 mm | 2.19 mL (1.37–3.09) | slow (48%), persistent (+26%) | 1 of 8 |
 | 2003-05-07 | C2 | left | 19.9 mm | 3.17 mL (2.19–4.24) | slow (42%), persistent (+25%) | 3 of 8 |
 | 2003-05-07 | C3 | left | 17.0 mm | 1.65 mL (1.13–2.23) | slow (31%), persistent (+19%) | 1 of 6 |

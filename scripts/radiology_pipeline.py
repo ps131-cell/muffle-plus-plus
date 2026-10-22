@@ -6,6 +6,11 @@ shows (docs/radiology.md). Runs locally (WSL), never in the hosted app.
     python scripts/radiology_pipeline.py mri --barcode TCGA-BH-A0H5 --index 563 --series 4
     python scripts/radiology_pipeline.py mammo --barcode TCGA-EW-A1J2 --index 926 \\
         --series 1,2,3,4 --screen --density
+    python scripts/radiology_pipeline.py fetch TCGA-AR-A1AQ@2001-11-21:8   # one date's study
+    python scripts/radiology_pipeline.py mri --barcode TCGA-AR-A1AQ --date 2001-11-21 --series 8 \\
+        --out app/workbenches/radiology_example --example --keep ~/muffle-radiology2/work
+    python scripts/radiology_pipeline.py pair --earlier TCGA-AR-A1AQ_2001-11-21 \\
+        --later TCGA-AR-A1AQ_2003-05-07
     python scripts/radiology_pipeline.py index
 
 Source: the TCGA-BRCA radiology collection on The Cancer Imaging Archive (CC BY 3.0,
@@ -14,14 +19,18 @@ pixels of this collection may be redistributed with attribution, so the app ship
 copies: per series, slices downsampled to at most 256 px (mammograms 512 px), one JPEG strip per
 phase, at most 128 slices; each case stays under 5 MB in app/workbenches/radiology_results/.
 
-MRI: the phases (one multiphase series split by TriggerTime, or one series per phase), turned to
-the display orientation (anterior up, the patient's right on the image's left), the subtraction
-(first post-contrast minus pre-contrast), the seed rule of ``muffle.workbench.radiology.
-candidates`` inside ``breast_region``, MedSAM (ViT-B, wanglab/medsam-vit-base at a pinned
-revision, the authors' preprocessing: per-slice 0.5-99.5 percentile window, 1024² cubic resize,
-[0, 1] scaling, box prompt, sigmoid > 0.5) on every slice of the top three candidates, then
-longest diameter, volume and kinetics from the contours. Mammography: the four views and a
-dense-pixel share (placeholder rule). Data in ~/muffle-radiology (never in the repo).
+MRI (version 2): the phases (one multiphase series split by TriggerTime, or by instance number
+when it has none, or one series per phase), turned to the display frame (``Frame``: axial,
+anterior up, the patient's right on the image's left, whatever the acquisition plane), the
+subtraction (first post-contrast minus pre-contrast), the seed rule of ``muffle.workbench.
+radiology.candidates`` inside ``breast_region``, MedSAM (ViT-B, wanglab/medsam-vit-base at a
+pinned revision, the authors' preprocessing: per-slice 0.5-99.5 percentile window, 1024² cubic
+resize, [0, 1] scaling, box prompt, sigmoid > 0.5) on every acquisition-plane slice of the top
+three candidates, then longest diameter, volume and kinetics from the contours; every phase
+ships for the cine. ``pair``: two dates of one patient aligned rigidly, checked locally and
+paired (``muffle.workbench.radiology.register``, ``local_residual``, ``match_candidates``).
+Mammography: the four views and a dense-pixel share (placeholder rule). Data in
+~/muffle-radiology and ~/muffle-radiology2 (never in the repo).
 """
 
 from __future__ import annotations

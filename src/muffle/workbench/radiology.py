@@ -111,8 +111,9 @@ KNOWN_FAILURES = [
     "shape rules; foci under about 4 mm vanish in the opening.",
     "The seed rule ranks brightness × size: background enhancement can outrank a small cancer, "
     "and a chest-wall strip (case 563, C2) and a vessel segment (case 937, C3) made the top three.",
-    "MedSAM is not validated on breast MRI here; a narrow box makes it overshoot (flagged unsure "
-    "on the page).",
+    "MedSAM is not validated on breast MRI here; its contour runs past a narrow box (flagged "
+    "unsure on the page): case 537's C1 and C2 on 12 of 13 slices, so their sizes rest on unsure "
+    "contours.",
     "Kinetics are a mean inside a contour that mixes enhancing and non-enhancing parts; GE phase "
     "times count from the first phase, not the injection, and Siemens times are nominal.",
     "The mammography screening score moves with the crop (right breast 0.42 or 0.37 for two "
