@@ -19,6 +19,29 @@ Newest at the top. One entry per decision: date, what, why.
   preview that shows 0.730 was started without `--bundle`. `.claude/launch.json` is local and
   shared by sessions, so the flag lives there and in this entry, not in the repository.
 
+## 2026-10-21 — Radiology round 2: change over time on a public example pair, three planes, five cases
+- **What:** change over time on one public TCIA patient with breast MRI on two dates
+  (TCGA-AR-A1AQ, 2001-11-21 and 2003-05-07, not in the bundle) as a labeled example pair: a rigid
+  alignment by normalised mutual information written with scipy, a local check that marks
+  "unreliable here", candidates paired by position, both dates' sizes and the change, a sum of
+  diameters labeled computed. Axial, coronal and sagittal views with linked positions, a cine
+  through the phases, sagittal acquisitions turned into the axial frame (MedSAM runs on the
+  acquisition plane); cases 564 and 537 processed, 563 and 937 re-run (pipeline version 2) so
+  every phase ships; the synthetic patient's reads get the same change view without sizes;
+  mammography gets a left-right dense-pixel difference and CC/MLO linked behind the nipple.
+- **Why:** the prior comparison was the workbench's biggest gap and none of the bundled patients
+  has two dates; a patient outside the bundle shown as an example (the slide workbench's
+  pattern) is honest about that. scipy (already installed) does a six-parameter rigid alignment
+  in about two minutes on the CPU, so SimpleITK (Apache-2.0) was not added; the same code is
+  tested in CI on synthetic shifted and rotated volumes. A rigid alignment cannot follow breast
+  deformation between exams, so a local check says where it fails instead of hiding it.
+- **Consequence:** no new dependency and no new model. Every change rule is a placeholder
+  (RECIST 1.1's sum rules borrowed per candidate) and the sum is never a response call. No open,
+  permissive, CPU-ready mammography detector was found, so mammograms get no lesion candidates
+  and the page says so. Re-running 563 and 937 under version 2 reproduced every diameter, volume
+  and kinetic value; only the craniocaudal extent of candidates with empty end slices moved
+  (`docs/radiology.md` §2).
+
 ## 2026-10-21 — Slide workbench: a second opinion on lymphocytes from the WSInfer TIL model
 - **What:** `scripts/slide_pipeline.py til` scores the front-band and peritumoral tiles of a
   scored section with WSInfer's TIL InceptionV4 (CC BY 4.0, TorchScript) and writes `til.json`;

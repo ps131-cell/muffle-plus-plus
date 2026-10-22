@@ -226,6 +226,7 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.run()
         assert "Radiology workbench" in shown(at) and "Spot panel · C1" in shown(at)
         assert "not validated on breast mri here" in shown(at).lower() and not at.exception
+        assert "Three planes" in shown(at) and "Since the last study" in shown(at)
     for view in VIEWS:
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view
@@ -255,7 +256,9 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     for card in ("Multi-omic survival model", "MSK-CHORD landmark models", "Breast tissue head",
                  "Nuclei (StarDist)", "Case note", "SOS alerts", "Lab result rules",
                  "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution",
-                 "Lesion contours (MedSAM", "Screening score (mammoscreen", "Radiology: report"):
+                 "Lesion contours (MedSAM", "Screening score (mammoscreen", "Radiology: report",
+                 "Change over time (rigid alignment", "Multiplanar views and cine",
+                 "Mammography geometry"):
         assert card in cards, card
     placeholders = next(d.value for d in at.dataframe if "Placeholder" in d.value.columns)
     assert f"{workspace.RISK_JUMP} points of 12-month risk" in placeholders["Value"].tolist()

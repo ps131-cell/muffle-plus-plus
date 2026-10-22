@@ -1,0 +1,2271 @@
+{
+ "earlier": "TCGA-AR-A1AQ_2001-11-21",
+ "later": "TCGA-AR-A1AQ_2003-05-07",
+ "registration": {
+  "method": "rigid alignment (three rotations and three shifts) of the earlier study's pre-contrast volume onto the later one's, maximising normalised mutual information (Studholme et al., Pattern Recognit 1999, doi:10.1016/S0031-3203(98)00091-0) with Powell's method on 4 mm, then 2 mm voxels (scipy); started from the two bodies' centres of mass",
+  "angles_deg": [
+   -2.97,
+   3.25,
+   -1.31
+  ],
+  "shift_mm": [
+   -15.38,
+   1.88,
+   16.51
+  ],
+  "matrix": [
+   [
+    0.998135,
+    0.022786,
+    -0.056627
+   ],
+   [
+    -0.019858,
+    0.998463,
+    0.051743
+   ],
+   [
+    0.057719,
+    -0.050522,
+    0.997054
+   ]
+  ],
+  "center_mm": [
+   105.3,
+   156.28,
+   162.35
+  ],
+  "nmi_start": 1.1239,
+  "nmi_after": 1.1563,
+  "evaluations": 461,
+  "seconds": 200.2
+ },
+ "residuals": {
+  "C1": {
+   "at_mm": [
+    135.1,
+    134.8,
+    91.6
+   ],
+   "shift_mm": [
+    -10.0,
+    0.0,
+    2.0
+   ],
+   "residual_mm": 10.2,
+   "at_search_edge": true,
+   "ncc_aligned": 0.247,
+   "ncc_best": 0.399,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here"
+  },
+  "C2": {
+   "at_mm": [
+    107.9,
+    81.1,
+    250.3
+   ],
+   "shift_mm": [
+    2.0,
+    2.0,
+    -4.0
+   ],
+   "residual_mm": 4.9,
+   "at_search_edge": false,
+   "ncc_aligned": 0.44,
+   "ncc_best": 0.519,
+   "reliable": true,
+   "why": ""
+  },
+  "C3": {
+   "at_mm": [
+    114.7,
+    34.1,
+    273.8
+   ],
+   "shift_mm": [
+    -4.0,
+    -8.0,
+    -10.0
+   ],
+   "residual_mm": 13.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.409,
+   "ncc_best": 0.565,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here"
+  }
+ },
+ "blocks": [
+  {
+   "at_mm": [
+    15.0,
+    135.0,
+    105.0
+   ],
+   "shift_mm": [
+    6.0,
+    8.0,
+    4.0
+   ],
+   "residual_mm": 10.8,
+   "at_search_edge": false,
+   "ncc_aligned": -0.015,
+   "ncc_best": 0.705,
+   "reliable": false,
+   "why": "the studies are still 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    15.0,
+    135.0,
+    135.0
+   ],
+   "shift_mm": [
+    -2.0,
+    4.0,
+    -2.0
+   ],
+   "residual_mm": 4.9,
+   "at_search_edge": false,
+   "ncc_aligned": 0.513,
+   "ncc_best": 0.65,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    15.0,
+    135.0,
+    195.0
+   ],
+   "shift_mm": [
+    -2.0,
+    0.0,
+    -6.0
+   ],
+   "residual_mm": 6.3,
+   "at_search_edge": false,
+   "ncc_aligned": 0.724,
+   "ncc_best": 0.744,
+   "reliable": false,
+   "why": "the studies are still 6 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    15.0,
+    135.0,
+    225.0
+   ],
+   "shift_mm": [
+    2.0,
+    4.0,
+    -6.0
+   ],
+   "residual_mm": 7.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.507,
+   "ncc_best": 0.771,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    15.0,
+    135.0,
+    255.0
+   ],
+   "shift_mm": [
+    0.0,
+    8.0,
+    -6.0
+   ],
+   "residual_mm": 10.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.323,
+   "ncc_best": 0.879,
+   "reliable": false,
+   "why": "the studies are still 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    45.0
+   ],
+   "shift_mm": [
+    2.0,
+    2.0,
+    10.0
+   ],
+   "residual_mm": 10.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.216,
+   "ncc_best": 0.686,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    75.0
+   ],
+   "shift_mm": [
+    2.0,
+    8.0,
+    -2.0
+   ],
+   "residual_mm": 8.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.073,
+   "ncc_best": 0.743,
+   "reliable": false,
+   "why": "the studies are still 8 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    105.0
+   ],
+   "shift_mm": [
+    2.0,
+    8.0,
+    -10.0
+   ],
+   "residual_mm": 13.0,
+   "at_search_edge": true,
+   "ncc_aligned": -0.271,
+   "ncc_best": 0.632,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    135.0
+   ],
+   "shift_mm": [
+    2.0,
+    4.0,
+    -8.0
+   ],
+   "residual_mm": 9.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.199,
+   "ncc_best": 0.47,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    165.0
+   ],
+   "shift_mm": [
+    2.0,
+    -8.0,
+    10.0
+   ],
+   "residual_mm": 13.0,
+   "at_search_edge": true,
+   "ncc_aligned": 0.535,
+   "ncc_best": 0.689,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    195.0
+   ],
+   "shift_mm": [
+    10.0,
+    0.0,
+    -10.0
+   ],
+   "residual_mm": 14.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.438,
+   "ncc_best": 0.503,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    225.0
+   ],
+   "shift_mm": [
+    0.0,
+    4.0,
+    10.0
+   ],
+   "residual_mm": 10.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.149,
+   "ncc_best": 0.334,
+   "reliable": false,
+   "why": "the studies are still at least 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    255.0
+   ],
+   "shift_mm": [
+    4.0,
+    0.0,
+    -4.0
+   ],
+   "residual_mm": 5.7,
+   "at_search_edge": false,
+   "ncc_aligned": 0.143,
+   "ncc_best": 0.358,
+   "reliable": false,
+   "why": "the studies are still 6 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    45.0,
+    135.0,
+    285.0
+   ],
+   "shift_mm": [
+    10.0,
+    -2.0,
+    4.0
+   ],
+   "residual_mm": 11.0,
+   "at_search_edge": true,
+   "ncc_aligned": 0.068,
+   "ncc_best": 0.356,
+   "reliable": false,
+   "why": "the studies are still at least 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    45.0,
+    225.0
+   ],
+   "shift_mm": [
+    2.0,
+    2.0,
+    -6.0
+   ],
+   "residual_mm": 6.6,
+   "at_search_edge": false,
+   "ncc_aligned": 0.649,
+   "ncc_best": 0.706,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    45.0,
+    255.0
+   ],
+   "shift_mm": [
+    4.0,
+    -2.0,
+    -10.0
+   ],
+   "residual_mm": 11.0,
+   "at_search_edge": true,
+   "ncc_aligned": 0.187,
+   "ncc_best": 0.474,
+   "reliable": false,
+   "why": "the studies are still at least 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    45.0,
+    285.0
+   ],
+   "shift_mm": [
+    4.0,
+    -2.0,
+    -10.0
+   ],
+   "residual_mm": 11.0,
+   "at_search_edge": true,
+   "ncc_aligned": 0.45,
+   "ncc_best": 0.799,
+   "reliable": false,
+   "why": "the studies are still at least 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    45.0
+   ],
+   "shift_mm": [
+    2.0,
+    -10.0,
+    -10.0
+   ],
+   "residual_mm": 14.3,
+   "at_search_edge": true,
+   "ncc_aligned": 0.09,
+   "ncc_best": 0.647,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    75.0
+   ],
+   "shift_mm": [
+    2.0,
+    -10.0,
+    -10.0
+   ],
+   "residual_mm": 14.3,
+   "at_search_edge": true,
+   "ncc_aligned": 0.113,
+   "ncc_best": 0.354,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    105.0
+   ],
+   "shift_mm": [
+    2.0,
+    -10.0,
+    -6.0
+   ],
+   "residual_mm": 11.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.313,
+   "ncc_best": 0.451,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    195.0
+   ],
+   "shift_mm": [
+    -2.0,
+    0.0,
+    2.0
+   ],
+   "residual_mm": 2.8,
+   "at_search_edge": false,
+   "ncc_aligned": 0.821,
+   "ncc_best": 0.856,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    225.0
+   ],
+   "shift_mm": [
+    2.0,
+    6.0,
+    -6.0
+   ],
+   "residual_mm": 8.7,
+   "at_search_edge": false,
+   "ncc_aligned": 0.356,
+   "ncc_best": 0.447,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    255.0
+   ],
+   "shift_mm": [
+    0.0,
+    6.0,
+    -10.0
+   ],
+   "residual_mm": 11.7,
+   "at_search_edge": true,
+   "ncc_aligned": 0.341,
+   "ncc_best": 0.567,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    75.0,
+    285.0
+   ],
+   "shift_mm": [
+    0.0,
+    6.0,
+    -10.0
+   ],
+   "residual_mm": 11.7,
+   "at_search_edge": true,
+   "ncc_aligned": 0.227,
+   "ncc_best": 0.514,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    45.0
+   ],
+   "shift_mm": [
+    2.0,
+    -2.0,
+    -10.0
+   ],
+   "residual_mm": 10.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.147,
+   "ncc_best": 0.631,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    75.0
+   ],
+   "shift_mm": [
+    -4.0,
+    0.0,
+    -8.0
+   ],
+   "residual_mm": 8.9,
+   "at_search_edge": false,
+   "ncc_aligned": 0.148,
+   "ncc_best": 0.327,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    105.0
+   ],
+   "shift_mm": [
+    -10.0,
+    -10.0,
+    10.0
+   ],
+   "residual_mm": 17.3,
+   "at_search_edge": true,
+   "ncc_aligned": -0.06,
+   "ncc_best": 0.329,
+   "reliable": false,
+   "why": "the studies are still at least 17 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    135.0
+   ],
+   "shift_mm": [
+    2.0,
+    4.0,
+    -6.0
+   ],
+   "residual_mm": 7.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.208,
+   "ncc_best": 0.674,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    195.0
+   ],
+   "shift_mm": [
+    -6.0,
+    6.0,
+    8.0
+   ],
+   "residual_mm": 11.7,
+   "at_search_edge": false,
+   "ncc_aligned": 0.246,
+   "ncc_best": 0.692,
+   "reliable": false,
+   "why": "the studies are still 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    225.0
+   ],
+   "shift_mm": [
+    0.0,
+    -6.0,
+    8.0
+   ],
+   "residual_mm": 10.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.308,
+   "ncc_best": 0.317,
+   "reliable": false,
+   "why": "the studies are still 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    255.0
+   ],
+   "shift_mm": [
+    2.0,
+    -10.0,
+    10.0
+   ],
+   "residual_mm": 14.3,
+   "at_search_edge": true,
+   "ncc_aligned": 0.261,
+   "ncc_best": 0.364,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    105.0,
+    285.0
+   ],
+   "shift_mm": [
+    0.0,
+    -8.0,
+    -10.0
+   ],
+   "residual_mm": 12.8,
+   "at_search_edge": true,
+   "ncc_aligned": -0.018,
+   "ncc_best": 0.443,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    15.0
+   ],
+   "shift_mm": [
+    8.0,
+    8.0,
+    -8.0
+   ],
+   "residual_mm": 13.9,
+   "at_search_edge": false,
+   "ncc_aligned": 0.563,
+   "ncc_best": 0.853,
+   "reliable": false,
+   "why": "the studies are still 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    45.0
+   ],
+   "shift_mm": [
+    2.0,
+    0.0,
+    -6.0
+   ],
+   "residual_mm": 6.3,
+   "at_search_edge": false,
+   "ncc_aligned": 0.137,
+   "ncc_best": 0.413,
+   "reliable": false,
+   "why": "the studies are still 6 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    75.0
+   ],
+   "shift_mm": [
+    -4.0,
+    6.0,
+    -8.0
+   ],
+   "residual_mm": 10.8,
+   "at_search_edge": false,
+   "ncc_aligned": 0.185,
+   "ncc_best": 0.284,
+   "reliable": false,
+   "why": "the studies are still 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    105.0
+   ],
+   "shift_mm": [
+    -2.0,
+    2.0,
+    -6.0
+   ],
+   "residual_mm": 6.6,
+   "at_search_edge": false,
+   "ncc_aligned": 0.248,
+   "ncc_best": 0.321,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    135.0
+   ],
+   "shift_mm": [
+    10.0,
+    2.0,
+    -2.0
+   ],
+   "residual_mm": 10.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.253,
+   "ncc_best": 0.625,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    165.0
+   ],
+   "shift_mm": [
+    10.0,
+    0.0,
+    -8.0
+   ],
+   "residual_mm": 12.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.65,
+   "ncc_best": 0.891,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    195.0
+   ],
+   "shift_mm": [
+    6.0,
+    -6.0,
+    4.0
+   ],
+   "residual_mm": 9.4,
+   "at_search_edge": false,
+   "ncc_aligned": 0.255,
+   "ncc_best": 0.76,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    225.0
+   ],
+   "shift_mm": [
+    8.0,
+    -10.0,
+    10.0
+   ],
+   "residual_mm": 16.2,
+   "at_search_edge": true,
+   "ncc_aligned": 0.043,
+   "ncc_best": 0.192,
+   "reliable": false,
+   "why": "the studies are still at least 16 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    255.0
+   ],
+   "shift_mm": [
+    -10.0,
+    -10.0,
+    2.0
+   ],
+   "residual_mm": 14.3,
+   "at_search_edge": true,
+   "ncc_aligned": -0.153,
+   "ncc_best": 0.106,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    285.0
+   ],
+   "shift_mm": [
+    2.0,
+    8.0,
+    -6.0
+   ],
+   "residual_mm": 10.2,
+   "at_search_edge": false,
+   "ncc_aligned": -0.058,
+   "ncc_best": 0.164,
+   "reliable": false,
+   "why": "the studies are still 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    75.0,
+    135.0,
+    315.0
+   ],
+   "shift_mm": [
+    6.0,
+    -10.0,
+    -10.0
+   ],
+   "residual_mm": 15.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.659,
+   "ncc_best": 0.858,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    45.0,
+    75.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -10.0,
+    10.0
+   ],
+   "residual_mm": 16.2,
+   "at_search_edge": true,
+   "ncc_aligned": 0.298,
+   "ncc_best": 0.525,
+   "reliable": false,
+   "why": "the studies are still at least 16 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    45.0,
+    195.0
+   ],
+   "shift_mm": [
+    2.0,
+    2.0,
+    -2.0
+   ],
+   "residual_mm": 3.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.864,
+   "ncc_best": 0.875,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    45.0,
+    225.0
+   ],
+   "shift_mm": [
+    6.0,
+    4.0,
+    -8.0
+   ],
+   "residual_mm": 10.8,
+   "at_search_edge": false,
+   "ncc_aligned": 0.329,
+   "ncc_best": 0.487,
+   "reliable": false,
+   "why": "the studies are still 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    45.0,
+    255.0
+   ],
+   "shift_mm": [
+    2.0,
+    -8.0,
+    -10.0
+   ],
+   "residual_mm": 13.0,
+   "at_search_edge": true,
+   "ncc_aligned": -0.092,
+   "ncc_best": 0.317,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    45.0,
+    285.0
+   ],
+   "shift_mm": [
+    -8.0,
+    10.0,
+    8.0
+   ],
+   "residual_mm": 15.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.355,
+   "ncc_best": 0.41,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    45.0
+   ],
+   "shift_mm": [
+    4.0,
+    10.0,
+    -10.0
+   ],
+   "residual_mm": 14.7,
+   "at_search_edge": true,
+   "ncc_aligned": 0.013,
+   "ncc_best": 0.106,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    75.0
+   ],
+   "shift_mm": [
+    -10.0,
+    8.0,
+    -10.0
+   ],
+   "residual_mm": 16.2,
+   "at_search_edge": true,
+   "ncc_aligned": -0.088,
+   "ncc_best": 0.252,
+   "reliable": false,
+   "why": "the studies are still at least 16 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    105.0
+   ],
+   "shift_mm": [
+    10.0,
+    -8.0,
+    -2.0
+   ],
+   "residual_mm": 13.0,
+   "at_search_edge": true,
+   "ncc_aligned": 0.071,
+   "ncc_best": 0.345,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    195.0
+   ],
+   "shift_mm": [
+    10.0,
+    -6.0,
+    0.0
+   ],
+   "residual_mm": 11.7,
+   "at_search_edge": true,
+   "ncc_aligned": 0.594,
+   "ncc_best": 0.7,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    225.0
+   ],
+   "shift_mm": [
+    2.0,
+    10.0,
+    -2.0
+   ],
+   "residual_mm": 10.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.33,
+   "ncc_best": 0.518,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    255.0
+   ],
+   "shift_mm": [
+    2.0,
+    0.0,
+    -6.0
+   ],
+   "residual_mm": 6.3,
+   "at_search_edge": false,
+   "ncc_aligned": 0.242,
+   "ncc_best": 0.47,
+   "reliable": false,
+   "why": "the studies are still 6 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    75.0,
+    285.0
+   ],
+   "shift_mm": [
+    -4.0,
+    6.0,
+    -4.0
+   ],
+   "residual_mm": 8.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.28,
+   "ncc_best": 0.39,
+   "reliable": false,
+   "why": "the studies are still 8 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    15.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -10.0,
+    -8.0
+   ],
+   "residual_mm": 15.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.203,
+   "ncc_best": 0.83,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    45.0
+   ],
+   "shift_mm": [
+    0.0,
+    -10.0,
+    -10.0
+   ],
+   "residual_mm": 14.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.211,
+   "ncc_best": 0.664,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    75.0
+   ],
+   "shift_mm": [
+    -8.0,
+    0.0,
+    -10.0
+   ],
+   "residual_mm": 12.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.027,
+   "ncc_best": 0.352,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    105.0
+   ],
+   "shift_mm": [
+    10.0,
+    10.0,
+    10.0
+   ],
+   "residual_mm": 17.3,
+   "at_search_edge": true,
+   "ncc_aligned": -0.019,
+   "ncc_best": 0.233,
+   "reliable": false,
+   "why": "the studies are still at least 17 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    135.0
+   ],
+   "shift_mm": [
+    0.0,
+    -6.0,
+    -4.0
+   ],
+   "residual_mm": 7.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.535,
+   "ncc_best": 0.695,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    195.0
+   ],
+   "shift_mm": [
+    -2.0,
+    10.0,
+    2.0
+   ],
+   "residual_mm": 10.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.304,
+   "ncc_best": 0.582,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    225.0
+   ],
+   "shift_mm": [
+    0.0,
+    10.0,
+    2.0
+   ],
+   "residual_mm": 10.2,
+   "at_search_edge": true,
+   "ncc_aligned": 0.203,
+   "ncc_best": 0.452,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    255.0
+   ],
+   "shift_mm": [
+    -2.0,
+    2.0,
+    0.0
+   ],
+   "residual_mm": 2.8,
+   "at_search_edge": false,
+   "ncc_aligned": 0.63,
+   "ncc_best": 0.639,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    105.0,
+    285.0
+   ],
+   "shift_mm": [
+    0.0,
+    -6.0,
+    -4.0
+   ],
+   "residual_mm": 7.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.36,
+   "ncc_best": 0.519,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    15.0
+   ],
+   "shift_mm": [
+    4.0,
+    -10.0,
+    -6.0
+   ],
+   "residual_mm": 12.3,
+   "at_search_edge": true,
+   "ncc_aligned": -0.032,
+   "ncc_best": 0.697,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    45.0
+   ],
+   "shift_mm": [
+    0.0,
+    -8.0,
+    -8.0
+   ],
+   "residual_mm": 11.3,
+   "at_search_edge": false,
+   "ncc_aligned": 0.105,
+   "ncc_best": 0.38,
+   "reliable": false,
+   "why": "the studies are still 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    75.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -6.0,
+    -10.0
+   ],
+   "residual_mm": 14.1,
+   "at_search_edge": true,
+   "ncc_aligned": -0.021,
+   "ncc_best": 0.49,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    105.0
+   ],
+   "shift_mm": [
+    -8.0,
+    6.0,
+    10.0
+   ],
+   "residual_mm": 14.1,
+   "at_search_edge": true,
+   "ncc_aligned": -0.053,
+   "ncc_best": 0.274,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    135.0
+   ],
+   "shift_mm": [
+    0.0,
+    4.0,
+    0.0
+   ],
+   "residual_mm": 4.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.421,
+   "ncc_best": 0.615,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    195.0
+   ],
+   "shift_mm": [
+    -2.0,
+    -8.0,
+    4.0
+   ],
+   "residual_mm": 9.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.247,
+   "ncc_best": 0.729,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    225.0
+   ],
+   "shift_mm": [
+    -4.0,
+    0.0,
+    6.0
+   ],
+   "residual_mm": 7.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.228,
+   "ncc_best": 0.417,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    255.0
+   ],
+   "shift_mm": [
+    -4.0,
+    2.0,
+    2.0
+   ],
+   "residual_mm": 4.9,
+   "at_search_edge": false,
+   "ncc_aligned": 0.183,
+   "ncc_best": 0.3,
+   "reliable": false,
+   "why": "little shared structure here (best correlation 0.30)",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    285.0
+   ],
+   "shift_mm": [
+    -2.0,
+    -6.0,
+    -4.0
+   ],
+   "residual_mm": 7.5,
+   "at_search_edge": false,
+   "ncc_aligned": -0.085,
+   "ncc_best": 0.129,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    105.0,
+    135.0,
+    315.0
+   ],
+   "shift_mm": [
+    10.0,
+    -10.0,
+    -4.0
+   ],
+   "residual_mm": 14.7,
+   "at_search_edge": true,
+   "ncc_aligned": 0.831,
+   "ncc_best": 0.857,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    45.0,
+    225.0
+   ],
+   "shift_mm": [
+    2.0,
+    2.0,
+    -2.0
+   ],
+   "residual_mm": 3.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.534,
+   "ncc_best": 0.626,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    45.0,
+    255.0
+   ],
+   "shift_mm": [
+    0.0,
+    -2.0,
+    -8.0
+   ],
+   "residual_mm": 8.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.196,
+   "ncc_best": 0.389,
+   "reliable": false,
+   "why": "the studies are still 8 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    45.0,
+    285.0
+   ],
+   "shift_mm": [
+    -6.0,
+    -4.0,
+    -6.0
+   ],
+   "residual_mm": 9.4,
+   "at_search_edge": false,
+   "ncc_aligned": 0.517,
+   "ncc_best": 0.687,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    45.0
+   ],
+   "shift_mm": [
+    6.0,
+    -8.0,
+    -10.0
+   ],
+   "residual_mm": 14.1,
+   "at_search_edge": true,
+   "ncc_aligned": -0.083,
+   "ncc_best": 0.345,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    75.0
+   ],
+   "shift_mm": [
+    8.0,
+    -8.0,
+    4.0
+   ],
+   "residual_mm": 12.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.25,
+   "ncc_best": 0.412,
+   "reliable": false,
+   "why": "the studies are still 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    105.0
+   ],
+   "shift_mm": [
+    8.0,
+    -10.0,
+    0.0
+   ],
+   "residual_mm": 12.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.315,
+   "ncc_best": 0.692,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    195.0
+   ],
+   "shift_mm": [
+    -2.0,
+    -2.0,
+    -2.0
+   ],
+   "residual_mm": 3.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.791,
+   "ncc_best": 0.819,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    225.0
+   ],
+   "shift_mm": [
+    0.0,
+    8.0,
+    2.0
+   ],
+   "residual_mm": 8.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.421,
+   "ncc_best": 0.563,
+   "reliable": false,
+   "why": "the studies are still 8 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    255.0
+   ],
+   "shift_mm": [
+    2.0,
+    2.0,
+    -2.0
+   ],
+   "residual_mm": 3.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.644,
+   "ncc_best": 0.676,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    75.0,
+    285.0
+   ],
+   "shift_mm": [
+    6.0,
+    6.0,
+    -2.0
+   ],
+   "residual_mm": 8.7,
+   "at_search_edge": false,
+   "ncc_aligned": 0.451,
+   "ncc_best": 0.494,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    15.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -10.0,
+    -8.0
+   ],
+   "residual_mm": 15.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.519,
+   "ncc_best": 0.866,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    45.0
+   ],
+   "shift_mm": [
+    0.0,
+    -10.0,
+    -10.0
+   ],
+   "residual_mm": 14.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.213,
+   "ncc_best": 0.457,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    75.0
+   ],
+   "shift_mm": [
+    2.0,
+    -10.0,
+    -10.0
+   ],
+   "residual_mm": 14.3,
+   "at_search_edge": true,
+   "ncc_aligned": 0.084,
+   "ncc_best": 0.638,
+   "reliable": false,
+   "why": "the studies are still at least 14 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    105.0
+   ],
+   "shift_mm": [
+    8.0,
+    -4.0,
+    -2.0
+   ],
+   "residual_mm": 9.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.098,
+   "ncc_best": 0.35,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    195.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -10.0,
+    0.0
+   ],
+   "residual_mm": 12.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.355,
+   "ncc_best": 0.638,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    225.0
+   ],
+   "shift_mm": [
+    -2.0,
+    10.0,
+    6.0
+   ],
+   "residual_mm": 11.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.033,
+   "ncc_best": 0.459,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    255.0
+   ],
+   "shift_mm": [
+    0.0,
+    6.0,
+    4.0
+   ],
+   "residual_mm": 7.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.57,
+   "ncc_best": 0.781,
+   "reliable": false,
+   "why": "the studies are still 7 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    105.0,
+    285.0
+   ],
+   "shift_mm": [
+    0.0,
+    -2.0,
+    2.0
+   ],
+   "residual_mm": 2.8,
+   "at_search_edge": false,
+   "ncc_aligned": 0.174,
+   "ncc_best": 0.213,
+   "reliable": false,
+   "why": "little shared structure here (best correlation 0.21)",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    15.0
+   ],
+   "shift_mm": [
+    -6.0,
+    -10.0,
+    -6.0
+   ],
+   "residual_mm": 13.1,
+   "at_search_edge": true,
+   "ncc_aligned": 0.507,
+   "ncc_best": 0.83,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    45.0
+   ],
+   "shift_mm": [
+    -2.0,
+    -6.0,
+    -10.0
+   ],
+   "residual_mm": 11.8,
+   "at_search_edge": true,
+   "ncc_aligned": -0.015,
+   "ncc_best": 0.295,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    75.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -2.0,
+    2.0
+   ],
+   "residual_mm": 8.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.23,
+   "ncc_best": 0.383,
+   "reliable": false,
+   "why": "the studies are still 8 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    105.0
+   ],
+   "shift_mm": [
+    -10.0,
+    2.0,
+    -6.0
+   ],
+   "residual_mm": 11.8,
+   "at_search_edge": true,
+   "ncc_aligned": 0.096,
+   "ncc_best": 0.249,
+   "reliable": false,
+   "why": "the studies are still at least 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    135.0
+   ],
+   "shift_mm": [
+    4.0,
+    0.0,
+    0.0
+   ],
+   "residual_mm": 4.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.548,
+   "ncc_best": 0.598,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    195.0
+   ],
+   "shift_mm": [
+    -10.0,
+    -8.0,
+    4.0
+   ],
+   "residual_mm": 13.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.044,
+   "ncc_best": 0.701,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    225.0
+   ],
+   "shift_mm": [
+    -4.0,
+    8.0,
+    2.0
+   ],
+   "residual_mm": 9.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.088,
+   "ncc_best": 0.351,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    135.0,
+    135.0,
+    285.0
+   ],
+   "shift_mm": [
+    0.0,
+    -6.0,
+    2.0
+   ],
+   "residual_mm": 6.3,
+   "at_search_edge": false,
+   "ncc_aligned": -0.007,
+   "ncc_best": 0.105,
+   "reliable": false,
+   "why": "the studies are still 6 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    45.0,
+    225.0
+   ],
+   "shift_mm": [
+    -4.0,
+    -2.0,
+    -2.0
+   ],
+   "residual_mm": 4.9,
+   "at_search_edge": false,
+   "ncc_aligned": 0.709,
+   "ncc_best": 0.896,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    45.0,
+    255.0
+   ],
+   "shift_mm": [
+    -4.0,
+    0.0,
+    -2.0
+   ],
+   "residual_mm": 4.5,
+   "at_search_edge": false,
+   "ncc_aligned": 0.552,
+   "ncc_best": 0.852,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    75.0,
+    225.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -8.0,
+    -2.0
+   ],
+   "residual_mm": 11.5,
+   "at_search_edge": false,
+   "ncc_aligned": -0.01,
+   "ncc_best": 0.593,
+   "reliable": false,
+   "why": "the studies are still 11 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    75.0,
+    255.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -8.0,
+    -4.0
+   ],
+   "residual_mm": 12.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.047,
+   "ncc_best": 0.55,
+   "reliable": false,
+   "why": "the studies are still 12 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    75.0,
+    285.0
+   ],
+   "shift_mm": [
+    -4.0,
+    0.0,
+    0.0
+   ],
+   "residual_mm": 4.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.743,
+   "ncc_best": 0.884,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    105.0,
+    45.0
+   ],
+   "shift_mm": [
+    -8.0,
+    -10.0,
+    -4.0
+   ],
+   "residual_mm": 13.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.133,
+   "ncc_best": 0.549,
+   "reliable": false,
+   "why": "the studies are still at least 13 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    105.0,
+    75.0
+   ],
+   "shift_mm": [
+    -4.0,
+    -8.0,
+    2.0
+   ],
+   "residual_mm": 9.2,
+   "at_search_edge": false,
+   "ncc_aligned": 0.111,
+   "ncc_best": 0.267,
+   "reliable": false,
+   "why": "the studies are still 9 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    105.0,
+    285.0
+   ],
+   "shift_mm": [
+    -2.0,
+    2.0,
+    0.0
+   ],
+   "residual_mm": 2.8,
+   "at_search_edge": false,
+   "ncc_aligned": 0.458,
+   "ncc_best": 0.543,
+   "reliable": true,
+   "why": "",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    165.0,
+    135.0,
+    105.0
+   ],
+   "shift_mm": [
+    -2.0,
+    10.0,
+    -2.0
+   ],
+   "residual_mm": 10.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.085,
+   "ncc_best": 0.339,
+   "reliable": false,
+   "why": "the studies are still at least 10 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    195.0,
+    135.0,
+    75.0
+   ],
+   "shift_mm": [
+    -8.0,
+    0.0,
+    0.0
+   ],
+   "residual_mm": 8.0,
+   "at_search_edge": false,
+   "ncc_aligned": 0.199,
+   "ncc_best": 0.738,
+   "reliable": false,
+   "why": "the studies are still 8 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    195.0,
+    135.0,
+    225.0
+   ],
+   "shift_mm": [
+    -10.0,
+    -6.0,
+    10.0
+   ],
+   "residual_mm": 15.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.129,
+   "ncc_best": 0.609,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  },
+  {
+   "at_mm": [
+    195.0,
+    135.0,
+    255.0
+   ],
+   "shift_mm": [
+    -10.0,
+    -10.0,
+    6.0
+   ],
+   "residual_mm": 15.4,
+   "at_search_edge": true,
+   "ncc_aligned": 0.234,
+   "ncc_best": 0.698,
+   "reliable": false,
+   "why": "the studies are still at least 15 mm apart here",
+   "half_mm": 15.0
+  }
+ ],
+ "matches": [
+  {
+   "earlier": "C1",
+   "later": "C1",
+   "distance_mm": 10.8
+  },
+  {
+   "earlier": null,
+   "later": "C2",
+   "distance_mm": null
+  },
+  {
+   "earlier": null,
+   "later": "C3",
+   "distance_mm": null
+  },
+  {
+   "earlier": "C2",
+   "later": null,
+   "distance_mm": null
+  },
+  {
+   "earlier": "C3",
+   "later": null,
+   "distance_mm": null
+  }
+ ],
+ "frame": "the later study's frame: (Z, Y, X) mm from its first shown slice, row and column",
+ "example": "A public example study pair: a TCGA-BRCA patient on TCIA with breast MRI on two dates, not a patient file in this app. Shown so that change over time on real images can be seen; nothing in it is any patient file's data.",
+ "source": {
+  "collection": "TCGA-BRCA radiology (The Cancer Imaging Archive)",
+  "doi": "10.7937/K9/TCIA.2016.AB2NAZRP",
+  "license": "CC BY 3.0",
+  "attribution": "Lingle W, Erickson BJ, Zuley ML, et al. The Cancer Genome Atlas Breast Invasive Carcinoma Collection (TCGA-BRCA), version 3. The Cancer Imaging Archive, 2016. doi:10.7937/K9/TCIA.2016.AB2NAZRP. Downsampled to 8-bit copies here; not the diagnostic originals."
+ },
+ "pipeline": {
+  "script": "scripts/radiology_pipeline.py pair",
+  "version": "1",
+  "run_at": "2026-10-22 03:39 UTC",
+  "seconds": 254.0,
+  "uptime": "22:39:45 up 55 min,  1 user,  load average: 20.31, 18.22, 14.00"
+ }
+}

@@ -3,8 +3,10 @@
 The radiology workbench (`app/workbenches/radiology.py`, logic in
 `src/muffle/workbench/radiology.py`, offline pipeline `scripts/radiology_pipeline.py`) has two
 pages, chosen by what a patient file holds. Design: [`WORKBENCHES.md`](WORKBENCHES.md) §6.
-Written 2026-10-20. Nothing here is a diagnosis; every candidate, contour and measurement is a
-**model inference**, and the cutoffs below say where they come from.
+Written 2026-10-20; round 2 (change over time on a public example pair, three planes and a cine,
+five bundled cases, mammography geometry) 2026-10-21, §§3–5. Nothing here is a diagnosis; every
+candidate, contour and measurement is a **model inference**, and the cutoffs below say where they
+come from.
 
 ## 1. Imaging reports as text (SYNTHETIC-001)
 
@@ -57,13 +59,16 @@ trust strong.
 mammography; CC BY 3.0; doi:[10.7937/K9/TCIA.2016.AB2NAZRP](https://doi.org/10.7937/K9/TCIA.2016.AB2NAZRP)),
 read through the public NBIA REST API (no login). The app's 40 held-out TCGA cases were mapped
 to barcodes through `cohort.npz` (`Case.index` is the row; all 40 rows' clinical features match
-the bundle). Five of them have a TCIA study: cases 537, 563, 564, 926 and 937. Three are
-processed:
+the bundle). Five of them have a TCIA study: cases 537, 563, 564, 926 and 937. All five are
+processed (537 and 564 in round 2; 563 and 937 re-run under pipeline version 2, which ships every
+phase):
 
 | Case | Barcode | Study | What ships |
 |---|---|---|---|
-| 563 | TCGA-BH-A0H5 | GE Signa Excite 1.5 T, VIBRANT multiphase, 5 phases ~80 s apart, 512² × 90 slices, 0.57 mm, 2 mm slices | pre, early, delayed, subtraction; 3 candidates |
+| 563 | TCGA-BH-A0H5 | GE Signa Excite 1.5 T, VIBRANT multiphase, 5 phases ~80 s apart, 512² × 90 slices, 0.57 mm, 2 mm slices | all five phases and the subtraction; 3 candidates |
 | 937 | TCGA-EW-A1P3 | Siemens Sonata 1.5 T, pre / 1 / 2 / 6 min series, 384² × 208 slices, 0.89 mm, 0.9 mm slices | the same, every second slice |
+| 564 | TCGA-BH-A0H6 | GE Signa Excite 1.5 T, VIBRANT multiphase, 5 phases ~61 s apart, 512² × 68 slices, 0.59 mm, 2 mm slices | all five phases and the subtraction; 3 candidates |
+| 537 | TCGA-BH-A0DE | GE Signa Excite 1.5 T, VIBRANT multiphase, 5 phases ~89 s apart, 512² × 76 slices, 0.57 mm, 2 mm slices | the same (the sagittal pre and post series are not used) |
 | 926 | TCGA-EW-A1J2 | Lorad Selenia mammography, R/L CC and MLO, 0.07 mm | the four views |
 
 Each study's DICOM structured report gives the BI-RADS category (6, known biopsy-proven
@@ -71,8 +76,10 @@ malignancy, in all five), the pathology and the receptors, shown as **observed**
 lesion size or position, so no reader measurement exists to compare with. The report also states
 race and health status, which the pipeline drops.
 
-**What ships** (`app/workbenches/radiology_results/<barcode>/`, under 5 MB each: 2.6, 2.7 and
-0.13 MB): 8-bit copies, one JPEG strip per phase (quality 80), at most 256 px wide and 128
+**What ships** (`app/workbenches/radiology_results/<barcode>/`, under 5 MB each: 563 3.98, 564
+3.16, 537 3.34, 937 3.32 and 926 0.13 MB; the example pair 2.3 and 2.2 MB in
+`radiology_example/`, so no release asset is needed): 8-bit copies, one JPEG strip per phase
+(quality 80; every phase since version 2), at most 256 px wide and 128
 slices, cropped to 30 mm behind the search region's posterior limit (the heart and lungs are cut
 off); mammograms at 512 px (0.46 mm per pixel; 256 px would be a thumbnail where nothing can be
 read). `study.json` holds the geometry, phases, report facts, candidates with per-slice contours,
@@ -144,9 +151,23 @@ and 6% of benign lesions, type I in 9% and 83%. Evidence about curve types, not 
 | 563 | C1 | right | 18.8 mm | 2.49 mL (2.08–2.93) | fast (114%), plateau (+3%) | 0 of 10 |
 | 563 | C2 | left | 20.0 mm | 1.83 mL (1.47–2.21) | fast (101%), washout (−17%) | 2 of 11 |
 | 563 | C3 | right | 19.8 mm | 0.99 mL (0.78–1.22) | medium (90%), plateau (+7%) | 0 of 6 |
+| 564 | C1 | right | 15.5 mm | 1.01 mL (0.81–1.22) | medium (55%), persistent (+19%) | 1 of 5 |
+| 564 | C2 | right | 10.9 mm | 0.12 mL (0.09–0.15) | medium (69%), persistent (+20%) | 2 of 3 |
+| 564 | C3 | right | 8.3 mm | 0.07 mL (0.05–0.09) | medium (89%), persistent (+31%) | 2 of 3 |
+| 537 | C1 | left | 23.9 mm | 2.25 mL (1.96–2.55) | slow (32%), persistent (+36%) | 6 of 6 |
+| 537 | C2 | left | 5.2 mm | 1.79 mL (1.49–2.11) | slow (25%), persistent (+27%) | 6 of 7 |
+| 537 | C3 | right | 15.6 mm | 0.71 mL (0.56–0.87) | medium (53%), persistent (+12%) | 0 of 5 |
 
-Checked by eye on contact sheets: in both studies C1 is a compact enhancing mass in the right
-breast and MedSAM's contour follows it on every central slice. 937-C3 is a curvilinear vessel
+Cases 563 and 937, re-run under version 2, reproduce every diameter, volume and kinetic value above; only the craniocaudal extent moved where a candidate has empty end slices, since it now counts the slices that hold a contour (563-C2 22 → 18 mm, 937-C2 8.1 → 7.2 mm, 937-C3 8.1 → 6.3 mm).
+
+Checked by eye on contact sheets: in 563 and 937 C1 is a compact enhancing mass in the right
+breast and MedSAM's contour follows it on every central slice; in 564 C1 is a compact enhancing
+mass in the right breast too, with C2 and C3 small enhancing foci deeper in (C3 flagged 1 mm from
+the search limit). In 537 C1 is a spiculated mass in the left breast that keeps enhancing through
+the delayed phase; MedSAM's contour covers it but runs past 1.5 times the small seed box on all
+six slices, so every slice is flagged unsure and its diameter rests on unsure contours only. C2
+lies beside it (6 of 7 slices unsure; its 5.2 mm diameter comes from the one sure slice while its
+1.79 mL volume holds the overshoot), and C3 sits at the chest wall (flagged). 937-C3 is a curvilinear vessel
 segment (MedSAM overshoots its narrow box on 8 of 9 slices, and the page flags it). 563-C2 is a
 strip along the chest wall just in front of the heart, 3 mm from the search limit, and washes
 out as vessels do; the page flags it as near the chest wall. Mammography (926): dense-pixel share
@@ -191,9 +212,146 @@ used for diagnostic purposes". 78 CPU seconds including the weights download (lo
 **Timings** (WSL, 8 shared cores, 4 threads, `nice -n 10`): MedSAM's image encoder took 21 s per
 1024² slice on a quiet machine (load 0.3, random input) and a median 12–17 s per slice in the
 runs (load 7–15 from other sessions); case 937 took 468 s for 32 slices, case 563 164 s for 13.
-The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes.
+The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes. Round 2 (same
+machine, load 8–21 from other sessions' runs): a median 46 s per slice for 563's 13 slices (load
+17–20), 56 s for 564's 7 (load 18), 53 s for 537's 18 (load 21), 28 s for 937's 32 (load 10–12); the example pair's
+26 and 36 s (load 8 and 12). Downloads for round 2: about 300 MB in under 2 minutes.
 
-## 3. Known failures and limits
+## 3. Change over time on real images (round 2): a public example pair
+
+**Why an example.** None of the five bundled TCGA cases has two study dates. Of the 20 TCIA
+TCGA-BRCA patients that do, most pair an MRI with a biopsy a few days later, a mammogram, or a
+different protocol; TCGA-AR-A1AQ has the same protocol on both dates, 18 months apart: GE SIGNA
+EXCITE on 2001-11-21 and SIGNA HDx on 2003-05-07, 1.5 T, bilateral sagittal VIBRANT, four phases,
+3 mm slices. The patient is in the omics cohort but not in the app's bundle, so the pair is shown
+as a **public example, not a patient file** (the slide workbench's example region is the model):
+inside every MRI study's "Since the last study" section and the synthetic patient's report page,
+labeled so, and as its own file only on the workbench's standalone page. Its omics and record are
+not used. Its structured reports are the same patient-level report on both dates (BI-RADS 6,
+infiltrating ductal carcinoma, ER−, PR−), so they say nothing about the change.
+
+**Sagittal acquisitions** (pipeline version 2). The phases are the same 116 (112) positions
+acquired four times, numbered in order; they are split by instance number, and each phase's start
+comes from `AcquisitionTime` (2001: 0, 210, 397, 598 s; 2003: 0, 168, 306, 401 s; each phase takes
+minutes, and the injection time is not in the headers). The volume is turned into the display
+frame (axial, anterior up, the patient's right on the left: 0.86 × 0.86 mm in the sagittal plane,
+3 mm across), the breast region and the seed rule run there with that spacing, and **MedSAM runs
+on the sagittal acquisition slices**, the sharpest plane; the longest diameter is measured on them
+too. The shipped axial copy is resampled to square 1.3–1.4 mm pixels, so detail across the 3 mm
+slices is interpolated. An axial acquisition takes the same path with nothing turned.
+
+**Alignment.** `muffle.workbench.radiology.register`: the earlier study's pre-contrast volume onto
+the later one's, rigid (three rotations and three shifts about the later body's centre of mass),
+maximising normalised mutual information (Studholme et al. 1999) over a fixed random sample of
+200,000 voxels of the shipped crop (the breasts and the air before them), with Powell's method on
+4 mm, then 2 mm voxels, started from the two bodies' centres of mass. scipy only; SimpleITK
+(Apache-2.0) was not needed. Tested on a synthetic textured volume moved by a known 3° rotation
+and a 4, −3, 5 mm shift with different, anisotropic voxels on both sides: recovered within 1.5 mm.
+On the pair: rotations −3.0°, 3.3°, −1.3°, shifts −15.4, 1.9, 16.5 mm, normalised mutual
+information 1.124 at the start and 1.156 aligned (2 mm voxels), 117 and 200 CPU seconds in two
+runs at load 13 and 17. It is not a local optimum: six starts up to 6° and 15 mm away converged
+within 0.7° and 1 mm (4 mm voxels, NMI 1.168 each), and the tissue masks' overlap rose from Dice
+0.69 at the start to 0.76.
+
+**Where it is unreliable.** A rigid alignment cannot follow the breast's own deformation between
+exams. `local_residual` asks, at each later candidate and on 30 mm blocks of the breasts, which
+shift of up to 10 mm (4 mm, then 2 mm steps) best matches the later study to the aligned earlier
+one by normalised cross-correlation (40 mm cubes at candidates, 30 mm on the grid). Above 5 mm, a
+best correlation under 0.5, or a best shift at the search's edge, the place is **unreliable
+here** (placeholders): the comparison tints those blocks red on both views and every row and
+sentence carries the mark. On the pair, **99 of 112 blocks are unreliable**: the best local
+shift is 3–15 mm (median about 10 mm, often at the search's edge), so the breasts deformed
+between the exams far more than a rigid alignment can take up, and the comparison says so at
+almost every place. Of the later candidates, C2 (left breast) is within 4.9 mm; C1 and C3 are at
+least 10 and 13 mm off. The check took 4 s for the three candidates and 54 s for the blocks
+(coarse-to-fine search, load 20; the exhaustive search of the first run took 30 s for the
+candidates and gave the same shifts).
+
+**Pairing and change.** Each later candidate's centroid (moved by its local shift) is mapped into
+the earlier frame and paired with the nearest earlier candidate within 15 mm (placeholder). Per
+pair: the longest diameter and volume on both dates and the change; **grew** when the diameter
+rose ≥ 20% and ≥ 5 mm, **shrank** when it fell ≥ 30% (RECIST 1.1's rules for a sum of diameters,
+Eisenhauer et al. 2009, borrowed per candidate as placeholders), each by more than twice the
+pixel; whether the one-pixel volume ranges overlap. A **sum of longest diameters** takes the
+paired candidates of at least 10 mm on the earlier date, at most two (RECIST 1.1's measurable size
+and per-organ limit, the breasts as one organ): labeled computed, never a response call, because
+the candidates are a model's, not a reader's target lesions. Unpaired candidates are said to be
+"not proposed" on the other date, never gone or new. Protocol and scanner differences are listed
+before any of it (here: the scanner, the recorded contrast agent, TR and TE, the pixel size and
+the phase times; kinetics are not compared across dates).
+
+Results (model inference, not validated here):
+
+| Date | Candidate | Side | Longest diameter | Volume (one-pixel range) | Kinetics | Unsure slices |
+|---|---|---|---|---|---|---|
+| 2001-11-21 | C1 | right | 25.6 mm | 6.93 mL (5.40–8.57) | fast (123%), plateau (+2%) | 0 of 12 |
+| 2001-11-21 | C2 | right | 17.9 mm | 1.89 mL (1.32–2.51) | medium (87%), persistent (+19%) | 0 of 6 |
+| 2001-11-21 | C3 | right | 9.6 mm | 0.35 mL (0.18–0.54) | medium (99.9%), persistent (+17%) | 2 of 3 |
+| 2003-05-07 | C1 | right | 22.7 mm | 2.19 mL (1.37–3.09) | slow (48%), persistent (+26%) | 1 of 8 |
+| 2003-05-07 | C2 | left | 19.9 mm | 3.17 mL (2.19–4.24) | slow (42%), persistent (+25%) | 3 of 8 |
+| 2003-05-07 | C3 | left | 17.0 mm | 1.65 mL (1.13–2.23) | slow (31%), persistent (+19%) | 1 of 6 |
+
+The kinetics use the first post-contrast phase, which starts 210 s (2001) and 168 s (2003) after
+the pre-contrast one and lasts minutes, so the 2-minute initial window is not met on either date
+and the two are not comparable. MedSAM ran on 12 and 22 sagittal slices, a median 26 and 36 CPU
+seconds each (4 threads, load 8 and 12); shipped 2.3 and 2.2 MB, `pair.json` 40 kB.
+
+Checked by eye: 2001-C1 is a rim-enhancing mass in the right breast with a dark centre, and
+MedSAM's contour follows the rim; 2003-C1 is a smaller, irregular enhancing area at the same place
+after alignment (10.8 mm apart, the local shift included); 2001-C2 sits beside C1; 2003-C3 is the
+left nipple, which enhances. **Paired**: C1 → C1, longest diameter 25.6 → 22.7 mm (−2.9 mm,
+−11%), within the placeholder rules; volume 6.93 → 2.19 mL, the one-pixel ranges do not overlap;
+alignment unreliable there (at least 10 mm left over). The computed sum is that pair alone, 25.6
+→ 22.7 mm (−11%); 2001-C2 (17.9 mm) is left out, not proposed on the later date. Unpaired: 2003-C2
+and C3, 2001-C2 and C3. The page says all of it in these words, and says no more: the record here
+holds no treatment and no reader's measurement, so neither the cause of the change nor whether
+the two contours are the same lesion can be checked.
+
+The synthetic patient's reports get the same change view without sizes (`report_change`): per
+named site, what the earlier and the later read say, and "no measurements recorded", so no change
+in size and no sum. `summary()` gives a file with a study pair an "Imaging change" card (model
+inference, trust weak) and `queue()` an item per candidate that grew (consequence 3) or shrank
+(2) beyond the placeholder rules, or whose alignment is unreliable (1), each with its source and
+the rule; the look-here line, the Spot panel ("Change over time") and the exports (the change
+table as CSV, the alignment and rows in the JSON) carry the same. No bundled file has two dates,
+so these appear on the example only.
+
+## 4. Three planes and the cine (round 2)
+
+Every MRI study opens in axial, coronal and sagittal views of the shipped copy with linked
+positions: the viewer's slice and a row and a column, each drawn as a line on the other two views;
+picking a candidate moves all three to it. Coronal and sagittal are resliced (`reslice`) from the
+axial copy at square pixels, linearly for the image and nearest for the contours, which are the
+axial contours stacked into a mask (`candidate_mask`, even-odd so a hole stays a hole); the head is
+at the top, the patient's right on the left (coronal) and anterior on the left (sagittal). The
+voxel shape is said under the views (`anisotropy`): for example 2 mm between shown slices against
+1.2 mm pixels for case 563, 1.7–1.9 mm against 1.3 mm for the example pair. The craniocaudal
+extent and the longest-diameter slice are carried over as marks. Tested on a volume with 3 mm
+slices and 1 mm pixels: a voxel lands on the right row and column of both reslices. A cine plays
+every shipped phase at the slice (zoomed on the chosen candidate, its contour drawn); pipeline
+version 2 ships the phases between the early and the delayed one, so the series list has every
+phase too.
+
+## 5. Mammography: left and right, CC and MLO (round 2)
+
+- **Lesion detector: none.** The registry's open mammography models give a score per breast
+  (mammoscreen), a density (MONAI) or a risk (Mirai); detectors trained on VinDr-Mammo carry its
+  restricted licence, Mammo-FM and Mammo-CLIP are non-commercial, and a web check on 2026-10-21
+  found classifiers and code-only detectors with no licensed weights. So mammograms get no lesion
+  candidates, the page says so, and the density opinions stay.
+- **Left-right difference** (`asymmetry`): the right minus the left dense-pixel share per view,
+  asymmetric above 10 points (placeholder); case 926: CC −2.2 points (26% / 28%), MLO +2.7 (32% /
+  29%), neither asymmetric. A map (`asymmetry_map`) crops each breast to its outline, turns the
+  chest wall to the left, resamples both to one grid and thresholds them with one Otsu threshold:
+  red where only the right is dense, blue where only the left is (case 926 CC: 8% and 9% of the
+  grid). It ignores compression, positioning and breast size; not a BI-RADS asymmetry finding.
+- **CC and MLO linked** (`breast_outline`, `nipple_band`): the nipple is the breast's point
+  farthest from the chest-wall edge; the same band behind it (a distance and ±10 mm) is outlined
+  and enlarged on both views of a breast, since a lesion's distance from the nipple is about the
+  same on both. The distance runs along the image rows, which on the MLO view is at an angle to
+  the pectoral muscle: geometry for looking, not a registration of the two views.
+
+## 6. Known failures and limits
 
 - **Where it looks**: lesions behind the cleft-plus-10-mm line (deep, at the chest wall, in the
   axilla or the axillary tail) are never proposed; non-mass enhancement and vessel-like or
@@ -207,24 +365,42 @@ The decoder takes under a second per box. Downloads: about 530 MB in 2 minutes.
   are relative to the first phase, not the injection; Siemens times are nominal.
 - **Display**: 8-bit copies, so window and level act on an already-windowed image; slices are
   downsampled (1.1–1.3 mm per shown pixel) and, for case 937, every second slice is shown.
-- **Prior comparison**: each processed patient has one study date, so the page says no prior
-  exists. 20 of the TCIA patients have two dates (several MRI pairs months apart, e.g.
-  TCGA-AR-A1AQ 2001-11 / 2003-05); none is in the current held-out bundle. A comparison would
-  align by slice index only, say "registration not done" and flag protocol differences first.
-- **Mammography**: no contours (no seed rule for mammograms); the pectoral muscle counts as dense
-  on MLO views; the screening score runs on crops from a threshold mask rather than the authors'
-  crop model, is uncalibrated, and has nothing in this record to be checked against.
+- **Prior comparison**: each bundled patient has one study date, so its page says no prior
+  exists and shows the change view on the public example pair, labeled as another patient.
+- **Change over time** (§3): the alignment is rigid and cannot follow the breast's deformation
+  between exams; the local check marks where it fails, but a wrong pairing can still fall within
+  the 15 mm match distance. Pairing uses each date's own top three candidates, so a lesion
+  outside one date's top three is unpaired, not gone. Phase timing differs between the dates
+  (and phases take minutes on this protocol), so kinetics are not compared across dates. The
+  growth rules are RECIST's sum rules borrowed per candidate (placeholders) and the sum is not a
+  response call.
+- **Reconstructions** (§4): coronal and sagittal views, and the axial view of a sagittal
+  acquisition, interpolate between slices 1.7–3 mm apart.
+- **Mammography**: no contours (no open detector, §5); the pectoral muscle counts as dense on MLO
+  views; the screening score runs on crops from a threshold mask rather than the authors' crop
+  model, is uncalibrated, and has nothing in this record to be checked against; the left-right
+  map ignores compression and positioning.
 
-## 4. Reproducing
+## 7. Reproducing
 
 ```
 python scripts/radiology_pipeline.py fetch TCGA-EW-A1P3:10,11,14,22 TCGA-BH-A0H5:4 TCGA-EW-A1J2:1,2,3,4
+python scripts/radiology_pipeline.py fetch TCGA-BH-A0H6:4 TCGA-BH-A0DE:5 \
+    TCGA-AR-A1AQ@2001-11-21:8 TCGA-AR-A1AQ@2003-05-07:8
 python scripts/radiology_pipeline.py mri --barcode TCGA-EW-A1P3 --index 937 --series 10,11,14,22
 python scripts/radiology_pipeline.py mri --barcode TCGA-BH-A0H5 --index 563 --series 4
+python scripts/radiology_pipeline.py mri --barcode TCGA-BH-A0H6 --index 564 --series 4
+python scripts/radiology_pipeline.py mri --barcode TCGA-BH-A0DE --index 537 --series 5
 python scripts/radiology_pipeline.py mammo --barcode TCGA-EW-A1J2 --index 926 --series 1,2,3,4 --screen
+for d in 2001-11-21 2003-05-07; do
+  python scripts/radiology_pipeline.py mri --barcode TCGA-AR-A1AQ --date $d --series 8 \
+      --out app/workbenches/radiology_example --example --keep ~/muffle-radiology2/work
+done
+python scripts/radiology_pipeline.py pair --earlier TCGA-AR-A1AQ_2001-11-21 --later TCGA-AR-A1AQ_2003-05-07
 python scripts/radiology_pipeline.py index
 ```
 
 Needs `pydicom`, `scikit-image`, `transformers`, `timm` and CPU `torch` (not in the app's
 requirements; `timm` from PyPI pulls a CUDA `torchvision`, so reinstall the CPU build of the
-matching version); the DICOM files stay in `~/muffle-radiology/dicom`, outside the repo.
+matching version); the DICOM files and the pair's full-resolution volumes (`--keep`) stay outside
+the repo (`~/muffle-radiology/dicom`, `~/muffle-radiology2`).

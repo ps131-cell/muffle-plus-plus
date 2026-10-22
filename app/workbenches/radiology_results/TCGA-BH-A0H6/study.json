@@ -1,0 +1,1260 @@
+{
+ "barcode": "TCGA-BH-A0H6",
+ "cohort_index": 564,
+ "modality": "MR",
+ "kind": "Breast MRI (dynamic contrast-enhanced)",
+ "study": {
+  "date": "2002-02-03",
+  "uid_suffix": "337305785463",
+  "description": "MRI BREAST",
+  "scanner": "GE MEDICAL SYSTEMS SIGNA EXCITE",
+  "field_t": 1.5,
+  "contrast": "17    OPTIMARK",
+  "sequence": {
+   "tr_ms": 5.04,
+   "te_ms": 2.428,
+   "flip_deg": 10.0
+  }
+ },
+ "source": {
+  "collection": "TCGA-BRCA radiology (The Cancer Imaging Archive)",
+  "doi": "10.7937/K9/TCIA.2016.AB2NAZRP",
+  "license": "CC BY 3.0",
+  "attribution": "Lingle W, Erickson BJ, Zuley ML, et al. The Cancer Genome Atlas Breast Invasive Carcinoma Collection (TCGA-BRCA), version 3. The Cancer Imaging Archive, 2016. doi:10.7937/K9/TCIA.2016.AB2NAZRP. Downsampled to 8-bit copies here; not the diagnostic originals."
+ },
+ "report": {
+  "procedure": "MRI BREAST",
+  "laterality": "Both breasts",
+  "birads": "6 - Known biopsy proven malignancy",
+  "pathology": "Infiltrating duct carcinoma",
+  "er": "Positive",
+  "pr": "Positive",
+  "her2": "Negative"
+ },
+ "display": {
+  "rows": 170,
+  "cols": 256,
+  "pixel_mm": 1.172,
+  "native": [
+   512,
+   512
+  ],
+  "native_pixel_mm": [
+   0.5859,
+   0.5859
+  ],
+  "crop": "rows 1-341 of 512: up to 30 mm behind the search region's posterior limit (the heart and lungs are cut off)",
+  "slices": 68,
+  "native_slices": 68,
+  "slice_step": 1,
+  "slice_mm": 2.0,
+  "slice_thickness_mm": 2.0,
+  "z_mm": [
+   -42.3,
+   -40.3,
+   -38.3,
+   -36.3,
+   -34.3,
+   -32.3,
+   -30.3,
+   -28.3,
+   -26.3,
+   -24.3,
+   -22.3,
+   -20.3,
+   -18.3,
+   -16.3,
+   -14.3,
+   -12.3,
+   -10.3,
+   -8.3,
+   -6.3,
+   -4.3,
+   -2.3,
+   -0.3,
+   1.7,
+   3.7,
+   5.7,
+   7.7,
+   9.7,
+   11.7,
+   13.7,
+   15.7,
+   17.7,
+   19.7,
+   21.7,
+   23.7,
+   25.7,
+   27.7,
+   29.7,
+   31.7,
+   33.7,
+   35.7,
+   37.7,
+   39.7,
+   41.7,
+   43.7,
+   45.7,
+   47.7,
+   49.7,
+   51.7,
+   53.7,
+   55.7,
+   57.7,
+   59.7,
+   61.7,
+   63.7,
+   65.7,
+   67.7,
+   69.7,
+   71.7,
+   73.7,
+   75.7,
+   77.7,
+   79.7,
+   81.7,
+   83.7,
+   85.7,
+   87.7,
+   89.7,
+   91.7
+  ],
+  "acquisition": {
+   "plane": "axial",
+   "slices": 68,
+   "slice_mm": 2.0,
+   "pixel_mm": [
+    0.5859,
+    0.5859
+   ]
+  },
+  "orientation": "axial; anterior at the top, the patient's right on the image's left",
+  "window": "pre, early and late share one window (0.5th percentile of the pre-contrast to the 99.8th of the early phase inside the breast region); the subtraction has its own",
+  "jpeg_quality": 80
+ },
+ "phases": [
+  {
+   "series": 4,
+   "description": "Ax Vibrant MULTIPHASE",
+   "time_s": 0.0,
+   "time_source": "TriggerTime from the first phase's start; the injection time is not in the headers",
+   "label": "pre-contrast"
+  },
+  {
+   "series": 4,
+   "description": "Ax Vibrant MULTIPHASE",
+   "time_s": 60.8,
+   "time_source": "TriggerTime from the first phase's start; the injection time is not in the headers",
+   "label": "post 1 (61 s)"
+  },
+  {
+   "series": 4,
+   "description": "Ax Vibrant MULTIPHASE",
+   "time_s": 121.7,
+   "time_source": "TriggerTime from the first phase's start; the injection time is not in the headers",
+   "label": "post 2 (122 s)"
+  },
+  {
+   "series": 4,
+   "description": "Ax Vibrant MULTIPHASE",
+   "time_s": 182.5,
+   "time_source": "TriggerTime from the first phase's start; the injection time is not in the headers",
+   "label": "post 3 (182 s)"
+  },
+  {
+   "series": 4,
+   "description": "Ax Vibrant MULTIPHASE",
+   "time_s": 243.3,
+   "time_source": "TriggerTime from the first phase's start; the injection time is not in the headers",
+   "label": "post 4 (243 s)"
+  }
+ ],
+ "shipped": {
+  "pre": 0,
+  "early": 1,
+  "late": 4,
+  "sub": "early minus pre",
+  "between": {
+   "phase2": 2,
+   "phase3": 3
+  }
+ },
+ "region": {
+  "cleft_row": 273,
+  "limit_row": 290,
+  "rule": "inside the body, under the skin and anterior to the intermammary cleft plus a margin (placeholders)",
+  "margin_mm": 10,
+  "limit_row_display": 145.0
+ },
+ "seed": {
+  "threshold": 116.08863611877541,
+  "groups": 5,
+  "proposed": 4,
+  "left_out": {
+   "too small": 0,
+   "vessel-like": 0,
+   "plate-like": 0,
+   "at the chest-wall line": 1
+  },
+  "rule": "subtraction above the breast region's 99.5th percentile, opened with a 1.5 mm ellipsoid and grouped in 3D; small, vessel-like, plate-like and chest-wall-line groups left out; ranked by summed enhancement"
+ },
+ "candidates": [
+  {
+   "id": "C1",
+   "rank": 1,
+   "evidence": "model inference",
+   "seed": {
+    "seed_mm3": 331.6,
+    "mean_sub": 283.52991469013364,
+    "peak_sub": 536.8321386491068,
+    "elongation": 1.14,
+    "score": 136944.94879533455,
+    "bbox": [
+     42,
+     47,
+     161,
+     177,
+     124,
+     140
+    ]
+   },
+   "slices": [
+    42,
+    46
+   ],
+   "medsam_slices": 5,
+   "unsure_slices": [
+    42
+   ],
+   "longest_diameter_mm": 15.5,
+   "ld_slice": 44,
+   "ld_plane": "axial",
+   "ld_uncertainty_mm": 0.59,
+   "cc_extent_mm": 10.0,
+   "volume_ml": 1.01,
+   "volume_range_ml": [
+    0.81,
+    1.22
+   ],
+   "volume_sure_ml": 0.84,
+   "ld_from": "4 of 5 slices where the contour stayed inside its box",
+   "centroid_mm": [
+    87.7,
+    98.7,
+    77.2
+   ],
+   "side": "patient's right",
+   "signal": [
+    240.7,
+    374.1,
+    414.0,
+    450.4,
+    445.3
+   ],
+   "kinetics": {
+    "initial_pct": 55.4,
+    "initial": "medium",
+    "peak_phase": 1,
+    "delayed_pct": 19.0,
+    "delayed": "persistent",
+    "curve_type": "I",
+    "relative": [
+     0.0,
+     55.4,
+     72.0,
+     87.1,
+     85.0
+    ],
+    "labels": [
+     "pre-contrast",
+     "post 1 (61 s)",
+     "post 2 (122 s)",
+     "post 3 (182 s)",
+     "post 4 (243 s)"
+    ],
+    "times_s": [
+     0.0,
+     60.8,
+     121.7,
+     182.5,
+     243.3
+    ],
+    "evidence": "model inference",
+    "sources": [
+     "ACR BI-RADS Atlas, MRI lexicon (5th edition, 2013): kinetic curve assessment",
+     "Kuhl et al., Radiology 1999, doi:10.1148/radiology.211.1.r99ap38101 (curve types I persistent, II plateau, III washout)"
+    ],
+    "status": "implemented; cutoffs literature, placeholder until calibrated",
+    "caveat": "mean signal inside the model's contour; the curve shape is suggestive, not a diagnosis"
+   },
+   "per_slice": {
+    "42": {
+     "z": 42,
+     "box": [
+      62.5,
+      81.5,
+      68.5,
+      87.0
+     ],
+     "contours": [
+      [
+       [
+        68.0,
+        89.2
+       ],
+       [
+        64.5,
+        89.2
+       ],
+       [
+        63.0,
+        87.8
+       ],
+       [
+        62.2,
+        87.5
+       ],
+       [
+        62.2,
+        86.5
+       ],
+       [
+        61.8,
+        86.0
+       ],
+       [
+        61.8,
+        84.0
+       ],
+       [
+        61.2,
+        83.5
+       ],
+       [
+        61.2,
+        82.0
+       ],
+       [
+        60.2,
+        81.0
+       ],
+       [
+        60.2,
+        80.5
+       ],
+       [
+        61.0,
+        79.8
+       ],
+       [
+        62.0,
+        80.2
+       ],
+       [
+        62.5,
+        79.8
+       ],
+       [
+        65.0,
+        79.2
+       ],
+       [
+        67.8,
+        81.0
+       ],
+       [
+        67.2,
+        82.5
+       ],
+       [
+        68.8,
+        84.0
+       ],
+       [
+        68.8,
+        86.0
+       ],
+       [
+        68.2,
+        86.5
+       ],
+       [
+        69.2,
+        88.0
+       ],
+       [
+        69.2,
+        88.5
+       ],
+       [
+        68.0,
+        89.2
+       ]
+      ]
+     ],
+     "ld_mm": 13.7,
+     "ld_line": [
+      [
+       61.0,
+       80.0
+      ],
+      [
+       69.0,
+       88.5
+      ]
+     ],
+     "area_mm2": 84.4,
+     "unsure": true
+    },
+    "43": {
+     "z": 43,
+     "box": [
+      61.0,
+      80.0,
+      70.0,
+      88.5
+     ],
+     "contours": [
+      [
+       [
+        69.0,
+        89.8
+       ],
+       [
+        66.5,
+        89.8
+       ],
+       [
+        64.8,
+        88.0
+       ],
+       [
+        64.5,
+        86.8
+       ],
+       [
+        63.0,
+        87.2
+       ],
+       [
+        61.8,
+        86.0
+       ],
+       [
+        61.2,
+        84.0
+       ],
+       [
+        60.8,
+        83.5
+       ],
+       [
+        61.0,
+        80.2
+       ],
+       [
+        62.5,
+        80.2
+       ],
+       [
+        63.0,
+        79.8
+       ],
+       [
+        68.0,
+        79.8
+       ],
+       [
+        69.8,
+        81.0
+       ],
+       [
+        69.8,
+        82.5
+       ],
+       [
+        71.2,
+        84.0
+       ],
+       [
+        71.8,
+        87.0
+       ],
+       [
+        71.2,
+        87.5
+       ],
+       [
+        71.2,
+        88.5
+       ],
+       [
+        69.0,
+        89.8
+       ]
+      ]
+     ],
+     "ld_mm": 15.0,
+     "ld_line": [
+      [
+       61.0,
+       80.5
+      ],
+      [
+       71.0,
+       88.5
+      ]
+     ],
+     "area_mm2": 111.9,
+     "unsure": false
+    },
+    "44": {
+     "z": 44,
+     "box": [
+      61.0,
+      79.5,
+      70.5,
+      89.0
+     ],
+     "contours": [
+      [
+       [
+        67.5,
+        90.2
+       ],
+       [
+        66.5,
+        89.8
+       ],
+       [
+        65.5,
+        90.2
+       ],
+       [
+        65.0,
+        89.8
+       ],
+       [
+        63.5,
+        89.8
+       ],
+       [
+        62.5,
+        88.2
+       ],
+       [
+        60.5,
+        87.8
+       ],
+       [
+        59.8,
+        87.0
+       ],
+       [
+        59.8,
+        85.5
+       ],
+       [
+        59.2,
+        85.0
+       ],
+       [
+        59.2,
+        81.5
+       ],
+       [
+        60.5,
+        79.8
+       ],
+       [
+        64.0,
+        79.8
+       ],
+       [
+        64.5,
+        79.2
+       ],
+       [
+        67.0,
+        79.2
+       ],
+       [
+        67.5,
+        79.8
+       ],
+       [
+        69.8,
+        80.0
+       ],
+       [
+        69.8,
+        81.0
+       ],
+       [
+        71.8,
+        83.0
+       ],
+       [
+        71.8,
+        87.0
+       ],
+       [
+        70.0,
+        88.8
+       ],
+       [
+        69.5,
+        88.8
+       ],
+       [
+        67.5,
+        90.2
+       ]
+      ]
+     ],
+     "ld_mm": 15.5,
+     "ld_line": [
+      [
+       60.0,
+       80.5
+      ],
+      [
+       71.5,
+       87.0
+      ]
+     ],
+     "area_mm2": 150.0,
+     "unsure": false
+    },
+    "45": {
+     "z": 45,
+     "box": [
+      62.5,
+      80.5,
+      70.0,
+      88.5
+     ],
+     "contours": [
+      [
+       [
+        67.0,
+        90.2
+       ],
+       [
+        66.0,
+        89.2
+       ],
+       [
+        64.5,
+        88.8
+       ],
+       [
+        64.2,
+        88.0
+       ],
+       [
+        62.8,
+        87.0
+       ],
+       [
+        62.8,
+        86.5
+       ],
+       [
+        60.8,
+        84.0
+       ],
+       [
+        60.8,
+        82.5
+       ],
+       [
+        61.8,
+        80.5
+       ],
+       [
+        63.0,
+        79.8
+       ],
+       [
+        64.5,
+        79.8
+       ],
+       [
+        65.0,
+        79.2
+       ],
+       [
+        67.5,
+        79.2
+       ],
+       [
+        68.0,
+        79.8
+       ],
+       [
+        71.0,
+        79.8
+       ],
+       [
+        71.8,
+        80.5
+       ],
+       [
+        71.8,
+        87.0
+       ],
+       [
+        71.0,
+        87.8
+       ],
+       [
+        69.5,
+        87.8
+       ],
+       [
+        69.0,
+        88.2
+       ],
+       [
+        68.5,
+        87.8
+       ],
+       [
+        67.8,
+        88.5
+       ],
+       [
+        67.8,
+        89.5
+       ],
+       [
+        67.0,
+        90.2
+       ]
+      ]
+     ],
+     "ld_mm": 13.5,
+     "ld_line": [
+      [
+       62.0,
+       80.5
+      ],
+      [
+       71.5,
+       87.0
+      ]
+     ],
+     "area_mm2": 120.1,
+     "unsure": false
+    },
+    "46": {
+     "z": 46,
+     "box": [
+      64.0,
+      82.0,
+      68.5,
+      87.0
+     ],
+     "contours": [
+      [
+       [
+        65.5,
+        86.8
+       ],
+       [
+        65.0,
+        86.8
+       ],
+       [
+        63.2,
+        85.0
+       ],
+       [
+        63.2,
+        82.0
+       ],
+       [
+        63.8,
+        81.5
+       ],
+       [
+        64.0,
+        79.8
+       ],
+       [
+        67.0,
+        79.8
+       ],
+       [
+        67.8,
+        80.5
+       ],
+       [
+        67.8,
+        85.5
+       ],
+       [
+        65.5,
+        86.8
+       ]
+      ]
+     ],
+     "ld_mm": 8.0,
+     "ld_line": [
+      [
+       67.0,
+       80.0
+      ],
+      [
+       65.0,
+       86.5
+      ]
+     ],
+     "area_mm2": 37.4,
+     "unsure": false
+    }
+   }
+  },
+  {
+   "id": "C2",
+   "rank": 2,
+   "evidence": "model inference",
+   "seed": {
+    "seed_mm3": 37.1,
+    "mean_sub": 201.72291280724696,
+    "peak_sub": 326.5010310828447,
+    "elongation": 1.2,
+    "score": 10893.037291591336,
+    "bbox": [
+     42,
+     45,
+     227,
+     236,
+     180,
+     188
+    ]
+   },
+   "slices": [
+    42,
+    44
+   ],
+   "medsam_slices": 3,
+   "unsure_slices": [
+    42,
+    44
+   ],
+   "longest_diameter_mm": 10.9,
+   "ld_slice": 43,
+   "ld_plane": "axial",
+   "ld_uncertainty_mm": 0.59,
+   "cc_extent_mm": 2.0,
+   "volume_ml": 0.12,
+   "volume_range_ml": [
+    0.09,
+    0.15
+   ],
+   "volume_sure_ml": 0.12,
+   "ld_from": "1 of 3 slices where the contour stayed inside its box",
+   "centroid_mm": [
+    86.0,
+    133.9,
+    110.2
+   ],
+   "side": "patient's right",
+   "signal": [
+    142.1,
+    240.1,
+    309.3,
+    318.0,
+    287.5
+   ],
+   "kinetics": {
+    "initial_pct": 68.9,
+    "initial": "medium",
+    "peak_phase": 1,
+    "delayed_pct": 19.8,
+    "delayed": "persistent",
+    "curve_type": "I",
+    "relative": [
+     0.0,
+     68.9,
+     117.6,
+     123.7,
+     102.3
+    ],
+    "labels": [
+     "pre-contrast",
+     "post 1 (61 s)",
+     "post 2 (122 s)",
+     "post 3 (182 s)",
+     "post 4 (243 s)"
+    ],
+    "times_s": [
+     0.0,
+     60.8,
+     121.7,
+     182.5,
+     243.3
+    ],
+    "evidence": "model inference",
+    "sources": [
+     "ACR BI-RADS Atlas, MRI lexicon (5th edition, 2013): kinetic curve assessment",
+     "Kuhl et al., Radiology 1999, doi:10.1148/radiology.211.1.r99ap38101 (curve types I persistent, II plateau, III washout)"
+    ],
+    "status": "implemented; cutoffs literature, placeholder until calibrated",
+    "caveat": "mean signal inside the model's contour; the curve shape is suggestive, not a diagnosis"
+   },
+   "per_slice": {
+    "42": {
+     "z": 42,
+     "box": [
+      90.5,
+      114.0,
+      93.0,
+      117.0
+     ],
+     "contours": [],
+     "ld_mm": 0.0,
+     "ld_line": [],
+     "area_mm2": 0.0,
+     "unsure": true
+    },
+    "43": {
+     "z": 43,
+     "box": [
+      89.0,
+      112.5,
+      94.5,
+      118.5
+     ],
+     "contours": [
+      [
+       [
+        95.0,
+        119.2
+       ],
+       [
+        93.5,
+        119.2
+       ],
+       [
+        92.8,
+        117.0
+       ],
+       [
+        90.2,
+        115.0
+       ],
+       [
+        90.8,
+        114.5
+       ],
+       [
+        90.8,
+        112.5
+       ],
+       [
+        91.8,
+        111.5
+       ],
+       [
+        91.8,
+        110.5
+       ],
+       [
+        92.5,
+        109.8
+       ],
+       [
+        93.5,
+        109.8
+       ],
+       [
+        96.0,
+        111.8
+       ],
+       [
+        97.0,
+        111.8
+       ],
+       [
+        97.8,
+        113.0
+       ],
+       [
+        97.2,
+        114.0
+       ],
+       [
+        97.2,
+        115.5
+       ],
+       [
+        95.8,
+        117.0
+       ],
+       [
+        95.8,
+        118.0
+       ],
+       [
+        95.0,
+        119.2
+       ]
+      ]
+     ],
+     "ld_mm": 10.9,
+     "ld_line": [
+      [
+       92.5,
+       110.0
+      ],
+      [
+       95.0,
+       119.0
+      ]
+     ],
+     "area_mm2": 59.0,
+     "unsure": false
+    },
+    "44": {
+     "z": 44,
+     "box": [
+      90.5,
+      114.0,
+      93.0,
+      117.0
+     ],
+     "contours": [],
+     "ld_mm": 0.0,
+     "ld_line": [],
+     "area_mm2": 0.0,
+     "unsure": true
+    }
+   }
+  },
+  {
+   "id": "C3",
+   "rank": 3,
+   "evidence": "model inference",
+   "seed": {
+    "seed_mm3": 34.3,
+    "mean_sub": 205.12566842789332,
+    "peak_sub": 332.4665247599464,
+    "elongation": 1.28,
+    "score": 10256.283421394666,
+    "bbox": [
+     46,
+     49,
+     280,
+     288,
+     186,
+     195
+    ]
+   },
+   "slices": [
+    46,
+    48
+   ],
+   "medsam_slices": 3,
+   "unsure_slices": [
+    46,
+    48
+   ],
+   "longest_diameter_mm": 8.3,
+   "ld_slice": 47,
+   "ld_plane": "axial",
+   "ld_uncertainty_mm": 0.59,
+   "cc_extent_mm": 2.0,
+   "volume_ml": 0.07,
+   "volume_range_ml": [
+    0.05,
+    0.09
+   ],
+   "volume_sure_ml": 0.07,
+   "ld_from": "1 of 3 slices where the contour stayed inside its box",
+   "centroid_mm": [
+    94.0,
+    166.5,
+    112.1
+   ],
+   "side": "patient's right",
+   "signal": [
+    252.7,
+    478.1,
+    614.3,
+    660.4,
+    624.4
+   ],
+   "kinetics": {
+    "initial_pct": 89.2,
+    "initial": "medium",
+    "peak_phase": 1,
+    "delayed_pct": 30.6,
+    "delayed": "persistent",
+    "curve_type": "I",
+    "relative": [
+     0.0,
+     89.2,
+     143.1,
+     161.4,
+     147.1
+    ],
+    "labels": [
+     "pre-contrast",
+     "post 1 (61 s)",
+     "post 2 (122 s)",
+     "post 3 (182 s)",
+     "post 4 (243 s)"
+    ],
+    "times_s": [
+     0.0,
+     60.8,
+     121.7,
+     182.5,
+     243.3
+    ],
+    "evidence": "model inference",
+    "sources": [
+     "ACR BI-RADS Atlas, MRI lexicon (5th edition, 2013): kinetic curve assessment",
+     "Kuhl et al., Radiology 1999, doi:10.1148/radiology.211.1.r99ap38101 (curve types I persistent, II plateau, III washout)"
+    ],
+    "status": "implemented; cutoffs literature, placeholder until calibrated",
+    "caveat": "mean signal inside the model's contour; the curve shape is suggestive, not a diagnosis"
+   },
+   "per_slice": {
+    "46": {
+     "z": 46,
+     "box": [
+      93.5,
+      140.5,
+      96.5,
+      143.0
+     ],
+     "contours": [],
+     "ld_mm": 0.0,
+     "ld_line": [],
+     "area_mm2": 0.0,
+     "unsure": true
+    },
+    "47": {
+     "z": 47,
+     "box": [
+      92.0,
+      139.0,
+      98.0,
+      144.5
+     ],
+     "contours": [
+      [
+       [
+        95.5,
+        145.8
+       ],
+       [
+        95.0,
+        145.8
+       ],
+       [
+        93.2,
+        144.0
+       ],
+       [
+        93.2,
+        143.0
+       ],
+       [
+        93.8,
+        142.5
+       ],
+       [
+        93.8,
+        140.0
+       ],
+       [
+        95.0,
+        138.2
+       ],
+       [
+        96.0,
+        138.2
+       ],
+       [
+        96.2,
+        139.0
+       ],
+       [
+        97.8,
+        140.0
+       ],
+       [
+        97.8,
+        141.5
+       ],
+       [
+        98.2,
+        142.0
+       ],
+       [
+        98.2,
+        143.5
+       ],
+       [
+        97.5,
+        143.8
+       ],
+       [
+        95.5,
+        145.8
+       ]
+      ]
+     ],
+     "ld_mm": 8.3,
+     "ld_line": [
+      [
+       96.0,
+       138.5
+      ],
+      [
+       95.0,
+       145.5
+      ]
+     ],
+     "area_mm2": 34.7,
+     "unsure": false
+    },
+    "48": {
+     "z": 48,
+     "box": [
+      93.5,
+      140.5,
+      96.5,
+      143.0
+     ],
+     "contours": [],
+     "ld_mm": 0.0,
+     "ld_line": [],
+     "area_mm2": 0.0,
+     "unsure": true
+    }
+   }
+  }
+ ],
+ "medsam": {
+  "model": "wanglab/medsam-vit-base",
+  "revision": "de8488bca37bb1d4fb190f612c516126d739ce3b",
+  "input": "sub",
+  "plane": "axial",
+  "slices": 7,
+  "seconds_per_slice": 55.6,
+  "seconds_total": 405.0,
+  "threads": 4,
+  "uptime": "22:43:52 up 59 min,  1 user,  load average: 18.77, 18.38, 15.07"
+ },
+ "pipeline": {
+  "script": "scripts/radiology_pipeline.py mri",
+  "version": "2",
+  "run_at": "2026-10-22 03:43 UTC"
+ }
+}

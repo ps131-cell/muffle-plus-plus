@@ -9,7 +9,12 @@
   "description": "BREAST MRI",
   "scanner": "GE MEDICAL SYSTEMS SIGNA EXCITE",
   "field_t": 1.5,
-  "contrast": "16    OPTIMARK"
+  "contrast": "16    OPTIMARK",
+  "sequence": {
+   "tr_ms": 5.048,
+   "te_ms": 2.452,
+   "flip_deg": 10.0
+  }
  },
  "source": {
   "collection": "TCGA-BRCA radiology (The Cancer Imaging Archive)",
@@ -135,6 +140,15 @@
    102.1,
    104.1
   ],
+  "acquisition": {
+   "plane": "axial",
+   "slices": 90,
+   "slice_mm": 2.0,
+   "pixel_mm": [
+    0.5664,
+    0.5664
+   ]
+  },
   "orientation": "axial; anterior at the top, the patient's right on the image's left",
   "window": "pre, early and late share one window (0.5th percentile of the pre-contrast to the 99.8th of the early phase inside the breast region); the subtraction has its own",
   "jpeg_quality": 80
@@ -180,7 +194,11 @@
   "pre": 0,
   "early": 1,
   "late": 4,
-  "sub": "early minus pre"
+  "sub": "early minus pre",
+  "between": {
+   "phase2": 2,
+   "phase3": 3
+  }
  },
  "region": {
   "cleft_row": 336,
@@ -229,6 +247,7 @@
    "unsure_slices": [],
    "longest_diameter_mm": 18.8,
    "ld_slice": 41,
+   "ld_plane": "axial",
    "ld_uncertainty_mm": 0.57,
    "cc_extent_mm": 20.0,
    "volume_ml": 2.49,
@@ -1432,8 +1451,9 @@
    ],
    "longest_diameter_mm": 20.0,
    "ld_slice": 42,
+   "ld_plane": "axial",
    "ld_uncertainty_mm": 0.57,
-   "cc_extent_mm": 22.0,
+   "cc_extent_mm": 18.0,
    "volume_ml": 1.83,
    "volume_range_ml": [
     1.47,
@@ -2546,6 +2566,7 @@
    "unsure_slices": [],
    "longest_diameter_mm": 19.8,
    "ld_slice": 44,
+   "ld_plane": "axial",
    "ld_uncertainty_mm": 0.57,
    "cc_extent_mm": 12.0,
    "volume_ml": 0.99,
@@ -3172,15 +3193,16 @@
   "model": "wanglab/medsam-vit-base",
   "revision": "de8488bca37bb1d4fb190f612c516126d739ce3b",
   "input": "sub",
+  "plane": "axial",
   "slices": 13,
-  "seconds_per_slice": 12.3,
-  "seconds_total": 164.0,
+  "seconds_per_slice": 45.9,
+  "seconds_total": 634.0,
   "threads": 4,
-  "uptime": "14:07:40 up  1:30,  1 user,  load average: 8.75, 10.58, 9.69"
+  "uptime": "23:16:03 up  1:31,  1 user,  load average: 12.20, 16.98, 18.53"
  },
  "pipeline": {
   "script": "scripts/radiology_pipeline.py mri",
-  "version": "1",
-  "run_at": "2026-10-20 19:07 UTC"
+  "version": "2",
+  "run_at": "2026-10-22 04:16 UTC"
  }
 }

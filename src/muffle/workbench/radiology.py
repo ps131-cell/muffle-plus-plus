@@ -75,24 +75,62 @@ CUTOFFS = {
                        "authors' inference code"),
     "dense_threshold": ("Otsu", PLACEHOLDER, "mammography dense pixels: above an Otsu threshold "
                         "inside the breast; a pixel share, not a BI-RADS density category"),
+    # change over time (round 2)
+    "register_grid_mm": ("4 then 2", DESIGN, "the rigid alignment runs on 4 mm, then 2 mm voxels "
+                         "of the two pre-contrast volumes"),
+    "residual_search_mm": (10, DESIGN, "the local check searches shifts up to 10 mm (4 mm "
+                           "steps, then 2 mm around the best) for a 40 mm cube (30 mm on the "
+                           "block grid); a best shift at the search's edge counts as unreliable"),
+    "residual_unreliable_mm": (5, PLACEHOLDER, "where the local check finds the aligned studies "
+                               "still more than 5 mm apart, the comparison says unreliable here"),
+    "residual_min_ncc": (0.5, PLACEHOLDER, "where the best local correlation of the two aligned "
+                         "studies stays below 0.5 (no shared structure), unreliable here too"),
+    "match_mm": (15, PLACEHOLDER, "a candidate on one date is the same lesion as the nearest "
+                 "candidate on the other within 15 mm, after alignment"),
+    "grew_pct": (20, PLACEHOLDER, "a candidate grew when its longest diameter rose at least 20% "
+                 "and 5 mm (RECIST 1.1's rule for a sum of diameters, Eisenhauer et al., Eur J "
+                 "Cancer 2009, doi:10.1016/j.ejca.2008.10.026, borrowed per candidate)"),
+    "grew_mm": (5, PLACEHOLDER, "the absolute part of the growth rule (same source)"),
+    "shrank_pct": (30, PLACEHOLDER, "a candidate shrank when its longest diameter fell at least "
+                   "30% (RECIST 1.1's rule for a sum, borrowed per candidate)"),
+    "measurable_mm": (10, "guideline", "RECIST 1.1: a measurable lesion is at least 10 mm; the "
+                      "computed sum takes candidates this size on the earlier date"),
+    "targets_per_organ": (2, "guideline", "RECIST 1.1: at most two target lesions per organ; the "
+                          "breasts counted as one organ here"),
+    "asymmetry_points": (10, PLACEHOLDER, "mammography: a left-right difference in dense-pixel "
+                         "share above 10 points is shown as asymmetric"),
 }
 
 # every value nobody has validated yet, as (what, value) for the Methods page's one table
 PLACEHOLDERS = [(k, f"{v} ({note})") for k, (v, tag, note) in CUTOFFS.items() if tag != DESIGN]
 
-# what the workbench gets wrong, as far as it has been seen (docs/radiology.md §3)
+# what the workbench gets wrong, as far as it has been seen (docs/radiology.md §6)
 KNOWN_FAILURES = [
     "Lesions behind the cleft-plus-margin line (deep, at the chest wall, in the axilla) are never "
     "proposed; non-mass enhancement and vessel-like or plate-like shapes are left out by the "
     "shape rules; foci under about 4 mm vanish in the opening.",
     "The seed rule ranks brightness × size: background enhancement can outrank a small cancer, "
     "and a chest-wall strip (case 563, C2) and a vessel segment (case 937, C3) made the top three.",
-    "MedSAM is not validated on breast MRI here; a narrow box makes it overshoot (flagged unsure "
-    "on the page).",
+    "MedSAM is not validated on breast MRI here; its contour runs past a narrow box (flagged "
+    "unsure on the page): case 537's C1 and C2 on 12 of 13 slices, so their sizes rest on unsure "
+    "contours.",
     "Kinetics are a mean inside a contour that mixes enhancing and non-enhancing parts; GE phase "
     "times count from the first phase, not the injection, and Siemens times are nominal.",
     "The mammography screening score moves with the crop (right breast 0.42 or 0.37 for two "
     "crops of the same views) and nothing in the record can check it.",
+    "Change over time: the alignment is rigid, so it cannot follow the breast's own deformation "
+    "between exams (positioning in the coil, compression, weight); where the local check finds "
+    "the studies still apart the comparison says unreliable here, but a wrong pairing can stay "
+    "within the 15 mm match distance.",
+    "Candidates are paired across dates from each date's own top three: a lesion outside one "
+    "date's top three is unpaired, which is not the same as gone or new.",
+    "The sagittal and coronal views, and the axial view of a sagittal acquisition, are "
+    "resampled from slices 1.7–3 mm apart: detail along the slice direction is interpolated.",
+    "Phase timing differs between studies and scanners (the example pair's phases start 168–210 s "
+    "apart and take minutes each), so kinetics are not compared across dates.",
+    "Mammography: no lesion detector (none open, permissive and CPU-ready was found); the "
+    "left-right map compares outline-normalised breasts and ignores compression and "
+    "positioning.",
 ]
 
 # The import's distant sites, and the local and regional ones the lesion table tracks too: a new
@@ -423,6 +461,565 @@ def dense_fraction(image: np.ndarray, background: float) -> dict:
             "status": "implemented, placeholder rule", "source": CUTOFFS["dense_threshold"][2]}
 
 
+# --- change over time: rigid alignment of two studies ----------------------------------------
+REGISTRATION = ("rigid alignment (three rotations and three shifts) of the earlier study's "
+                "pre-contrast volume onto the later one's, maximising normalised mutual "
+                "information (Studholme et al., Pattern Recognit 1999, "
+                "doi:10.1016/S0031-3203(98)00091-0) with Powell's method on 4 mm, then 2 mm "
+                "voxels (scipy); started from the two bodies' centres of mass")
+
+
+def rigid_matrix(params) -> np.ndarray:
+    """The rotation of ``params`` (degrees about the Z, Y and X axes, applied X first) as a 3×3
+    matrix over (Z, Y, X) coordinates in mm."""
+    out = np.eye(3)
+    for axis, deg in zip((0, 1, 2), params[:3], strict=True):  # Z, then Y, then X
+        a, b = [k for k in range(3) if k != axis]
+        r = np.eye(3)
+        c, s = np.cos(np.radians(deg)), np.sin(np.radians(deg))
+        r[a, a], r[a, b], r[b, a], r[b, b] = c, -s, s, c
+        out = out @ r
+    return out
+
+
+def map_points(points_mm, transform: dict, inverse: bool = False) -> np.ndarray:
+    """Points (N×3, Z Y X mm) of the later study's frame into the earlier one's (q = R(p − c) +
+    c + t), or back with ``inverse``."""
+    p = np.atleast_2d(np.asarray(points_mm, float))
+    r, c, t = (np.asarray(transform[k], float) for k in ("matrix", "center_mm", "shift_mm"))
+    if inverse:
+        return (p - c - t) @ r + c  # R⁻¹ = Rᵀ
+    return (p - c) @ r.T + c + t
+
+
+def _sample(vol: np.ndarray, spacing, points_mm: np.ndarray, order: int = 1) -> np.ndarray:
+    """``vol`` at points in its own frame (index × spacing, mm); NaN outside the volume."""
+    from scipy import ndimage
+
+    idx = (points_mm / np.asarray(spacing, float)).T
+    inside = np.all((idx >= 0) & (idx <= np.array(vol.shape)[:, None] - 1), axis=0)
+    out = np.full(points_mm.shape[0], np.nan)
+    out[inside] = ndimage.map_coordinates(vol, idx[:, inside], order=order, mode="nearest")
+    return out
+
+
+def _nmi(a: np.ndarray, b: np.ndarray, bins: int = 32) -> float:
+    """Normalised mutual information (H(A) + H(B)) / H(A, B) of two samples."""
+    def binned(x):
+        edges = np.percentile(x, np.linspace(0, 100, bins + 1)[1:-1])
+        return np.searchsorted(edges, x)
+
+    joint = np.bincount(binned(a) * bins + binned(b), minlength=bins * bins) / a.size
+    pa, pb = joint.reshape(bins, bins).sum(1), joint.reshape(bins, bins).sum(0)
+
+    def h(p):
+        p = p[p > 0]
+        return float(-(p * np.log(p)).sum())
+
+    return (h(pa) + h(pb)) / max(h(joint), 1e-12)
+
+
+def _ncc(a: np.ndarray, b: np.ndarray) -> float:
+    ok = ~(np.isnan(a) | np.isnan(b))
+    if ok.sum() < 10:
+        return float("nan")
+    a, b = a[ok] - a[ok].mean(), b[ok] - b[ok].mean()
+    return float((a * b).sum() / max(np.sqrt((a * a).sum() * (b * b).sum()), 1e-12))
+
+
+def _tissue_centre(vol: np.ndarray, spacing) -> np.ndarray:
+    from scipy import ndimage
+
+    return np.array(ndimage.center_of_mass(vol > 0.2 * np.percentile(vol, 99))) * \
+        np.asarray(spacing, float)
+
+
+def register(fixed: np.ndarray, moving: np.ndarray, spacing_f, spacing_m,
+             mask: np.ndarray | None = None) -> dict:
+    """Rigid alignment of ``moving`` (the earlier study) onto ``fixed`` (the later one), both
+    [Z, Y, X] with their own spacing in mm (``REGISTRATION``). ``mask`` (fixed's shape) limits
+    the voxels that count, e.g. the breasts and the air in front of them. Returns the transform
+    (``map_points``: later frame -> earlier frame) and the similarity before and after."""
+    import time
+
+    from scipy import ndimage, optimize
+
+    start = time.time()
+    rng = np.random.default_rng(0)
+    center = _tissue_centre(fixed, spacing_f)
+    x0 = x = np.r_[0.0, 0.0, 0.0, _tissue_centre(moving, spacing_m) - center]
+    evaluations = 0
+    for grid in (4.0, 2.0):
+        extent = (np.array(fixed.shape) - 1) * np.asarray(spacing_f, float)
+        pts = np.stack(np.meshgrid(*[np.arange(0, e + 1e-6, grid) for e in extent],
+                                   indexing="ij"), -1).reshape(-1, 3)
+        if mask is not None:
+            pts = pts[_sample(mask.astype(np.float32), spacing_f, pts, order=0) > 0.5]
+        if len(pts) > 200_000:  # a fixed random sample of the voxels, as Mattes et al. do
+            pts = pts[rng.choice(len(pts), 200_000, replace=False)]
+
+        def smooth(v, sp, grid=grid):
+            return ndimage.gaussian_filter(v.astype(np.float32),
+                                           [max(0.0, grid / (2 * s) - 0.5) for s in sp])
+
+        vals, m = _sample(smooth(fixed, spacing_f), spacing_f, pts), smooth(moving, spacing_m)
+
+        def cost(p, pts=pts, vals=vals, m=m):
+            nonlocal evaluations
+            evaluations += 1
+            t = {"matrix": rigid_matrix(p), "center_mm": center, "shift_mm": p[3:]}
+            got = _sample(m, spacing_m, map_points(pts, t))
+            ok = ~np.isnan(got)
+            if ok.mean() < 0.5:  # most of the fixed voxels fall outside the moving volume
+                return 0.0
+            return -_nmi(vals[ok], got[ok])
+
+        x = optimize.minimize(cost, x, method="Powell",
+                              options={"xtol": 1e-2, "ftol": 1e-5, "maxfev": 3000}).x
+    return {"method": REGISTRATION, "angles_deg": [round(float(v), 2) for v in x[:3]],
+            "shift_mm": [round(float(v), 2) for v in x[3:]],
+            "matrix": rigid_matrix(x).round(6).tolist(),
+            "center_mm": [round(float(v), 2) for v in center],
+            "nmi_start": round(-cost(x0), 4), "nmi_after": round(-cost(x), 4),
+            "evaluations": evaluations, "seconds": round(time.time() - start, 1)}
+
+
+def local_residual(fixed: np.ndarray, moving: np.ndarray, spacing_f, spacing_m,
+                   transform: dict, at_mm, half_mm: float = 20.0) -> dict:
+    """How far off the rigid alignment still is at one place of the later study: the shift (4 mm
+    steps, then 2 mm, up to ``residual_search_mm``) that best matches a ``half_mm`` cube of the
+    later study to the aligned earlier one, by normalised cross-correlation. Above
+    ``residual_unreliable_mm``, or with the best correlation under ``residual_min_ncc``, the
+    comparison is unreliable here."""
+    step, search = 2.0, CUTOFFS["residual_search_mm"][0]
+    g = np.arange(-half_mm, half_mm + step / 2, step)
+    cube = np.stack(np.meshgrid(g, g, g, indexing="ij"), -1).reshape(-1, 3) + \
+        np.asarray(at_mm, float)
+    a = _sample(fixed.astype(np.float32), spacing_f, cube)
+    if np.nanstd(a) < 1e-6 or np.isnan(a).mean() > 0.5:
+        return {"at_mm": [round(float(v), 1) for v in at_mm], "shift_mm": None,
+                "residual_mm": None, "ncc_aligned": None, "ncc_best": None,
+                "reliable": False, "why": "outside the later study or no structure to match"}
+    m = moving.astype(np.float32)
+    seen = {}
+
+    def score(shift) -> float:
+        key = tuple(float(v) for v in shift)
+        if key not in seen:
+            seen[key] = _ncc(a, _sample(m, spacing_m, map_points(cube + shift, transform)))
+        return seen[key]
+
+    # 4 mm steps over the search, then 2 mm steps around the best (about 150 shifts, not 1,331)
+    coarse = np.arange(-2 * step * (search // (2 * step)), search + step / 2, 2 * step)
+    grid = np.stack(np.meshgrid(coarse, coarse, coarse, indexing="ij"), -1).reshape(-1, 3)
+    centre = max(grid, key=score)
+    fine = np.stack(np.meshgrid(*[np.clip(c + np.array([-step, 0, step]), -search, search)
+                                  for c in centre], indexing="ij"), -1).reshape(-1, 3)
+    shift = np.array(max(fine, key=score), float)
+    best, ncc0 = (score(shift), None), score(np.zeros(3))
+    residual = float(np.linalg.norm(shift))
+    edge = bool(np.abs(shift).max() >= search)  # the best shift is at the search's edge
+    reliable = residual <= CUTOFFS["residual_unreliable_mm"][0] and \
+        best[0] >= CUTOFFS["residual_min_ncc"][0] and not edge
+    why = "" if reliable else (
+        f"the studies are still {'at least ' if edge else ''}{residual:.0f} mm apart here"
+        if residual > CUTOFFS["residual_unreliable_mm"][0] or edge else
+        f"little shared structure here (best correlation {best[0]:.2f})")
+    return {"at_mm": [round(float(v), 1) for v in at_mm], "shift_mm": shift.tolist(),
+            "residual_mm": round(residual, 1), "at_search_edge": edge,
+            "ncc_aligned": round(float(ncc0), 3), "ncc_best": round(float(best[0]), 3),
+            "reliable": bool(reliable), "why": why}
+
+
+# --- change over time: the same lesion on two dates -------------------------------------------
+def match_candidates(earlier: list[dict], later: list[dict], transform: dict,
+                     residuals: dict | None = None) -> list[dict]:
+    """Pairs of candidates that are the same place on both dates: each later candidate's
+    centroid mapped into the earlier frame (with its local residual's shift when there is one),
+    paired with the nearest earlier candidate within ``match_mm``, nearest pairs first. Unpaired
+    candidates come back with the other side None: not proposed on that date by the seed rule's
+    top three, which is not the same as gone or new."""
+    residuals = residuals or {}
+    dist = []
+    for b in later:
+        if not b.get("centroid_mm"):
+            continue
+        shift = (residuals.get(b["id"]) or {}).get("shift_mm") or [0, 0, 0]
+        q = map_points(np.asarray(b["centroid_mm"]) + shift, transform)[0]
+        for a in earlier:
+            if a.get("centroid_mm"):
+                dist.append((float(np.linalg.norm(q - np.asarray(a["centroid_mm"]))), a["id"],
+                             b["id"]))
+    pairs, used_a, used_b = [], set(), set()
+    for d, a, b in sorted(dist):
+        if d <= CUTOFFS["match_mm"][0] and a not in used_a and b not in used_b:
+            pairs.append({"earlier": a, "later": b, "distance_mm": round(d, 1)})
+            used_a.add(a)
+            used_b.add(b)
+    pairs += [{"earlier": None, "later": b["id"], "distance_mm": None} for b in later
+              if b["id"] not in used_b]
+    pairs += [{"earlier": a["id"], "later": None, "distance_mm": None} for a in earlier
+              if a["id"] not in used_a]
+    return pairs
+
+
+def lesion_change(a: dict | None, b: dict | None) -> dict:
+    """One lesion's change from the earlier candidate ``a`` to the later ``b``: the longest
+    diameter and volume on both dates, the change, and whether it grew or shrank beyond the
+    placeholder rules (``grew_pct`` and ``grew_mm``, ``shrank_pct``) by more than twice the
+    measurement's own pixel uncertainty. Model inference throughout."""
+    if a is None or b is None:
+        return {"status": "not proposed on the " + ("earlier" if a is None else "later")
+                + " date", "ld_change_mm": None, "ld_change_pct": None, "evidence": INFERENCE}
+    la, lb = a["longest_diameter_mm"], b["longest_diameter_mm"]
+    d = lb - la
+    pct = 100 * d / la if la else None
+    noise = 2 * max(a.get("ld_uncertainty_mm", 0), b.get("ld_uncertainty_mm", 0))
+    if pct is not None and d >= CUTOFFS["grew_mm"][0] and pct >= CUTOFFS["grew_pct"][0] \
+            and d > noise:
+        status = "grew beyond the placeholder rule"
+    elif pct is not None and pct <= -CUTOFFS["shrank_pct"][0] and -d > noise:
+        status = "shrank beyond the placeholder rule"
+    else:
+        status = "within the placeholder rules"
+    va, vb = a["volume_ml"], b["volume_ml"]
+    ra, rb = a["volume_range_ml"], b["volume_range_ml"]
+    return {"status": status, "ld_mm": [la, lb], "ld_change_mm": round(d, 1),
+            "ld_change_pct": round(pct, 0) if pct is not None else None,
+            "volume_ml": [va, vb], "volume_change_ml": round(vb - va, 2),
+            "volume_overlap": bool(ra[0] <= rb[1] and rb[0] <= ra[1]),
+            "noise_mm": round(noise, 2), "evidence": INFERENCE}
+
+
+def computed_sum(rows: list[dict]) -> dict:
+    """A RECIST-style sum of longest diameters, computed and labeled so, never a response call:
+    the paired candidates at least ``measurable_mm`` on the earlier date, the largest
+    ``targets_per_organ`` (the breasts as one organ), on both dates. The candidates are a
+    model's, not a reader's target lesions, and RECIST's response categories are not applied."""
+    big = [r for r in rows if r["change"].get("ld_mm") and
+           r["change"]["ld_mm"][0] >= CUTOFFS["measurable_mm"][0]]
+    targets = sorted(big, key=lambda r: -r["change"]["ld_mm"][0])[:CUTOFFS["targets_per_organ"][0]]
+    left = [r["earlier"] for r in rows if r["earlier"] and not r["later"]]
+    note = ("computed on model candidates, not a RECIST response call: the candidates are not a "
+            "reader's target lesions and no response category is applied")
+    if not targets:
+        return {"targets": [], "sum_mm": None, "note": "no paired candidate of "
+                f"{CUTOFFS['measurable_mm'][0]} mm or more on the earlier date: nothing to sum; "
+                + note, "evidence": INFERENCE}
+    s0 = sum(r["change"]["ld_mm"][0] for r in targets)
+    s1 = sum(r["change"]["ld_mm"][1] for r in targets)
+    return {"targets": [f"{r['earlier']}→{r['later']}" for r in targets],
+            "sum_mm": [round(s0, 1), round(s1, 1)], "change_mm": round(s1 - s0, 1),
+            "change_pct": round(100 * (s1 - s0) / s0, 0),
+            "left_out": left, "note": note, "evidence": INFERENCE}
+
+
+def protocol_differences(earlier: dict, later: dict) -> list[str]:
+    """What differs between two studies' acquisitions, said before any 'larger' or 'smaller'."""
+    out = []
+    a, b = earlier["study"], later["study"]
+    for key, what in (("scanner", "scanner"), ("field_t", "field strength (T)"),
+                      ("contrast", "contrast agent as recorded")):
+        if a.get(key) != b.get(key):
+            out.append(f"{what}: {a.get(key) or 'not recorded'} → {b.get(key) or 'not recorded'}")
+    sa, sb = a.get("sequence", {}), b.get("sequence", {})
+    for key, what in (("tr_ms", "repetition time (ms)"), ("te_ms", "echo time (ms)"),
+                      ("flip_deg", "flip angle (°)")):
+        if sa.get(key) and sb.get(key) and abs(sa[key] - sb[key]) > 0.05 * sa[key]:
+            out.append(f"{what}: {sa[key]:g} → {sb[key]:g}")
+    da, db = earlier["display"].get("acquisition", {}), later["display"].get("acquisition", {})
+    def fmt(v):
+        return " × ".join(f"{x:.2f}" for x in v) if isinstance(v, list) else v
+
+    for key, what in (("plane", "acquisition plane"), ("slice_mm", "slice spacing (mm)"),
+                      ("pixel_mm", "pixel size (mm)")):
+        if da.get(key) != db.get(key):
+            out.append(f"{what}: {fmt(da.get(key))} → {fmt(db.get(key))}")
+    ta = [p["time_s"] for p in earlier["phases"]]
+    tb = [p["time_s"] for p in later["phases"]]
+    if ta != tb:
+        out.append("phase times (s from the pre-contrast start): "
+                   f"{', '.join(f'{t:g}' for t in ta if t is not None)} → "
+                   f"{', '.join(f'{t:g}' for t in tb if t is not None)}; kinetics are not "
+                   "directly comparable")
+    return out
+
+
+def pair_change(pair: dict, earlier: dict, later: dict) -> dict:
+    """The change view's content for a study pair (``pair.json``): the protocol differences
+    first, the alignment and where it is unreliable, one row per lesion (paired by
+    ``match_candidates``) with both dates' sizes and the change, the computed sum, and a
+    'what changed' paragraph in the shared grammar's words."""
+    a_by = {c["id"]: c for c in earlier["candidates"]}
+    b_by = {c["id"]: c for c in later["candidates"]}
+    res = pair.get("residuals", {})
+    rows = []
+    for m in pair["matches"]:
+        a, b = a_by.get(m["earlier"]), b_by.get(m["later"])
+        r = res.get(m["later"]) if m["later"] else None
+        ch = lesion_change(a, b)
+        rows.append({"lesion": f"{m['earlier'] or '—'} → {m['later'] or '—'}",
+                     "earlier": m["earlier"], "later": m["later"],
+                     "side": (b or a)["side"], "distance_mm": m["distance_mm"],
+                     "change": ch, "reliable": r["reliable"] if r else None,
+                     "residual": r, "evidence": INFERENCE})
+    total = computed_sum(rows)
+    diffs = protocol_differences(earlier, later)
+    reg = pair["registration"]
+    d0, d1 = earlier["study"]["date"], later["study"]["date"]
+    parts = [f"Two studies, {d0} and {d1}."]
+    parts.append("Before any 'larger' or 'smaller': " + ("; ".join(diffs) if diffs else
+                                                       "no protocol difference found in the "
+                                                       "headers") + ".")
+    unreliable = [x["lesion"] for x in rows if x["reliable"] is False]
+    parts.append(f"Rigid alignment: rotations {', '.join(f'{v:g}°' for v in reg['angles_deg'])}, "
+                 f"shifts {', '.join(f'{v:g} mm' for v in reg['shift_mm'])}; breast tissue "
+                 "deforms between exams, which a rigid alignment cannot follow"
+                 + (f"; unreliable here: {', '.join(unreliable)}" if unreliable else "") + ".")
+    for x in rows:
+        c = x["change"]
+        if c.get("ld_mm"):
+            parts.append(f"{x['lesion']} ({x['side']}): longest diameter {c['ld_mm'][0]:g} → "
+                         f"{c['ld_mm'][1]:g} mm ({c['ld_change_mm']:+g} mm, "
+                         f"{c['ld_change_pct']:+.0f}%), {c['status']}; volume "
+                         f"{c['volume_ml'][0]:g} → {c['volume_ml'][1]:g} mL (the one-pixel ranges "
+                         + ("overlap" if c["volume_overlap"] else "do not overlap") + ")"
+                         + ("" if x["reliable"] is not False else "; alignment unreliable here")
+                         + ".")
+    alone_b = [x["later"] for x in rows if x["earlier"] is None]
+    alone_a = [x["earlier"] for x in rows if x["later"] is None]
+    if alone_a or alone_b:
+        parts.append("Not paired: " + "; ".join(
+            f"{', '.join(ids)} of the {when} date (not proposed on the {other})"
+            for ids, when, other in ((alone_b, "later", "earlier"), (alone_a, "earlier", "later"))
+            if ids) + "; the seed rule's top three on each date need not hold the same lesions, "
+            "so unpaired is not gone or new.")
+    if total["sum_mm"]:
+        parts.append(f"Sum of longest diameters ({', '.join(total['targets'])}): "
+                     f"{total['sum_mm'][0]:g} → {total['sum_mm'][1]:g} mm "
+                     f"({total['change_pct']:+.0f}%), {total['note']}.")
+    else:
+        parts.append(total["note"][0].upper() + total["note"][1:] + ".")
+    return {"rows": rows, "sum": total, "protocol": diffs, "registration": reg,
+            "blocks": pair.get("blocks", []), "dates": [d0, d1],
+            "what_changed": " ".join(parts), "evidence": INFERENCE,
+            "label": earlier.get("example") or later.get("example")}
+
+
+def report_change(reads: list[dict], earlier_month: int, later_month: int) -> dict:
+    """The same change view where only report text exists: per named site, what the earlier and
+    the later read say (``lesion_table``'s cells), no sizes (``NO_MEASUREMENTS``), no sum."""
+    table = lesion_table(reads)
+    rows = []
+    for t in table:
+        c0, c1 = t["cells"].get(earlier_month, ""), t["cells"].get(later_month, "")
+        if t["first_named"] > later_month:
+            continue
+        change = ("first named on the later read" if c1 == "new" else
+                  "named on both reads" if c0 in ("new", "named") and c1 == "named" else
+                  "named earlier, not named on the later read" if c0 in ("new", "named") else
+                  "named before the earlier read; neither read names it" if
+                  t["first_named"] < earlier_month else "")
+        rows.append({"lesion": t["site"], "earlier": c0, "later": c1, "change": change,
+                     "measurements": NO_MEASUREMENTS, "evidence": OBSERVED})
+    by_month = {r["month"]: r for r in reads}
+    r0, r1 = by_month.get(earlier_month), by_month.get(later_month)
+    text = (f"Reads of month {earlier_month} ({r0['read'] if r0 else 'none'}) and month "
+            f"{later_month} ({r1['read'] if r1 else 'none'}). "
+            + " ".join(f"{r['lesion']}: {r['change']}." for r in rows if r["change"])
+            + f" No sizes: {NO_MEASUREMENTS}, so no sum of diameters can be computed; the "
+              "reports' own words are the only change shown.")
+    return {"rows": rows, "sum": {"sum_mm": None, "note": f"not computable: {NO_MEASUREMENTS}"},
+            "what_changed": text, "evidence": OBSERVED}
+
+
+# --- multiplanar views of the shipped volume ----------------------------------------------------
+def shown_spacing(display: dict) -> tuple[float, float, float]:
+    """The shipped volume's spacing (between shown slices, rows, columns) in mm."""
+    return (display["slice_step"] * display["slice_mm"], display["pixel_mm"],
+            display["pixel_mm"])
+
+
+def anisotropy(display: dict) -> str:
+    """The shipped volume's voxel shape in words, for the multiplanar views' captions."""
+    dz, px, _ = shown_spacing(display)
+    acq = display.get("acquisition", {})
+    native = (f"; acquired {acq['plane']} with {acq['slice_mm']:g} mm between slices and "
+              f"{acq['pixel_mm'][0]:g} mm pixels" if acq else "")
+    return (f"{dz:g} mm between shown slices against {px:g} mm pixels: voxels {dz / px:.1f}× "
+            f"longer along the body axis{native}; the sagittal and coronal views are "
+            "resampled linearly to square pixels, so detail along the body axis is "
+            "interpolated, not seen")
+
+
+def candidate_mask(c: dict, shape: tuple[int, int, int]) -> np.ndarray:
+    """A candidate's contour as a [shown slice, row, col] mask on the shipped grid, filled from
+    its per-slice polygons (even-odd, so a hole stays a hole)."""
+    from PIL import Image, ImageDraw
+
+    n, h, w = shape
+    out = np.zeros(shape, bool)
+    for i, s in c["per_slice"].items():
+        for poly in s["contours"]:
+            if len(poly) > 2:
+                img = Image.new("1", (w, h), 0)
+                ImageDraw.Draw(img).polygon([tuple(p) for p in poly], fill=1)
+                out[int(i)] ^= np.asarray(img, bool)
+    return out
+
+
+def reslice(vol: np.ndarray, plane: str, index: int, display: dict,
+            order: int = 1) -> np.ndarray:
+    """One plane of a shipped [shown slice, row, col] volume at square pixels: axial (slice
+    ``index``), coronal (row ``index``) or sagittal (column ``index``). Coronal and sagittal have
+    the head at the top, the patient's right on the left (coronal) and anterior on the left
+    (sagittal); the body axis is resampled from the slice spacing to the pixel size (linear, or
+    nearest for a mask with ``order=0``)."""
+    if plane == "axial":
+        return vol[index]
+    pts, shape = frame_points(display, plane, index)
+    got = _sample(vol.astype(np.float32), shown_spacing(display), pts, order=order)
+    return np.nan_to_num(got).reshape(shape).astype(vol.dtype)
+
+
+def _reslice_rows(display: dict) -> int:
+    dz, px, _ = shown_spacing(display)
+    return int(round((display["slices"] - 1) * dz / px)) + 1
+
+
+def reslice_row(i: float, display: dict) -> float:
+    """Where shown slice ``i`` falls on a resliced (coronal or sagittal) view's rows."""
+    dz, px, _ = shown_spacing(display)
+    return _reslice_rows(display) - 1 - i * dz / px
+
+
+def frame_points(display: dict, plane: str, index: int) -> tuple[np.ndarray, tuple[int, int]]:
+    """Every shown pixel of one axial, coronal or sagittal view, as (Z, Y, X) mm in the study's
+    own frame (index × spacing from the first shown slice and the first row and column)."""
+    dz, px, _ = shown_spacing(display)
+    h, w = display["rows"], display["cols"]
+    if plane == "axial":
+        yy, xx = np.mgrid[:h, :w]
+        pts = np.stack([np.full(yy.shape, index * dz), yy * px, xx * px], -1)
+    else:
+        rows = _reslice_rows(display)
+        zz = (rows - 1 - np.arange(rows)) * px  # head at the top
+        other = np.arange(w if plane == "coronal" else h) * px
+        z2, o2 = np.meshgrid(zz, other, indexing="ij")
+        fixed = np.full(z2.shape, index * px)
+        pts = np.stack([z2, fixed, o2] if plane == "coronal" else [z2, o2, fixed], -1)
+    return pts.reshape(-1, 3), pts.shape[:2]
+
+
+def aligned_view(moving: np.ndarray, moving_display: dict, display: dict, transform: dict,
+                 plane: str, index: int) -> np.ndarray:
+    """The earlier study (``moving``, its shipped volume) at the later study's view: each shown
+    pixel of the later view mapped through the rigid alignment (``map_points``) and sampled
+    linearly; 0 where the earlier study has no data."""
+    pts, shape = frame_points(display, plane, index)
+    got = _sample(moving.astype(np.float32), shown_spacing(moving_display),
+                  map_points(pts, transform))
+    return np.nan_to_num(got, nan=0.0).reshape(shape).clip(0, 255).astype(np.uint8)
+
+
+# --- mammography: geometry for the linked zoom and left-right asymmetry ---------------------------
+def breast_outline(img: np.ndarray) -> dict:
+    """On a shipped 8-bit mammogram: the breast (the largest region brighter than 8% of the
+    image's 99th percentile), the chest-wall edge (the image side it touches most) and the
+    nipple (its pixel farthest from that edge, the middle row of those). Geometry for the linked
+    zoom, not a reading."""
+    from scipy import ndimage
+
+    sm = ndimage.uniform_filter(img.astype(float), 5)
+    lab, n = ndimage.label(sm > 0.08 * np.percentile(sm, 99))
+    if not n:
+        return {"mask": np.zeros(img.shape, bool), "chest": "left", "nipple": None}
+    sizes = ndimage.sum(np.ones_like(lab), lab, range(1, n + 1))
+    mask = lab == int(np.argmax(sizes)) + 1
+    chest = "left" if mask[:, 0].sum() >= mask[:, -1].sum() else "right"
+    cols = np.where(mask.any(0))[0]
+    far = cols.max() if chest == "left" else cols.min()
+    rows = np.where(mask[:, far])[0]
+    return {"mask": mask, "chest": chest, "nipple": (int(far), int(np.median(rows)))}
+
+
+def nipple_band(outline: dict, depth_mm: float, half_mm: float, pixel_mm: float) -> tuple:
+    """The columns (x0, x1) of a band ``depth_mm`` ± ``half_mm`` behind the nipple, toward the
+    chest wall: the same band on the CC and the MLO view of a breast (a lesion's distance from
+    the nipple is about the same on both views)."""
+    x = outline["nipple"][0]
+    toward = -1 if outline["chest"] == "left" else 1
+    a = x + toward * (depth_mm - half_mm) / pixel_mm
+    b = x + toward * (depth_mm + half_mm) / pixel_mm
+    return int(round(min(a, b))), int(round(max(a, b)))
+
+
+def asymmetry(views: list[dict]) -> list[dict]:
+    """Left-right difference in dense-pixel share per view (CC, MLO), from the shipped study's
+    per-view shares (``dense_fraction``): a placeholder rule (``asymmetry_points``), not a
+    BI-RADS asymmetry finding."""
+    by = {(v["laterality"], v["view"]): v["dense"].get("dense_fraction") for v in views}
+    out = []
+    for view in ("CC", "MLO"):
+        r, left = by.get(("R", view)), by.get(("L", view))
+        if r is None or left is None:
+            continue
+        d = 100 * (r - left)
+        out.append({"view": view, "right": r, "left": left, "difference_points": round(d, 1),
+                    "asymmetric": abs(d) > CUTOFFS["asymmetry_points"][0],
+                    "rule": f"placeholder: more than {CUTOFFS['asymmetry_points'][0]} points "
+                            "apart", "evidence": INFERENCE})
+    return out
+
+
+def asymmetry_map(right: np.ndarray, left: np.ndarray, size: tuple[int, int] = (160, 120)) -> dict:
+    """A dense-pixel difference map of one view pair: each breast cropped to its outline, turned
+    so the chest wall is on the left, resampled to ``size`` (rows, columns) and thresholded by
+    one Otsu threshold over both breasts (``dense_fraction``); +1 dense on the right breast
+    only, −1 on the left only. Placeholder: it ignores compression, positioning and breast
+    size."""
+    from scipy import ndimage
+
+    crops = []
+    for img in (right, left):
+        o = breast_outline(img)
+        rows, cols = np.where(o["mask"].any(1))[0], np.where(o["mask"].any(0))[0]
+        if not len(rows):
+            return {"map": np.zeros(size, int), "note": "no breast found"}
+        crop = np.where(o["mask"], img, 0)[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+        if o["chest"] == "right":
+            crop = crop[:, ::-1]
+        crops.append(ndimage.zoom(crop.astype(float), (size[0] / crop.shape[0],
+                                                       size[1] / crop.shape[1]),
+                                  order=1)[:size[0], :size[1]])
+    thr = dense_fraction(np.concatenate(crops), background=0.5).get("threshold", np.inf)
+    diff = (crops[0] > thr).astype(int) - (crops[1] > thr).astype(int)
+    return {"map": diff, "right_only": float((diff > 0).mean()),
+            "left_only": float((diff < 0).mean()), "evidence": INFERENCE,
+            "rule": "placeholder: Otsu dense pixels on outline-normalised breasts, mirrored"}
+
+
+def example_studies() -> list[dict]:
+    """The example pair's two studies in ``load_index``'s shape (a test built from one needs
+    ``details["root"] = "example"``); [] when the pair is not in this checkout."""
+    loaded = load_pair(EXAMPLE)
+    return [{"barcode": s["barcode"], "study": s["study"]["date"], "modality": s["modality"],
+             "name": f"{s['kind']}, public example pair ({s['study']['date']})",
+             "result": f"{s['study']['scanner']} {s['study']['field_t']:g} T, "
+                       f"{len(s['phases'])} phases (public example, not a patient file)",
+             "folder": Path(s["folder"]).name} for s in loaded[1:]] if loaded else []
+
+
+def load_pair(folder: str | Path) -> tuple[dict, dict, dict] | None:
+    """The example study pair (``pair.json`` and its two studies, earlier first), or None."""
+    path = Path(folder) / "pair.json"
+    if not path.exists():
+        return None
+    pair = json.loads(path.read_text(encoding="utf-8"))
+    studies = [load_study(Path(folder) / pair[k]) for k in ("earlier", "later")]
+    return (pair, *studies) if all(studies) else None
+
+
 # --- reading the precomputed results -----------------------------------------------------------
 def load_index(folder: str | Path) -> dict[int, list[dict]]:
     """``radiology_results/index.json``: cohort index -> the processed public studies of that
@@ -497,9 +1094,22 @@ def search(query: str, reads: list[dict], lesions: list[dict] | None = None,
                       "curve types (washout) and 'largest'."}
 
 
-def look_here(study: dict) -> list[dict]:
-    """What to check by eye in a processed study, per candidate, with the reason."""
+def look_here(study: dict, change: dict | None = None) -> list[dict]:
+    """What to check by eye in a processed study, per candidate, with the reason; with a study
+    pair's ``change`` (``pair_change``) also where the alignment is unreliable and what grew or
+    shrank beyond the placeholder rules."""
     out = []
+    later = change is not None and study["study"]["date"] == change["dates"][1]
+    for r in (change or {}).get("rows", []):
+        cid = r["later"] if later else r["earlier"]
+        if cid is None:
+            continue
+        if r["reliable"] is False:
+            out.append({"candidate": cid, "why": f"alignment with the other date unreliable "
+                        f"here ({r['residual']['why']})"})
+        if r["change"]["status"].startswith(("grew", "shrank")):
+            out.append({"candidate": cid, "why": f"{r['change']['status']} between "
+                        f"{change['dates'][0]} and {change['dates'][1]} ({r['lesion']})"})
     for c in study["candidates"]:
         if c["unsure_slices"]:
             out.append({"candidate": c["id"], "why": f"contour unsure on {len(c['unsure_slices'])}"
@@ -533,9 +1143,34 @@ def _tests(pf, version: int | None) -> list:
     return [t for v in vs for t in v.tests if t.workbench == "imaging"]
 
 
+EXAMPLE = RESULTS.parent / "radiology_example"  # the public example study pair
+
+
+def study_folder(t) -> Path:
+    """Where an imaging test's processed study is: the bundle's results, or the example pair's
+    folder for a test with ``details["root"] == "example"``."""
+    return (EXAMPLE if t.details.get("root") == "example" else RESULTS) / t.details["folder"]
+
+
 def _studies(pf, version: int | None) -> list[tuple]:
     return [(t, s) for t in _tests(pf, version) if "folder" in t.details
-            for s in [load_study(RESULTS / t.details["folder"])] if s is not None]
+            for s in [load_study(study_folder(t))] if s is not None]
+
+
+def pairs_of(studies: list[tuple]) -> list[tuple]:
+    """(earlier test, later test, change, later study) for every two MR studies of one patient
+    that a ``pair.json`` next to them aligns; the change is ``pair_change``'s."""
+    out = []
+    for folder in {Path(s["folder"]).parent for _, s in studies if s["modality"] == "MR"}:
+        loaded = load_pair(folder)
+        if not loaded:
+            continue
+        pair, earlier, later = loaded
+        by = {Path(s["folder"]).name: t for t, s in studies}
+        if pair["earlier"] in by and pair["later"] in by:
+            out.append((by[pair["earlier"]], by[pair["later"]], pair_change(pair, earlier, later),
+                        later))
+    return out
 
 
 def _reads(pf, version: int | None) -> list[dict]:
@@ -548,14 +1183,32 @@ def _opens(t) -> tuple:
 
 
 def summary(pf, version: int | None = None) -> dict:
-    """A processed public study's headline (its contours, measurements or scores, and the
-    structured report's BI-RADS), else the lesion table of the record's imaging reports."""
+    """A study pair's change (where two dates exist), a processed public study's headline (its
+    contours, measurements or scores, and the structured report's BI-RADS), else the lesion
+    table of the record's imaging reports."""
     tests = _tests(pf, version)
     if not tests:
         return {"workbench": "radiology", "title": "Radiology", "cards": [],
                 "note": "no imaging in this file"}
     cards = []
-    for t, s in _studies(pf, version)[:1]:
+    studies = _studies(pf, version)
+    for t0, t1, ch, later in pairs_of(studies)[:1]:
+        moved = [r for r in ch["rows"] if r["change"].get("ld_mm")]
+        total = ch["sum"]
+        cards.append(card(
+            "Imaging change", f"{t0.details.get('study', '')} → {t1.details.get('study', '')}: "
+            + "; ".join(f"{r['lesion']} {r['change']['ld_mm'][0]:g} → "
+                        f"{r['change']['ld_mm'][1]:g} mm, {r['change']['status']}"
+                        + (" (alignment unreliable here)" if r["reliable"] is False else "")
+                        for r in moved)
+            + (f"; computed sum {total['sum_mm'][0]:g} → {total['sum_mm'][1]:g} mm, not a "
+               "response call" if total.get("sum_mm") else "")
+            + ("; protocol differs: " + "; ".join(ch["protocol"]) if ch["protocol"] else ""),
+            INFERENCE, f"{t0.name}; {t1.name}", f"{REGISTRATION}; MedSAM contours on each date",
+            "growth and shrinkage rules borrowed from RECIST 1.1 per candidate (placeholders); "
+            "the unreliable-here residual is a placeholder", "weak", _opens(t1)))
+        studies = [(t1, later)]  # the headline study is the later one
+    for t, s in studies[:1]:
         rep = s.get("report", {})
         cards.append(card(
             "Imaging", t.result + (f"; the study's report: BI-RADS {rep['birads']}"
@@ -586,9 +1239,10 @@ def summary(pf, version: int | None = None) -> dict:
 def queue(pf, version: int | None = None) -> list[dict]:
     """Each site a report names as new (consequence 3, trust strong: the reader's words; trust
     moderate for an imported report, whose site the import's text rule read, as its alert in
-    ``workspace.add_version``), a report whose words and the record's sites field disagree, and
-    each processed study's candidates to check by eye (model contours: consequence 1, trust
-    weak)."""
+    ``workspace.add_version``), a report whose words and the record's sites field disagree,
+    where two dates of a study pair exist each candidate that grew (consequence 3) or shrank (2)
+    beyond the placeholder rules or whose alignment is unreliable (1), and each processed
+    study's candidates to check by eye (model contours: consequence 1, trust weak)."""
     out = []
     reads = _reads(pf, version)
     for row in lesion_table(reads):
@@ -612,7 +1266,30 @@ def queue(pf, version: int | None = None) -> list[dict]:
                 source=f"Imaging report, month {r['month']}",
                 key=finding_key(pf, "imaging", "report", r["month"], "read"), month=r["month"],
                 threshold=REPORT_METHOD))
-    for t, s in _studies(pf, version):
+    studies = _studies(pf, version)
+    for t0, t1, ch, later in pairs_of(studies):
+        span = f"{t0.details.get('study', '')} to {t1.details.get('study', '')}"
+        for r in ch["rows"]:
+            c = r["change"]
+            grew, shrank = c["status"].startswith("grew"), c["status"].startswith("shrank")
+            if not (grew or shrank or r["reliable"] is False and c.get("ld_mm")):
+                continue
+            unreliable = r["reliable"] is False
+            out.append(look(
+                r["later"] or r["earlier"],
+                f"{r['lesion']} ({later['barcode']}, {span}): "
+                + (f"{c['ld_mm'][0]:g} → {c['ld_mm'][1]:g} mm, {c['status']}" if grew or shrank
+                   else "alignment unreliable here"),
+                f"longest diameter {c['ld_change_mm']:+g} mm ({c['ld_change_pct']:+.0f}%) on "
+                "model contours of two rigidly aligned studies"
+                + (f"; {r['residual']['why']}" if unreliable else "")
+                + ("; protocol differs: " + "; ".join(ch["protocol"]) if ch["protocol"] else ""),
+                INFERENCE, "weak", 3 if grew else 2 if shrank else 1, _opens(t1),
+                source=f"{t0.name}; {t1.name}",
+                key=finding_key(pf, "imaging", later["barcode"], span, r["lesion"]),
+                threshold="placeholder: RECIST 1.1's 20% and 5 mm (grew) or 30% (shrank), "
+                          "borrowed per candidate"))
+    for t, s in studies:
         for q in look_here(s) if s["modality"] == "MR" else []:
             out.append(look(
                 q["candidate"], f"{q['candidate']} ({t.name}): {q['why']}", "a model contour "
