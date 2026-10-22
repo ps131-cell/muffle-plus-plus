@@ -41,19 +41,43 @@ def crumbs(parts: list[tuple[str, object]], extra=None) -> None:
 
 # --- the patient file's sticky header ---------------------------------------------------------
 
-def sticky_css() -> None:
-    """The patient header stays at the top while the page scrolls (``st.container`` with key
-    "patient-header" is the element the CSS class ``st-key-patient-header`` names). A style-only
-    ``st.html`` takes no space on the page."""
-    dark = (st.context.theme.type or "light") == "dark"
-    st.html(f"""<style>
-.st-key-patient-header {{
-  position: sticky; top: 3.75rem; z-index: 99;
-  background: {'#0e1117' if dark else '#ffffff'};
-  padding: 0.25rem 0 0.5rem 0;
+STICKY_CSS = """<style>
+.st-key-patient-header {
+  background-color: Canvas;  /* without :has(): the browser's page colour for the app's scheme */
+  padding: 0.25rem 0 0.5rem 0; gap: 0.25rem;
   border-bottom: 1px solid rgba(128, 128, 128, 0.3);
-}}
-</style>""")
+}
+@supports selector(:has(a)) {
+  [data-testid="stApp"] :has(.st-key-patient-header), .st-key-patient-header {
+    background-color: inherit;
+  }
+  @media (min-width: 1024px) {
+    .st-key-patient-header, [data-testid="stLayoutWrapper"]:has(> .st-key-patient-header) {
+      position: sticky; top: 3.75rem; z-index: 99;
+    }
+    [data-testid="stLayoutWrapper"]:has(> .st-key-patient-header)::before {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 3.75rem;
+      background-color: inherit;  /* covers the page under Streamlit's transparent toolbar */
+    }
+  }
+}
+</style>"""
+
+
+def sticky_css() -> None:
+    """The patient header stays at the top while the page scrolls, below Streamlit's toolbar
+    (``st.container`` with key "patient-header" is the element the CSS class
+    ``st-key-patient-header`` names). Streamlit 1.66 wraps it in a ``stLayoutWrapper`` of its
+    own height, so the wrapper is what sticks, with the strip above it (under Streamlit's
+    transparent toolbar) painted too; in a window under 1024 px (a tablet, a phone, a narrow
+    browser beside another) the header scrolls away with the page: wrapped onto more lines
+    there, it would cover a quarter of the screen. Its background is the app's own,
+    light or dark, in CSS: every element between Streamlit's app root (which paints the theme's
+    background and sets ``color-scheme``) and the header inherits it, so a change of theme in
+    the settings menu needs no rerun, and the text keeps the theme's colour.
+    ``st.context.theme`` is not used: Streamlit says it can be wrong on a session's first load
+    and after a theme change. A style-only ``st.html`` takes no space on the page."""
+    st.html(STICKY_CSS)
 
 
 # --- deep links --------------------------------------------------------------------------------

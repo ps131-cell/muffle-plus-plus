@@ -4,6 +4,7 @@ open SOS count, the way back after an "Open", deep links (?patient, ?view, ?test
 files. The whole app under AppTest (the ``app`` fixture, tests/conftest.py)."""
 
 import json
+import re
 
 import pytest
 
@@ -39,6 +40,19 @@ def test_breadcrumbs_and_the_patient_header(app):
     at._page_hash = pages["methods"]
     at.run()
     assert "**Methods and validation**" in texts(at) and not at.exception
+
+
+def test_the_sticky_header_takes_the_themes_own_background(app):
+    """The header's background is the app's own in either theme, worked out by the browser's
+    CSS (inherited from Streamlit's app root), never a colour picked in Python from
+    st.context.theme, which can be stale after a theme change: a black band on a light page."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    css = [h.value for h in at.html if "st-key-patient-header" in h.value]
+    assert len(css) == 1 and "background-color: inherit" in css[0] and "Canvas" in css[0]
+    assert not re.search(r"background[^;{}]*#[0-9a-fA-F]{3,8}", css[0])  # no fixed colour
+    # Streamlit wraps the header in a layout wrapper of its own height: the wrapper is what sticks
+    assert '[data-testid="stLayoutWrapper"]:has(> .st-key-patient-header)' in css[0]
 
 
 def test_open_from_the_queue_writes_the_address_and_leads_back(app):
