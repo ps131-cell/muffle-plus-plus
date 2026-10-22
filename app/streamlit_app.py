@@ -436,11 +436,15 @@ def patient_list():
 VIEWS = ("Report", "Tests", "Timeline", "Evolution", "Import tests")
 
 
-def safely(what: str, draw, *args, **kwargs):
-    """Draw one part of a screen. When it fails, say which part in plain words and where its
-    method and known failures are described, never a traceback; the server's log keeps the
-    traceback, and the tests re-raise (``_page.strict``)."""
+def safely(what: str, draw, *args, spin: str | None = None, **kwargs):
+    """Draw one part of a screen, with a spinner saying what loads (``spin``). When it fails,
+    say which part in plain words and where its method and known failures are described, never
+    a traceback; the server's log keeps the traceback, and the tests re-raise
+    (``_page.strict``)."""
     try:
+        if spin:
+            with st.spinner(spin):
+                return draw(*args, **kwargs)
         return draw(*args, **kwargs)
     except Exception as e:  # noqa: BLE001 - the clinician gets a sentence, the log the traceback
         if strict():
@@ -500,7 +504,10 @@ def patient_file(pf: workspace.PatientFile, header, tail):
     back_buttons(pf, view)
     shown = safely(f"The {view.lower()} view" if view != "Import tests" else "Import tests",
                    {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
-                    "Evolution": evolution_view, "Import tests": import_view}[view], pf, i)
+                    "Evolution": evolution_view, "Import tests": import_view}[view], pf, i,
+                   spin={"Report": "Gathering the report: every workbench's findings and the "
+                                   "attention queue…",
+                         "Evolution": "Reading the evolution table and the trials…"}.get(view))
     with tail:
         st.markdown(nav.SEP, width="content")
         st.markdown(view if shown is None else f"{view} {nav.SEP} **{nav.crumb(shown)}**",
@@ -772,19 +779,24 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
         k = ss.get(pos, 0) % len(shown)
         cur = shown[k]
         c = st.columns(6)
+        # in tab order: previous, next, pin, mark reviewed, unsure list, open (docs/ux.md §7)
         c[0].button("Previous", key=f"prev-{pos}", shortcut="K", width="stretch",
-                    on_click=lambda: ss.update({pos: k - 1}))
+                    help="The previous item (key k)", on_click=lambda: ss.update({pos: k - 1}))
         c[1].button("Next", key=f"next-{pos}", shortcut="J", width="stretch",
-                    on_click=lambda: ss.update({pos: k + 1}))
+                    help="The next item (key j)", on_click=lambda: ss.update({pos: k + 1}))
         c[2].button("Unpin" if cur["key"] in pins else "Pin", key=f"pin-{pos}", shortcut="P",
-                    width="stretch", on_click=toggle_pin, args=(cur["key"], cur["what"]))
+                    width="stretch", help="Pin it to the top of the report (key p)",
+                    on_click=toggle_pin, args=(cur["key"], cur["what"]))
         c[3].button("Mark reviewed", key=f"reviewed-{pos}", shortcut="M", width="stretch",
-                    disabled=cur["key"] in reviews,
+                    disabled=cur["key"] in reviews, help="Mark it reviewed, with your "
+                                                         "initials (key m)",
                     on_click=mark, args=(cur["key"], cur["what"], "reviewed"))
         c[4].button("Whole queue" if ss.get(only) else "Unsure list", key=f"unsure-{pos}",
                     shortcut="U", width="stretch",
+                    help="Items marked second look, or of weak trust (key u)",
                     on_click=lambda: ss.update({only: not ss.get(only), pos: 0}))
         c[5].button("Open", key=f"open-{pos}", shortcut="O", type="primary", width="stretch",
+                    help="Open its evidence in its workbench (key o)",
                     disabled=not cur["opens"], on_click=open_evidence,
                     args=(pf, i, cur["opens"], cur["focus"], cur["pointer"],
                           {"pos": pos, "n": k, "total": len(shown), "what": cur["what"]}))
@@ -951,19 +963,34 @@ def case_risk(case):
                "absolute risks are only roughly calibrated.")
 
 
-def case_why(case):
+@st.cache_resource(show_spinner=False, max_entries=64)
+def case_charts(index: int, source: str) -> tuple[dict, dict, dict]:
+    """A case's risk position and layer contributions as Vega-Lite specs, with the
+    contributions themselves: built once per bundle (``source``) and case, since Altair takes
+    about half a second to encode the cohort histogram on a shared CPU."""
+    case = next(c for c in demo.cases if c.index == index)
     x, mask = demo.inputs(case)
+    _, contrib = modality_contributions(demo.model, x, mask, demo.offsets)
+    named = {LAYER_NAMES.get(m, m): v for m, v in contrib.items()}
+    return (charts.risk_position(demo.cohort_risks, case.log_risk,
+                                 f"{ordinal(case.percentile)} percentile").to_dict(),
+            charts.contributions(named).to_dict(), named)
+
+
+def case_why(case):
+    position, drivers, named = case_charts(case.index, SOURCE)
     left, right = st.columns(2)
     with left:
         st.markdown(f"**Where this patient sits among all patients** {tags(INFERENCE)}")
-        st.altair_chart(charts.risk_position(demo.cohort_risks, case.log_risk,
-                                             f"{ordinal(case.percentile)} percentile"),
-                        width="stretch")
+        st.vega_lite_chart(spec=position, width="stretch",
+                           alt=f"This patient's predicted risk against all "
+                               f"{len(demo.cohort_risks):,} patients: the "
+                               f"{ordinal(case.percentile)} percentile")
     with right:
         st.markdown(f"**What drives this patient's risk** {tags(INFERENCE)}")
-        _, contrib = modality_contributions(demo.model, x, mask, demo.offsets)
-        st.altair_chart(charts.contributions(
-            {LAYER_NAMES.get(m, m): v for m, v in contrib.items()}), width="stretch")
+        st.vega_lite_chart(spec=drivers, width="stretch",
+                           alt="Each data layer's effect on this patient's predicted log-risk: "
+                               + ", ".join(f"{k} {v:+.2f}" for k, v in named.items()))
         st.caption("Each layer's effect on this patient's predicted log-risk, compared with its "
                    "effect on a typical patient in the cohort.")
 
@@ -1124,6 +1151,11 @@ def tests_view(pf: workspace.PatientFile, i: int):
         "Months count from the first tumor sequencing." if pf.kind == "synthetic" else
         "TCGA holds one sample per patient, so its tests carry no dates."))
     if not shown:
+        st.info("No test to open " + ("of this type " if kinds else "")
+                + "as of this report version. Import tests brings in lab results, reports, "
+                  "sequencing, imaging reports and slide images; each opens its workbench "
+                  "here." + (" Clear the type filter to see every test." if kinds else ""),
+                icon="🧪")
         return None
     picked = f"picked-{pf.id}"  # the last test opened here or from an alert
     if rows:
@@ -1137,8 +1169,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
     st.session_state["_test_shown"] = nav.test_id(t)
     st.divider()
     name = WORKBENCH_NAMES.get(SCREENS.get(t.workbench, ""), "test's page")
-    safely("The " + (name[0].lower() + name[1:] if name[1:2].islower() else name), draw_test,
-           pf, i, t)
+    what = "The " + (name[0].lower() + name[1:] if name[1:2].islower() else name)
+    safely(what, draw_test, pf, i, t, spin=f"Opening {what[0].lower() + what[1:]}…")
     return t
 
 

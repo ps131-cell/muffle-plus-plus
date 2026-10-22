@@ -207,6 +207,17 @@ class Page:
         yield
 
 
+def queue_items(name: str, pf, version: int | None, compute) -> list[dict]:
+    """A workbench's look-here items (``compute()``, its module's pure ``queue``), once per
+    browser session, file state and version: a click inside a page reruns the whole page, and
+    the items do not change with it (marks are read when drawn)."""
+    memo = st.session_state.setdefault("_queues", {})
+    key = (name, pf.id, len(pf.versions), version)
+    if key not in memo:
+        memo[key] = compute()
+    return memo[key]
+
+
 # --- landing on a finding ------------------------------------------------------------------
 
 def land(pf, i: int, focus: dict) -> None:

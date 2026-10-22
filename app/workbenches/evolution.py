@@ -40,7 +40,7 @@ from muffle.report import trials  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
-from workbenches._page import Page, land  # noqa: E402
+from workbenches._page import Page, land, queue_items  # noqa: E402
 
 DOCS = "https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/evolution.md"
 KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78d6",
@@ -237,7 +237,9 @@ def clonal(panel: dict) -> None:
                 "reads, with its 95% interval. A higher fraction suggests more cells, so an "
                 "earlier mutation, only under the assumptions below; the orderings consistent "
                 "with them are listed as alternatives, never one tree.")
-    st.altair_chart(vaf_chart(panel["variants"]), width="stretch")
+    st.altair_chart(vaf_chart(panel["variants"]), width="stretch",
+                    alt="Allele fraction of each driver with its 95% interval: " + "; ".join(
+                        f"{v['variant']} {v['vaf']:.2f}" for v in panel["variants"]))
     st.caption("Dashed line: 0.5, a heterozygous mutation in every cell of a pure tumor with "
                "two copies of the gene. Purity is unknown here, so no variant is called clonal.")
     if panel["pairs"]:
@@ -373,7 +375,8 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
             + ("  \n**What would settle the first ones:** " + "; ".join(
                 f"{it['event']} → {it['detect'].split(';')[0]}" for it in hs["items"][:2])
                 if hs["items"] else ""))
-        page.look_here(evolution.queue(pf, i), land=lambda focus: land(pf, i, focus),
+        page.look_here(queue_items("evolution", pf, i, lambda: evolution.queue(pf, i, hs=hs)),
+                       land=lambda focus: land(pf, i, focus),
                        empty="Nothing raised by this file's own treatments or drivers.")
         query = st.text_input("Search what to watch: a gene, a drug class, a test or a source",
                               key=f"{key}-search", placeholder="e.g. ESR1, ctDNA, CDK4/6, Razavi")
@@ -395,7 +398,9 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
                       "the record holds no stop dates."):
         st.caption(" ".join([badge(OBSERVED), badge(IMPLEMENTED)]))
         if ev:
-            st.altair_chart(events_chart(ev, v.month), width="stretch")
+            st.altair_chart(events_chart(ev, v.month), width="stretch",
+                            alt=f"{len(ev)} dated events of the record on a time axis, by kind: "
+                                + ", ".join(sorted({e["kind"] for e in ev})))
         else:
             st.info(pf.note + " Its driver calls, where sequenced, come from that one sample.")
 

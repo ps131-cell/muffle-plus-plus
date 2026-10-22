@@ -9,6 +9,7 @@ app/results_tcga_brca.json (None when missing)."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -51,6 +52,45 @@ def card(title: str, status: str, what: str) -> None:
     st.markdown(f"{chip(status)} · {what}")
 
 
+# The page's contents: every section and its cards, in page order. A new card joins it (the
+# tests compare it with the rendered page: tests/test_states.py).
+CONTENTS = {
+    "Models": ["Multi-omic survival model", "MSK-CHORD landmark models",
+               "Breast tissue head (pathology slides)", "Nuclei (StarDist)",
+               "Lesion contours (MedSAM, breast MRI)",
+               "Change over time (rigid alignment, breast MRI)",
+               "Multiplanar views and cine (breast MRI)",
+               "Mammography geometry (left-right, CC and MLO)",
+               "Breast density, second opinion (MONAI, mammography)",
+               "Screening score (mammoscreen, mammography)",
+               "Radiology: report reading, seed and kinetics rules",
+               "Expression, methylation and protein scores", "Case note"],
+    "Rules": ["SOS alerts and their order", "Lab result rules", "ctDNA monitor rules",
+              "Slide geometry, invasion and breakaway rules",
+              "Genomics: detection, interpretation and evidence",
+              "Clinical documents: extraction rules", "Tumor evolution and treatment evidence"],
+    "Federated training across simulated hospitals": [], "Data sources and licenses": [],
+    "Known failures": [], "Every placeholder in the app": [], "Limits": [],
+}
+
+
+def anchor(text: str) -> str:
+    """The id Streamlit gives a heading: lower case, spaces as hyphens, other signs dropped."""
+    return re.sub(r"[^a-z0-9_-]+", "", "-".join(text.lower().split()))
+
+
+def contents() -> None:
+    """The table of contents: the sections, and the cards of Models and Rules, as links."""
+    with st.container(border=True, key="methods-contents"):
+        st.markdown("**On this page**")
+        cols = st.columns(3)
+        for col, section in zip(cols[:2], ("Models", "Rules"), strict=True):
+            col.markdown(f"[{section}](#{anchor(section)})  \n" + "  \n".join(
+                f"· [{t}](#{anchor(t)})" for t in CONTENTS[section]))
+        cols[2].markdown("  \n".join(f"[{s}](#{anchor(s)})" for s, cards in CONTENTS.items()
+                                     if not cards))
+
+
 def render(demo, tl: dict | None, res: dict | None) -> None:
     st.title("Methods and validation")
     st.markdown(
@@ -62,11 +102,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
         f"{chip(workspace.PLANNED)}; every threshold names its source, and a "
         f"{chip('placeholder')} is a value nobody has validated yet.")
     st.caption(workspace.DISCLAIMER)
-    st.markdown("**On this page:** [Models](#models) · [Rules](#rules) · "
-                "[Federated training](#federated-training-across-simulated-hospitals) · "
-                "[Data sources and licenses](#data-sources-and-licenses) · "
-                "[Known failures](#known-failures) · "
-                "[Every placeholder](#every-placeholder-in-the-app)")
+    contents()
 
     st.header("Models")
     survival_card(demo, res)

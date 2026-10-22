@@ -38,7 +38,7 @@ from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import omics as wb
 from muffle.workbench.genomics import add_mark, mark_text
 from muffle.workbench.grammar import chip, count_label, esc
-from workbenches._page import Page, land
+from workbenches._page import Page, land, queue_items
 
 APP = Path(__file__).resolve().parents[1]
 STATUS_COLORS = {wb.AGREE: "green", wb.DISAGREE: "red", wb.NO_COMPARISON: "gray"}
@@ -62,13 +62,14 @@ CANNOT = ("Protein level from RNA, single cells or where in the tumor (the slide
           "and nothing here is a treatment recommendation.")
 
 
-@st.cache_data
+@st.cache_data(show_spinner="Reading the precomputed expression, methylation and protein "
+                            "scores…")
 def scores() -> dict | None:
     path = APP / "omics_scores.json"
     return json.loads(path.read_text()) if path.exists() else None
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def results() -> dict:
     path = APP / "results_tcga_brca.json"
     if not path.exists():
@@ -297,7 +298,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                 bits.append(f"Layer moving the risk most: {wb.LAYERS[big]['name']} "
                             f"({contrib[big]:+.3f} log-risk vs a typical patient)")
             st.markdown("\n".join(f"- {b}" for b in bits) or "- none")
-        items = wb.queue(pf, version)
+        items = list(queue_items("omics", pf, version, lambda: wb.queue(pf, version)))
         if pic and pic["status"] == wb.DISAGREE:  # the page's own item, beside the report's
             key = workspace.finding_key(pf, "omics", "immune", "immune picture")
             items.append({"pointer": "Immune", "what": "The immune picture disagrees across "

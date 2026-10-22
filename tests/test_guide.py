@@ -32,11 +32,15 @@ def test_the_walkthrough_guide_and_glossary(app):
     assert "1 of 4" in " ".join(m.value for m in at.markdown)
     at.button(key="walk-skip").click().run()  # dismissed for the browser session
     assert not any("First time here?" in m.value for m in at.markdown)
-    # "?" on the list: the labels, this screen, the keys
+    # "?" on the list: the labels, this screen, the keys (its content runs once opened)
+    assert popovers(at)["?"] == ""
+    at.session_state["help-patients"] = True
+    at.run()
     guide = popovers(at)["?"]
     assert "How to read this" in guide and GLOSSARY[INFERENCE] in guide
     assert WORKBENCH_GUIDE["patients"][0] in guide and "`j` next item" in guide
 
+    at.session_state["help-report"] = True
     at.selectbox(key="patient").select("SYNTHETIC-001").run()
     assert not any("First time here?" in m.value for m in at.markdown)
     labels = popovers(at)
@@ -44,12 +48,14 @@ def test_the_walkthrough_guide_and_glossary(app):
     assert WORKBENCH_GUIDE["report"][0] in labels["?"]
     at.segmented_control(key="view").set_value("Tests").run()
     at.session_state["picked-SYNTHETIC-001"] = ("Lab", 24, "CA 15-3")
+    at.session_state["help-labs"] = True
     at.run()
     labels = popovers(at)
     assert labels[":orange-badge[placeholder threshold]"] == GLOSSARY["placeholder"]
     assert WORKBENCH_GUIDE["labs"][1] in labels["?"] and not at.exception
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
     at._page_hash = pages["methods"]
+    at.session_state["help-methods"] = True
     at.run()
     assert WORKBENCH_GUIDE["methods"][0] in popovers(at)["?"] and not at.exception
 

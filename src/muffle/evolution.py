@@ -1104,11 +1104,14 @@ def summary(pf: PatientFile, version: int | None = None) -> dict:
         ("Evolution",))]}
 
 
-def queue(pf: PatientFile, version: int | None = None, k: int = 3) -> list[dict]:
+def queue(pf: PatientFile, version: int | None = None, k: int = 3,
+          hs: dict | None = None) -> list[dict]:
     """The first ``k`` rows the file raises itself, as hypotheses worth a look (consequence 1,
-    trust weak); the Evolution view holds the rest and the rows that apply to any patient."""
+    trust weak); the Evolution view holds the rest and the rows that apply to any patient.
+    ``hs``: the file's ``hypothesis_set`` when the caller has it already."""
     out = []
-    for it in [it for it in hypothesis_set(pf, version)["items"] if _raised(it)][:k]:
+    hs = hypothesis_set(pf, version) if hs is None else hs
+    for it in [it for it in hs["items"] if _raised(it)][:k]:
         out.append(look(
             it["id"], f"Watch for {it['event']}", f"{'; '.join(it['why'])}; when it would "
             f"matter: {it['matters']}; detect with {it['detect']}", HYPOTHESIS, "weak", 1,

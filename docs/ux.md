@@ -154,6 +154,82 @@ badges; their meanings are one click away in the guide.
   or "none" (the count is in words, never color alone); a Risk column; the recently opened
   files (§2).
 
+## 6. Speed and feel
+
+Every view and workbench was timed with `scripts/time_views.py` (AppTest on the release bundle
+`demo-bundle-v2`, one script cache shared across runs as on a server), in WSL on this PC's
+8-core CPU shared with other sessions (load average 6.6 to 7.3 during the runs). Main before
+this work (8fa143a) and this work ran alternately, twice each; the table gives the mean of the
+two rounds, and a rerun is the median of three. Seconds:
+
+| File · screen | Open, before → after | Rerun, before → after |
+|---|---|---|
+| Patients (the process's cold start; a rerun) | 16.3 → 15.9 | 0.11 → 0.10 |
+| SYNTHETIC-001 · Report | 0.48 → 0.58 | 0.40 → 0.40 |
+| SYNTHETIC-001 · Tests, Timeline, Evolution, Import tests | 1.00 → 0.76, 0.54 → 0.54, 0.73 → 0.51, 0.10 → 0.11 | |
+| SYNTHETIC-001 · Blood and lab (CA 15-3) | 0.82 → 0.77 | 0.98 → 0.82 |
+| SYNTHETIC-001 · ctDNA | 0.89 → 0.82 | 0.85 → 0.79 |
+| SYNTHETIC-001 · Genomics | 0.96 → 0.38 | 0.83 → 0.32 |
+| SYNTHETIC-001 · Radiology | 0.29 → 0.33 | 0.17 → 0.20 |
+| SYNTHETIC-001 · Clinical documents (a pathology report; a clinic note) | 1.31 → 0.96; 0.23 → 0.18 | 0.67 → 0.59; 0.21 → 0.17 |
+| Case 299 · Report | 0.78 → 0.79 | 0.67 → 0.29 |
+| Case 299 · Tests, Timeline, Evolution, Import tests | 1.48 → 0.50, 0.08 → 0.13, 0.24 → 0.31, 0.06 → 0.09 | |
+| Case 299 · Pathology slide | 2.24 → 2.29 | 1.05 → 1.12 |
+| Case 299 · Expression, methylation and protein | 0.57 → 0.66 | 0.62 → 0.57 |
+| Case 299 · Clinical documents | 0.19 → 0.19 | 0.15 → 0.17 |
+| Case 730 · Report | 0.57 → 0.62 | 0.57 → 0.24 |
+| Case 730 · Tests, Timeline, Evolution, Import tests | 1.60 → 0.41, 0.11 → 0.11, 0.18 → 0.14, 0.08 → 0.10 | |
+| Case 730 · Pathology slide | 4.35 → 2.94 | 1.53 → 1.50 |
+| Methods and validation | 0.82 → 0.78 | 0.86 → 0.82 |
+
+Faster: the TCGA files' Tests view (it opens on the genomics workbench, whose hidden tabs now
+wait for a click), the genomics workbench, the TCGA report's reruns (its two charts are built
+once per case), Case 730's slide workbench on first open (the comparison of its sections reads
+their stored numbers). The rest is within 0.1 s either way: the breadcrumbs, the sticky header,
+the "?" button and the session block are drawn on every run. The Timeline figures predate the
+Timeline's lanes (#117), which landed after these runs.
+
+What changed:
+- **Lazy where it pays.** Content that is hidden runs only while it is open: the "?" panel
+  (half of every rerun when it was first built), the genomics picture's tabs other than
+  Variants, the lab trends' panels other than the one open, the second slide viewer of "The
+  sections side by side". The comparison of sections reads the other sections' stored numbers
+  instead of analysing them again. Each page's look-here items are computed once per browser
+  session, file state and version. The TCGA report's two charts are built once per case as
+  Vega-Lite specs (Altair took about half a second to encode the cohort histogram on every
+  rerun). Per-case folders were already read on demand and cached per process (a scored
+  section, the omics scores, the genome numbers, the pathology reports).
+- **How it was measured**: `scripts/time_views.py`. AppTest alone re-parses the 1,300-line
+  shell on every run (Streamlit's "magic" pass, 0.4–0.8 s under load), which a server does once
+  per process; the script shares one script cache across runs, as a server does.
+- **Spinners that say what loads**: "Opening the pathology slide workbench…", "Gathering the
+  report: every workbench's findings and the attention queue…", "Reading the scored section…",
+  "Reading the precomputed expression, methylation and protein scores…", "Checking
+  ClinicalTrials.gov…".
+- **The slide viewer's first open** shows a progress bar in megabytes ("Fetching this section's
+  tiles, once for this server: 12 of 40 MB", then "Checking and unpacking the tiles…"); a failed
+  download is tried again after 10 minutes.
+- **The Methods and validation page** opens on a contents box: every section, and every card of
+  Models and Rules, as links (a test keeps it complete).
+- **Phone width.** Columns stack, the breadcrumb line and the report's cards wrap, the patient
+  list keeps its Patient column pinned, wide tables scroll inside themselves; the sticky header
+  holds the breadcrumbs, the patient line and the views.
+
+## 7. Accessibility basics
+
+- **Color is never the only signal**: every chip and badge carries its word (observed, trust:
+  weak, placeholder threshold), the open SOS count is "🔴 3 open" or "none", the maps have
+  legends, and the look-here rows name the evidence and the trust in text.
+- **Contrast**: badges use Streamlit's own palette (dark text on a light tint); the sticky
+  header has an opaque background in both themes.
+- **Alt text** on every image (slide crops and thumbnails, an imported image's preview) and on
+  the main charts (each lab trend in words, the allele fractions, the copy-number landscape,
+  the pathway map, the tile map, Evolution's record over time, the clonal allele fractions,
+  the risk position and the layer contributions, the Timeline's lanes and its risk over time).
+- **Keyboard triage**: the attention queue's buttons come in tab order (previous, next, pin,
+  mark reviewed, unsure list, open), each says its key on hover (j, k, p, m, u, o), and the
+  guide's Keys tab lists them.
+
 ## How it is tested
 
 `tests/skeleton.py` reads the parts a page recorded (`st.session_state["page_parts"]`) and the

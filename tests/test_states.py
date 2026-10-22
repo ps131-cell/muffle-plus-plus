@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from muffle import overview
-from tests.appfixture import popovers, shown
+from tests.appfixture import APP, popovers, shown
 
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
 SYN = "SYNTHETIC-001"
@@ -77,3 +77,20 @@ def test_report_cards_are_short_with_their_full_text_one_click_away(app):
     assert cards and "**:red[SOS]** · 7 open" in shown(at) and not at.exception
     full = popovers(at)["more"]  # the full text, one click away
     assert cards[-1][:-2].split("*")[-1].strip()[:20] in full
+
+
+def test_the_methods_page_lists_every_card_in_its_contents(app):
+    at = app.new().run()
+    pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
+    at._page_hash = pages["methods"]
+    at.run()
+    assert not at.exception
+    sys.path.insert(0, str(APP.parent))
+    from methods_page import CONTENTS, anchor
+
+    assert list(CONTENTS) == [h.value for h in at.header]
+    cards = [t for titles in CONTENTS.values() for t in titles]
+    assert cards == [s.value for s in at.subheader], "a new card joins methods_page.CONTENTS"
+    toc = " ".join(m.value for m in at.markdown if "](#" in m.value)
+    assert all(f"[{t}](#{anchor(t)})" in toc for t in [*CONTENTS, *cards])
+    assert anchor("Lesion contours (MedSAM, breast MRI)") == "lesion-contours-medsam-breast-mri"

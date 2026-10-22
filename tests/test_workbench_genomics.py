@@ -660,8 +660,14 @@ def test_genome_sections_render_on_the_shipped_numbers():
     at = AppTest.from_string(PAGE.format(workbenches=wbs, body=(
         f"genomics.render(case_file(SimpleNamespace(**{case!r})))")), default_timeout=120).run()
     assert not at.exception
-    text = " ".join(e.value for k in ("markdown", "caption", "info", "warning", "subheader")
-                    for e in getattr(at, k))
+    text = ""
+    for tab in ("Variants", "Copy-number landscape", "Burden and allele fractions",
+                "Predicted effect", "Pathway map"):  # each view runs while its tab is open
+        at.session_state[f"genomics-Case {case['index']}-latest-tabs"] = tab
+        at.run()
+        assert not at.exception, tab
+        text += " ".join(e.value for k in ("markdown", "caption", "info", "warning",
+                                           "subheader") for e in getattr(at, k))
     assert "the tumor's genome" in text and "ABSOLUTE purity" in text
     assert "Spot panel" in text and "somatic calls" in text and "AlphaMissense" in text
     assert "Rule: detected / not detected only where the sample looked" in text
@@ -672,7 +678,9 @@ def test_genome_sections_render_on_the_shipped_numbers():
     syn = AppTest.from_string(PAGE.format(workbenches=wbs, body=(
         f"tl = json.loads(open({tl!r}, encoding='utf-8').read())\n"
         "genomics.render(synthetic_file(tl), evidence=tl['evidence'])")),
-        default_timeout=120).run()
+        default_timeout=120)
+    syn.session_state["genomics-SYNTHETIC-001-latest-tabs"] = "Copy-number landscape"
+    syn.run()
     assert not syn.exception
     text = " ".join(e.value for k in ("markdown", "caption", "info") for e in getattr(syn, k))
     assert "No copy number for this file" in text and "AlphaMissense" in text
