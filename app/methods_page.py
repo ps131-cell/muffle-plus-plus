@@ -68,7 +68,8 @@ CONTENTS = {
     "Rules": ["SOS alerts and their order", "Lab result rules", "ctDNA monitor rules",
               "Slide geometry, invasion and breakaway rules",
               "Genomics: detection, interpretation and evidence",
-              "Clinical documents: extraction rules", "Tumor evolution and treatment evidence"],
+              "Clinical documents: the rules and a named-entity model, side by side",
+              "Tumor evolution and treatment evidence"],
     "Federated training across simulated hospitals": [], "Data sources and licenses": [],
     "Known failures": [], "Every placeholder in the app": [], "Limits": [],
 }
