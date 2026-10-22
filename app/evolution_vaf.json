@@ -1,6 +1,6 @@
 {
  "built": "2026-10-20",
- "source": "GDC open-access masked somatic mutation calls (exome, Aliquot Ensemble Somatic Variant Merging and Masking), TCGA-BRCA primary tumors: t_alt_count and t_depth per driver call; total copy number of the gene from ASCAT3 (gene level, UCSC Xena GDC hub)",
+ "source": "GDC open-access masked somatic mutation calls (exome, Aliquot Ensemble Somatic Variant Merging and Masking), TCGA-BRCA primary tumors: the variant's read count and the read depth per driver call; total copy number of the gene from ASCAT3 (gene level, UCSC Xena GDC hub)",
  "purity": null,
  "cases": {
   "564": {

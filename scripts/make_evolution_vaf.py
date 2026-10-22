@@ -132,8 +132,9 @@ def main() -> None:
     Path(a.out).write_text(json.dumps({
         "built": date.today().isoformat(),
         "source": "GDC open-access masked somatic mutation calls (exome, Aliquot Ensemble "
-                  "Somatic Variant Merging and Masking), TCGA-BRCA primary tumors: t_alt_count "
-                  "and t_depth per driver call; total copy number of the gene from ASCAT3 "
+                  "Somatic Variant Merging and Masking), TCGA-BRCA primary tumors: the variant's "
+                  "read count and the read depth per driver call; total copy number of the "
+                  "gene from ASCAT3 "
                   "(gene level, UCSC Xena GDC hub)",
         "purity": None,
         "cases": out}, indent=1) + "\n", encoding="utf-8")

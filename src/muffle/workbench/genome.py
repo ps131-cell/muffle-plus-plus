@@ -433,7 +433,7 @@ def effect_text(ef: dict) -> dict[str, str]:
     if not ef["found"]:
         return {"annotation": ef["note"], "interpretation": "", "prediction": ""}
     a, i, p = ef["annotation"], ef["interpretation"], ef["prediction"]
-    clin = ", ".join(i["germline"]) or "no germline classification"
+    clin = ", ".join(c.replace("_", " ") for c in i["germline"]) or "no germline classification"
     if i["somatic"]:
         clin += f"; somatic: {i['somatic']}"
     pred = (f"{p['score']:.3f} ({p['class']})" if p["score"] is not None else

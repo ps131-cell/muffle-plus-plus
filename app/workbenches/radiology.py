@@ -962,7 +962,7 @@ NO_DETECTOR = ("Lesion candidates on mammograms: none shown. No open, permissive
                "(the registry's mammography models give a score per breast (mammoscreen), a "
                "density (MONAI) or a risk (Mirai); detectors trained on VinDr-Mammo carry its "
                "restricted licence, and the open detectors found on 2026-10-21 publish code "
-               "without licensed weights; docs/model_survey.md §3). The density opinions stay.")
+               "without licensed weights). The density opinions stay.")
 
 
 @st.cache_resource(show_spinner=False)
@@ -1421,7 +1421,7 @@ def methods_card() -> None:
         "use RECIST 1.1's sum rules borrowed per candidate (placeholders); a sum of longest "
         "diameters is computed, never a response call. Protocol differences are listed first.\n"
         "- **Published validation:** none for this use; tested on synthetic shifted and rotated "
-        "volumes (tests/test_workbench_radiology.py). Shown on one public example pair, which "
+        "volumes (the project's automated tests). Shown on one public example pair, which "
         "is not a patient file here.")
     head("Multiplanar views and cine (breast MRI)", "axial, coronal and sagittal with linked "
          "positions; every phase at a slice · the radiology workbench")
