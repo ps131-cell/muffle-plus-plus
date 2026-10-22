@@ -43,6 +43,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "app" / "workbenches" / "radiology_results"
+EXAMPLE = ROOT / "app" / "workbenches" / "radiology_example"  # the public study pair
 API = "https://services.cancerimagingarchive.net/nbia-api/services/v1"
 MEDSAM_ID, MEDSAM_REV = "wanglab/medsam-vit-base", "de8488bca37bb1d4fb190f612c516126d739ce3b"
 DISPLAY_PX, MAMMO_PX, MAX_SLICES, JPEG_Q = 256, 512, 128, 80
@@ -53,6 +54,9 @@ SOURCE = {"collection": "TCGA-BRCA radiology (The Cancer Imaging Archive)",
                          "Invasive Carcinoma Collection (TCGA-BRCA), version 3. The Cancer "
                          "Imaging Archive, 2016. doi:10.7937/K9/TCIA.2016.AB2NAZRP. "
                          "Downsampled to 8-bit copies here; not the diagnostic originals."}
+EXAMPLE_NOTE = ("A public example study pair: a TCGA-BRCA patient on TCIA with breast MRI on two "
+                "dates, not a patient file in this app. Shown so that change over time on real "
+                "images can be seen; nothing in it is any patient file's data.")
 SR_KEEP = {"Procedure reported": "procedure", "Laterality": "laterality",
            "Assessment Category": "birads", "Pathology": "pathology",
            "Estrogen receptor": "er", "Progesterone receptor": "pr", "HER2": "her2"}
@@ -64,14 +68,22 @@ def get_json(url: str):
 
 
 def fetch(out: Path, specs: list[str]) -> None:
-    """BARCODE:NUM,NUM -> out/BARCODE/NUM/*.dcm (plus the study's structured report in sr/)."""
+    """BARCODE:NUM,NUM -> out/BARCODE/NUM/*.dcm (plus the study's structured report in sr/).
+    BARCODE@YYYY-MM-DD:NUM,NUM takes that date's study only (a patient with two studies reuses
+    series numbers) -> out/BARCODE_YYYY-MM-DD/NUM/."""
     for spec in specs:
-        barcode, nums = spec.split(":")
+        who, nums = spec.split(":")
+        barcode, _, date = who.partition("@")
         series = get_json(f"{API}/getSeries?Collection=TCGA-BRCA&PatientID={barcode}")
+        if date:
+            uids = {s["StudyInstanceUID"] for s in get_json(
+                f"{API}/getPatientStudy?Collection=TCGA-BRCA&PatientID={barcode}")
+                if s.get("StudyDate", "").startswith(date)}
+            series = [s for s in series if s["StudyInstanceUID"] in uids]
         want = [*nums.split(","), "sr"]
         for s in series:
             num = "sr" if s["Modality"] == "SR" else str(s.get("SeriesNumber"))
-            dest = out / barcode / num
+            dest = out / (f"{barcode}_{date}" if date else barcode) / num
             if num not in want or (dest.exists() and any(dest.glob("**/*.dcm"))):
                 continue
             t = time.time()
@@ -147,20 +159,39 @@ def resize2d(a: np.ndarray, shape: tuple[int, int], order: int = 1) -> np.ndarra
 
 
 # --- MRI -------------------------------------------------------------------------------------
+def seconds(hhmmss: str) -> float:
+    s = str(hhmmss)
+    return int(s[:2]) * 3600 + int(s[2:4]) * 60 + float(s[4:] or 0)
+
+
 def load_phases(base: Path, series: list[str], times: list[float] | None):
-    """[phase, z, row, col] float32 in display orientation, the per-phase info, the spacing
-    (slice, row, col) in mm and the first phase's headers."""
+    """[phase, Z, Y, X] float32 in the display frame (``orient``), the per-phase info, the
+    display frame's spacing (Z, Y, X) in mm, the pre-contrast phase's headers sorted along the
+    slice normal, and how the acquisition maps to the display frame."""
     phases, info = [], []
-    if len(series) == 1:  # one multiphase series: split it by TriggerTime
+    if len(series) == 1:  # one multiphase series: split it by TriggerTime, else by acquisition
         ds = dicoms(base / series[0])
-        groups = sorted({int(float(d.TriggerTime)) for d in ds})
-        for k, t in enumerate(groups):
-            phases.append([d for d in ds if int(float(d.TriggerTime)) == t])
-            info.append({"series": int(series[0]), "description": str(ds[0].SeriesDescription),
-                         "time_s": round(t / 1000, 1),
-                         "time_source": "TriggerTime from the first phase's start; the injection "
-                                        "time is not in the headers",
-                         "label": "pre-contrast" if k == 0 else f"post {k} ({t / 1000:.0f} s)"})
+        desc = str(ds[0].SeriesDescription)
+        trig = sorted({int(float(d.get("TriggerTime", 0) or 0)) for d in ds})
+        if len(trig) > 1:
+            starts = [t / 1000 for t in trig]
+            phases = [[d for d in ds if int(float(d.TriggerTime)) == t] for t in trig]
+            source = "TriggerTime from the first phase's start; the injection time is not in " \
+                     "the headers"
+        else:  # the same positions acquired again and again, numbered in order (GE VIBRANT)
+            n = len({round(float(np.dot(d.ImagePositionPatient, normal(d))), 1) for d in ds})
+            ds = sorted(ds, key=lambda d: int(d.InstanceNumber))
+            phases = [ds[i:i + n] for i in range(0, len(ds), n)]
+            assert all(len(p) == n for p in phases), "phases of unequal size"
+            t0 = min(seconds(d.AcquisitionTime) for d in phases[0])
+            starts = [min(seconds(d.AcquisitionTime) for d in p) - t0 for p in phases]
+            source = (f"AcquisitionTime, each phase's start from the pre-contrast phase's start "
+                      f"(a phase takes about {starts[1]:.0f} s to acquire); the injection time is "
+                      "not in the headers")
+        for k, t in enumerate(starts):
+            info.append({"series": int(series[0]), "description": desc, "time_s": round(t, 1),
+                         "time_source": source,
+                         "label": "pre-contrast" if k == 0 else f"post {k} ({t:.0f} s)"})
     else:
         for k, num in enumerate(series):
             ds = dicoms(base / num)
@@ -179,12 +210,13 @@ def load_phases(base: Path, series: list[str], times: list[float] | None):
         ds = sorted(ds, key=lambda d: float(np.dot(d.ImagePositionPatient, normal(d))))
         vol = np.stack([d.pixel_array.astype(np.float32) * float(getattr(d, "RescaleSlope", 1))
                         + float(getattr(d, "RescaleIntercept", 0)) for d in ds])
-        vols.append(orient(vol, ds[0]))
+        vols.append(vol)
         first = first or ds  # the pre-contrast phase's headers and positions
     pos = np.array([float(np.dot(d.ImagePositionPatient, normal(d))) for d in first])
     gap = float(np.median(np.diff(pos))) if len(pos) > 1 else float(first[0].SliceThickness)
     row_mm, col_mm = (float(v) for v in first[0].PixelSpacing)
-    return np.stack(vols), info, (abs(gap), row_mm, col_mm), first, pos
+    frame = Frame(first, (abs(gap), row_mm, col_mm), vols[0].shape)
+    return (np.stack([frame.to_display(v) for v in vols]), info, frame.spacing, first, frame)
 
 
 def axes(d) -> tuple[np.ndarray, np.ndarray]:
@@ -196,16 +228,46 @@ def normal(d) -> np.ndarray:
     return np.cross(*axes(d))
 
 
-def orient(vol: np.ndarray, d) -> np.ndarray:
-    """Display orientation for axial breast MRI: anterior at the top (rows run to +Y,
-    posterior, in DICOM's LPS frame) and the patient's right on the image's left (columns run
-    to +X, the patient's left)."""
-    r, c = axes(d)
-    if r[0] < 0:
-        vol = vol[..., ::-1]
-    if c[1] < 0:
-        vol = vol[:, ::-1, :]
-    return np.ascontiguousarray(vol)
+class Frame:
+    """The display frame [Z, Y, X] for any acquisition plane: axial slices from the feet to the
+    head, anterior at the top (rows run to +Y, posterior, in DICOM's LPS frame) and the
+    patient's right on the image's left (columns run to +X, the patient's left). An axial
+    acquisition only flips; a sagittal or coronal one is turned, and its in-plane resolution
+    becomes two of the display axes (the anisotropy is in ``spacing``)."""
+
+    PLANES = {0: "sagittal", 1: "coronal", 2: "axial"}  # the LPS axis the slice normal runs along
+
+    def __init__(self, ds: list, acq_spacing: tuple, shape: tuple):
+        r, c = axes(ds[0])
+        n = normal(ds[0])
+        dirs = [n, c, r]  # acquisition axes (slice, row, col) in LPS
+        lps = [int(np.argmax(np.abs(v))) for v in dirs]
+        self.perm = [lps.index(k) for k in (2, 1, 0)]  # display Z, Y, X <- acquisition axis
+        self.flips = [bool(dirs[p][k] < 0) for p, k in zip(self.perm, (2, 1, 0), strict=True)]
+        self.plane = self.PLANES[lps[0]]
+        self.acq_spacing = tuple(float(v) for v in acq_spacing)
+        self.spacing = tuple(self.acq_spacing[p] for p in self.perm)
+        # LPS z of every display slice (a corner of the volume is enough to find the lowest)
+        ipp0, ipp1 = (np.array(d.ImagePositionPatient, float) for d in (ds[0], ds[-1]))
+        corners = [p + i * c * acq_spacing[1] + j * r * acq_spacing[2] for p in (ipp0, ipp1)
+                   for i in (0, shape[1] - 1) for j in (0, shape[2] - 1)]
+        z0 = min(float(p[2]) for p in corners)
+        self.z_mm = [round(z0 + k * self.spacing[0], 1) for k in range(shape[self.perm[0]])]
+
+    def to_display(self, vol: np.ndarray) -> np.ndarray:
+        out = np.transpose(vol, self.perm)
+        for ax, f in enumerate(self.flips):
+            if f:
+                out = np.flip(out, ax)
+        return np.ascontiguousarray(out)
+
+    def to_plane(self, vol: np.ndarray) -> np.ndarray:
+        """A display-frame volume as acquisition-plane slices [slice, row, col], kept in the
+        display's directions (an axial acquisition: the display frame itself)."""
+        return np.ascontiguousarray(np.transpose(vol, np.argsort(self.perm)))
+
+    def from_plane(self, vol: np.ndarray) -> np.ndarray:
+        return np.ascontiguousarray(np.transpose(vol, self.perm))
 
 
 class MedSAM:
@@ -269,112 +331,133 @@ def mri(args) -> None:
 
     from muffle.workbench import radiology as rad
 
-    base = Path(args.dicom).expanduser() / args.barcode
+    folder = f"{args.barcode}_{args.date}" if args.date else args.barcode
+    base = Path(args.dicom).expanduser() / folder
     series = args.series.split(",")
     times = [float(t) for t in args.times.split(",")] if args.times else None
-    vols, info, spacing, first, pos = load_phases(base, series, times)
+    vols, info, spacing, first, frame = load_phases(base, series, times)
     n_ph, nz, h, w = vols.shape
     pre, post = vols[0], vols[1]
     sub = post - pre
     region, region_info = rad.breast_region(pre, spacing)
     found, seed = rad.candidates(sub, region, spacing, limit_row=region_info["limit_row"])
     labels = seed.pop("labels")
-    print(f"{args.barcode}: {nz} slices, {n_ph} phases, spacing {spacing}, cleft row "
-          f"{region_info['cleft_row']}, {seed['groups']} seed groups, {len(found)} proposed",
-          flush=True)
+    print(f"{folder}: {frame.plane} acquisition, display frame {nz}x{h}x{w}, {n_ph} phases, "
+          f"spacing {spacing}, cleft row {region_info['cleft_row']}, {seed['groups']} seed "
+          f"groups, {len(found)} proposed", flush=True)
 
+    # MedSAM on the acquisition plane (the sharpest one), in display directions; the masks go
+    # back to the display frame for the shipped slices
     medsam = MedSAM()
-    feed = {"sub": np.clip(sub, 0, None), "early": post}[args.medsam_input]
+    feed = frame.to_plane({"sub": np.clip(sub, 0, None), "early": post}[args.medsam_input])
+    plane_labels = frame.to_plane(labels)
+    n_acq, ah, aw = feed.shape
+    flipped = frame.flips[frame.perm.index(0)]  # plane slices run against the acquisition order
+
+    def acq(k: int) -> int:  # a plane slice's number in the acquisition's own order
+        return int(n_acq - 1 - k if flipped else k)
+
     embeddings, masks = {}, {}
     for c in found:
-        z0, z1 = c["bbox"][0], c["bbox"][1]
-        m3 = np.zeros((nz, h, w), bool)
+        m3 = np.zeros(feed.shape, bool)
+        unsure_where = np.zeros(feed.shape, bool)
         boxes, unsure = {}, []
-        for z in range(z0, z1):
-            comp = labels[z] == c["label"]
+        for z in map(int, np.where((plane_labels == c["label"]).any((1, 2)))[0]):
+            comp = plane_labels[z] == c["label"]
             box = rad.slice_box(comp)
-            if box is None:
-                continue
             if z not in embeddings:
                 embeddings[z] = medsam.embed(feed[z])
-            m = keep_overlapping(medsam.segment(embeddings[z], box, (h, w)), comp)
+            m = keep_overlapping(medsam.segment(embeddings[z], box, (ah, aw)), comp)
             box_area = (box[2] - box[0] + 1) * (box[3] - box[1] + 1)
             if not m.any() or m.sum() > 1.5 * box_area:
                 unsure.append(z)
+                unsure_where[z, box[1]:box[3] + 1, box[0]:box[2] + 1] = True
             m3[z], boxes[z] = m, box
-        masks[c["id"]] = m3
+        masks[c["id"]] = (m3, frame.from_plane(m3), frame.from_plane(unsure_where))
         c["boxes"], c["unsure_slices"] = boxes, unsure
-        print(f"  {c['id']}: slices {z0}-{z1 - 1}, seed {c['seed_mm3']} mm³, "
-              f"MedSAM on {len(boxes)} slices, unsure {unsure}", flush=True)
+        print(f"  {c['id']}: {frame.plane} slices {acq(min(boxes))}-{acq(max(boxes))}, seed "
+              f"{c['seed_mm3']} mm³, MedSAM on {len(boxes)} slices, unsure "
+              f"{sorted(acq(z) for z in unsure)}", flush=True)
 
     # --- shipped display volume -------------------------------------------------------------
+    sz, sy, sx = spacing
     step = max(1, math.ceil(nz / MAX_SLICES))
     shown = list(range(0, nz, step))
-    rows = min(h, region_info["limit_row"] + int(round(BEHIND_MM / spacing[1])))  # the crop
-    scale = max(rows, w) / DISPLAY_PX
-    dh, dw = int(round(rows / scale)), int(round(w / scale))
+    rows = min(h, region_info["limit_row"] + int(round(BEHIND_MM / sy)))  # the crop
+    pixel_mm = max(rows * sy, w * sx) / DISPLAY_PX  # square shown pixels
+    dh, dw = int(round(rows * sy / pixel_mm)), int(round(w * sx / pixel_mm))
+    scale = (pixel_mm / sy, pixel_mm / sx)  # display-frame pixels per shown pixel
     lo = float(np.percentile(pre[region], 0.5)) if region.any() else float(pre.min())
     hi = float(np.percentile(post[region], 99.8)) if region.any() else float(post.max())
-    late = vols[-1]
-    out = OUT / args.barcode
+    out = Path(args.out) / folder
     out.mkdir(parents=True, exist_ok=True)
     sub_hi = float(np.percentile(np.clip(sub, 0, None)[region], 99.9)) if region.any() else 1.0
+    middle = {f"phase{k}": k for k in range(2, n_ph - 1)}  # the cine's phases in between
     for key, vol, (a, b) in (("pre", pre, (lo, hi)), ("early", post, (lo, hi)),
-                             ("late", late, (lo, hi)), ("sub", np.clip(sub, 0, None), (0, sub_hi))):
+                             ("late", vols[-1], (lo, hi)),
+                             *((k, vols[i], (lo, hi)) for k, i in middle.items()),
+                             ("sub", np.clip(sub, 0, None), (0, sub_hi))):
         strip_jpeg(np.stack([to8(resize2d(vol[z, :rows], (dh, dw)), a, b) for z in shown]),
                    out / f"{key}.jpg")
 
     # --- measurements per candidate ----------------------------------------------------------
-    cands = []
+    acq_px = frame.acq_spacing[1:]  # the acquisition plane's pixel spacing (rows, cols)
+    cands, keep = [], {}
     for c in found:
-        m3 = masks[c["id"]]
-        lds = {z: rad.longest_diameter_mm(m3[z], spacing[1:]) for z in c["boxes"]}
+        m3, md, unsure_d = masks[c["id"]]
+        keep[f"mask_{c['id']}"] = md
+        lds = {z: rad.longest_diameter_mm(m3[z], acq_px) for z in c["boxes"]}
         sure_only = [z for z in lds if z not in c["unsure_slices"]]
         sure = sure_only or list(lds)
         z_ld = max(sure, key=lambda z: lds[z][0]) if sure else None
         m_sure = m3.copy()
         m_sure[c["unsure_slices"]] = False
-        signal = [float(vols[k][m3].mean()) if m3.any() else float("nan") for k in range(n_ph)]
+        signal = [float(vols[k][md].mean()) if md.any() else float("nan") for k in range(n_ph)]
         kin = rad.kinetics(signal, [p["time_s"] for p in info], [p["label"] for p in info])
         per_slice = {}
         for i, z in enumerate(shown):
-            if z not in c["boxes"]:
+            seed_z = labels[z] == c["label"]
+            if not (seed_z.any() or md[z].any()):
                 continue
-            ld, ends = lds[z]
-            x0, y0, x1, y1 = c["boxes"][z]
+            ld, ends = rad.longest_diameter_mm(md[z], (sy, sx))
+            x0, y0, x1, y1 = rad.slice_box(seed_z if seed_z.any() else md[z])
             per_slice[i] = {
-                "z": z, "box": [round(x0 / scale, 1), round(y0 / scale, 1), round(x1 / scale, 1),
-                                round(y1 / scale, 1)],
-                "contours": contours(m3[z], (scale, scale)), "ld_mm": round(ld, 1),
-                "ld_line": [[round(p[1] / scale, 1), round(p[0] / scale, 1)] for p in ends],
-                "area_mm2": round(float(m3[z].sum()) * spacing[1] * spacing[2], 1),
-                "unsure": z in c["unsure_slices"]}
-        vol_ml = rad.volume_ml(m3, spacing)
-        lo_ml, hi_ml = rad.volume_range_ml(m3, spacing)
+                "z": z, "box": [round(x0 / scale[1], 1), round(y0 / scale[0], 1),
+                                round(x1 / scale[1], 1), round(y1 / scale[0], 1)],
+                "contours": contours(md[z], scale), "ld_mm": round(ld, 1),
+                "ld_line": [[round(p[1] / scale[1], 1), round(p[0] / scale[0], 1)]
+                            for p in ends],
+                "area_mm2": round(float(md[z].sum()) * sy * sx, 1),
+                "unsure": bool(unsure_d[z].any())}
+        lo_ml, hi_ml = rad.volume_range_ml(m3, frame.acq_spacing)
         zs = sorted(c["boxes"])
         cands.append({
             "id": c["id"], "rank": c["rank"], "evidence": "model inference",
             "seed": {k: c[k] for k in ("seed_mm3", "mean_sub", "peak_sub", "elongation", "score",
                                        "bbox")},
-            "slices": [int(zs[0]), int(zs[-1])], "medsam_slices": len(zs),
-            "unsure_slices": [int(z) for z in c["unsure_slices"]],
+            "slices": sorted([acq(zs[0]), acq(zs[-1])]), "medsam_slices": len(zs),
+            "unsure_slices": sorted(acq(z) for z in c["unsure_slices"]),
             "longest_diameter_mm": round(lds[z_ld][0], 1) if z_ld is not None else 0.0,
-            "ld_slice": int(z_ld) if z_ld is not None else None,
-            "ld_uncertainty_mm": round(max(spacing[1], spacing[2]), 2),
-            "cc_extent_mm": round(len(zs) * spacing[0], 1),
-            "volume_ml": round(vol_ml, 2), "volume_range_ml": [round(lo_ml, 2), round(hi_ml, 2)],
-            "volume_sure_ml": round(rad.volume_ml(m_sure, spacing), 2),
+            "ld_slice": acq(z_ld) if z_ld is not None else None,
+            "ld_plane": frame.plane,
+            "ld_uncertainty_mm": round(max(acq_px), 2),
+            "cc_extent_mm": round(int(md.any((1, 2)).sum()) * sz, 1),
+            "volume_ml": round(rad.volume_ml(m3, frame.acq_spacing), 2),
+            "volume_range_ml": [round(lo_ml, 2), round(hi_ml, 2)],
+            "volume_sure_ml": round(rad.volume_ml(m_sure, frame.acq_spacing), 2),
             "ld_from": f"{len(sure_only)} of {len(lds)} slices where the contour stayed inside "
                        "its box" if sure_only else "every slice (all were flagged unsure)",
             "centroid_mm": [round(float(v), 1) for v in
-                            np.array(ndimage.center_of_mass(m3)) * np.array(spacing)]
-            if m3.any() else None,
-            "side": ("patient's right" if (np.argwhere(m3)[:, 2].mean() < w / 2) else
-                     "patient's left") if m3.any() else None,
+                            np.array(ndimage.center_of_mass(md)) * np.array(spacing)]
+            if md.any() else None,
+            "side": ("patient's right" if (np.argwhere(md)[:, 2].mean() < w / 2) else
+                     "patient's left") if md.any() else None,
             "signal": [round(v, 1) for v in signal], "kinetics": kin, "per_slice": per_slice})
 
     sr = report_facts(base / "sr")
     d0 = first[0]
+    plane_note = "" if frame.plane == "axial" else \
+        f" (reconstructed from the {frame.plane} acquisition)"
     study = {
         "barcode": args.barcode, "cohort_index": args.index, "modality": "MR",
         "kind": "Breast MRI (dynamic contrast-enhanced)",
@@ -383,43 +466,108 @@ def mri(args) -> None:
                   "description": str(getattr(d0, "StudyDescription", "")),
                   "scanner": scanner(d0),
                   "field_t": float(getattr(d0, "MagneticFieldStrength", 0) or 0),
-                  "contrast": str(getattr(d0, "ContrastBolusAgent", "") or "").strip()},
+                  "contrast": str(getattr(d0, "ContrastBolusAgent", "") or "").strip(),
+                  "sequence": {"tr_ms": float(getattr(d0, "RepetitionTime", 0) or 0),
+                               "te_ms": float(getattr(d0, "EchoTime", 0) or 0),
+                               "flip_deg": float(getattr(d0, "FlipAngle", 0) or 0)}},
         "source": SOURCE, "report": sr,
-        "display": {"rows": dh, "cols": dw, "pixel_mm": round(spacing[1] * scale, 3),
-                    "native": [int(h), int(w)], "native_pixel_mm": [spacing[1], spacing[2]],
+        "display": {"rows": dh, "cols": dw, "pixel_mm": round(pixel_mm, 3),
+                    "native": [int(h), int(w)], "native_pixel_mm": [round(sy, 4), round(sx, 4)],
                     "crop": f"rows 1-{rows} of {h}: up to {BEHIND_MM} mm behind the search "
                             "region's posterior limit (the heart and lungs are cut off)",
                     "slices": len(shown), "native_slices": int(nz), "slice_step": step,
-                    "slice_mm": round(spacing[0], 2),
+                    "slice_mm": round(sz, 2),
                     "slice_thickness_mm": float(getattr(d0, "SliceThickness", 0) or 0),
-                    "z_mm": [round(float(pos[z]), 1) for z in shown],
-                    "orientation": "axial; anterior at the top, the patient's right on the "
-                                   "image's left",
+                    "z_mm": [frame.z_mm[z] for z in shown],
+                    "acquisition": {"plane": frame.plane, "slices": int(n_acq),
+                                    "slice_mm": round(frame.acq_spacing[0], 2),
+                                    "pixel_mm": [round(v, 4) for v in acq_px]},
+                    "orientation": f"axial{plane_note}; anterior at the top, the patient's "
+                                   "right on the image's left",
                     "window": "pre, early and late share one window (0.5th percentile of the "
                               "pre-contrast to the 99.8th of the early phase inside the breast "
                               "region); the subtraction has its own",
                     "jpeg_quality": JPEG_Q},
         "phases": info,
-        "shipped": {"pre": 0, "early": 1, "late": n_ph - 1, "sub": "early minus pre"},
+        "shipped": {"pre": 0, "early": 1, "late": n_ph - 1, "sub": "early minus pre",
+                    "between": middle},
         "region": {**region_info, "margin_mm": rad.CUTOFFS["chest_margin_mm"][0],
-                   "limit_row_display": round(region_info["limit_row"] / scale, 1)},
+                   "limit_row_display": round(region_info["limit_row"] / scale[0], 1)},
         "seed": {**seed, "rule": "subtraction above the breast region's 99.5th percentile, "
                                  "opened with a 1.5 mm ellipsoid and grouped in 3D; small, "
                                  "vessel-like, plate-like and chest-wall-line groups left out; "
                                  "ranked by summed enhancement"},
         "candidates": cands,
         "medsam": {"model": MEDSAM_ID, "revision": MEDSAM_REV, "input": args.medsam_input,
-                   "slices": len(medsam.seconds),
+                   "plane": frame.plane, "slices": len(medsam.seconds),
                    "seconds_per_slice": round(float(np.median(medsam.seconds)), 1)
                    if medsam.seconds else None,
                    "seconds_total": round(float(np.sum(medsam.seconds)), 0),
                    "threads": int(medsam.torch.get_num_threads()), "uptime": uptime()},
-        "pipeline": {"script": "scripts/radiology_pipeline.py mri", "version": "1",
+        "pipeline": {"script": "scripts/radiology_pipeline.py mri", "version": "2",
                      "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")},
     }
+    if args.example:
+        study["example"] = EXAMPLE_NOTE
     (out / "study.json").write_text(json.dumps(study, indent=1, default=float), encoding="utf-8")
+    if args.keep:  # full-resolution volumes for `pair`, outside the repository
+        Path(args.keep).expanduser().mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(Path(args.keep).expanduser() / f"{folder}.npz", pre=pre, early=post,
+                            spacing=np.array(spacing), limit_row=region_info["limit_row"],
+                            crop_rows=rows, **keep)
     size = sum(p.stat().st_size for p in out.iterdir())
     print(f"-> {out} ({size / 1e6:.2f} MB)", flush=True)
+
+
+def pair(args) -> None:
+    """Two dates of one patient (processed with ``mri --keep``): the earlier study's
+    pre-contrast volume aligned rigidly onto the later one's (``muffle.workbench.radiology.
+    register``), the local residual at every later candidate and on a block grid over the breast
+    region, and the candidates paired across dates; pair.json next to the two studies."""
+    from muffle.workbench import radiology as rad
+
+    work, out = Path(args.keep).expanduser(), Path(args.out)
+    a, b = (np.load(work / f"{name}.npz") for name in (args.earlier, args.later))
+    sa, sb = tuple(float(v) for v in a["spacing"]), tuple(float(v) for v in b["spacing"])
+    fixed, moving = b["pre"].astype(np.float32), a["pre"].astype(np.float32)
+    mask = np.zeros(fixed.shape, bool)
+    mask[:, :int(b["crop_rows"])] = True  # the shipped crop: the breasts and the air before them
+    print(f"registering {args.earlier} onto {args.later}", flush=True)
+    reg = rad.register(fixed, moving, sb, sa, mask)
+    print(json.dumps({k: v for k, v in reg.items() if k != "method"}), flush=True)
+    earlier, later = rad.load_study(out / args.earlier), rad.load_study(out / args.later)
+    t = time.time()
+    residuals = {c["id"]: rad.local_residual(fixed, moving, sb, sa, reg, c["centroid_mm"])
+                 for c in later["candidates"] if c.get("centroid_mm")}
+    print("residuals", json.dumps(residuals), f"{time.time() - t:.0f} s", flush=True)
+    # a block grid over the breasts (tissue in front of the search region's posterior limit)
+    tissue = fixed > 0.2 * np.percentile(fixed, 99)
+    tissue[:, int(b["limit_row"]):] = False
+    step = 30.0
+    extent = (np.array(fixed.shape) - 1) * np.array(sb)
+    centres = np.stack(np.meshgrid(*[np.arange(step / 2, e, step) for e in extent],
+                                   indexing="ij"), -1).reshape(-1, 3)
+    blocks = []
+    for at in centres:
+        lo = np.maximum(((at - step / 2) / sb).astype(int), 0)
+        hi = ((at + step / 2) / sb).astype(int) + 1
+        if tissue[lo[0]:hi[0], lo[1]:hi[1], lo[2]:hi[2]].mean() < 0.3:
+            continue
+        r = rad.local_residual(fixed, moving, sb, sa, reg, at, half_mm=step / 2)
+        blocks.append({**r, "half_mm": step / 2})
+    print(f"{len(blocks)} blocks, {sum(not x['reliable'] for x in blocks)} unreliable, "
+          f"{time.time() - t:.0f} s", flush=True)
+    matches = rad.match_candidates(earlier["candidates"], later["candidates"], reg, residuals)
+    result = {"earlier": args.earlier, "later": args.later, "registration": reg,
+              "residuals": residuals, "blocks": blocks, "matches": matches,
+              "frame": "the later study's frame: (Z, Y, X) mm from its first shown slice, row "
+                       "and column", "example": EXAMPLE_NOTE, "source": SOURCE,
+              "pipeline": {"script": "scripts/radiology_pipeline.py pair", "version": "1",
+                           "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+                           "seconds": round(time.time() - t + reg["seconds"], 0),
+                           "uptime": uptime()}}
+    (out / "pair.json").write_text(json.dumps(result, indent=1, default=float), encoding="utf-8")
+    print(json.dumps(matches), flush=True)
 
 
 # --- mammography --------------------------------------------------------------------------------
@@ -667,15 +815,24 @@ if __name__ == "__main__":
         s = sub.add_parser(name)
         s.add_argument("--dicom", default="~/muffle-radiology/dicom")
         s.add_argument("--barcode", required=True)
-        s.add_argument("--index", type=int, required=True, help="the case's row in cohort.npz")
+        s.add_argument("--index", type=int, default=None, help="the case's row in cohort.npz")
         s.add_argument("--series", required=True, help="series numbers, pre-contrast first")
         if name == "mri":
+            s.add_argument("--date", default=None, help="the study date, for a patient with two")
             s.add_argument("--times", default=None, help="seconds per phase, if not in headers")
             s.add_argument("--medsam-input", choices=("sub", "early"), default="sub")
+            s.add_argument("--out", default=str(OUT))
+            s.add_argument("--example", action="store_true", help="label it the example pair")
+            s.add_argument("--keep", default=None, help="folder for the full-resolution volumes")
         else:
             s.add_argument("--screen", action="store_true", help="add mammoscreen's score")
             s.add_argument("--density", action="store_true",
                            help="add MONAI's breast density per view")
+    pr = sub.add_parser("pair")
+    pr.add_argument("--earlier", required=True, help="the earlier study's folder name")
+    pr.add_argument("--later", required=True)
+    pr.add_argument("--out", default=str(EXAMPLE))
+    pr.add_argument("--keep", default="~/muffle-radiology2/work")
     sub.add_parser("index")
     a = p.parse_args()
     os.environ.setdefault("OMP_NUM_THREADS", "2")
@@ -685,5 +842,7 @@ if __name__ == "__main__":
         mri(a)
     elif a.cmd == "mammo":
         mammo(a)
+    elif a.cmd == "pair":
+        pair(a)
     else:
         index()

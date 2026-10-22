@@ -296,27 +296,37 @@ measurements, flags, risk map, certainty) carries over, re-implemented; its tiss
 
 ## 6. Radiology workbench (CT, MRI, PET, mammography)
 
-First version built 2026-10-20 (method, cutoffs and known failures: [`radiology.md`](radiology.md)).
-The synthetic record holds imaging reports (text), so its page is report-driven and honest about
-it; three held-out TCGA cases have public TCIA studies, which open the image viewer.
+First version built 2026-10-20, second round 2026-10-21 (method, cutoffs and known failures:
+[`radiology.md`](radiology.md)). The synthetic record holds imaging reports (text), so its page is
+report-driven and honest about it; five held-out TCGA cases have public TCIA studies, which open
+the image viewer, and a public example pair of two dates shows change over time on real images.
 
 - **Report-driven** [now, built]: each imaging read with "read as progression / stable" observed
   in the report's words, new sites listed, the lesion vocabulary extracted ("new liver lesions"),
   a lesion table that tracks named sites across reports with their dates ("no measurements
-  recorded"), and lead and lag against CA 15-3.
+  recorded"), lead and lag against CA 15-3, and [built, round 2] a change view between any two
+  reads in the image change view's shape (no sizes, so no sum).
 - **Image viewer** [built on public studies]: slice navigation, window and level, series
-  selection (pre, early, delayed, subtraction), zoom, contours with their source (MedSAM from a
-  seed rule's box; no reader contours exist), measurements with method and uncertainty (longest
-  diameter ± a pixel, volume with a one-pixel range), DCE kinetics in the BI-RADS lexicon's terms
-  with literature cutoffs as placeholders. [planned] multiplanar views, registration between
-  dates with "unreliable here" marks, RECIST-style sums labeled as computed, mammography contours.
-  [built for one study] a mammoscreen screening score and density per breast, and MONAI's
-  density per view as a second opinion (model inference).
-- **Protocol and scanner differences** [data] flagged before any "larger" or "smaller": no
-  processed patient has two study dates yet (20 TCIA patients do; none is in the held-out set).
-- **Spot panel per lesion** [built for one study]: size, volume, kinetics curve, how its box was
-  chosen, the model and its published validation ("not validated on breast MRI here"); size over
-  time needs a prior [data].
+  selection (pre, every phase, delayed, subtraction), zoom, contours with their source (MedSAM
+  from a seed rule's box, on the acquisition plane; no reader contours exist), measurements with
+  method and uncertainty (longest diameter ± a pixel, volume with a one-pixel range), DCE kinetics
+  in the BI-RADS lexicon's terms with literature cutoffs as placeholders. [built, round 2]
+  multiplanar views (axial, coronal and sagittal with linked positions, the voxel shape said, the
+  contours and measurement marks carried over), a cine through the phases at the lesion, and
+  sagittal acquisitions turned into the axial frame. [built for one study] a mammoscreen
+  screening score and density per breast, MONAI's density per view as a second opinion (model
+  inference), and [built, round 2] a left-right dense-pixel difference (placeholder) and CC and
+  MLO linked on the same band behind the nipple. [none open] mammography lesion contours: no
+  open, permissive, CPU-ready detector was found, and the page says so.
+- **Change over time** [built on a public example pair, round 2]: two dates side by side at the
+  same position after a rigid alignment by normalised mutual information, "unreliable here"
+  where a local check finds the studies still apart (placeholder), lesions paired by position
+  with both dates' sizes and the change, a RECIST-style sum labeled computed (never a response
+  call) and a "what changed" paragraph; protocol and scanner differences listed first. No
+  bundled patient has two dates; the example pair (TCGA-AR-A1AQ) is not a patient file.
+- **Spot panel per lesion** [built]: size, volume, kinetics curve, how its box was chosen, the
+  model and its published validation ("not validated on breast MRI here"), and its change over
+  time where two dates exist.
 
 ## 7. Expression, methylation and protein workbench
 

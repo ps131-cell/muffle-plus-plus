@@ -47,7 +47,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 from muffle.report.case_tools import INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench import radiology as rad  # noqa: E402
 from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
-from muffle.workspace import IMPLEMENTED, MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
+from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 
 RESULTS = APP / "workbenches" / "radiology_results"
 COLORS = {"C1": (230, 73, 72), "C2": (235, 160, 52), "C3": (64, 160, 230)}
@@ -61,10 +61,13 @@ KUHL_NUMBERS = ("in Kuhl et al. 1999 (266 lesions), type III curves were seen in
                 "a diagnosis of this lesion")
 
 
+EXAMPLE_CHIP = "public example pair, not this patient"
+
+
 def chips(*labels: str) -> None:
     """The shared badges (``muffle.workbench.grammar``); a placeholder is always orange."""
-    st.caption(" ".join(chip(label, "orange" if label == "synthetic patient" else None)
-                        for label in labels))
+    st.caption(" ".join(chip(label, "orange" if label in ("synthetic patient", EXAMPLE_CHIP)
+                             else None) for label in labels))
 
 
 # --- review marks and pins (the workspace's shared stores) ----------------------------------------
@@ -226,9 +229,144 @@ def kinetics_chart(c: dict) -> alt.Chart:
     return (rules + line).properties(height=220)
 
 
+@st.cache_resource(show_spinner=False)
+def _mask(folder: str, cid: str, shape: tuple) -> np.ndarray:
+    study = rad.load_study(folder)
+    return rad.candidate_mask(next(c for c in study["candidates"] if c["id"] == cid), shape)
+
+
+def masks(study: dict) -> dict[str, np.ndarray]:
+    """Each candidate's contour as a mask on the shipped grid, for the views other than axial."""
+    d = study["display"]
+    return {c["id"]: _mask(study["folder"], c["id"], (d["slices"], d["rows"], d["cols"]))
+            for c in study["candidates"]}
+
+
+def series_keys(study: dict) -> list[str]:
+    """The shipped series: pre, early, the phases between (round 2), delayed and subtraction."""
+    return ["pre", "early", *study.get("shipped", {}).get("between", {}), "late", "sub"]
+
+
+def series_label(study: dict, key: str) -> str:
+    between = study.get("shipped", {}).get("between", {})
+    if key in between:
+        return f"Phase {between[key] + 1}: {study['phases'][between[key]]['label']}"
+    return {"pre": PHASE_NAMES["pre"], "early": f"{PHASE_NAMES['early']}: "
+                                                 f"{study['phases'][1]['label']}",
+            "late": f"{PHASE_NAMES['late']}: {study['phases'][-1]['label']}",
+            "sub": PHASE_NAMES["sub"]}[key]
+
+
+def edges(m: np.ndarray) -> np.ndarray:
+    p = np.pad(m, 1)
+    return m & ~(p[2:, 1:-1] & p[:-2, 1:-1] & p[1:-1, 2:] & p[1:-1, :-2])
+
+
+K = 2  # the smaller panes are drawn at twice the shipped size
+
+
+def pane(img: np.ndarray, layers: list[tuple], lines: list[tuple],
+         marks: list[tuple]) -> Image.Image:
+    """A grey view drawn at ``K``: mask outlines (mask, colour), crosshair lines (("h" | "v",
+    position, colour)) and labelled measurement marks ((x0, y0, x1, y1, colour, text))."""
+    rgb = np.stack([img] * 3, -1)
+    for m, col in layers:
+        rgb[edges(m)] = col
+    out = Image.fromarray(rgb).resize((img.shape[1] * K, img.shape[0] * K), Image.NEAREST)
+    draw = ImageDraw.Draw(out)
+    for kind, at, col in lines:
+        a = at * K
+        draw.line([(0, a), (out.width, a)] if kind == "h" else [(a, 0), (a, out.height)],
+                  fill=col, width=1)
+    for x0, y0, x1, y1, col, text in marks:
+        draw.line([(x0 * K, y0 * K), (x1 * K, y1 * K)], fill=col, width=2)
+        if text:
+            draw.text((x1 * K + 4, (y0 + y1) / 2 * K - 6), text, fill=col)
+    return out
+
+
+def three_planes(study: dict, key0: str, vol: np.ndarray, i: int, picked: dict | None) -> None:
+    """Axial, coronal and sagittal views of the shipped volume with linked positions: the axial
+    slice (the viewer's slider) and a row and a column, each drawn as a line on the other two
+    views; the contours resliced from the candidates' masks; the craniocaudal extent and the
+    longest-diameter slice carried over as marks."""
+    d = study["display"]
+    for k, default in ((f"{key0}-row", d["rows"] // 2), (f"{key0}-col", d["cols"] // 2)):
+        if k not in st.session_state:
+            st.session_state[k] = default + 1
+    c1, c2 = st.columns(2)
+    r = c1.slider("Coronal plane (row, front to back)", 1, d["rows"], key=f"{key0}-row") - 1
+    c = c2.slider("Sagittal plane (column, patient's right to left)", 1, d["cols"],
+                  key=f"{key0}-col") - 1
+    ms = masks(study)
+    row_i = rad.reslice_row(i, d)
+    views = {}
+    for plane, index, lines in (
+            ("axial", i, [("h", r + 0.5, (80, 200, 120)), ("v", c + 0.5, (80, 160, 255))]),
+            ("coronal", r, [("h", row_i, (255, 220, 80)), ("v", c + 0.5, (80, 160, 255))]),
+            ("sagittal", c, [("h", row_i, (255, 220, 80)), ("v", r + 0.5, (80, 200, 120))])):
+        img = rad.reslice(vol, plane, index, d)
+        layers, marks = [], []
+        for cand in study["candidates"]:
+            m = rad.reslice(ms[cand["id"]], plane, index, d, order=0)
+            if not m.any():
+                continue
+            col = COLORS.get(cand["id"], (255, 255, 0))
+            layers.append((m, col))
+            ys, xs = np.where(m)
+            if plane == "axial":
+                s = cand["per_slice"].get(str(i))
+                if s and len(s["ld_line"]) == 2:
+                    (x0, y0), (x1, y1) = s["ld_line"]
+                    marks.append((x0, y0, x1, y1, (255, 255, 102), f"{s['ld_mm']:g} mm"))
+            else:  # the craniocaudal extent beside the contour, and the LD slice
+                x = xs.max() + 3
+                marks.append((x, ys.min(), x, ys.max() + 1, col,
+                              f"{cand['cc_extent_mm']:g} mm head-feet"))
+                y = rad.reslice_row(_ld_index(study, cand), d)
+                marks.append((xs.min(), y, xs.max() + 1, y, (255, 255, 102), "LD slice"))
+        views[plane] = pane(img, layers, lines, marks)
+    a, b, s_ = st.columns([2.2, 2.2, 1.3])
+    a.image(views["axial"], caption=f"Axial, slice {i + 1}", width="stretch")
+    b.image(views["coronal"], caption=f"Coronal, row {r + 1}", width="stretch")
+    s_.image(views["sagittal"], caption=f"Sagittal, column {c + 1}", width="stretch")
+    st.caption("Lines: yellow = the axial slice, green = the coronal plane, blue = the sagittal "
+               "plane. " + rad.anisotropy(d) + ". Contours are the axial contours stacked and "
+               "resliced (model inference); the marks carry the craniocaudal extent and the "
+               "longest-diameter slice over from the measurements"
+               + (f"; {picked['id']} is the chosen candidate" if picked else "") + ".")
+
+
+def cine(study: dict, c: dict | None, i: int, level: int, width: int) -> bytes:
+    """An animated GIF through every shipped phase at slice ``i``, zoomed on candidate ``c``
+    (its contour outlined) or the whole slice."""
+    keys = [k for k in series_keys(study) if k != "sub"]
+    x0, y0, vw, vh, _ = view_of(study, c, i, c is not None)
+    side = 256
+    frames = []
+    for key in keys:
+        img = window(slices(study, key)[i], level, width)[y0:y0 + vh, x0:x0 + vw]
+        rgb = Image.fromarray(img).resize((side, round(side * vh / vw)), Image.BILINEAR)
+        rgb = rgb.convert("RGB")
+        draw = ImageDraw.Draw(rgb)
+        k = side / vw
+        for poly in (c["per_slice"].get(str(i), {}).get("contours", []) if c else []):
+            if len(poly) > 2:
+                pts = [((x - x0) * k, (y - y0) * k) for x, y in poly]
+                draw.line(pts + [pts[0]], fill=COLORS.get(c["id"], (255, 255, 0)), width=1)
+        label = series_label(study, key).split(": ")[-1]
+        draw.rectangle([0, 0, side, 14], fill=(0, 0, 0))
+        draw.text((4, 1), f"{label} · slice {i + 1}", fill=(255, 255, 255))
+        frames.append(rgb)
+    buf = io.BytesIO()
+    frames[0].save(buf, format="GIF", save_all=True, append_images=frames[1:], duration=800,
+                   loop=0)
+    return buf.getvalue()
+
+
 # --- the image viewer -----------------------------------------------------------------------------
 def studies_of(pf: PatientFile) -> list[tuple]:
-    return [(t, rad.load_study(RESULTS / t.details["folder"])) for t in pf.tests
+    return [(t, rad.load_study(rad.study_folder(t))) for t in pf.tests
             if t.workbench == "imaging" and "folder" in t.details]
 
 
@@ -275,7 +413,8 @@ def mri_page(pf: PatientFile, study: dict) -> None:
                f"{c1['volume_range_ml'][1]:g}), {c1['kinetics'].get('initial')} initial and "
                f"{c1['kinetics'].get('delayed')} delayed enhancement (curve type "
                f"{c1['kinetics'].get('curve_type')})." if c1 else "No candidate was proposed."))
-    look = rad.look_here(study)
+    changes = pair_for(pf, study)
+    look = rad.look_here(study, changes["change"] if changes else None)
     st.markdown(obs + "  \n" + inf + "  \n**Check by eye**: " + (
         "; ".join(f"{q['candidate']}: {q['why']}" for q in look) or "nothing flagged") + ".")
     st.caption("The candidates are where the subtraction is brightest, not a reading of the "
@@ -284,12 +423,8 @@ def mri_page(pf: PatientFile, study: dict) -> None:
     # viewer
     st.markdown("#### Viewer")
     chips(IMPLEMENTED, INFERENCE)
-    phases = ["pre", "early", "late", "sub"]
-    labels = {"pre": PHASE_NAMES["pre"], "early": f"{PHASE_NAMES['early']}: "
-                                                  f"{study['phases'][1]['label']}",
-              "late": f"{PHASE_NAMES['late']}: {study['phases'][-1]['label']}",
-              "sub": PHASE_NAMES["sub"]}
-    pick = st.segmented_control("Series", phases, format_func=labels.get, default="sub",
+    pick = st.segmented_control("Series", series_keys(study),
+                                format_func=lambda k: series_label(study, k), default="sub",
                                 key=f"{key0}-phase") or "sub"
     focus = st.segmented_control("Candidate", [c["id"] for c in cands], default=cands[0]["id"]
                                  if cands else None, key=f"{key0}-cand",
@@ -325,10 +460,20 @@ def mri_page(pf: PatientFile, study: dict) -> None:
         st.altair_chart(viewer_chart(overlay(img, cands, i, show_mask, view), cands, i, show_box,
                                      show_ld, view), width="content")
 
+    st.markdown("#### Three planes")
+    chips(IMPLEMENTED, INFERENCE)
+    three_planes(study, key0, window(slices(study, pick), level, width), i, picked)
+    with st.expander(f"Cine through the {len(study['phases'])} phases at this slice"
+                     + (f", zoomed on {picked['id']}" if picked else "")):
+        st.image(cine(study, picked, i, level, width), width=320)
+        st.caption("Every shipped phase at the same slice, in order (" + "; ".join(
+            p["label"] for p in study["phases"]) + f"); {study['phases'][1]['time_source']}. "
+            "The same window and level as the viewer; the contour is the early phase's.")
+
     # spot panel
     for c in cands:
         if c["id"] == focus:
-            spot(pf, study, c)
+            spot(pf, study, c, changes)
 
     # all candidates
     st.markdown("#### Candidates")
@@ -342,19 +487,25 @@ def mri_page(pf: PatientFile, study: dict) -> None:
                "shown slice). Lesions behind it, at the chest wall or in the axilla, are not "
                "proposed.")
 
-    prior(study, pf)
+    since_last(pf, study, changes)
     _cannot_see(rad.CANNOT_SEE)
     model_card(study)
     _search(pf, study, [], cands, rad.CANNOT_SEE)
-    _export(pf, study, table)
+    ch = changes["change"] if changes else None
+    _export(pf, study, table, {"change": {k: ch[k] for k in (
+        "rows", "sum", "protocol", "registration", "what_changed", "dates", "label")}} if ch else
+        None, change_rows(ch) if ch else None)
 
 
 def _ld_index(study: dict, c: dict) -> int:
-    """The shown slice closest to the candidate's longest-diameter slice."""
+    """The shown slice closest to the candidate's longest-diameter slice (an axial
+    acquisition), else the shown slice where its contour is largest."""
     step = study["display"]["slice_step"]
     shown = [int(k) for k in c["per_slice"]]
     if not shown:
         return study["display"]["slices"] // 2
+    if c.get("ld_plane", "axial") != "axial":
+        return max(shown, key=lambda k: c["per_slice"][str(k)]["area_mm2"])
     return min(shown, key=lambda k: abs(k * step - (c["ld_slice"] or 0)))
 
 
@@ -382,18 +533,19 @@ def lesion_rows(study: dict) -> list[dict]:
     return rows
 
 
-def spot(pf: PatientFile, study: dict, c: dict) -> None:
+def spot(pf: PatientFile, study: dict, c: dict, changes: dict | None = None) -> None:
     st.markdown(f"#### Spot panel · {c['id']}")
     chips(IMPLEMENTED, INFERENCE, "literature, placeholder until calibrated")
     k, d, seed = c["kinetics"], study["display"], c["seed"]
+    plane = c.get("ld_plane", "axial")
     a, b = st.columns([3, 2])
     with a:
         st.markdown(
             f"**Size** (model inference, from MedSAM's contour): longest diameter "
-            f"**{c['longest_diameter_mm']:g} mm** on native slice {c['ld_slice'] + 1} (in-plane, "
-            f"between pixel centres, ± {c['ld_uncertainty_mm']:g} mm; measured on "
-            f"{c.get('ld_from', 'every slice')}); craniocaudal extent {c['cc_extent_mm']:g} mm "
-            f"({c['medsam_slices']} slices × {d['slice_mm']:g} mm); volume "
+            f"**{c['longest_diameter_mm']:g} mm** on native {plane} slice {c['ld_slice'] + 1} "
+            f"(in the acquisition plane, between pixel centres, ± {c['ld_uncertainty_mm']:g} mm; "
+            f"measured on {c.get('ld_from', 'every slice')}); craniocaudal extent "
+            f"{c['cc_extent_mm']:g} mm (along the body axis, from the contour); volume "
             f"**{c['volume_ml']:g} mL**, {c['volume_range_ml'][0]:g}–{c['volume_range_ml'][1]:g} "
             "mL with the contour one pixel in or out"
             + (f", {c['volume_sure_ml']:g} mL without the {len(c['unsure_slices'])} unsure "
@@ -421,6 +573,7 @@ def spot(pf: PatientFile, study: dict, c: dict) -> None:
                + ", ".join(str(z + 1) for z in c["unsure_slices"]) + "."
                if c["unsure_slices"] else "MedSAM returned a contour inside its box on every "
                                           "slice."))
+        st.markdown("**Change over time**: " + change_text(study, c, changes))
         m = study.get("medsam", {})
         st.markdown(
             f"**The model**: {rad.MEDSAM}. The paper reports a model developed on 1,570,263 "
@@ -438,20 +591,201 @@ def spot(pf: PatientFile, study: dict, c: dict) -> None:
                     f"{c['longest_diameter_mm']:g} mm, {k.get('delayed')} (model inference)")
 
 
-def prior(study: dict, pf: PatientFile) -> None:
+def pair_for(pf: PatientFile, study: dict) -> dict | None:
+    """The study pair this study belongs to in this file (two dates, aligned), else None."""
+    found = [(t, s) for t, s in studies_of(pf) if s]
+    for t0, t1, ch, later in rad.pairs_of(found):
+        if Path(study["folder"]).name in (t0.details["folder"], t1.details["folder"]):
+            return {"change": ch, "earlier": rad.load_study(rad.study_folder(t0)),
+                    "later": later}
+    return None
+
+
+def example_pair() -> dict | None:
+    """The public example study pair (``radiology_example/``), not any patient's file."""
+    loaded = rad.load_pair(rad.EXAMPLE)
+    if not loaded:
+        return None
+    pair, earlier, later = loaded
+    return {"change": rad.pair_change(pair, earlier, later), "earlier": earlier, "later": later}
+
+
+def change_text(study: dict, c: dict, changes: dict | None) -> str:
+    """One candidate's change over time for its Spot panel."""
+    if not changes:
+        return ("one study date on file: no prior, so no change (a second study, aligned, "
+                "would show it).")
+    later = Path(study["folder"]).name == Path(changes["later"]["folder"]).name
+    row = next((r for r in changes["change"]["rows"]
+                if r["later" if later else "earlier"] == c["id"]), None)
+    if row is None:
+        return "not in the pairing of the two dates."
+    ch, (d0, d1) = row["change"], changes["change"]["dates"]
+    if not ch.get("ld_mm"):
+        return (f"{row['lesion']} ({d0} → {d1}): {ch['status']}; the seed rule's top three on "
+                "each date need not hold the same lesions.")
+    res = row["residual"] or {}
+    return (f"{row['lesion']} ({d0} → {d1}): longest diameter {ch['ld_mm'][0]:g} → "
+            f"{ch['ld_mm'][1]:g} mm ({ch['ld_change_mm']:+g} mm, {ch['ld_change_pct']:+.0f}%), "
+            f"volume {ch['volume_ml'][0]:g} → {ch['volume_ml'][1]:g} mL; **{ch['status']}** "
+            f"(model inference; the rules are placeholders). The two contours lie "
+            f"{row['distance_mm']:g} mm apart after alignment; "
+            + (f"the alignment is unreliable here ({res.get('why')})." if row["reliable"] is False
+               else f"the local check finds {res.get('residual_mm', '?')} mm left over here."))
+
+
+def _blocks(ch: dict, display: dict, plane: str, index: int) -> list[tuple]:
+    """The unreliable blocks the view cuts, as rectangles in its pixels."""
+    dz, px, _ = rad.shown_spacing(display)
+    at = {"axial": index * dz, "coronal": index * px, "sagittal": index * px}[plane]
+    axis = {"axial": 0, "coronal": 1, "sagittal": 2}[plane]
+    out = []
+    for b in ch["blocks"]:
+        if b["reliable"] or abs(b["at_mm"][axis] - at) > b["half_mm"]:
+            continue
+        z, y, x = b["at_mm"]
+        h = b["half_mm"]
+        if plane == "axial":
+            out.append(((x - h) / px, (y - h) / px, (x + h) / px, (y + h) / px))
+        else:
+            u = y if plane == "sagittal" else x
+            top = rad.reslice_row((z + h) / dz, display)
+            bottom = rad.reslice_row((z - h) / dz, display)
+            out.append(((u - h) / px, top, (u + h) / px, bottom))
+    return out
+
+
+def change_view(pf: PatientFile, changes: dict, key0: str) -> None:
+    """Two dates side by side at the same position: the later study and the earlier one moved
+    onto it by the rigid alignment, the unreliable blocks hatched, the lesions paired across
+    dates with both sizes and the change, the computed sum and the 'what changed' paragraph."""
+    ch, earlier, later = changes["change"], changes["earlier"], changes["later"]
+    d = later["display"]
+    chips(*([EXAMPLE_CHIP] if ch["label"] else []), IMPLEMENTED, INFERENCE, "placeholder")
+    if ch["label"]:
+        st.info(ch["label"], icon="🧭")
+    if ch["protocol"]:
+        st.warning("Before any 'larger' or 'smaller', the two studies differ: "
+                   + "; ".join(ch["protocol"]) + ".")
+    reg = ch["registration"]
+    st.markdown(f"**What changed** (model inference): {ch['what_changed']}")
+    n_bad = sum(not b["reliable"] for b in ch["blocks"])
+    st.caption(f"Method: {reg['method']}. Normalised mutual information {reg['nmi_start']:g} at "
+               f"the start, {reg['nmi_after']:g} aligned; {reg['evaluations']} evaluations, "
+               f"{reg['seconds']:g} CPU seconds. Local check: "
+               f"{rad.CUTOFFS['residual_search_mm'][0]} mm search, 2 mm steps; "
+               f"{n_bad} of {len(ch['blocks'])} 30 mm blocks of the breasts unreliable "
+               f"(more than {rad.CUTOFFS['residual_unreliable_mm'][0]} mm left over, or a best "
+               f"correlation under {rad.CUTOFFS['residual_min_ncc'][0]}; placeholders), hatched "
+               "red on the views. Registration is rigid: it cannot follow the breast's own "
+               "deformation between exams.")
+    c1, c2, c3 = st.columns([2, 2, 3])
+    plane = c1.segmented_control("Plane", ["axial", "coronal", "sagittal"], default="axial",
+                                 key=f"{key0}-cmp-plane") or "axial"
+    series = c2.segmented_control("Series", ["sub", "early", "pre"],
+                                  format_func=lambda k: series_label(later, k).split(":")[0],
+                                  default="sub", key=f"{key0}-cmp-series") or "sub"
+    cands = later["candidates"]
+    focus = c3.segmented_control("Lesion (later date)", [c["id"] for c in cands],
+                                 default=cands[0]["id"] if cands else None,
+                                 key=f"{key0}-cmp-cand")
+    picked = next((c for c in cands if c["id"] == focus), None)
+    n = {"axial": d["slices"], "coronal": d["rows"], "sagittal": d["cols"]}[plane]
+    start = n // 2
+    if picked and picked["centroid_mm"]:
+        _, px, _ = rad.shown_spacing(d)
+        start = {"axial": _ld_index(later, picked), "coronal": int(picked["centroid_mm"][1] / px),
+                 "sagittal": int(picked["centroid_mm"][2] / px)}[plane]
+    idx = st.slider(f"{plane.capitalize()} position", 1, n, min(n, start + 1),
+                    key=f"{key0}-cmp-{plane}-{focus}") - 1
+    img_b = rad.reslice(slices(later, series), plane, idx, d)
+    img_a = rad.aligned_view(slices(earlier, series), earlier["display"], d, reg, plane, idx)
+    ms_b, ms_a = masks(later), masks(earlier)
+    layers_b = [(rad.reslice(ms_b[c["id"]], plane, idx, d, order=0),
+                 COLORS.get(c["id"], (255, 255, 0))) for c in cands]
+    layers_a = [(rad.aligned_view(ms_a[c["id"]].astype(np.uint8) * 255, earlier["display"], d,
+                                  reg, plane, idx) > 127, COLORS.get(c["id"], (255, 255, 0)))
+                for c in earlier["candidates"]]
+    hatch = _blocks(ch, d, plane, idx)
+    shown = []
+    for img, layers in ((img_b, layers_b), (img_a, layers_a)):
+        out = pane(img, [x for x in layers if x[0].any()], [], [])
+        draw = ImageDraw.Draw(out)
+        for x0, y0, x1, y1 in hatch:
+            draw.rectangle([x0 * K, y0 * K, x1 * K, y1 * K], outline=(255, 60, 60), width=2)
+            for t in range(int(x0 * K), int(x1 * K), 10):
+                draw.line([(t, y0 * K), (min(t + 10, x1 * K), y1 * K)], fill=(255, 60, 60))
+            draw.text((x0 * K + 3, y0 * K + 2), "unreliable here", fill=(255, 90, 90))
+        shown.append(out)
+    left, right = st.columns(2)
+    left.image(shown[0], caption=f"{later['study']['date']} (later), {plane} {idx + 1}: its "
+                                 "own candidates", width="stretch")
+    right.image(shown[1], caption=f"{earlier['study']['date']} (earlier), moved onto the later "
+                                  "study by the rigid alignment: its own candidates",
+                width="stretch")
+    st.caption("Both views show the same place after alignment; black where the earlier study "
+               "has no data. " + rad.anisotropy(d) + ".")
+    rows = change_rows(ch)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    total = ch["sum"]
+    st.markdown("**Sum of longest diameters (computed, not a response call)**: " + (
+        f"{', '.join(total['targets'])}: {total['sum_mm'][0]:g} → {total['sum_mm'][1]:g} mm "
+        f"({total['change_mm']:+g} mm, {total['change_pct']:+.0f}%)"
+        + (f"; left out, not proposed on the later date: {', '.join(total['left_out'])}"
+           if total.get("left_out") else "") + f". {total['note'].capitalize()}."
+        if total.get("sum_mm") else total["note"].capitalize() + "."))
+    st.caption(f"Rules (placeholders, borrowed from RECIST 1.1 per candidate): grew when the "
+               f"longest diameter rose ≥ {rad.CUTOFFS['grew_pct'][0]}% and ≥ "
+               f"{rad.CUTOFFS['grew_mm'][0]} mm, shrank when it fell ≥ "
+               f"{rad.CUTOFFS['shrank_pct'][0]}%, both by more than twice the pixel; paired "
+               f"within {rad.CUTOFFS['match_mm'][0]} mm after alignment. The sum takes paired "
+               f"candidates of ≥ {rad.CUTOFFS['measurable_mm'][0]} mm on the earlier date, at "
+               f"most {rad.CUTOFFS['targets_per_organ'][0]} (RECIST 1.1's measurable size and "
+               "per-organ limit).")
+    barcode, span = later["barcode"], f"{ch['dates'][0]} to {ch['dates'][1]}"
+    pick = st.selectbox("Mark a lesion's change", [r["lesion"] for r in rows],
+                        key=f"{key0}-cmp-mark")
+    row = next(r for r in rows if r["lesion"] == pick)
+    review(finding_key(pf, "imaging", barcode, span, pick),
+           f"{barcode} {span} {pick}: {row['status']} (model inference)")
+
+
+def change_rows(ch: dict) -> list[dict]:
+    out = []
+    for r in ch["rows"]:
+        c = r["change"]
+        ld, vol = c.get("ld_mm"), c.get("volume_ml")
+        res = r["residual"] or {}
+        out.append({
+            "lesion": r["lesion"], "side": r["side"],
+            "longest diameter (mm)": f"{ld[0]:g} → {ld[1]:g}" if ld else "—",
+            "change": f"{c['ld_change_mm']:+g} mm ({c['ld_change_pct']:+.0f}%)" if ld else "—",
+            "volume (mL)": f"{vol[0]:g} → {vol[1]:g}" if vol else "—",
+            "volume ranges overlap": ("yes" if c["volume_overlap"] else "no") if vol else "—",
+            "status": c["status"],
+            "alignment here": ("unreliable: " + res.get("why", "") if r["reliable"] is False else
+                               f"{res['residual_mm']:g} mm left over" if res.get("residual_mm")
+                               is not None else "—"),
+            "evidence": r["evidence"]})
+    return out
+
+
+def since_last(pf: PatientFile, study: dict, changes: dict | None) -> None:
     st.markdown("#### Since the last study")
-    chips(PLANNED)
-    dates = sorted({s["study"]["date"] for _, s in studies_of(pf) if s and
-                    s["modality"] == study["modality"]})
-    if len(dates) < 2:
-        st.caption(f"One {study['modality']} study date on file for this patient "
-                   f"({study['study']['date']}): no prior to compare with. A comparison would "
-                   "align two studies by slice index only, with registration not done, and say "
-                   "so before any 'larger' or 'smaller'; protocol and scanner differences are "
-                   "flagged first.")
-    else:
-        st.caption(f"Studies on {', '.join(dates)}: aligned by slice index only; registration "
-                   "not done, so any change in size is not reliable here.")
+    if changes:
+        change_view(pf, changes, f"rad-{pf.id}-{study['barcode']}")
+        return
+    chips(IMPLEMENTED)
+    st.caption(f"One {study['modality']} study date on file for this patient "
+               f"({study['study']['date']}): no prior to compare with, so no change is shown. "
+               "With a second study the two are aligned, protocol and scanner differences are "
+               "flagged first, and each lesion's change is shown with where the alignment is "
+               "unreliable.")
+    example = example_pair()
+    if example and study["modality"] == "MR":
+        with st.expander("Change over time on a public example pair (another TCGA-BRCA "
+                         "patient, not this patient)"):
+            change_view(pf, example, f"rad-{pf.id}-example")
 
 
 def _cannot_see(rows: list[tuple]) -> None:
@@ -476,11 +810,24 @@ def model_card(study: dict) -> None:
                  "MedSAM looks"),
                 ("Uncertainty", "three candidates shown; contours flagged unsure when empty or "
                  "larger than their box; volume shown as a one-pixel range"),
-                ("Known failures", " ".join(rad.KNOWN_FAILURES[:4])),
+                ("Known failures", " ".join(f for f in rad.KNOWN_FAILURES
+                                            if "ammograph" not in f)),
                 ("Reproducibility", (f"{study['pipeline']['script']} v"
                                      f"{study['pipeline']['version']}, run "
                                      f"{study['pipeline']['run_at']}; model revision "
-                                     f"{m['revision'] if m else 'n/a'}"))]
+                                     f"{m['revision'] if m else 'n/a'}")),
+                ("Change over time", f"{rad.REGISTRATION}; a local check by normalised "
+                 "cross-correlation (shifts up to 10 mm in a 40 mm cube) marks where the aligned "
+                 "studies still differ (unreliable here, placeholder cutoffs); candidates paired "
+                 "by position within 15 mm (placeholder); growth and shrinkage by rules borrowed "
+                 "from RECIST 1.1 per candidate (placeholders); a sum of diameters computed, never "
+                 "a response call. No rule, no model: nothing to validate it against here"),
+                ("Multiplanar views", "coronal and sagittal resliced from the shipped axial copy "
+                 "(linear, nearest for the contours) at square pixels; " + rad.anisotropy(
+                     study["display"])),
+                ("Acquisition", f"{study['display'].get('acquisition', {}).get('plane', 'axial')} "
+                 "acquisition; MedSAM and the longest diameter run on the acquisition plane, the "
+                 "viewer shows the axial frame")]
         st.dataframe(pd.DataFrame(rows, columns=["field", "what it records"]), hide_index=True,
                      width="stretch")
         st.dataframe(pd.DataFrame([{"cutoff": k, "value": str(v), "source": tag, "what": note}
@@ -552,6 +899,92 @@ def breast_score(study: dict, view: dict) -> str:
             "not validated here)" if b else "planned")
 
 
+NO_DETECTOR = ("Lesion candidates on mammograms: none shown. No open, permissively licensed "
+               "mammography lesion detector with published weights that runs on the CPU was found "
+               "(the registry's mammography models give a score per breast (mammoscreen), a "
+               "density (MONAI) or a risk (Mirai); detectors trained on VinDr-Mammo carry its "
+               "restricted licence, and the open detectors found on 2026-10-21 publish code "
+               "without licensed weights; docs/model_survey.md §3). The density opinions stay.")
+
+
+@st.cache_resource(show_spinner=False)
+def _mammo(path: str) -> np.ndarray:
+    return np.asarray(Image.open(path).convert("L"))
+
+
+def mammo_geometry(pf: PatientFile, study: dict, views: list[dict], key0: str, level: int,
+                   width: int) -> list[dict]:
+    """Left-right asymmetry (the dense-pixel share per view and a map, placeholder rule) and
+    the CC and MLO views of one breast zoomed on the same band behind the nipple."""
+    imgs = {(v["laterality"], v["view"]): _mammo(str(Path(study["folder"]) / v["image"]))
+            for v in views}
+    st.markdown("#### Left and right")
+    chips(IMPLEMENTED, INFERENCE, "placeholder")
+    asym = rad.asymmetry(views)
+    st.markdown("**Left-right difference in dense-pixel share** (model inference, placeholder "
+                "rule): " + ("; ".join(
+                    f"{a['view']}: right {a['right']:.0%}, left {a['left']:.0%}, "
+                    f"{a['difference_points']:+g} points"
+                    + (" (asymmetric by the placeholder rule)" if a["asymmetric"] else "")
+                    for a in asym) or "needs both breasts' views")
+                + (f". Rule: {asym[0]['rule']}; a pixel share, not a BI-RADS asymmetry "
+                   "finding." if asym else "."))
+    pairs = [v for v in ("CC", "MLO") if ("R", v) in imgs and ("L", v) in imgs]
+    if pairs:
+        view = st.segmented_control("Map of", pairs, default=pairs[0], key=f"{key0}-asym") \
+            or pairs[0]
+        m = rad.asymmetry_map(imgs[("R", view)], imgs[("L", view)])
+        rgb = np.full((*m["map"].shape, 3), 40, np.uint8)
+        rgb[m["map"] > 0] = (230, 73, 72)
+        rgb[m["map"] < 0] = (64, 160, 230)
+        st.image(Image.fromarray(rgb).resize((m["map"].shape[1] * 2, m["map"].shape[0] * 2),
+                                             Image.NEAREST), width=240)
+        st.caption(f"{view} views, each breast cropped to its outline with the chest wall on the "
+                   "left, mirrored onto one grid: red = dense on the right breast only "
+                   f"({m['right_only']:.0%} of the grid), blue = dense on the left only "
+                   f"({m['left_only']:.0%}). {m['rule'].capitalize()}; it ignores compression, "
+                   "positioning and breast size.")
+    st.markdown("#### CC and MLO, linked")
+    chips(IMPLEMENTED, "placeholder")
+    sides = [s for s in ("R", "L") if (s, "CC") in imgs and (s, "MLO") in imgs]
+    if not sides:
+        st.caption("Needs a breast's CC and MLO views.")
+        return asym
+    c1, c2 = st.columns([1, 3])
+    side = c1.segmented_control("Breast", sides, default=sides[0], key=f"{key0}-zoom-side",
+                                format_func={"R": "right", "L": "left"}.get) or sides[0]
+    px = next(v["pixel_mm"] for v in views if v["laterality"] == side)
+    outs = {v: rad.breast_outline(imgs[(side, v)]) for v in ("CC", "MLO")}
+    reach = min(abs(o["nipple"][0] - (0 if o["chest"] == "left" else o["mask"].shape[1]))
+                for o in outs.values()) * px
+    depth = c2.slider("Distance behind the nipple (mm)", 0, max(10, int(reach)),
+                      min(40, int(reach) // 2), key=f"{key0}-zoom-depth")
+    half = 10
+    cols = st.columns(2)
+    for col, v in zip(cols, ("CC", "MLO"), strict=True):
+        o, img = outs[v], window(imgs[(side, v)], level, width)
+        x0, x1 = rad.nipple_band(o, depth, half, px)
+        x0, x1 = max(0, x0), min(img.shape[1], x1)
+        full = Image.fromarray(img).convert("RGB")
+        draw = ImageDraw.Draw(full)
+        draw.rectangle([x0, 0, x1, img.shape[0] - 1], outline=(235, 160, 52), width=2)
+        nx, ny = o["nipple"]
+        draw.ellipse([nx - 4, ny - 4, nx + 4, ny + 4], outline=(80, 200, 120), width=2)
+        band = Image.fromarray(img[:, x0:max(x1, x0 + 1)]).resize(
+            ((max(x1, x0 + 1) - x0) * 3, img.shape[0] * 3 // 2), Image.BILINEAR)
+        with col:
+            st.image(full, caption=f"{side}-{v}: the band {depth - half}–{depth + half} mm "
+                                   "behind the nipple (green)", width=260)
+            st.image(band, caption=f"{side}-{v}, the band enlarged", width=140)
+    st.caption("A lesion's distance from the nipple is about the same on the CC and the MLO "
+               "view, so the same band is shown on both: a finding on one view is looked for "
+               "in that band on the other. The nipple is the breast's point farthest from the "
+               "chest-wall edge and the distance is measured along the image rows (on the MLO "
+               "view it runs at an angle to the pectoral muscle): geometry for looking, not a "
+               "registration of the two views.")
+    return asym
+
+
 def mammo_page(pf: PatientFile, study: dict) -> None:
     rep = study.get("report", {})
     key0 = f"rad-{pf.id}-{study['barcode']}"
@@ -567,7 +1000,7 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
         "inside the breast, not a BI-RADS density category and not validated.  \n"
         + screening_text(study["screening_score"]) + "  \n"
         + monai_text(study.get("density_monai", {}), study["screening_score"])
-        + " Lesion contours on mammograms: planned (no seed rule for mammograms here).")
+        + " " + NO_DETECTOR)
     level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
     width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
     order = {"R-CC": 0, "L-CC": 1, "R-MLO": 2, "L-MLO": 3}
@@ -608,6 +1041,7 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
                        f"{dense['dense_fraction']:.0%} (placeholder rule)")
     st.caption("Shown at 0.46 mm per pixel, downsampled from the 0.07 mm original: "
                "microcalcifications are not visible at this size.")
+    asym = mammo_geometry(pf, study, views, key0, level, width)
     _cannot_see(rad.CANNOT_SEE)
     score = study["screening_score"]
     if score.get("status") == "implemented":
@@ -635,7 +1069,8 @@ def mammo_page(pf: PatientFile, study: dict) -> None:
     _export(pf, study, [{"view": v["key"], "dense-pixel share": v["dense"]["dense_fraction"],
                          "dense rule": "placeholder", "screening score (breast)":
                          breast_score(study, v), "MONAI density (view)": view_density(study, v),
-                         "evidence": INFERENCE} for v in views])
+                         "evidence": INFERENCE} for v in views],
+            {"left_right": asym, "lesion_detector": NO_DETECTOR})
 
 
 def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[dict],
@@ -656,7 +1091,8 @@ def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[
             st.dataframe(pd.DataFrame(read_rows(hit["reads"])), hide_index=True, width="stretch")
 
 
-def _export(pf: PatientFile, study: dict | None, table: list[dict], extra: dict | None = None):
+def _export(pf: PatientFile, study: dict | None, table: list[dict], extra: dict | None = None,
+            change: list[dict] | None = None):
     st.markdown(f"#### {EXPORT}")
     marks = {k: v for k, v in st.session_state.get("reviews", {}).items()
              if k.startswith(f"{pf.id}|imaging|")}
@@ -667,14 +1103,20 @@ def _export(pf: PatientFile, study: dict | None, table: list[dict], extra: dict 
             "review_marks": marks, **(extra or {})}
     if study:
         body["study"] = {k: v for k, v in study.items() if k != "folder"}
-    name = f"{pf.id}_{study['barcode'] if study else 'imaging_reports'}".replace(" ", "_")
-    e1, e2 = st.columns(2)
+    name = (f"{pf.id}_{study['barcode']}_{study['study']['date']}" if study else
+            f"{pf.id}_imaging_reports").replace(" ", "_")
+    e1, e2, e3 = st.columns(3)
     e1.download_button("Download the study (JSON)" if study else "Download the reads (JSON)",
                        json.dumps(body, indent=1, default=str),
                        file_name=f"{name}.json", mime="application/json",
                        key=f"rad-json-{name}")
     e2.download_button("Download the lesion table (CSV)", pd.DataFrame(table).to_csv(index=False),
                        file_name=f"{name}_lesions.csv", mime="text/csv", key=f"rad-csv-{name}")
+    if change:
+        e3.download_button("Download the change table (CSV)",
+                           pd.DataFrame(change).to_csv(index=False),
+                           file_name=f"{name}_change.csv", mime="text/csv",
+                           key=f"rad-chg-{name}")
 
 
 # --- the report-driven page -----------------------------------------------------------------------
@@ -769,6 +1211,34 @@ def report_page(pf: PatientFile, version: int | None) -> None:
             review(finding_key(pf, "imaging", "report", t["first_named"], t["site"]),
                    f"{t['site']} first named at month {t['first_named']}")
 
+    st.markdown("#### Change between reads")
+    chips(IMPLEMENTED, OBSERVED)
+    if len(months) > 1:
+        c1, c2 = st.columns(2)
+        m0 = c1.selectbox("Earlier read", months[:-1], index=len(months) - 2,
+                          format_func=lambda m: f"month {m}", key=f"rad-chg0-{pf.id}")
+        later = [m for m in months if m > m0]
+        m1 = c2.selectbox("Later read", later, index=len(later) - 1,
+                          format_func=lambda m: f"month {m}", key=f"rad-chg1-{pf.id}")
+        change = rad.report_change(reads, m0, m1)
+        st.markdown(f"**What changed** (observed: the reports' own words): "
+                    f"{change['what_changed']}")
+        if change["rows"]:
+            st.dataframe(pd.DataFrame([{k: r[k] for k in ("lesion", "earlier", "later",
+                                                          "change", "measurements")}
+                                       for r in change["rows"]]), hide_index=True,
+                         width="stretch")
+        st.caption("The image workbench's change view where only text exists: each named site "
+                   "on the two reads, no size and so no change in size and no sum of "
+                   f"diameters ({change['sum']['note']}).")
+    else:
+        st.caption("One imaging read in the record up to this version: nothing to compare.")
+    example = example_pair()
+    if example:
+        with st.expander("What the change view shows with images: a public example pair "
+                         "(a TCGA-BRCA patient, not this patient)"):
+            change_view(pf, example, f"rad-{pf.id}-example")
+
     st.markdown("#### Against the tumor marker")
     chips(IMPLEMENTED, OBSERVED)
     st.caption("Each read against the last CA 15-3 result before it (the labs workbench's rule): "
@@ -802,8 +1272,39 @@ def methods_card() -> None:
         "- **Published validation:** the paper's own tasks (1,570,263 image-mask pairs, 10 "
         "modalities, 86 internal and 60 external validation tasks). **Not validated on breast "
         "MRI here**: no reader contour exists for these studies.\n"
-        "- **Data:** three held-out TCGA cases with a public TCIA study (CC BY 3.0); the hosted "
-        "app reads 8-bit copies and derived numbers and runs no model.")
+        "- **Data:** the held-out TCGA cases with a public TCIA study (CC BY 3.0) and a public "
+        "example pair of two dates; the hosted app reads 8-bit copies and derived numbers and "
+        "runs no model. Axial, sagittal or coronal acquisitions: MedSAM runs on the "
+        "acquisition plane.")
+    head("Change over time (rigid alignment, breast MRI)", "two dates side by side at the same "
+         "position, lesions paired, precomputed offline · the radiology workbench")
+    st.markdown(
+        f"- **Design:** {rad.REGISTRATION}. A local check (normalised cross-correlation, shifts "
+        f"up to {rad.CUTOFFS['residual_search_mm'][0]} mm in a 40 mm cube) at each candidate and "
+        "on 30 mm blocks says where the aligned studies still differ: unreliable here above "
+        f"{rad.CUTOFFS['residual_unreliable_mm'][0]} mm (placeholder). Candidates pair by "
+        f"position within {rad.CUTOFFS['match_mm'][0]} mm (placeholder); growth and shrinkage "
+        "use RECIST 1.1's sum rules borrowed per candidate (placeholders); a sum of longest "
+        "diameters is computed, never a response call. Protocol differences are listed first.\n"
+        "- **Published validation:** none for this use; tested on synthetic shifted and rotated "
+        "volumes (tests/test_workbench_radiology.py). Shown on one public example pair, which "
+        "is not a patient file here.")
+    head("Multiplanar views and cine (breast MRI)", "axial, coronal and sagittal with linked "
+         "positions; every phase at a slice · the radiology workbench")
+    st.markdown(
+        "- **Design:** coronal and sagittal resliced from the shipped axial copy at square pixels "
+        "(linear; nearest for the contours, which are the axial contours stacked), with the voxel "
+        "shape said under the views; the craniocaudal extent and the longest-diameter slice "
+        "carried over as marks; a cine through every shipped phase.\n"
+        "- **Limits:** detail along the slice direction is interpolated, not seen.")
+    head("Mammography geometry (left-right, CC and MLO)", "a dense-pixel difference and a "
+         "linked band behind the nipple · the radiology workbench")
+    st.markdown(
+        "- **Design:** the left-right difference in dense-pixel share per view (placeholder: "
+        f"more than {rad.CUTOFFS['asymmetry_points'][0]} points) and a map of outline-normalised, "
+        "mirrored breasts; the CC and MLO views of a breast zoomed on the same distance behind "
+        "the nipple. Geometry, not a reading; not a BI-RADS asymmetry finding.\n"
+        f"- **Lesion detector:** none. {NO_DETECTOR}")
     head("Breast density, second opinion (MONAI, mammography)", "BI-RADS density A–D per "
          "view, precomputed offline · the radiology workbench")
     st.markdown(
@@ -885,4 +1386,13 @@ if __name__ == "__main__":
                                stage=None, age=None, percentile=50.0, group="intermediate",
                                site="(not loaded on this page)")
         files[f"Case {index}"] = case_file(case, None, imaging=studies)
+    if rad.example_studies():  # the public example pair as a file of its own, here only
+        case = SimpleNamespace(index=0, mutations=None, layers=["clinical"], missing=[],
+                               stage=None, age=None, percentile=50.0, group="intermediate",
+                               site="(public example pair)")
+        pf = case_file(case, None, imaging=rad.example_studies())
+        for t in pf.tests:
+            if t.workbench == "imaging":
+                t.details["root"] = "example"
+        files["Public example pair (not a patient file)"] = pf
     render(files[st.selectbox("File", list(files))])

@@ -103,7 +103,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
         "- TCGA holds one tumor sample per patient, so its files have one version and no "
         "alerts.\n"
         "- The radiology workbench reads the synthetic patient's imaging reports as text and "
-        "shows model contours and a screening score on three public TCGA-BRCA studies only, not "
+        "shows model contours and a screening score on five public TCGA-BRCA studies only, not "
         "validated here; the ctDNA workbench is planned; an imported image or DICOM file is "
         "registered and queued for the local pipeline, not analyzed. Imports last for the "
         "browser session.\n"
