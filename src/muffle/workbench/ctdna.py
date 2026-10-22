@@ -492,5 +492,6 @@ def queue(pf, version: int | None = None) -> list[dict]:
             "moderate" if applies else "weak", 2 if applies else 1, _opens(pf, q["month"]),
             source=f"ctDNA, month {q['month']} (synthetic series)",
             key=finding_key(pf, "ctdna", q.get("variant") or q["what"], q["month"]),
+            focus={"ctdna": q["variant"], "month": q["month"]} if q.get("variant") else None,
             month=q["month"], threshold=q["status"]))
     return out

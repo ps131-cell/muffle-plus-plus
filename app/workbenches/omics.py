@@ -1,11 +1,15 @@
 """Expression, methylation and protein workbench (docs/WORKBENCHES.md §7) for one TCGA patient
 file; also the clinical record card.
 
-The shell calls ``render(pf, version=None, layer=None, case=None, demo=None)``: ``pf`` a
-``muffle.workspace.PatientFile``, ``layer`` the data layer whose test was opened (its card comes
-first), ``case`` the held-out ``muffle.demo.Case`` and ``demo`` the loaded ``muffle.demo.Demo``
-(model, inputs, offsets). ``render`` draws in the current container only. ``methods_card()``
-draws the validation numbers for the Methods and validation page.
+The shell calls ``render(pf, version=None, layer=None, case=None, demo=None, test=None)``: ``pf``
+a ``muffle.workspace.PatientFile``, ``layer`` the data layer whose test was opened (its card
+comes first), ``case`` the held-out ``muffle.demo.Case``, ``demo`` the loaded
+``muffle.demo.Demo`` (model, inputs, offsets) and ``test`` the test it was opened from (for the
+title). ``render`` draws in the current container only, in the shared page skeleton
+(``workbenches._page``): the overview with the look-here queue and search, the subtype and
+pathway scores, the details (receptors, protein pathways, promoters, the immune picture, the
+data layers, the what-if), the Spot panel, the card, what the test cannot see, the export.
+``methods_card()`` draws the validation numbers for the Methods and validation page.
 
 Precomputed scores come from ``app/omics_scores.json`` (scripts/omics_scores.py and
 omics_scores_2.py, offline, derived numbers only); contributions, top features and the what-if run
@@ -33,7 +37,8 @@ from muffle.explain import risk_percentile, top_features
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import omics as wb
 from muffle.workbench.genomics import add_mark, mark_text
-from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip, esc
+from muffle.workbench.grammar import chip, count_label, esc
+from workbenches._page import Page, land
 
 APP = Path(__file__).resolve().parents[1]
 STATUS_COLORS = {wb.AGREE: "green", wb.DISAGREE: "red", wb.NO_COMPARISON: "gray"}
@@ -73,8 +78,6 @@ def results() -> dict:
 
 def tag(evidence: str) -> str:
     return " ".join(chip(e) for e in (OBSERVED, INFERENCE, HYPOTHESIS) if e in evidence)
-
-
 
 
 # --- findings ----------------------------------------------------------------------------------
@@ -209,12 +212,22 @@ def _published(sub: dict) -> str:
 # --- page ------------------------------------------------------------------------------------
 
 def render(pf, version: int | None = None, layer: str | None = None, case=None,
-           demo=None) -> None:
+           demo=None, test=None) -> None:
+    page = Page("omics", pf, test, version)
     v = pf.versions[-1 if version is None else version]
-    st.subheader(f"Expression, methylation and protein · {pf.id}")
     if case is None or demo is None:
-        st.info("This file holds no expression, methylation or protein data. RNA-seq, a "
-                "methylation array or a protein array of the tumor would open this workbench.")
+        page.title(wb.IMPLEMENTED)
+        with page.overview():
+            st.info("No expression, methylation or protein data in this file. RNA-seq, a "
+                    "methylation array or a protein array (RPPA) of the tumor would open this "
+                    "workbench; the TCGA cases carry them.", icon="🧫")
+        with page.card():
+            method_card(None)
+        with page.cannot_see([CANNOT]):
+            pass
+        with page.export(empty="Nothing to export: this file holds no expression, methylation "
+                               "or protein data."):
+            pass
         return
     data = scores()
     cs = (data or {}).get("cases", {}).get(str(case.index))
@@ -233,192 +246,201 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
     tools = demo.tools(case)
     contrib = tools.modality_contributions()["log_risk_added_by_layer"]
 
+    page.title(wb.IMPLEMENTED, *([f"subtype call: {wb.VALIDATED}"] if cs else []),
+               "immune deconvolution, recurrence-score-like signatures: planned",
+               colors={f"subtype call: {wb.VALIDATED}": "green"})
     st.caption(f"{pf.title} · {v.label}")
-    st.markdown(" ".join([chip(wb.IMPLEMENTED, "blue"),
-                          *([chip(f"subtype call: {wb.VALIDATED}", "green")] if cs else []),
-                          chip("immune deconvolution, recurrence-score-like signatures: "
-                               "planned")]))
     st.caption("Data: TCGA-BRCA open access (UCSC Xena GDC hub; IHC from TCGA clinical data via "
                "cBioPortal) · scores: scripts/omics_scores.py and omics_scores_2.py, "
                f"{(data or {}).get('version', 'not computed')}, "
                f"{(data or {}).get('version2', 'round 2 not computed')} · protein pathways: "
                "Akbani et al. 2014 · CpG annotation: Illumina 450K manifest · immune and stromal "
                f"genes: ESTIMATE (Yoshihara et al. 2013) · model: {pf.model['name']} · methods, "
-               "references and known failures in the card at the bottom and on the Methods and "
-               "validation page.")
+               "references and known failures in the Model and validation card and on the "
+               "Methods and validation page.")
     if cs is None:
         st.warning("No precomputed subtype, pathway or receptor scores for this case: only the "
                    "model's view of each layer is shown below.")
 
-    # overview: the three questions
-    queue = wb.look_here(cs, lines, case.layers) + [
-        x["what"] for x in wb.queue(pf, version)
-        if x["key"].split("|")[1] in ("pathway_protein", "methylation")]
-    if pic and pic["status"] == wb.DISAGREE:
-        queue.append(f"Immune picture disagrees across layers; settles it: {pic['settle']}")
-    o, i, c = st.columns(3)
-    with o:
-        st.markdown(f"**Observed** {tag(OBSERVED)}")
-        missing = ", ".join(wb.LAYERS[m]["name"] for m in case.missing) or "none"
-        st.markdown(f"- Measured: {', '.join(wb.LAYERS[m]['name'] for m in case.layers)}\n"
-                    f"- Not measured: {missing}")
-        if cs:
-            st.markdown("\n".join(
-                f"- {name} IHC: {(r.get('ihc') or 'not recorded').lower()}"
-                + (f", ISH {r['fish'].lower()}" if r.get("fish") and name == "HER2" else "")
-                for name, r in cs["receptors"].items()))
-    with i:
-        st.markdown(f"**Model inference** {tag(INFERENCE)}")
-        bits = []
-        if cs:
-            sub = cs["pam50"]
-            bits.append(f"PAM50 subtype **{wb.SUBTYPES[sub['call']]}** (margin "
-                        f"{sub['margin']:.2f}; {_published(sub)})")
-            prolif, immune = cs["scores"]["proliferation"], cs["scores"]["immune"]
-            bits.append(f"Proliferation at the {ordinal(prolif[1])} percentile, immune "
-                        f"cytolytic activity at the {ordinal(immune[1])}")
-            rows = sorted(wb.rppa_rows(cs, data), key=lambda r: -r["pct"])
-            if rows:
-                bits.append(f"Protein pathways (RPPA): {rows[0]['pathway']} highest "
-                            f"({ordinal(rows[0]['pct'])} percentile), {rows[-1]['pathway']} "
-                            f"lowest ({ordinal(rows[-1]['pct'])})")
-            if pic:
-                bits.append(pic["short"].capitalize())
-        if contrib:
-            big = max(contrib, key=lambda m: abs(contrib[m]))
-            bits.append(f"Layer moving the risk most: {wb.LAYERS[big]['name']} "
-                        f"({contrib[big]:+.3f} log-risk vs a typical patient)")
-        st.markdown("\n".join(f"- {b}" for b in bits) or "- none")
-    with c:
-        st.markdown("**Check by eye** · a queue, not a verdict")
-        st.markdown("\n".join(f"{n}. {q}" for n, q in enumerate(queue, 1)) or "Nothing flagged.")
+    # overview: the three questions, the look-here queue, search
+    with page.overview():
+        o, i = st.columns(2)
+        with o:
+            st.markdown(f"**Observed** {tag(OBSERVED)}")
+            missing = ", ".join(wb.LAYERS[m]["name"] for m in case.missing) or "none"
+            st.markdown(f"- Measured: {', '.join(wb.LAYERS[m]['name'] for m in case.layers)}\n"
+                        f"- Not measured: {missing}")
+            if cs:
+                st.markdown("\n".join(
+                    f"- {name} IHC: {(r.get('ihc') or 'not recorded').lower()}"
+                    + (f", ISH {r['fish'].lower()}" if r.get("fish") and name == "HER2" else "")
+                    for name, r in cs["receptors"].items()))
+        with i:
+            st.markdown(f"**Model inference** {tag(INFERENCE)}")
+            bits = []
+            if cs:
+                sub = cs["pam50"]
+                bits.append(f"PAM50 subtype **{wb.SUBTYPES[sub['call']]}** (margin "
+                            f"{sub['margin']:.2f}; {_published(sub)})")
+                prolif, immune = cs["scores"]["proliferation"], cs["scores"]["immune"]
+                bits.append(f"Proliferation at the {ordinal(prolif[1])} percentile, immune "
+                            f"cytolytic activity at the {ordinal(immune[1])}")
+                rows = sorted(wb.rppa_rows(cs, data), key=lambda r: -r["pct"])
+                if rows:
+                    bits.append(f"Protein pathways (RPPA): {rows[0]['pathway']} highest "
+                                f"({ordinal(rows[0]['pct'])} percentile), {rows[-1]['pathway']} "
+                                f"lowest ({ordinal(rows[-1]['pct'])})")
+                if pic:
+                    bits.append(pic["short"].capitalize())
+            if contrib:
+                big = max(contrib, key=lambda m: abs(contrib[m]))
+                bits.append(f"Layer moving the risk most: {wb.LAYERS[big]['name']} "
+                            f"({contrib[big]:+.3f} log-risk vs a typical patient)")
+            st.markdown("\n".join(f"- {b}" for b in bits) or "- none")
+        items = wb.queue(pf, version)
+        if pic and pic["status"] == wb.DISAGREE:  # the page's own item, beside the report's
+            key = workspace.finding_key(pf, "omics", "immune", "immune picture")
+            items.append({"pointer": "Immune", "what": "The immune picture disagrees across "
+                          "layers", "why": f"what would settle it: {pic['settle']}",
+                          "evidence": pic["evidence"], "trust": "weak", "consequence": 1,
+                          "month": None, "key": key, "focus": {"omics": key}})
+        page.look_here(items, land=lambda focus: land(pf, page.version, focus))
+        if "genomic" in case.layers:
+            st.caption("Standing caveat: the copy-number layer ranks patients worse than chance "
+                       "across hospitals, a known failure (Details › Data layers).")
+        query = st.text_input("Search this workbench: a gene (ESR1), a pathway (PI3K pathway, "
+                              "proliferation), a status (disagree, methylated), immune",
+                              key=f"omics-search-{pf.id}")
+        if query:
+            hits = wb.search(query, findings)
+            if hits["note"]:
+                st.info(hits["note"])
+            else:
+                _table(pd.DataFrame([{"Kind": h["kind"], "Layer or block": h["layer"],
+                                      "Finding": h["name"], "Value": str(h["value"]),
+                                      "Cohort percentile": "" if h["percentile"] is None
+                                      else str(h["percentile"]),
+                                      "Mark": (reviews.get(h["key"]) or {}).get("mark", "")}
+                                     for h in hits["hits"][:200]]),
+                       [h["key"] for h in hits["hits"][:200]], f"omics-hits-{pf.id}-{query}",
+                       spot)
+                st.caption("Click a row to open the finding in the Spot panel.")
 
-    # search
-    query = st.text_input("Search this workbench: a gene (ESR1), a pathway (PI3K pathway, "
-                          "proliferation), a status (disagree, methylated), immune",
-                          key=f"omics-search-{pf.id}")
-    if query:
-        hits = wb.search(query, findings)
-        if hits["note"]:
-            st.info(hits["note"])
+    # the picture: the subtype call and the pathway scores
+    with page.picture("Subtype and pathway scores"):
+        st.markdown(f"**PAM50 intrinsic subtype** {tag(INFERENCE)} "
+                    f"{chip(wb.VALIDATED, 'green') if cs else chip('not computed')}")
+        if cs:
+            subtype_card(cs["pam50"], data)
+        elif "rna" not in case.layers:
+            st.caption(f"RNA not measured: {MISSING['rna']}. RNA-seq of the tumor would give "
+                       "the subtype call.")
+        st.markdown(f"**Pathway, proliferation and immune scores** {tag(INFERENCE)}")
+        if cs:
+            pathway_chart(cs, data)
         else:
-            _table(pd.DataFrame([{"Kind": h["kind"], "Layer or block": h["layer"],
-                                  "Finding": h["name"], "Value": str(h["value"]),
-                                  "Cohort percentile": "" if h["percentile"] is None
-                                  else str(h["percentile"]),
-                                  "Mark": (reviews.get(h["key"]) or {}).get("mark", "")}
-                                 for h in hits["hits"][:200]]),
-                   [h["key"] for h in hits["hits"][:200]], f"omics-hits-{pf.id}-{query}", spot)
+            st.caption(f"Needs RNA expression ({MISSING['rna']}).")
 
-    # subtype
-    st.markdown(f"#### PAM50 intrinsic subtype {tag(INFERENCE)} "
-                f"{chip(wb.VALIDATED, 'green') if cs else chip('not computed')}")
-    if cs:
-        subtype_card(cs["pam50"], data)
-    elif "rna" not in case.layers:
-        st.caption(f"RNA not measured: {MISSING['rna']}.")
-
-    # receptors
-    st.markdown(f"#### Receptor consistency {tag(OBSERVED)} · recorded IHC against RNA, copy "
-                "number and protein")
-    for x in lines:
-        st.markdown(f"{chip(x['status'], STATUS_COLORS[x['status']])} **{x['receptor']}** · "
-                    f"{x['text']}")
-        st.caption(f"Evidence: {x['evidence']} · what to check: {x['check']}")
-    if lines:
-        st.caption("RNA is not protein: these lines say which layer each claim comes from. Cutoffs "
-                   "are calibrated in-sample on this cohort's recorded receptor status (Methods "
-                   "and validation), not a clinical threshold; IHC and in situ hybridization stay "
-                   "the clinical tests.")
-    elif cs is None:
-        st.caption("Not computed for this case.")
-
-    # pathways
-    st.markdown(f"#### Pathway, proliferation and immune scores {tag(INFERENCE)}")
-    if cs:
-        pathway_chart(cs, data)
-    else:
-        st.caption(f"Needs RNA expression ({MISSING['rna']}).")
-
-    # round 2: protein pathways, promoters, the immune picture
-    st.markdown(f"#### Protein pathway activity (RPPA) {tag(INFERENCE)} {chip(wb.IMPLEMENTED)}")
-    if cs and cs.get("rppa"):
-        rppa_section(pf, cs, data, reviews, spot)
-    else:
-        st.caption(f"Needs the protein array ({MISSING['protein']}).")
-    st.markdown(f"#### Promoter methylation {tag(OBSERVED)} {chip('placeholder cutoffs')} · "
-                f"hypermethylation index {chip(HYPOTHESIS)}")
-    if cs and cs.get("methylation"):
-        methylation_section(cs, data)
-    else:
-        st.caption(f"Needs the methylation array ({MISSING['methylation']}).")
-    st.markdown(f"#### Immune and stromal picture {tag(INFERENCE)}")
-    if cs and cs.get("estimate"):
-        immune_section(cs, data, pic, wb.slide_immune(pf, cs, version))
-    else:
-        st.caption(f"Needs RNA expression ({MISSING['rna']}).")
-
-    # layer cards
-    st.markdown("#### Data layers")
-    order = ([layer] if layer in wb.LAYERS else []) + [m for m in wb.LAYERS if m != layer]
-    for tab, m in zip(st.tabs([wb.LAYERS[m]["name"] for m in order]), order, strict=True):
-        with tab:
-            layer_card(pf, v, m, case, contrib, [f for f in feats if f["layer"] == m], cs, spot)
-
-    # what-if
-    st.markdown(f"#### What if a layer were missing? {tag(INFERENCE)}")
-    hide = st.pills("Hide layers", case.layers, selection_mode="multi",
-                    format_func=lambda m: wb.LAYERS[m]["name"], key=f"omics-hide-{pf.id}")
-    if hide and len(hide) == len(case.layers):
-        st.warning("Keep at least one layer.")
-    elif hide:
-        hx, hmask = demo.inputs(case, hide)
-        with torch.no_grad():
-            pct = risk_percentile(demo.model(hx, hmask).item(), demo.cohort_risks)
-        st.metric("Risk percentile without " + ", ".join(wb.LAYERS[m]["name"] for m in hide),
-                  ordinal(pct), f"{int(pct) - int(case.percentile):+d} percentile points",
-                  delta_color="inverse")
-    st.caption("The model masks a hidden layer, as it does for a layer a hospital never measured; "
-               "the move is the model's, not a measured change.")
+    # details: collapsed, each with its count
+    with page.details("Receptor consistency: recorded IHC against RNA, copy number and protein",
+                      len(lines)):
+        st.caption(f"{tag(OBSERVED)} One line per receptor and measure.")
+        for x in lines:
+            st.markdown(f"{chip(x['status'], STATUS_COLORS[x['status']])} **{x['receptor']}** · "
+                        f"{x['text']}")
+            st.caption(f"Evidence: {x['evidence']} · what to check: {x['check']}")
+        if lines:
+            st.caption("RNA is not protein: these lines say which layer each claim comes from. "
+                       "Cutoffs are calibrated in-sample on this cohort's recorded receptor "
+                       "status (Methods and validation), not a clinical threshold; IHC and in "
+                       "situ hybridization stay the clinical tests.")
+        elif cs is None:
+            st.caption("Not computed for this case.")
+    has_rppa = bool(cs and cs.get("rppa"))
+    with page.details("Protein pathway activity (RPPA)",
+                      len(wb.rppa_rows(cs, data)) if has_rppa else "not measured"):
+        st.caption(f"{tag(INFERENCE)} {chip(wb.IMPLEMENTED)}")
+        if has_rppa:
+            rppa_section(pf, cs, data, reviews, spot)
+        else:
+            st.caption(f"Needs the protein array ({MISSING['protein']}).")
+    has_meth = bool(cs and cs.get("methylation"))
+    with page.details("Promoter methylation", len(cs["methylation"]["genes"]) if has_meth
+                      else "not measured"):
+        st.caption(f"{tag(OBSERVED)} {chip('placeholder cutoffs')} · hypermethylation index "
+                   f"{chip(HYPOTHESIS)}")
+        if has_meth:
+            methylation_section(cs, data)
+        else:
+            st.caption(f"Needs the methylation array ({MISSING['methylation']}).")
+    has_est = bool(cs and cs.get("estimate"))
+    with page.details("Immune and stromal picture", f"{len(cs['estimate'])} signatures"
+                      if has_est else "not measured"):
+        st.caption(tag(INFERENCE))
+        if has_est:
+            immune_section(cs, data, pic, wb.slide_immune(pf, cs, version))
+        else:
+            st.caption(f"Needs RNA expression ({MISSING['rna']}).")
+    with page.details("Data layers", f"{len(case.layers)} of {len(wb.LAYERS)} measured"):
+        order = ([layer] if layer in wb.LAYERS else []) + [m for m in wb.LAYERS if m != layer]
+        for tab, m in zip(st.tabs([wb.LAYERS[m]["name"] for m in order]), order, strict=True):
+            with tab:
+                layer_card(pf, v, m, case, contrib, [f for f in feats if f["layer"] == m], cs,
+                           spot)
+    with page.details("What if a layer were missing?", f"{len(case.layers)} layers"):
+        st.caption(tag(INFERENCE))
+        hide = st.pills("Hide layers", case.layers, selection_mode="multi",
+                        format_func=lambda m: wb.LAYERS[m]["name"], key=f"omics-hide-{pf.id}")
+        if hide and len(hide) == len(case.layers):
+            st.warning("Keep at least one layer.")
+        elif hide:
+            hx, hmask = demo.inputs(case, hide)
+            with torch.no_grad():
+                pct = risk_percentile(demo.model(hx, hmask).item(), demo.cohort_risks)
+            st.metric("Risk percentile without " + ", ".join(wb.LAYERS[m]["name"] for m in hide),
+                      ordinal(pct), f"{int(pct) - int(case.percentile):+d} percentile points",
+                      delta_color="inverse")
+        st.caption("The model masks a hidden layer, as it does for a layer a hospital never "
+                   "measured; the move is the model's, not a measured change.")
 
     # Spot panel
-    st.markdown("#### Spot panel")
-    keys = list(by_key)
-    if st.session_state.get(spot) not in by_key:
-        opened = [f for f in feats if f["layer"] == layer]
-        st.session_state[spot] = (max(opened, key=lambda f: abs(f["score"]))["key"] if opened
-                                  else keys[0])
-    st.selectbox("Open a finding", keys, key=spot, format_func=lambda k: (
-        f"{by_key[k]['kind']} · {by_key[k]['layer']} · {by_key[k]['name']}"))
-    spot_panel(pf, by_key[st.session_state[spot]], cs, data, contrib, reviews, pins)
+    with page.spot():
+        keys = list(by_key)
+        if st.session_state.get(spot) not in by_key:
+            opened = [f for f in feats if f["layer"] == layer]
+            st.session_state[spot] = (max(opened, key=lambda f: abs(f["score"]))["key"]
+                                      if opened else keys[0])
+        st.selectbox("Open a finding", keys, key=spot, format_func=lambda k: (
+            f"{by_key[k]['kind']} · {by_key[k]['layer']} · {by_key[k]['name']}"))
+        spot_panel(pf, by_key[st.session_state[spot]], cs, data, contrib, reviews, pins)
 
-    st.markdown(f"#### {CANNOT_SEE}")
-    st.markdown(CANNOT)
-
-    st.markdown(f"#### {EXPORT}")
-    shown = [f for f in findings if f["kind"] != "feature"] + [
-        f for m in case.layers for f in sorted((f for f in feats if f["layer"] == m),
-                                               key=lambda f: -abs(f["score"]))[:TOP]]
-    shown += [f for f in feats if f["key"] in reviews and f not in shown]
-    rows = [{k: f.get(k) for k in ("kind", "layer", "name", "value", "percentile", "evidence",
-                                   "status", "key")} for f in shown]
-    prov = {"data": "TCGA-BRCA open access (UCSC Xena GDC hub); IHC: " + wb.REFERENCES["ihc"],
-            "scores": (data or {}).get("version"), "model": pf.model["name"],
-            "contribution_vs_typical_patient": contrib, "references": wb.REFERENCES,
-            "scores_round2": (data or {}).get("version2"),
-            "placeholders": [f"PAM50 borderline margin < {wb.LOW_MARGIN}",
-                             "ERBB2 amplified at >= 2x ploidy (ASCAT calls)",
-                             *(f"{what}: {value}" for what, value in wb.PLACEHOLDERS)]}
-    e1, e2 = st.columns(2)
-    name = pf.id.replace(" ", "_")
-    e1.download_button("Download the findings and marks (JSON)",
-                       wb.report_json(pf.id, rows, reviews, prov), f"omics_{name}.json",
-                       "application/json", key=f"omics-json-{pf.id}")
-    e2.download_button("Download the findings and marks (CSV)", wb.report_csv(rows, reviews),
-                       f"omics_{name}.csv", "text/csv", key=f"omics-csv-{pf.id}")
-
-    with st.expander(f"{CARD}: methods, references, placeholders and known failures"):
+    with page.card():
         method_card(data)
+    with page.cannot_see([CANNOT]):
+        pass
+
+    with page.export():
+        shown = [f for f in findings if f["kind"] != "feature"] + [
+            f for m in case.layers for f in sorted((f for f in feats if f["layer"] == m),
+                                                   key=lambda f: -abs(f["score"]))[:TOP]]
+        shown += [f for f in feats if f["key"] in reviews and f not in shown]
+        rows = [{k: f.get(k) for k in ("kind", "layer", "name", "value", "percentile",
+                                       "evidence", "status", "key")} for f in shown]
+        prov = {"data": "TCGA-BRCA open access (UCSC Xena GDC hub); IHC: "
+                        + wb.REFERENCES["ihc"],
+                "scores": (data or {}).get("version"), "model": pf.model["name"],
+                "contribution_vs_typical_patient": contrib, "references": wb.REFERENCES,
+                "scores_round2": (data or {}).get("version2"),
+                "placeholders": [f"PAM50 borderline margin < {wb.LOW_MARGIN}",
+                                 "ERBB2 amplified at >= 2x ploidy (ASCAT calls)",
+                                 *(f"{what}: {value}" for what, value in wb.PLACEHOLDERS)]}
+        e1, e2 = st.columns(2)
+        name = pf.id.replace(" ", "_")
+        e1.download_button("Download the findings and marks (JSON)",
+                           wb.report_json(pf.id, rows, reviews, prov), f"omics_{name}.json",
+                           "application/json", key=f"omics-json-{pf.id}")
+        e2.download_button("Download the findings and marks (CSV)", wb.report_csv(rows, reviews),
+                           f"omics_{name}.csv", "text/csv", key=f"omics-csv-{pf.id}")
 
 
 def _table(df: pd.DataFrame, keys: list[str], key: str, spot: str) -> None:
@@ -915,8 +937,10 @@ def method_card(data: dict | None) -> None:
         "methylated in most tumors, so the island is not required of a gene's probes.\n"
         "- **Planned:** other signatures (recurrence-score-like, immune deconvolution) only from "
         "a validated model with a named reference population.")
-    for name, ref in (data or {}).get("references", wb.REFERENCES).items():
-        st.caption(f"{name}: {ref}")
+    refs = (data or {}).get("references", wb.REFERENCES)
+    with st.expander(count_label("References", len(refs))):
+        for name, ref in refs.items():
+            st.caption(f"{name}: {ref}")
 
 
 def methods_card() -> None:

@@ -47,9 +47,11 @@ from muffle.workbench.slides import (  # noqa: E402
     analyze,
     load_result,
 )
-from muffle.workbench.grammar import CANNOT_SEE, CARD, chip  # noqa: E402
+from muffle.workbench.grammar import chip  # noqa: E402
+from muffle.workbench.slides import queue as slide_queue  # noqa: E402
 from muffle.workspace import MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
 from workbenches import slide_viewer  # noqa: E402
+from workbenches._page import Page, land  # noqa: E402
 
 EXAMPLE = APP / "workbenches" / "slides_example"
 RESULTS = APP / "workbenches" / "slides_results"
@@ -62,11 +64,13 @@ OVERLAYS = ["front", "arrows", "breakaway", "pointers"]
 NO_MARK = "no mark"
 
 
+CHIP_COLORS = {"example slide": "violet",  # statuses, evidence, placeholders: the shared grammar
+               "patient's own slide": "green", "hypothesis": "orange",
+               "not reviewed by a pathologist": "red", "weak until validated": "orange"}
+
+
 def chips(*labels: str) -> None:
-    color = {"example slide": "violet",  # statuses, evidence, placeholders: the shared grammar
-             "patient's own slide": "green", "hypothesis": "orange",
-             "not reviewed by a pathologist": "red", "weak until validated": "orange"}
-    st.caption(" ".join(chip(label, color.get(label)) for label in labels))
+    st.caption(" ".join(chip(label, CHIP_COLORS.get(label)) for label in labels))
 
 
 def own_slides(index) -> list[str]:
@@ -434,21 +438,21 @@ def head_card(meta: dict, classes: list[str]) -> None:
                "encoder's own benchmarks are not evidence for this task.")
 
 
-def cannot_see(cutoffs: dict | None = None) -> None:
-    st.markdown(f"#### {CANNOT_SEE}")
-    st.dataframe(pd.DataFrame([{"not visible here": what, "why": why, "what can": how}
-                               for what, why, how in inv.CANNOT_SEE]), hide_index=True,
-                 width="stretch")
-    both = {**CUTOFFS, **(cutoffs or {})}
-    with st.expander("Every cutoff and its source"):
-        st.dataframe(pd.DataFrame([{"cutoff": k, "value": v, "source": tag, "note": note}
-                                   for k, (v, tag, note) in both.items()]), hide_index=True,
+def cannot_see(page: Page, cutoffs: dict | None = None) -> None:
+    with page.cannot_see():
+        st.dataframe(pd.DataFrame([{"not visible here": what, "why": why, "what can": how}
+                                   for what, why, how in inv.CANNOT_SEE]), hide_index=True,
                      width="stretch")
+        both = {**CUTOFFS, **(cutoffs or {})}
         n = sum(1 for v in both.values() if v[1] == PLACEHOLDER)
-        st.caption(f"{n} of {len(both)} cutoffs are placeholders. Evidence types: tile "
-                   f"positions, crops and the thumbnail are {OBSERVED}; every class, nucleus, "
-                   f"region, front, zone and point is {INFERENCE}; the direction of invasion is "
-                   "a hypothesis about this section.")
+        with st.expander(f"Every cutoff and its source ({n} of {len(both)} placeholders)"):
+            st.dataframe(pd.DataFrame([{"cutoff": k, "value": v, "source": tag, "note": note}
+                                       for k, (v, tag, note) in both.items()]),
+                         hide_index=True, width="stretch")
+            st.caption(f"{n} of {len(both)} cutoffs are placeholders. Evidence types: tile "
+                       f"positions, crops and the thumbnail are {OBSERVED}; every class, "
+                       f"nucleus, region, front, zone and point is {INFERENCE}; the direction of "
+                       "invasion is a hypothesis about this section.")
 
 
 @st.cache_data(max_entries=8, show_spinner="Reading the scored section...")
@@ -466,17 +470,32 @@ def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
     return result, res, frame(res, classes)
 
 
-def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | None:
+def look_items(pf: PatientFile, slide: str, version: int | None, res: dict) -> list[dict]:
+    """The section's look-here items: the ones the report's attention queue carries
+    (``muffle.workbench.slides.queue``), or, for a section scored before those were stored,
+    the page's own pointers in the same shape."""
+    items = [x for x in slide_queue(pf, version) if x["focus"]["slide"] == slide]
+    if items:
+        return items
+    return [{"pointer": q["pointer"], "what": q["what"], "why": f"{q['why']}; check by eye: "
+             f"{q['check']}", "evidence": q["evidence"], "trust": "weak", "consequence": 1,
+             "month": None, "key": slide_key(pf, slide, f"r{q['row']}c{q['col']}"),
+             "focus": {"slide": slide, "pointer": q["pointer"],
+                       "tile": f"r{q['row']}c{q['col']}"}} for q in res["queue"]]
+
+
+def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
+                 compare=None) -> None:
+    """One scored section in the page skeleton; ``compare`` draws the details that compare it
+    with the file's other sections."""
     if (got := scored(slide)) is None:
-        return None
+        return
     result, res, df = got
     meta = result["meta"]
     classes = meta["head"]["classes"]
     s, n = res["summary"], res["numbers"]
     sc, nuc, til = meta.get("scored", {}), meta.get("nuclei", {}), result.get("til")
     k = f"{pf.id}|{slide}"
-    chips("patient's own slide", "placeholder cutoffs", "not reviewed by a pathologist",
-          "implemented, validated on held-out BCSS slides")
     st.caption(
         f"Source: {meta.get('source', '')} · slide {slide} · scored: {sc.get('mode', '?')}, "
         f"{sc.get('scored_tiles', '?')} of {sc.get('tissue_tiles_total', '?')} tissue tiles of "
@@ -488,9 +507,9 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
         st.warning(f"{sc['skipped_tiles']} tissue tiles outside the scored window were skipped "
                    "(the budget for this PC's CPU): tumor outside the window is not in this "
                    "map. The whole slide is in the pathology report.")
+    reviews = st.session_state.setdefault("reviews", {})
 
-    # --- overview and queue -----------------------------------------------------------------
-    st.markdown("#### Overview")
+    # --- overview, look here, search ---------------------------------------------------------
     frac = s["tissue_fractions"]
     top3 = sorted(frac.items(), key=lambda kv: -kv[1])[:3]
     infil = [a for a in res["arcs"] if a["pattern"] == "infiltrative"]
@@ -515,354 +534,378 @@ def render_slide(pf: PatientFile, slide: str, version: int | None) -> dict | Non
                                                        s["excluded"].items()) + "."
            if s["excluded"] else "No tile was excluded by quality control.")
     )
-    st.markdown(text)
-    st.markdown("**Hypothesis.** The arrows show where the tumor is invading in this section: "
-                "a 2D snapshot, not a forecast of where it will go.")
-    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-    row.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²", width="content")
-    row.metric("Front length", f"{s['front_length_mm']} mm", width="content")
-    row.metric("Infiltrative arcs", f"{n['infiltrative_arcs']} / {n['arcs']}", width="content")
-    row.metric("Breakaway in field", "—" if not hs else str(hs["buds_in_field"]),
-               help="clusters of up to 4 tumor-candidate nuclei in the 0.785 mm² field; "
-                    "weak until validated", width="content")
-    row.metric("Unsure share", f"{s['unsure_share']:.0%}", width="content")
-    reviews = st.session_state.setdefault("reviews", {})
-    st.markdown("**Look here** (pointers T1…Tn, shared by the text, the map and the Spot "
-                "panel):")
-    if res["queue"]:
-        q = pd.DataFrame(res["queue"])
-        q["review"] = [reviews.get(slide_key(pf, slide, f"r{p['row']}c{p['col']}"), {})
-                       .get("mark", "") for p in res["queue"]]
-        st.dataframe(q[["pointer", "review", "what", "why", "check", "evidence", "status"]],
-                     hide_index=True, width="stretch")
-    else:
-        st.caption("Nothing in the queue: no tumor front, island or counted candidate.")
+    with page.overview():
+        st.markdown(text)
+        st.markdown("**Hypothesis.** The arrows show where the tumor is invading in this "
+                    "section: a 2D snapshot, not a forecast of where it will go.")
+        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+        row.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²", width="content",
+                   help="Tiles whose smoothed class is invasive carcinoma, at 112 µm per tile "
+                        "(model inference).")
+        row.metric("Front length", f"{s['front_length_mm']} mm", width="content",
+                   help="The tumor's border on the tile grid, in mm of tissue (model inference).")
+        row.metric("Infiltrative arcs", f"{n['infiltrative_arcs']} / {n['arcs']}",
+                   width="content", help="Arcs of the front whose roughness passes the "
+                                         "infiltrative cutoff (a placeholder).")
+        row.metric("Breakaway in field", "—" if not hs else str(hs["buds_in_field"]),
+                   help="clusters of up to 4 tumor-candidate nuclei in the 0.785 mm² field; "
+                        "weak until validated", width="content")
+        row.metric("Unsure share", f"{s['unsure_share']:.0%}", width="content",
+                   help=f"Share of tiles whose top class probability is under "
+                        f"{CUTOFFS['unsure_below'][0]} (a placeholder cutoff).")
+        page.look_here(look_items(pf, slide, version, res),
+                       land=lambda focus: land(pf, page.version, focus),
+                       more="Details › Every look-here pointer")
+        query = st.text_input("Search inside the slide, in plain words", key=f"{k}-search",
+                              placeholder="budding · lymphocytes at the border · fat · unsure · "
+                                          "satellite · direction · T2 · grade")
+        if query:
+            hit = inv.search(query, res)
+            (st.markdown if hit["understood"] else st.warning)(hit["answer"])
+            if len(hit["rows"]):
+                show = df.merge(hit["rows"][["row", "col"]], on=["row", "col"])
+                st.dataframe(show[["tile", "class", "top", "certainty", "zone", "nuclei",
+                                   "risk_points"]].head(200), hide_index=True, width="stretch")
 
-    # --- map ------------------------------------------------------------------------------
-    st.markdown("#### Slide map")
+    # --- the picture: the viewer, or the tile map when the tiles can't be had ----------------
     src = slide_viewer.source(slide)
     failed = st.session_state.get(f"{k}-viewer-failed")
     has_rose = bool(res["rose"]) and res["normals"] is not None and len(res["normals"]) > 0
     rose_text = ("Rose of the front normals, push-weighted: the direction the front points and "
                  "how much tumor probability lies beyond it. A hypothesis about this section.")
     if isinstance(src, dict) and not failed:
-        st.caption(
-            f"The patient's own section (H&E) at {src['mpp']:.2f} µm per pixel, the scan's own "
-            "level nearest 1 µm. Scroll or double-click to zoom from the whole section down to "
-            "single nuclei, drag to pan; the minimap (top right) shows where you are. Colour the "
-            "tiles by tissue class, certainty, quality control, zones, lymphocyte-like nuclei or "
-            "risk level, and draw the front line, the arcs with their arrows, breakaway "
-            "candidates with the counting field, islands, risk regions, the pointers and, zoomed "
-            "in, every nucleus StarDist found on the counted tiles. Hover a tile for its scores; "
-            "click it to open it in the Spot panel; n and p step through the pointers."
-            + (" Only the tumor-centred window (dashed) was scored: the rest of the section is "
-               "shown, not analysed." if src["window"] else ""))
-        slide_viewer.show([src], key=f"{k}-viewer", goto=st.session_state.get(f"{k}-goto"),
-                          on_change=lambda: viewer_event(pf.id, f"{k}-viewer"))
-        rc, pc = st.columns([1, 3])
-        if has_rose:
-            rc.altair_chart(rose_chart(res["rose"]), width="content")
-            rc.caption(rose_text)
-        pc.caption(f"Tiles: a Deep Zoom pyramid of {slide} (GDC open access; JPEG, cut with "
-                   "OpenSlide); viewer: OpenSeadragon 6.1.1. Each coloured tile is one score for "
-                   f"{TILE_UM:.0f} µm of tissue; classes are model inferences smoothed over 3×3 "
-                   "tiles, so their edges are a tile's width, not a cell's.")
-    else:
-        st.info(f"The slide viewer is not available here: {failed or src}. The tile map below "
-                "draws the same analysis on the scored grid, next to a picture of the scored "
-                "region.")
-        l1, l2 = st.columns([1, 2])
-        layer = l1.radio("Layer", LAYERS, horizontal=True, key=f"{k}-layer")
-        overlays = l2.pills("Overlays", OVERLAYS, selection_mode="multi",
-                            default=["front", "arrows", "pointers"], key=f"{k}-overlays")
-        h, w = res["grid_shape"]
-        px = max(3, min(8, int(640 / max(h, w))))
-        st.caption("Hover a tile for its scores, zone, nuclei and risk points. Each tile is one "
-                   "score for 112 µm of tissue; classes are model inferences smoothed over 3×3 "
-                   "tiles. Arrows: one per arc, length by push; the dashed circle is the counting "
-                   "field; squares are the pointers.")
-        mc, tc = st.columns([3, 2])
-        with mc:
-            st.altair_chart(slide_map(df, res, layer, overlays or [], classes, px),
-                            width="content")
-        with tc:
-            if result["thumbnail"]:
-                st.image(str(result["thumbnail"]), caption="The scored region (H&E, the "
-                         "patient's own section)", width="stretch")
+        with page.picture("Slide viewer", caption=(
+                f"The patient's own section (H&E) at {src['mpp']:.2f} µm per pixel, the scan's "
+                "own level nearest 1 µm. Scroll or double-click to zoom from the whole section "
+                "down to single nuclei, drag to pan; the minimap (top right) shows where you are. "
+                "Colour the tiles by tissue class, certainty, quality control, zones, "
+                "lymphocyte-like nuclei or risk level, and draw the front line, the arcs with "
+                "their arrows, breakaway candidates with the counting field, islands, risk "
+                "regions, the pointers and, zoomed in, every nucleus StarDist found on the "
+                "counted tiles. Hover a tile for its scores; click it to open it in the Spot "
+                "panel; n and p step through the pointers."
+                + (" Only the tumor-centred window (dashed) was scored: the rest of the section "
+                   "is shown, not analysed." if src["window"] else ""))):
+            slide_viewer.show([src], key=f"{k}-viewer", goto=st.session_state.get(f"{k}-goto"),
+                              on_change=lambda: viewer_event(pf.id, f"{k}-viewer"))
+            rc, pc = st.columns([1, 3])
             if has_rose:
-                st.altair_chart(rose_chart(res["rose"]), width="content")
-                st.caption(rose_text)
-
-    # --- direction of invasion --------------------------------------------------------------
-    st.markdown("#### Direction of invasion: arcs of the front")
-    chips("hypothesis", "placeholder cutoffs")
-    st.caption(f"The front is cut into {CUTOFFS_INV['sectors'][0]} arcs around the tumor's "
-               "centroid. Direction = push-weighted mean outward normal; push = mean P(invasive) "
-               "over 3 tiles beyond the front (0 sharp, near 0.5 fading into the tissue); "
-               "roughness = share of the arc's tiles in fingers (opening of radius 2 tiles); "
-               f"infiltrative at {CUTOFFS_INV['infiltrative_arc'][0]:.0%} (placeholder). "
-               "Faces = classes of the tissue touching the arc.")
-    if res["arcs"]:
-        a = pd.DataFrame(res["arcs"])
-        a["direction"] = a["direction_deg"].map(lambda d: f"{inv.compass(d)} ({d:.0f}°)")
-        a["faces"] = a["faces"].map(lambda f: ", ".join(
-            f"{LABELS.get(c, c).lower()} {v:.0%}" for c, v in list(f.items())[:3]))
-        st.dataframe(a[["arc", "from_deg", "to_deg", "length_mm", "direction", "push",
-                        "roughness", "pattern", "faces"]], hide_index=True, width="stretch")
-        st.caption(f"Fingers found: {res['fingers']['n']}"
-                   + ("" if res["fingers"]["judged"] else " (tumor too small to judge)") + ".")
+                rc.altair_chart(rose_chart(res["rose"]), width="content")
+                rc.caption(rose_text)
+            pc.caption(f"Tiles: a Deep Zoom pyramid of {slide} (GDC open access; JPEG, cut with "
+                       "OpenSlide); viewer: OpenSeadragon 6.1.1. Each coloured tile is one score "
+                       f"for {TILE_UM:.0f} µm of tissue; classes are model inferences smoothed "
+                       "over 3×3 tiles, so their edges are a tile's width, not a cell's.")
     else:
-        st.caption("No tumor front in the map.")
+        with page.picture("Tile map", caption=(
+                "Hover a tile for its scores, zone, nuclei and risk points. Each tile is one "
+                "score for 112 µm of tissue; classes are model inferences smoothed over 3×3 "
+                "tiles. Arrows: one per arc, length by push; the dashed circle is the counting "
+                "field; squares are the pointers.")):
+            st.info(f"The slide viewer is not available here: {failed or src}. The tile map "
+                    "draws the same analysis on the scored grid, next to a picture of the "
+                    "scored region.", icon="🔬")
+            l1, l2 = st.columns([1, 2])
+            layer = l1.radio("Layer", LAYERS, horizontal=True, key=f"{k}-layer")
+            overlays = l2.pills("Overlays", OVERLAYS, selection_mode="multi",
+                                default=["front", "arrows", "pointers"], key=f"{k}-overlays")
+            h, w = res["grid_shape"]
+            px = max(3, min(8, int(640 / max(h, w))))
+            mc, tc = st.columns([3, 2])
+            with mc:
+                st.altair_chart(slide_map(df, res, layer, overlays or [], classes, px),
+                                width="content")
+            with tc:
+                if result["thumbnail"]:
+                    st.image(str(result["thumbnail"]), caption="The scored region (H&E, the "
+                             "patient's own section)", width="stretch",
+                             alt=f"H&E thumbnail of the scored region of slide {slide}")
+                if has_rose:
+                    st.altair_chart(rose_chart(res["rose"]), width="content")
+                    st.caption(rose_text)
 
-    # --- cells -----------------------------------------------------------------------------
-    st.markdown("#### Cells: breakaway candidates, lymphocytes, stroma and necrosis")
-    chips("weak until validated", "placeholder cutoffs")
-    st.caption(f"{inv.MODEL_CARD['nuclei'][0].upper() + inv.MODEL_CARD['nuclei'][1:]}. "
-               f"Counted on {nuc.get('tiles', 0)} tiles ({nuc.get('nuclei', 0)} nuclei; "
-               f"{nuc.get('s_per_tile', '?')} s per tile), front tiles first, then the band "
-               "outside, then the rest of the front band and the peritumoral zone, up to the "
-               "budget. Every flag below is weak until validated.")
-    g1, g2 = st.columns(2)
-    with g1:
-        st.markdown("**Breakaway (budding) candidates**")
-        if hs:
-            st.markdown(f"Counting field at tile r{hs['row']}c{hs['col']} (0.785 mm², the ITBCC "
-                        f"20× field): **{hs['buds_in_field']}** cluster(s) of ≤ 4 tumor-candidate "
-                        f"nuclei outside the main tumor; {hs['coverage']:.0%} of the field was "
-                        "counted. Budding grades (Bd1–3) are defined for colorectal cancer and "
-                        "are not applied here. A cluster is a tumor-nucleus candidate by its "
-                        "tile's class, not by cell morphology.")
-            st.number_input("Buds you count in this field at 20× (your count, kept with the "
-                            "export)", min_value=0, max_value=200, step=1, key=f"{k}-budcount")
-            mark_box(pf, slide_key(pf, slide, f"r{hs['row']}c{hs['col']}"),
-                     f"Slide {slide}: counting field, {hs['buds_in_field']} breakaway "
-                     "candidate(s)")
+    # --- details ----------------------------------------------------------------------------
+    with page.details("Direction of invasion: arcs of the front", len(res["arcs"])):
+        chips("hypothesis", "placeholder cutoffs")
+        st.caption(f"The front is cut into {CUTOFFS_INV['sectors'][0]} arcs around the tumor's "
+                   "centroid. Direction = push-weighted mean outward normal; push = mean "
+                   "P(invasive) over 3 tiles beyond the front (0 sharp, near 0.5 fading into the "
+                   "tissue); roughness = share of the arc's tiles in fingers (opening of radius 2 "
+                   f"tiles); infiltrative at {CUTOFFS_INV['infiltrative_arc'][0]:.0%} "
+                   "(placeholder). Faces = classes of the tissue touching the arc.")
+        if res["arcs"]:
+            a = pd.DataFrame(res["arcs"])
+            a["direction"] = a["direction_deg"].map(lambda d: f"{inv.compass(d)} ({d:.0f}°)")
+            a["faces"] = a["faces"].map(lambda f: ", ".join(
+                f"{LABELS.get(c, c).lower()} {v:.0%}" for c, v in list(f.items())[:3]))
+            st.dataframe(a[["arc", "from_deg", "to_deg", "length_mm", "direction", "push",
+                            "roughness", "pattern", "faces"]], hide_index=True, width="stretch")
+            st.caption(f"Fingers found: {res['fingers']['n']}"
+                       + ("" if res["fingers"]["judged"] else " (tumor too small to judge)")
+                       + ".")
         else:
-            st.markdown("No breakaway candidate in the counted tiles" + (
-                "" if nuc.get("tiles") else " (nuclei were not counted)") + ".")
-    with g2:
-        st.markdown("**Stromal lymphocytes by zone** (International TILs Working Group zones; "
-                    "a count proxy, not the WG's area percentage)")
-        im = res["immune"]
-        # numeric columns with NaN where a zone has nothing, so no mixed dtype reaches Arrow
-        rows = [{"zone": z, "tiles": v["tiles"],
-                 "lymphocyte-class tiles": v["lymph_tile_share"],
-                 "lymphocyte tiles (second model)": v.get("til_lymph_share"),
-                 "counted stroma tiles": v.get("counted_tiles", 0),
-                 "lymphocyte-like nuclei / mm²": v.get("lymph_nuclei_per_mm2"),
-                 "within 50 µm of tumor": v.get("tumor_contacting_share")}
-                for z, v in im["zones"].items()]
-        zones = pd.DataFrame(rows)
-        for col in ("lymphocyte-class tiles", "lymphocyte tiles (second model)",
-                    "lymphocyte-like nuclei / mm²", "within 50 µm of tumor"):
-            zones[col] = pd.to_numeric(zones[col], errors="coerce")
-        st.dataframe(zones, hide_index=True, width="stretch", column_config={
-            "lymphocyte-class tiles": st.column_config.NumberColumn(format="percent"),
-            "lymphocyte tiles (second model)": st.column_config.NumberColumn(format="percent"),
-            "lymphocyte-like nuclei / mm²": st.column_config.NumberColumn(format="%d"),
-            "within 50 µm of tumor": st.column_config.NumberColumn(format="percent")})
-        st.caption("An empty cell means the zone has no tiles, no counted stroma tiles or no "
-                   "tile scored by the second model.")
-        d = res["til"]
-        if til and d["scored"]:
-            ho = til.get("held_out", {})
-            at = ho.get("at_cutoff", {})
-            st.markdown(f"**Second opinion ({INFERENCE}).** {inv.TIL_SECOND}: scored "
-                        f"{d['scored']} front-band and peritumoral tiles; the head and it "
-                        f"disagree on {d['disagree']} ({d['share']:.0%}; kappa {d['kappa']}; "
-                        f"{d['head_only']} head only, {d['til_only']} second model only). "
-                        f"Cutoff {d['cutoff']}: {til.get('cutoff_source', 'placeholder')}. "
-                        f"Held out on the head's {len(ho.get('slides', []))} test slides "
-                        f"({ho.get('tiles', '?')} tiles): AUROC {ho.get('auroc', float('nan'))}, "
-                        f"recall {at.get('recall_lymphocytes', float('nan')):.0%}, specificity "
-                        f"{at.get('specificity', float('nan')):.0%}. "
-                        "Switch the map's layer to 'lymphocytes (second model)'; disagreeing "
-                        "tiles are in the queue.")
-        elif til is None:
-            st.caption("No second lymphocyte model has scored this section.")
+            st.caption("No tumor front in the map.")
+
+    cells = (f"{hs['buds_in_field']} breakaway in the field" if hs else
+             f"nuclei on {nuc.get('tiles', 0)} tiles")
+    with page.details("Cells: breakaway candidates, lymphocytes, stroma and necrosis", cells):
+        chips("weak until validated", "placeholder cutoffs")
+        st.caption(f"{inv.MODEL_CARD['nuclei'][0].upper() + inv.MODEL_CARD['nuclei'][1:]}. "
+                   f"Counted on {nuc.get('tiles', 0)} tiles ({nuc.get('nuclei', 0)} nuclei; "
+                   f"{nuc.get('s_per_tile', '?')} s per tile), front tiles first, then the band "
+                   "outside, then the rest of the front band and the peritumoral zone, up to the "
+                   "budget. Every flag below is weak until validated.")
+        g1, g2 = st.columns(2)
+        with g1:
+            st.markdown("**Breakaway (budding) candidates**")
+            if hs:
+                st.markdown(f"Counting field at tile r{hs['row']}c{hs['col']} (0.785 mm², the "
+                            f"ITBCC 20× field): **{hs['buds_in_field']}** cluster(s) of ≤ 4 "
+                            f"tumor-candidate nuclei outside the main tumor; {hs['coverage']:.0%} "
+                            "of the field was counted. Budding grades (Bd1–3) are defined for "
+                            "colorectal cancer and are not applied here. A cluster is a "
+                            "tumor-nucleus candidate by its tile's class, not by cell "
+                            "morphology.")
+                st.number_input("Buds you count in this field at 20× (your count, kept with the "
+                                "export)", min_value=0, max_value=200, step=1,
+                                key=f"{k}-budcount")
+                mark_box(pf, slide_key(pf, slide, f"r{hs['row']}c{hs['col']}"),
+                         f"Slide {slide}: counting field, {hs['buds_in_field']} breakaway "
+                         "candidate(s)")
+            else:
+                st.markdown("No breakaway candidate in the counted tiles" + (
+                    "" if nuc.get("tiles") else " (nuclei were not counted)") + ".")
+        with g2:
+            st.markdown("**Stromal lymphocytes by zone** (International TILs Working Group "
+                        "zones; a count proxy, not the WG's area percentage)")
+            im = res["immune"]
+            # numeric columns with NaN where a zone has nothing, so no mixed dtype reaches Arrow
+            rows = [{"zone": z, "tiles": v["tiles"],
+                     "lymphocyte-class tiles": v["lymph_tile_share"],
+                     "lymphocyte tiles (second model)": v.get("til_lymph_share"),
+                     "counted stroma tiles": v.get("counted_tiles", 0),
+                     "lymphocyte-like nuclei / mm²": v.get("lymph_nuclei_per_mm2"),
+                     "within 50 µm of tumor": v.get("tumor_contacting_share")}
+                    for z, v in im["zones"].items()]
+            zones = pd.DataFrame(rows)
+            for col in ("lymphocyte-class tiles", "lymphocyte tiles (second model)",
+                        "lymphocyte-like nuclei / mm²", "within 50 µm of tumor"):
+                zones[col] = pd.to_numeric(zones[col], errors="coerce")
+            st.dataframe(zones, hide_index=True, width="stretch", column_config={
+                "lymphocyte-class tiles": st.column_config.NumberColumn(format="percent"),
+                "lymphocyte tiles (second model)": st.column_config.NumberColumn(
+                    format="percent"),
+                "lymphocyte-like nuclei / mm²": st.column_config.NumberColumn(format="%d"),
+                "within 50 µm of tumor": st.column_config.NumberColumn(format="percent")})
+            st.caption("An empty cell means the zone has no tiles, no counted stroma tiles or no "
+                       "tile scored by the second model.")
+            d = res["til"]
+            if til and d["scored"]:
+                ho = til.get("held_out", {})
+                at = ho.get("at_cutoff", {})
+                st.markdown(f"**Second opinion ({INFERENCE}).** {inv.TIL_SECOND}: scored "
+                            f"{d['scored']} front-band and peritumoral tiles; the head and it "
+                            f"disagree on {d['disagree']} ({d['share']:.0%}; kappa {d['kappa']}; "
+                            f"{d['head_only']} head only, {d['til_only']} second model only). "
+                            f"Cutoff {d['cutoff']}: {til.get('cutoff_source', 'placeholder')}. "
+                            f"Held out on the head's {len(ho.get('slides', []))} test slides "
+                            f"({ho.get('tiles', '?')} tiles): AUROC "
+                            f"{ho.get('auroc', float('nan'))}, recall "
+                            f"{at.get('recall_lymphocytes', float('nan')):.0%}, specificity "
+                            f"{at.get('specificity', float('nan')):.0%}. Switch the map's layer "
+                            "to 'lymphocytes (second model)'; disagreeing tiles are in the "
+                            "queue.")
+            elif til is None:
+                st.caption("No second lymphocyte model has scored this section.")
+            else:
+                st.caption("The second lymphocyte model scored no tile here: the map has no "
+                           "front band or peritumoral zone to score.")
+            st.markdown(f"Pattern: **{im['pattern']}** ({im['status']}).")
+        t1, t2, t3 = st.columns(3)
+        tsr, nec = res["tsr"], res["necrosis"]
+        t1.metric("Tumor–stroma ratio", tsr["verdict"],
+                  help=f"stroma {tsr['stroma_share']:.0%} of tumor-plus-stroma tiles in the "
+                       f"tumor and its front band; stroma-high above 50% (literature, colorectal)"
+                  if tsr["stroma_share"] is not None else "not assessed")
+        t2.metric("Necrosis touching tumor", f"{nec['touching_tumor_tiles']} tiles",
+                  help=f"{nec['necrosis_mm2']} mm² of necrosis-class tiles, "
+                       f"{nec['share_touching'] or 0:.0%} touching tumor")
+        cv = df["nuc_area_cv"].dropna() if "nuc_area_cv" in df else pd.Series(dtype=float)
+        t3.metric("Nuclear-area variation", f"{cv.median():.2f}" if len(cv) else "—",
+                  help="median coefficient of variation of non-lymphocyte nuclear area per "
+                       "counted tile: a proxy only, never a grade")
+
+    with page.details("Satellite islands", len(res["islands"])):
+        if res["islands"]:
+            isl = pd.DataFrame(res["islands"])
+            isl["tissue between"] = isl["between_shares"].map(lambda f: ", ".join(
+                f"{LABELS.get(c, c).lower()} {v:.0%}" for c, v in f.items()) or "touching")
+            st.dataframe(isl[["island", "area_mm2", "distance_um", "tissue between"]],
+                         hide_index=True, width="stretch")
+            st.caption("Geometry on the tile classes. An island may be a satellite, a "
+                       "tangential cut of the same tumor, or in-situ disease (DCIS is not a "
+                       "class of the head).")
         else:
-            st.caption("The second lymphocyte model scored no tile here: the map has no front "
-                       "band or peritumoral zone to score.")
-        st.markdown(f"Pattern: **{im['pattern']}** ({im['status']}).")
-    t1, t2, t3 = st.columns(3)
-    tsr, nec = res["tsr"], res["necrosis"]
-    t1.metric("Tumor–stroma ratio", tsr["verdict"],
-              help=f"stroma {tsr['stroma_share']:.0%} of tumor-plus-stroma tiles in the tumor "
-                   f"and its front band; stroma-high above 50% (literature, colorectal)"
-              if tsr["stroma_share"] is not None else "not assessed")
-    t2.metric("Necrosis touching tumor", f"{nec['touching_tumor_tiles']} tiles",
-              help=f"{nec['necrosis_mm2']} mm² of necrosis-class tiles, "
-                   f"{nec['share_touching'] or 0:.0%} touching tumor")
-    cv = df["nuc_area_cv"].dropna() if "nuc_area_cv" in df else pd.Series(dtype=float)
-    t3.metric("Nuclear-area variation", f"{cv.median():.2f}" if len(cv) else "—",
-              help="median coefficient of variation of non-lymphocyte nuclear area per counted "
-                   "tile: a proxy only, never a grade")
+            st.caption("No separate tumor piece in the map.")
 
-    # --- islands ---------------------------------------------------------------------------
-    st.markdown("#### Satellite islands")
-    if res["islands"]:
-        isl = pd.DataFrame(res["islands"])
-        isl["tissue between"] = isl["between_shares"].map(lambda f: ", ".join(
-            f"{LABELS.get(c, c).lower()} {v:.0%}" for c, v in f.items()) or "touching")
-        st.dataframe(isl[["island", "area_mm2", "distance_um", "tissue between"]],
-                     hide_index=True, width="stretch")
-        st.caption("Geometry on the tile classes. An island may be a satellite, a tangential "
-                   "cut of the same tumor, or in-situ disease (DCIS is not a class of the head).")
-    else:
-        st.caption("No separate tumor piece in the map.")
+    cards = res["risk"]["cards"]
+    with page.details("Risk map: points within 1 mm", f"{len(cards)} at level 2 or more"):
+        chips("placeholder cutoffs")
+        r1, r2 = st.columns([1, 2])
+        with r1:
+            st.dataframe(pd.DataFrame(res["risk"]["table"]), hide_index=True, width="stretch")
+            st.caption(f"Level 2 at {CUTOFFS_INV['risk_level_2'][0]} points, level 3 at "
+                       f"{CUTOFFS_INV['risk_level_3'][0]}; every value a placeholder, not an "
+                       "outcome model. Switch the map's layer to 'risk'.")
+        with r2:
+            if cards:
+                cols = st.columns(min(len(cards), 3))
+                for i, c in enumerate(cards[:6]):
+                    with cols[i % len(cols)]:
+                        st.markdown(f"**{c['card']} · level {c['level']}** ({c['points']} "
+                                    f"points, {c['mm2']} mm²)  \n" + ", ".join(c["features"]))
+                        st.button(f"Open {c['card']} in the Spot panel", key=f"{k}-card-{i}",
+                                  on_click=go_to, args=(k, slide, f"r{c['row']}c{c['col']}"))
+            else:
+                st.caption("No region reaches level 2.")
 
-    # --- risk map -------------------------------------------------------------------------
-    st.markdown("#### Risk map: points within 1 mm")
-    chips("placeholder cutoffs")
-    r1, r2 = st.columns([1, 2])
-    with r1:
-        st.dataframe(pd.DataFrame(res["risk"]["table"]), hide_index=True, width="stretch")
-        st.caption(f"Level 2 at {CUTOFFS_INV['risk_level_2'][0]} points, level 3 at "
-                   f"{CUTOFFS_INV['risk_level_3'][0]}; every value a placeholder, not an outcome "
-                   "model. Switch the map's layer to 'risk'.")
-    with r2:
-        cards = res["risk"]["cards"]
-        if cards:
-            cols = st.columns(min(len(cards), 3))
-            for i, c in enumerate(cards[:6]):
-                with cols[i % len(cols)]:
-                    st.markdown(f"**{c['card']} · level {c['level']}** ({c['points']} points, "
-                                f"{c['mm2']} mm²)  \n" + ", ".join(c["features"]))
-                    st.button(f"Open {c['card']} in the Spot panel", key=f"{k}-card-{i}",
-                              on_click=go_to, args=(k, slide, f"r{c['row']}c{c['col']}"))
-        else:
-            st.caption("No region reaches level 2.")
-
-    # --- Spot panel ------------------------------------------------------------------------
-    st.markdown("#### Spot panel")
-    options = [f"{p['pointer']} · r{p['row']}c{p['col']}" for p in res["queue"]] + [
-        f"{c['why']} · r{c['row']}c{c['col']}" for c in meta.get("crops", [])
-        if not any((c["row"], c["col"]) == (p["row"], p["col"]) for p in res["queue"])]
-    s1, s2 = st.columns([2, 1])
-    pick = s1.selectbox("A pointer or a stored crop", options, key=f"{k}-pick",
-                        on_change=lambda: go_to(k, slide, (st.session_state[f"{k}-pick"]
-                                                           or "").split("· ")[-1]))
-    typed = s2.text_input("or a tile (r12c34), or click one in the viewer", key=f"{k}-spot",
-                          placeholder="r12c34",
-                          on_change=lambda: go_to(k, slide, st.session_state[f"{k}-spot"])
-                          ).strip()
-    target = typed or (pick.split("· ")[-1] if pick else "")
-    try:
-        rr, cc = target[1:].split("c")
-        spot_panel(pf, slide, result, df, res, classes, int(rr), int(cc), meta)
-    except (ValueError, IndexError):
-        st.caption("Pick a pointer or type a tile such as r12c34.")
-
-    # --- search ---------------------------------------------------------------------------
-    st.markdown("#### Search inside the slide")
-    query = st.text_input("Plain words", key=f"{k}-search",
-                          placeholder="budding · lymphocytes at the border · fat · unsure · "
-                                      "satellite · direction · T2 · grade")
-    if query:
-        hit = inv.search(query, res)
-        (st.markdown if hit["understood"] else st.warning)(hit["answer"])
-        if len(hit["rows"]):
-            show = df.merge(hit["rows"][["row", "col"]], on=["row", "col"])
-            st.dataframe(show[["tile", "class", "top", "certainty", "zone", "nuclei",
-                               "risk_points"]].head(200), hide_index=True, width="stretch")
-
-    # --- quality control ------------------------------------------------------------------
-    st.markdown("#### Quality control")
-    chips("placeholder cutoffs")
     excluded = df[df["qc"] != QC_OK]
-    st.caption("Glass, pen ink and blur are checked per tile from texture and colour measures; "
-               "the cutoffs were set by eye on colon slides and not re-checked on breast: "
-               "placeholders. Blood, folds and stain variation are not checked (planned). "
-               "Switch the map's layer to 'QC' to see where.")
-    st.markdown(f"{len(excluded)} of {s['tiles']} tiles excluded"
-                + (": " + ", ".join(f"{v} {k}" for k, v in s["excluded"].items())
-                   if s["excluded"] else "") + ".")
+    with page.details("Quality control", f"{len(excluded)} of {s['tiles']} tiles excluded"):
+        chips("placeholder cutoffs")
+        st.caption("Glass, pen ink and blur are checked per tile from texture and colour "
+                   "measures; the cutoffs were set by eye on colon slides and not re-checked on "
+                   "breast: placeholders. Blood, folds and stain variation are not checked "
+                   "(planned). Switch the map's layer to 'QC' to see where.")
+        st.markdown(f"{len(excluded)} of {s['tiles']} tiles excluded"
+                    + (": " + ", ".join(f"{v} {k}" for k, v in s["excluded"].items())
+                       if s["excluded"] else "") + ".")
 
-    # --- model and validation card -----------------------------------------------------------
-    st.markdown(f"#### {CARD}")
-    chips("not reviewed by a pathologist")
-    head_card(meta, classes)
-    st.markdown(f"**Nuclei.** {inv.MODEL_CARD['nuclei']}. **Geometry.** "
-                f"{inv.MODEL_CARD['geometry']}. **Review.** {inv.MODEL_CARD['review']}.")
-    if til:
-        st.markdown(f"**Second lymphocyte model.** {inv.TIL_SECOND}; normalization "
-                    f"{til.get('model', {}).get('normalization', '?')}; "
-                    f"{til.get('s_per_tile', '?')} s per tile at {til.get('threads', '?')} "
-                    f"threads ({til.get('uptime', '')}). "
-                    "Its disagreement with the head is a queue item, never a verdict.")
-    tm = meta.get("timings", {})
-    st.caption("Timings on this PC's CPU: " + ", ".join(
-        f"{k.replace('_s', '')} {v} s" for k, v in tm.items() if k.endswith("_s"))
-        + f"; {tm.get('uptime_at_start', '')} at the start, {tm.get('uptime_at_end', '')} at "
-        "the end (shared machine).")
-    st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in inv.KNOWN_FAILURES))
-    cannot_see(CUTOFFS_INV)
+    with page.details("Every look-here pointer", len(res["queue"])):
+        st.caption("Pointers T1…Tn, shared by the text, the map and the Spot panel, with why "
+                   "each is there and what to check by eye.")
+        if res["queue"]:
+            q = pd.DataFrame(res["queue"])
+            q["review"] = [reviews.get(slide_key(pf, slide, f"r{p['row']}c{p['col']}"), {})
+                           .get("mark", "") for p in res["queue"]]
+            st.dataframe(q[["pointer", "review", "what", "why", "check", "evidence", "status"]],
+                         hide_index=True, width="stretch")
+        else:
+            st.caption("Nothing in the queue: no tumor front, island or counted candidate.")
+    if compare is not None:
+        compare(page)
 
-    # --- export ----------------------------------------------------------------------------
-    st.markdown("#### Export")
-    mine = {kk: v for kk, v in reviews.items() if kk.startswith(f"{pf.id}|slide|{slide}|")}
-    export = {"patient": pf.id, "slide": slide, "summary": {kk: v for kk, v in meta.items()
-                                                            if kk != "crops"},
-              "second_lymphocyte_model": {**(til or {}), "disagreement": {
-                  kk: v for kk, v in res["til"].items() if kk != "rows"}} if til else None,
-              "your_bud_count": st.session_state.get(f"{k}-budcount"),
-              "review_marks": mine, "pins": {kk: v for kk, v in
-                                             st.session_state.get("pins", {}).items()
-                                             if kk.startswith(f"{pf.id}|slide|{slide}|")}}
-    e1, e2, e3 = st.columns(3)
-    e1.download_button("Download the findings (JSON)", json.dumps(export, indent=1,
-                                                                   default=str),
-                       file_name=f"{slide}_slide.json", mime="application/json",
-                       key=f"{k}-json")
-    cols = ["tile", "row", "col", "class", "top", "certainty", "qc", "zone", "dist", "front",
-            "finger", "risk_points", "risk_level", "nuclei"]
-    e2.download_button("Download the tiles (CSV)", df[cols].to_csv(index=False),
-                       file_name=f"{slide}_tiles.csv", mime="text/csv", key=f"{k}-csv")
-    e3.download_button("Download the map (PNG)",
-                       inv.map_png(res["tiles"], inv.grid(res["tiles"], "front", False, bool),
-                                   queue=res["queue"]),
-                       file_name=f"{slide}_map.png", mime="image/png", key=f"{k}-png")
-    return {**n, "slide": slide}
+    # --- Spot panel -------------------------------------------------------------------------
+    with page.spot("The full story of one tile: pick a pointer or a stored crop, type a tile, or "
+                   "click one in the viewer."):
+        options = [f"{p['pointer']} · r{p['row']}c{p['col']}" for p in res["queue"]] + [
+            f"{c['why']} · r{c['row']}c{c['col']}" for c in meta.get("crops", [])
+            if not any((c["row"], c["col"]) == (p["row"], p["col"]) for p in res["queue"])]
+        s1, s2 = st.columns([2, 1])
+        pick = s1.selectbox("A pointer or a stored crop", options, key=f"{k}-pick",
+                            on_change=lambda: go_to(k, slide, (st.session_state[f"{k}-pick"]
+                                                               or "").split("· ")[-1]))
+        typed = s2.text_input("or a tile (r12c34), or click one in the viewer", key=f"{k}-spot",
+                              placeholder="r12c34",
+                              on_change=lambda: go_to(k, slide, st.session_state[f"{k}-spot"])
+                              ).strip()
+        target = typed or (pick.split("· ")[-1] if pick else "")
+        try:
+            rr, cc = target[1:].split("c")
+            spot_panel(pf, slide, result, df, res, classes, int(rr), int(cc), meta)
+        except (ValueError, IndexError):
+            st.caption("Pick a pointer or type a tile such as r12c34.")
+
+    # --- model and validation card, limits, export -------------------------------------------
+    with page.card():
+        chips("not reviewed by a pathologist")
+        head_card(meta, classes)
+        st.markdown(f"**Nuclei.** {inv.MODEL_CARD['nuclei']}. **Geometry.** "
+                    f"{inv.MODEL_CARD['geometry']}. **Review.** {inv.MODEL_CARD['review']}.")
+        if til:
+            st.markdown(f"**Second lymphocyte model.** {inv.TIL_SECOND}; normalization "
+                        f"{til.get('model', {}).get('normalization', '?')}; "
+                        f"{til.get('s_per_tile', '?')} s per tile at {til.get('threads', '?')} "
+                        f"threads ({til.get('uptime', '')}). "
+                        "Its disagreement with the head is a queue item, never a verdict.")
+        tm = meta.get("timings", {})
+        st.caption("Timings on this PC's CPU: " + ", ".join(
+            f"{k.replace('_s', '')} {v} s" for k, v in tm.items() if k.endswith("_s"))
+            + f"; {tm.get('uptime_at_start', '')} at the start, {tm.get('uptime_at_end', '')} "
+            "at the end (shared machine).")
+        st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in inv.KNOWN_FAILURES))
+    cannot_see(page, CUTOFFS_INV)
+
+    with page.export():
+        mine = {kk: v for kk, v in reviews.items() if kk.startswith(f"{pf.id}|slide|{slide}|")}
+        export = {"patient": pf.id, "slide": slide,
+                  "summary": {kk: v for kk, v in meta.items() if kk != "crops"},
+                  "second_lymphocyte_model": {**(til or {}), "disagreement": {
+                      kk: v for kk, v in res["til"].items() if kk != "rows"}} if til else None,
+                  "your_bud_count": st.session_state.get(f"{k}-budcount"),
+                  "review_marks": mine, "pins": {kk: v for kk, v in
+                                                 st.session_state.get("pins", {}).items()
+                                                 if kk.startswith(f"{pf.id}|slide|{slide}|")}}
+        e1, e2, e3 = st.columns(3)
+        e1.download_button("Download the findings (JSON)", json.dumps(export, indent=1,
+                                                                       default=str),
+                           file_name=f"{slide}_slide.json", mime="application/json",
+                           key=f"{k}-json")
+        cols = ["tile", "row", "col", "class", "top", "certainty", "qc", "zone", "dist", "front",
+                "finger", "risk_points", "risk_level", "nuclei"]
+        e2.download_button("Download the tiles (CSV)", df[cols].to_csv(index=False),
+                           file_name=f"{slide}_tiles.csv", mime="text/csv", key=f"{k}-csv")
+        e3.download_button("Download the map (PNG)",
+                           inv.map_png(res["tiles"], inv.grid(res["tiles"], "front", False, bool),
+                                       queue=res["queue"]),
+                           file_name=f"{slide}_map.png", mime="image/png", key=f"{k}-png")
 
 
 CUTOFFS_INV = inv.CUTOFFS
 
 
-def render_own(pf: PatientFile, slides: list[str], version: int | None) -> None:
+def render_own(page: Page, pf: PatientFile, slides: list[str], version: int | None) -> None:
+    page.title("patient's own slide", "placeholder cutoffs", "not reviewed by a pathologist",
+               "implemented, validated on held-out BCSS slides", colors=CHIP_COLORS)
     st.markdown(f"**{len(slides)} diagnostic section(s) of this patient's tumor** scored by the "
                 "slide pipeline: " + ", ".join(slides) + ". Each section is one cut through the "
                 "block: a 2D sample of the tumor, not the whole tumor.")
     chosen = st.radio("Section", slides, horizontal=True, key=f"{pf.id}-section") \
         if len(slides) > 1 else slides[0]
-    numbers = {}
-    for name in slides:
-        if name == chosen:
-            numbers[name] = render_slide(pf, name, version)
-        else:
+
+    def compare(page: Page) -> None:
+        numbers = {}
+        for name in slides:
             if got := scored(name):
-                numbers[name] = {**got[0]["meta"].get("numbers", {}), "slide": name}
-    if len(slides) > 1:
-        st.markdown("#### The sections compared")
+                numbers[name] = ({**got[1]["numbers"], "slide": name} if name == chosen else
+                                 {**got[0]["meta"].get("numbers", {}), "slide": name})
         pairs = [(a, b) for i, a in enumerate(slides) for b in slides[i + 1:]
                  if numbers.get(a) and numbers.get(b)]
-        for a, b in pairs:  # a column mixes numbers and words ("no front"), so show text
-            st.dataframe(pd.DataFrame(inv.compare(numbers[a], numbers[b])).map(
-                lambda v: "—" if v is None else f"{v:.3g}" if isinstance(v, float) else str(v)),
-                hide_index=True, width="stretch")
-        st.caption("Why sections differ: each is one plane through the block, so a front that "
-                   "is infiltrative in one cut can be pushing in another, a satellite in one "
-                   "section can be the same tumor cut tangentially, and the counted tiles "
-                   "differ. Differences between sections are not change over time: both were "
-                   "cut from the same specimen. Numbers differ by more than 20% are marked.")
-        st.caption("Differences in the immune pattern, the tumor–stroma ratio and the "
-                   "breakaway count are between placeholder-rule outputs, not validated "
-                   "measurements.")
-        side_by_side(pf, slides)
+        with page.details("The sections compared", len(slides)):
+            for a, b in pairs:  # a column mixes numbers and words ("no front"), so show text
+                st.dataframe(pd.DataFrame(inv.compare(numbers[a], numbers[b])).map(
+                    lambda v: "—" if v is None else f"{v:.3g}" if isinstance(v, float)
+                    else str(v)), hide_index=True, width="stretch")
+            st.caption("Why sections differ: each is one plane through the block, so a front "
+                       "that is infiltrative in one cut can be pushing in another, a satellite "
+                       "in one section can be the same tumor cut tangentially, and the counted "
+                       "tiles differ. Differences between sections are not change over time: "
+                       "both were cut from the same specimen. Numbers differ by more than 20% "
+                       "are marked.")
+            st.caption("Differences in the immune pattern, the tumor–stroma ratio and the "
+                       "breakaway count are between placeholder-rule outputs, not validated "
+                       "measurements.")
+        with page.details("The sections side by side", len(slides), key=f"{pf.id}-side-open",
+                          lazy=True) as box:
+            if box.open:
+                side_by_side(pf, slides)
+            else:
+                st.caption("Opens two or three sections in viewers next to each other.")
+
+    render_slide(page, pf, chosen, version, compare if len(slides) > 1 else None)
 
 
 def side_by_side(pf: PatientFile, slides: list[str]) -> None:
     """Two or three sections in viewers next to each other, pan and zoom linked in µm."""
-    st.markdown("**The sections side by side**")
     srcs = {n: slide_viewer.source(n) for n in slides
             if not st.session_state.get(f"{pf.id}|{n}-viewer-failed")}
     ok = [n for n, s in srcs.items() if isinstance(s, dict)]
@@ -888,23 +931,34 @@ def side_by_side(pf: PatientFile, slides: list[str]) -> None:
                       on_change=lambda: viewer_event(pf.id, f"{pf.id}-compare"))
 
 
-def render_example(pf: PatientFile, result: dict | None) -> None:
+def render_example(page: Page, pf: PatientFile, result: dict | None) -> None:
     slide_tests = [t for t in pf.tests if t.workbench == "slides"]
+    if result is None:
+        page.title(PLANNED)
+        with page.overview():
+            st.warning("The example slide result is not in this checkout (app/workbenches/"
+                       "slides_example). Run `python scripts/slide_spike.py result` to make it.")
+        with page.card():
+            st.caption("The tissue head's card appears with a scored section.")
+        cannot_see(page)
+        with page.export(empty="Nothing to export: no section of this patient's tumor is "
+                               "scored here."):
+            pass
+        return
+    page.title("example slide", "placeholder cutoffs",
+               "implemented, validated on held-out BCSS slides", colors=CHIP_COLORS)
     if slide_tests:
         st.markdown("**In this file:** " + "; ".join(
             f"{t.name} (month {t.month}): {t.result}" for t in slide_tests))
         st.info("The record holds the pathology report's text, not the slide image. Below, the "
                 "slide workbench is shown on a public example region so that what it would do "
-                "with this patient's slide is visible; nothing below is this patient's tissue.")
+                "with this patient's slide is visible; nothing below is this patient's tissue. "
+                "A scanned H&E section of this tumor would open the patient's own map.",
+                icon="🔬")
     else:
         st.info("This file holds no slide image. Below, the slide workbench on a public example "
-                "region; nothing below is this patient's tissue.")
-    if result is None:
-        chips(PLANNED)
-        st.warning("The example slide result is not in this checkout (app/workbenches/"
-                   "slides_example). Run `python scripts/slide_spike.py result` to make it.")
-        return
-    chips("example slide", "placeholder cutoffs", "implemented, validated on held-out BCSS slides")
+                "region; nothing below is this patient's tissue. A scanned H&E section of this "
+                "tumor would open the patient's own map.", icon="🔬")
 
     meta, tiles = result["meta"], result["tiles"]
     head = meta.get("head", {})
@@ -930,61 +984,67 @@ def render_example(pf: PatientFile, result: dict | None) -> None:
                f"head: {head.get('kind', '?')} · method version 0.1 (spike) · "
                f"status: {meta.get('status', 'implemented')}.")
 
-    st.markdown("#### Overview")
-    frac = s["tissue_fractions"]
-    top3 = sorted(frac.items(), key=lambda kv: -kv[1])[:3]
-    st.markdown(
-        f"**Model inference.** Of {s['usable_tiles']} usable tiles, the map reads "
-        + ", ".join(f"{LABELS[k].lower()} {v:.0%}" for k, v in top3)
-        + f". The main tumor region covers {s['main_tumor_mm2']} mm² with a front of "
-        f"{s['front_length_mm']} mm; {s['satellite_pieces']} separate tumor piece(s). "
-        f"{s['unsure_share']:.0%} of the tissue is marked unsure (top probability below "
-        f"{CUTOFFS['unsure_below'][0]}, a placeholder cutoff). "
-        + ("Excluded by quality control: "
-           + ", ".join(f"{v} {k}" for k, v in s["excluded"].items()) + "."
-           if s["excluded"] else "No tile was excluded by quality control.")
-    )
-    if s["facing"]:
-        faces = ", ".join(f"{LABELS.get(k, k).lower()} {v:.0%}" for k, v in s["facing"].items())
-        st.markdown(f"**What the front faces** (tiles touching the front, outside the tumor): "
-                    f"{faces}. A 2D snapshot of this section: where the tumor is, not where it "
-                    "is going.")
-    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-    row.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²", width="content")
-    row.metric("Front length", f"{s['front_length_mm']} mm", width="content")
-    row.metric("Unsure share", f"{s['unsure_share']:.0%}", width="content")
-    row.metric("Head accuracy (held out)", f"{head.get('accuracy', float('nan')):.0%}",
-               width="content")
+    with page.overview():
+        frac = s["tissue_fractions"]
+        top3 = sorted(frac.items(), key=lambda kv: -kv[1])[:3]
+        st.markdown(
+            f"**Model inference.** Of {s['usable_tiles']} usable tiles, the map reads "
+            + ", ".join(f"{LABELS[k].lower()} {v:.0%}" for k, v in top3)
+            + f". The main tumor region covers {s['main_tumor_mm2']} mm² with a front of "
+            f"{s['front_length_mm']} mm; {s['satellite_pieces']} separate tumor piece(s). "
+            f"{s['unsure_share']:.0%} of the tissue is marked unsure (top probability below "
+            f"{CUTOFFS['unsure_below'][0]}, a placeholder cutoff). "
+            + ("Excluded by quality control: "
+               + ", ".join(f"{v} {k}" for k, v in s["excluded"].items()) + "."
+               if s["excluded"] else "No tile was excluded by quality control.")
+        )
+        if s["facing"]:
+            faces = ", ".join(f"{LABELS.get(k, k).lower()} {v:.0%}"
+                              for k, v in s["facing"].items())
+            st.markdown(f"**What the front faces** (tiles touching the front, outside the "
+                        f"tumor): {faces}. A 2D snapshot of this section: where the tumor is, "
+                        "not where it is going.")
+        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+        row.metric("Tumor area (map)", f"{s['tumor_mm2']} mm²", width="content")
+        row.metric("Front length", f"{s['front_length_mm']} mm", width="content")
+        row.metric("Unsure share", f"{s['unsure_share']:.0%}", width="content")
+        row.metric("Head accuracy (held out)", f"{head.get('accuracy', float('nan')):.0%}",
+                   width="content")
+        page.look_here([], empty="Nothing to look at: this is a public example region, not "
+                                 "this patient's tissue.")
 
-    st.markdown("#### Tissue map")
-    st.caption("Hover a tile for its class probabilities. Each tile is one score for 112 µm of "
-               "tissue; the class is a model inference, smoothed over a 3×3 neighbourhood.")
     cls_domain = [LABELS[k] for k in classes] + sorted(
         v for v in df["class"].unique() if v.startswith("excluded"))
     cls_range = [COLORS[k] for k in classes] + ["#bbbbbb"] * (len(cls_domain) - len(classes))
-    left, right = st.columns([3, 2])
-    with left:
-        st.altair_chart(tile_chart(df, "class", alt.Scale(domain=cls_domain, range=cls_range),
-                                   "Tissue class", hover, res["grid_shape"]), width="content")
-    with right:
-        if result["thumbnail"]:
-            st.image(str(result["thumbnail"]), caption="The region (H&E, public TCGA-BRCA slide)",
-                     width="stretch")
-    m1, m2 = st.columns(2)
-    with m1:
-        st.markdown("**Certainty map**")
+    with page.picture("Tissue map", caption="Hover a tile for its class probabilities. Each tile "
+                      "is one score for 112 µm of tissue; the class is a model inference, "
+                      "smoothed over a 3×3 neighbourhood."):
+        left, right = st.columns([3, 2])
+        with left:
+            st.altair_chart(tile_chart(df, "class", alt.Scale(domain=cls_domain,
+                                                              range=cls_range),
+                                       "Tissue class", hover, res["grid_shape"]),
+                            width="content")
+        with right:
+            if result["thumbnail"]:
+                st.image(str(result["thumbnail"]), caption="The region (H&E, public TCGA-BRCA "
+                         "slide)", width="stretch",
+                         alt="H&E thumbnail of a public example region of a TCGA-BRCA slide")
+
+    with page.details("Certainty map", f"{(df['certainty'] == 'unsure here').sum()} unsure "
+                                       "tiles"):
         chips("placeholder cutoffs")
+        nan = float("nan")
         st.caption(f"Unsure here = top probability below {CUTOFFS['unsure_below'][0]} "
-                   f"({CUTOFFS['unsure_below'][2]}). On the held-out BCSS tiles the head was right "
-                   f"on {head.get('accuracy_below_cutoff', float('nan')):.0%} of tiles below the "
-                   f"cutoff and {head.get('accuracy_at_or_above_cutoff', float('nan')):.0%} at or "
-                   f"above it ({head.get('share_below_cutoff', float('nan')):.0%} of tiles below).")
+                   f"({CUTOFFS['unsure_below'][2]}). On the held-out BCSS tiles the head was "
+                   f"right on {head.get('accuracy_below_cutoff', nan):.0%} of tiles below the "
+                   f"cutoff and {head.get('accuracy_at_or_above_cutoff', nan):.0%} at or above "
+                   f"it ({head.get('share_below_cutoff', nan):.0%} of tiles below).")
         st.altair_chart(tile_chart(
             df, "certainty", alt.Scale(domain=["confident", "unsure here", "excluded"],
                                        range=["#2a78d6", "#f39c12", "#bbbbbb"]),
             "Certainty", hover, res["grid_shape"], 300), width="content")
-    with m2:
-        st.markdown("**Tumor region, front and zones**")
+    with page.details("Tumor region, front and zones", f"{s['front_length_mm']} mm of front"):
         st.caption("Tumor = smoothed P(invasive carcinoma) ≥ 0.5 (design); zones by distance to "
                    "the front: core (> 500 µm inside), front band (± 500 µm), peritumoral "
                    "(0.5–2 mm outside). Geometry on model inferences.")
@@ -998,39 +1058,40 @@ def render_example(pf: PatientFile, result: dict | None) -> None:
                 range=[ZONE_COLORS["core"], "#000000", ZONE_COLORS["front band"],
                        ZONE_COLORS["peritumoral"], ZONE_COLORS["outside"], "#ffffff"]),
             "Zone", hover + ["zone:N"], res["grid_shape"], 300), width="content")
-
-    st.markdown("#### Quality control")
-    chips("placeholder cutoffs")
     excluded = df[df["qc"] != QC_OK]
-    st.caption("Glass, pen ink and blur are checked per tile from texture and colour measures "
-               "(edge density, structure coverage, ink colour shares, Laplacian variance). The "
-               "cutoffs were set by eye on the team's colon slides and have not been re-checked "
-               "on breast tissue: placeholders. Blood, folds and stain variation are not checked "
-               "yet (planned).")
-    if excluded.empty:
-        st.markdown(f"No tile excluded ({s['tiles']} tiles, all passed).")
-    else:
-        cols = ["row", "col", "qc", "edges", "structure_cov", "ink_bluegreen", "ink_black",
-                "ink_red", "blur"]
-        st.dataframe(excluded[cols], hide_index=True, width="stretch")
+    with page.details("Quality control", f"{len(excluded)} of {s['tiles']} tiles excluded"):
+        chips("placeholder cutoffs")
+        st.caption("Glass, pen ink and blur are checked per tile from texture and colour "
+                   "measures (edge density, structure coverage, ink colour shares, Laplacian "
+                   "variance). The cutoffs were set by eye on the team's colon slides and have "
+                   "not been re-checked on breast tissue: placeholders. Blood, folds and stain "
+                   "variation are not checked yet (planned).")
+        if excluded.empty:
+            st.markdown(f"No tile excluded ({s['tiles']} tiles, all passed).")
+        else:
+            cols = ["row", "col", "qc", "edges", "structure_cov", "ink_bluegreen", "ink_black",
+                    "ink_red", "blur"]
+            st.dataframe(excluded[cols], hide_index=True, width="stretch")
 
-    st.markdown("#### Tissue head: measured accuracy and training data")
-    head_card(meta, classes)
-    cannot_see()
-    st.caption("On a patient's own scored section this workbench adds the direction of "
-               "invasion, breakaway candidates with the counting field, the immune pattern, "
-               "satellite islands, the risk map, a Spot panel per tile, search, review marks and "
-               "export (see a TCGA case with a scored slide).")
+    with page.card():
+        head_card(meta, classes)
+        st.caption("On a patient's own scored section this workbench adds the direction of "
+                   "invasion, breakaway candidates with the counting field, the immune pattern, "
+                   "satellite islands, the risk map, a Spot panel per tile, search, review marks "
+                   "and export (see a TCGA case with a scored slide).")
+    cannot_see(page)
+    with page.export(empty="Nothing to export: no section of this patient's tumor is scored; "
+                           "the example region is public data, not this patient's."):
+        pass
 
 
-def render(file: PatientFile, version: int | None = None) -> None:
-    st.subheader("Pathology slides")
+def render(file: PatientFile, version: int | None = None, test=None) -> None:
+    page = Page("slides", file, test, version)
     slides = own_slides(file.id.split()[-1]) if file.kind == "TCGA-BRCA" else []
     if slides:
-        render_own(file, slides, version)
+        render_own(page, file, slides, version)
     else:
-        render_example(file, load_result(EXAMPLE))
-
+        render_example(page, file, load_result(EXAMPLE))
 
 if __name__ == "__main__":
     from muffle.workspace import synthetic_file

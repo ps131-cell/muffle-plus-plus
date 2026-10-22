@@ -62,7 +62,8 @@ render(case_file(SimpleNamespace(index={idx}, site="site-0", percentile=50.0, gr
                                  mutations=None), slides={names!r}))
 """, default_timeout=180).run()
     assert not at.exception, at.exception
-    text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.info, *at.warning]).lower()
+    text = " ".join([*(e.value for e in [*at.markdown, *at.caption, *at.info, *at.warning]),
+                     *(e.label for e in at.expander)]).lower()
     assert "the patient's own" in text and "2d snapshot" in text
     assert "weak until validated" in text and "placeholder" in text
     assert "what this test cannot see" in text and "not reviewed by a pathologist" in text

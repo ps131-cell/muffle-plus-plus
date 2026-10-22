@@ -71,6 +71,11 @@ measurement. Every workbench follows it.
    - Pure: no Streamlit, no model run, nothing new computed (`tests/test_overview.py`). Labs,
      ctDNA, genomics, slides (with the invasion results), omics, documents, radiology and
      evolution carry them; a new workbench joins the overview by adding the two functions.
+10. **One page skeleton** (built 2026-10-22, [`ux.md`](ux.md) §1). Every workbench page draws
+    the same parts in the same order through one helper (`app/workbenches/_page.py`): title,
+    status chips, overview (paragraph, the look-here queue from `queue()`, search), the
+    picture, collapsed details with their counts, the Spot panel, the Model and validation
+    card, what the test cannot see, the export. The tests fail a page that breaks the order.
 
 ## 2. Patient file and report
 

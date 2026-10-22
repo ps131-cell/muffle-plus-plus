@@ -154,15 +154,16 @@ def test_the_page_renders_labels_synthetic_and_stores_review_marks():
     assert not at.exception
     assert at.warning[0].value.startswith("Synthetic series: written by hand")
     headings = [m.value for m in at.markdown if m.value.startswith("#### ")]
-    assert headings == ["#### Allele fractions over time", "#### Calls per variant",
-                        "#### ESR1 under an aromatase inhibitor (PADA-1, SERENA-6)",
-                        "#### Clonal hematopoiesis", "#### Against imaging and CA 15-3",
-                        "#### Spot panel", "#### Look here", "#### Flagged findings: your review",
-                        "#### What this test cannot see", "#### Model and validation card",
-                        "#### Export"]
+    assert headings == ["#### Overview", "#### Allele fractions over time", "#### Details",
+                        "#### Spot panel", "#### Model and validation card",
+                        "#### What this test cannot see", "#### Export"]
+    assert [e.label for e in at.expander][:6] == [
+        "Calls per variant (3)", "ESR1 under an aromatase inhibitor, PADA-1 and SERENA-6 (3)",
+        "Clonal hematopoiesis (1 possible)", "Against imaging and CA 15-3 (7)",
+        "Every look-here item (8)", "Your review of the flagged findings (8)"]
     text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.warning]).lower()
     assert not any(w in text for w in ("demo", "hackathon"))
-    assert "12 plasma samples** (synthetic)" in at.markdown[0].value
+    assert "12 plasma samples** (synthetic)" in " ".join(m.value for m in at.markdown)
     assert at.selectbox(key="SYNTHETIC-001_ctdna_spot").value.startswith("C14 · month 24")
     key = "SYNTHETIC-001|ctdna|ESR1 D538G|9"
     at.text_input(key="reviewer").set_value("ab").run()
@@ -191,4 +192,4 @@ render(case_file(SimpleNamespace(index=1, site="site-0", percentile=50.0, group=
                                  age=50.0, stage="II", layers=["clinical"], missing=[],
                                  mutations=None)))
 """, default_timeout=60).run()
-    assert not tcga.exception and tcga.info[0].value.startswith("No ctDNA on file")
+    assert not tcga.exception and tcga.info[0].value.startswith("No ctDNA in this file")
