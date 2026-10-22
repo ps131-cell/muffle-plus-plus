@@ -9,9 +9,9 @@ Newest at the top. One entry per decision: date, what, why.
   every screen opens "How to read this", the Patients page opens with a four-step walk-through,
   and status chips explain themselves on a click (§3). A view or workbench that fails says which
   part failed and links the Methods page, never a traceback; the log keeps it (§4). Hidden
-  content (the "?" panel, the genomics and lab tabs that aren't open, the second slide viewer)
-  runs only while open; each page's look-here items are computed once per session and version
-  (§6).
+  content (the "?" panel, the genomics and lab tabs that aren't open, the second slide viewer,
+  the radiology cine and example pair) runs only while open; each page's look-here items are
+  computed once per session and version (§6).
 - **Why:** a first-time reader must always know where they are, how to get back, what a label
   means, and that a broken part is one part, not the app; on a shared CPU the help panel alone
   was half of every rerun.
