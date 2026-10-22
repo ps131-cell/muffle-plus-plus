@@ -737,19 +737,22 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                 st.caption("The second lymphocyte model scored no tile here: the map has no "
                            "front band or peritumoral zone to score.")
             st.markdown(f"Pattern: **{im['pattern']}** ({im['status']}).")
-        t1, t2, t3 = st.columns(3)
+        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
         tsr, nec = res["tsr"], res["necrosis"]
-        t1.metric("Tumor–stroma ratio", tsr["verdict"],
-                  help=f"stroma {tsr['stroma_share']:.0%} of tumor-plus-stroma tiles in the "
-                       f"tumor and its front band; stroma-high above 50% (literature, colorectal)"
-                  if tsr["stroma_share"] is not None else "not assessed")
-        t2.metric("Necrosis touching tumor", f"{nec['touching_tumor_tiles']} tiles",
-                  help=f"{nec['necrosis_mm2']} mm² of necrosis-class tiles, "
-                       f"{nec['share_touching'] or 0:.0%} touching tumor")
+        row.metric("Tumor–stroma ratio", tsr["verdict"], width="content",
+                   help=f"stroma {tsr['stroma_share']:.0%} of tumor-plus-stroma tiles in the "
+                        f"tumor and its front band; stroma-high above 50% (literature, "
+                        "colorectal)" if tsr["stroma_share"] is not None else "not assessed")
+        n_nec = nec["touching_tumor_tiles"]
+        row.metric("Necrosis touching tumor", f"{n_nec} tile{'' if n_nec == 1 else 's'}",
+                   width="content",
+                   help=f"{nec['necrosis_mm2']} mm² of necrosis-class tiles, "
+                        f"{nec['share_touching'] or 0:.0%} touching tumor")
         cv = df["nuc_area_cv"].dropna() if "nuc_area_cv" in df else pd.Series(dtype=float)
-        t3.metric("Nuclear-area variation", f"{cv.median():.2f}" if len(cv) else "—",
-                  help="median coefficient of variation of non-lymphocyte nuclear area per "
-                       "counted tile: a proxy only, never a grade")
+        row.metric("Nuclear-area variation", f"{cv.median():.2f}" if len(cv) else "—",
+                   width="content",
+                   help="median coefficient of variation of non-lymphocyte nuclear area per "
+                        "counted tile: a proxy only, never a grade")
 
     with page.details("Satellite islands", len(res["islands"])):
         if res["islands"]:

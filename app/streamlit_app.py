@@ -930,34 +930,34 @@ def synthetic_risk(pf: workspace.PatientFile, i: int):
         return
     prev = next((v.risk["value"] for v in reversed(pf.versions[:i]) if v.risk), None)
     m = TL["models"][str(r["landmark"])]
-    c1, c2 = st.columns(2)
-    c1.metric("12-month risk", f"{r['value']:.0%}",
-              None if prev is None else f"{100 * (r['value'] - prev):+.0f} points",
-              delta_color="inverse", help=pf.model["endpoint"].capitalize() + ".")
-    c2.metric("Range, 5 models", "{:.0%}–{:.0%}".format(*r["range"]),
-              help="The same model trained on five different 80% splits (seeds 0–4).")
-    c3, c4 = st.columns(2)
-    c3.metric("Diagnosis only", f"{r['baseline']:.0%}",
-              help="Baseline: stage, HR and HER2 alone, same patients and learner.")
-    c4.metric("Model AUROC", f"{r['auroc']:.2f}",
-              help=f"Held-out AUROC of the month-{r['landmark']} model on MSK-CHORD, mean of 5 "
-                   f"seeds (diagnosis only: {r['baseline_auroc']:.2f}; {m['n']:,} patients, "
-                   f"event rate {m['event_rate']:.0%}).")
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("12-month risk", f"{r['value']:.0%}",
+               None if prev is None else f"{100 * (r['value'] - prev):+.0f} points",
+               delta_color="inverse", help=pf.model["endpoint"].capitalize() + ".",
+               width="content")
+    row.metric("Range, 5 models", "{:.0%}–{:.0%}".format(*r["range"]), width="content",
+               help="The same model trained on five different 80% splits (seeds 0–4).")
+    row.metric("Diagnosis only", f"{r['baseline']:.0%}", width="content",
+               help="Baseline: stage, HR and HER2 alone, same patients and learner.")
+    row.metric("Model AUROC", f"{r['auroc']:.2f}", width="content",
+               help=f"Held-out AUROC of the month-{r['landmark']} model on MSK-CHORD, mean of 5 "
+                    f"seeds (diagnosis only: {r['baseline_auroc']:.2f}; {m['n']:,} patients, "
+                    f"event rate {m['event_rate']:.0%}).")
     st.caption(f"{pf.model['endpoint'].capitalize()}, from the month-{r['landmark']} "
                f"{pf.model['name']}. Whether these probabilities are calibrated has not been "
                "checked.")
 
 
 def case_risk(case):
-    c1, c2 = st.columns(2)
-    c1.metric("Risk percentile", ordinal(case.percentile),
-              help="Share of all patients with a lower predicted risk.")
-    c2.metric("Risk group", case.group.capitalize(), help="Cohort tertiles of predicted risk.")
-    c3, c4 = st.columns(2)
-    c3.metric("Simulated hospital", case.site,
-              help="The FL client this patient belongs to: a group of TCGA tissue source sites.")
-    c4.metric("Data layers", f"{len(case.layers)} of {len(demo.model.names)}",
-              help="Missing: " + (", ".join(case.missing) or "none"))
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("Risk percentile", ordinal(case.percentile), width="content",
+               help="Share of all patients with a lower predicted risk.")
+    row.metric("Risk group", case.group.capitalize(), width="content",
+               help="Cohort tertiles of predicted risk.")
+    row.metric("Simulated hospital", case.site, width="content",
+               help="The FL client this patient belongs to: a group of TCGA tissue source sites.")
+    row.metric("Data layers", f"{len(case.layers)} of {len(demo.model.names)}", width="content",
+               help="Missing: " + (", ".join(case.missing) or "none"))
     st.caption(f"Overall survival, ranked against all {len(demo.cohort_risks):,} patients by the "
                f"federated model (held-out C-index {demo.c_index:.3f}). It ranks patients; its "
                "absolute risks are only roughly calibrated.")
@@ -1008,7 +1008,7 @@ def case_why(case):
             pct = risk_percentile(risk, demo.cohort_risks)
             st.metric("Risk percentile without " + ", ".join(LAYER_NAMES.get(m, m) for m in hide),
                       ordinal(pct), f"{int(pct) - int(case.percentile):+d} percentile points",
-                      delta_color="inverse")
+                      delta_color="inverse", width="content")
 
 
 def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):

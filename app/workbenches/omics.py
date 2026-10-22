@@ -400,7 +400,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                 pct = risk_percentile(demo.model(hx, hmask).item(), demo.cohort_risks)
             st.metric("Risk percentile without " + ", ".join(wb.LAYERS[m]["name"] for m in hide),
                       ordinal(pct), f"{int(pct) - int(case.percentile):+d} percentile points",
-                      delta_color="inverse")
+                      delta_color="inverse", width="content")
         st.caption("The model masks a hidden layer, as it does for a layer a hospital never "
                    "measured; the move is the model's, not a measured change.")
 
@@ -459,7 +459,7 @@ def subtype_card(sub: dict, data: dict) -> None:
     val = data["validation"]["pam50"]
     left, right = st.columns([2, 3])
     with left:
-        st.metric("Call", wb.SUBTYPES[sub["call"]],
+        st.metric("Call", wb.SUBTYPES[sub["call"]], width="content",
                   help="Nearest of the five PAM50 centroids by Spearman correlation.")
         st.markdown(f"Margin to the runner-up: **{sub['margin']:.2f}** "
                     + (chip("borderline", "orange") if sub["margin"] < wb.LOW_MARGIN else "")
@@ -493,13 +493,13 @@ def subtype_card(sub: dict, data: dict) -> None:
 
 def pathway_chart(cs: dict, data: dict) -> None:
     s = cs["scores"]
-    c1, c2 = st.columns(2)
-    c1.metric("Proliferation", f"{ordinal(s['proliferation'][1])} percentile",
-              f"z {s['proliferation'][0]:+.2f}", delta_color="off",
-              help="The 11 PAM50 proliferation genes (Parker et al. 2009), cohort z-score.")
-    c2.metric("Immune cytolytic activity", f"{ordinal(s['immune'][1])} percentile",
-              f"z {s['immune'][0]:+.2f}", delta_color="off",
-              help="GZMA and PRF1 (Rooney et al. 2015), cohort z-score.")
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("Proliferation, cohort percentile", ordinal(s["proliferation"][1]),
+               f"z {s['proliferation'][0]:+.2f}", delta_color="off", width="content",
+               help="The 11 PAM50 proliferation genes (Parker et al. 2009), cohort z-score.")
+    row.metric("Immune cytolytic activity, cohort percentile", ordinal(s["immune"][1]),
+               f"z {s['immune'][0]:+.2f}", delta_color="off", width="content",
+               help="GZMA and PRF1 (Rooney et al. 2015), cohort z-score.")
     df = pd.DataFrame([{"set": k.replace("_", " ").lower(), "z": z, "percentile": p,
                         "genes": f"{data['sets'][k]['measured']} of {data['sets'][k]['size']}",
                         "direction": "above the cohort average" if z >= 0 else "below"}
@@ -606,12 +606,11 @@ def methylation_section(cs: dict, data: dict) -> None:
                                              title="cohort percentile"), "probes"]),
     ).properties(height=34 * len(df) + 40), width="stretch")
     beta, p = cs["methylation"]["index"]
-    c1, c2 = st.columns([1, 2])
-    c1.metric("CpG island hypermethylation index", f"{ordinal(p)} percentile",
-              f"mean β {beta:.3f}", delta_color="off",
+    st.metric("CpG island hypermethylation index, cohort percentile", ordinal(p),
+              f"mean β {beta:.3f}", delta_color="off", width="content",
               help="Mean beta over the autosomal CpG-island promoter probes unmethylated in "
                    "normal breast (hypothesis).")
-    c2.caption(f"{chip(HYPOTHESIS)} The index averages {mm['index_probes']:,} CpG-island promoter "
+    st.caption(f"{chip(HYPOTHESIS)} The index averages {mm['index_probes']:,} CpG-island promoter "
                f"probes unmethylated in normal breast. A high index is read as a CpG island "
                "methylator phenotype in the sense of Fang et al. 2011 (B-CIMP, linked there to "
                "lower metastatic risk); this mean is not their classifier and is not validated "
@@ -639,22 +638,22 @@ def _share(x) -> str:
 def immune_section(cs: dict, data: dict, pic: dict | None, secs: list[dict]) -> None:
     est, cyt, prot = cs["estimate"], cs["scores"]["immune"], (cs.get("rppa") or {}).get("immune")
     sets = data.get("immune_sets", {})
-    cols = st.columns(4)
-    cols[0].metric("Immune signature", f"{ordinal(est['immune'][1])} percentile",
-                   f"z {est['immune'][0]:+.2f}", delta_color="off",
-                   help=f"ESTIMATE's 141 immune genes ({sets.get('immune', {}).get('measured')} "
-                        "measured), z-score averaging (Yoshihara et al. 2013).")
-    cols[1].metric("Stromal signature", f"{ordinal(est['stromal'][1])} percentile",
-                   f"z {est['stromal'][0]:+.2f}", delta_color="off",
-                   help=f"ESTIMATE's 141 stromal genes ({sets.get('stromal', {}).get('measured')}"
-                        " measured), z-score averaging.")
-    cols[2].metric("Cytolytic activity", f"{ordinal(cyt[1])} percentile", f"z {cyt[0]:+.2f}",
-                   delta_color="off", help="GZMA and PRF1 (Rooney et al. 2015).")
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    row.metric("Immune signature, cohort percentile", ordinal(est["immune"][1]),
+               f"z {est['immune'][0]:+.2f}", delta_color="off", width="content",
+               help=f"ESTIMATE's 141 immune genes ({sets.get('immune', {}).get('measured')} "
+                    "measured), z-score averaging (Yoshihara et al. 2013).")
+    row.metric("Stromal signature, cohort percentile", ordinal(est["stromal"][1]),
+               f"z {est['stromal'][0]:+.2f}", delta_color="off", width="content",
+               help=f"ESTIMATE's 141 stromal genes ({sets.get('stromal', {}).get('measured')}"
+                    " measured), z-score averaging.")
+    row.metric("Cytolytic activity, cohort percentile", ordinal(cyt[1]), f"z {cyt[0]:+.2f}",
+               delta_color="off", width="content", help="GZMA and PRF1 (Rooney et al. 2015).")
     if prot:
-        cols[3].metric("Immune-cell proteins (RPPA)", f"{ordinal(prot[1])} percentile",
-                       f"z {prot[0]:+.2f}", delta_color="off",
-                       help=", ".join(data["rppa"]["immune_markers"]) + ": grouped here, not "
-                            "from a paper.")
+        row.metric("Immune-cell proteins (RPPA), cohort percentile", ordinal(prot[1]),
+                   f"z {prot[0]:+.2f}", delta_color="off", width="content",
+                   help=", ".join(data["rppa"]["immune_markers"]) + ": grouped here, not "
+                        "from a paper.")
     if pic:
         color = STATUS_COLORS[pic["status"]]
         st.markdown(f"{chip(pic['status'], color)} {pic['text']}")
@@ -698,14 +697,16 @@ def layer_card(pf, v, m: str, case, contrib: dict, feats: list[dict], cs: dict |
             st.markdown("- **Receptor status (IHC, TCGA clinical data):** " + ", ".join(
                 f"{n} {(r.get('ihc') or 'not recorded').lower()}"
                 for n, r in cs["receptors"].items()))
-    a, b = st.columns(2)
+    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
     if m in contrib:
-        a.metric("Effect on log-risk vs a typical patient", f"{contrib[m]:+.3f}",
-                 help="The predicted log-risk with this layer minus without it, compared with the "
-                      "same difference for a typical patient (model inference).")
+        row.metric("Effect on log-risk vs a typical patient", f"{contrib[m]:+.3f}",
+                   width="content",
+                   help="The predicted log-risk with this layer minus without it, compared with "
+                        "the same difference for a typical patient (model inference).")
     if res:
-        b.metric("This layer alone, C-index", f"{res['mean']:.3f} ± {res['sd']:.3f}",
-                 help="Leave one hospital out, 5 seeds (Methods and validation).")
+        row.metric("This layer alone, C-index", f"{res['mean']:.3f} ± {res['sd']:.3f}",
+                   width="content", help="Leave one hospital out, 5 seeds (Methods and "
+                                         "validation).")
     if info["failure"]:
         st.warning(info["failure"] + (f" (C-index {res['mean']:.3f}, below 0.5)" if res else ""))
     top = sorted(feats, key=lambda f: -abs(f["score"]))[:TOP]

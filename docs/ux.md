@@ -134,6 +134,11 @@ badges; their meanings are one click away in the guide.
   text.
 - **Numbers carry their unit**, and a hover says how they were measured (the slide's tumor
   area, front length, arcs, unsure share; the risk's percentile and model).
+- **Metric tiles show their values whole.** A tile's value is short and its unit sits in the
+  label ("Immune signature, cohort percentile": 41st, z −0.22 under it); a row of tiles is a
+  horizontal container whose tiles take their own width and wrap to a second row on a narrow
+  screen, never fixed columns that cut "75th percentile" to "75th perc…". A test holds every
+  `st.metric` in the app to this.
 - **Empty states say what is missing and which test would provide it** (§1 has the workbench
   pages): "Not sequenced … Tumor sequencing (a panel or an exome, or a VCF or MAF brought in
   through Import tests) would fill this workbench".
@@ -215,9 +220,9 @@ What changed:
   download is tried again after 10 minutes.
 - **The Methods and validation page** opens on a contents box: every section, and every card of
   Models and Rules, as links (a test keeps it complete).
-- **Phone width.** Columns stack, the breadcrumb line and the report's cards wrap, the patient
-  list keeps its Patient column pinned, wide tables scroll inside themselves; the sticky header
-  holds the breadcrumbs, the patient line and the views.
+- **Phone width.** Columns stack, the breadcrumb line, the report's cards and the rows of
+  metric tiles wrap, the patient list keeps its Patient column pinned, wide tables scroll inside
+  themselves; the sticky header holds the breadcrumbs, the patient line and the views.
 
 ## 7. Accessibility basics
 
