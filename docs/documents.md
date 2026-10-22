@@ -4,7 +4,8 @@ The clinical documents workbench (`app/workbenches/documents.py`, logic in
 `src/muffle/workbench/documents.py`; spec in [`WORKBENCHES.md`](WORKBENCHES.md) §8) shows a
 patient file's documents with every breast pathology fact they state highlighted at its
 characters. This page says what the rules read, how they were measured and what they miss.
-Written 2026-10-20; rules v2 and their measurement on 2026-10-21.
+Written 2026-10-20; rules v2 and their measurement on 2026-10-21; round 2 (a named-entity
+model's reading beside the rules', scanned reports, the documents over time) on 2026-10-21.
 
 ## What the workbench shows
 - **Documents**: SYNTHETIC-001's record entries (diagnosis, treatments, labs, imaging reports,
@@ -148,11 +149,174 @@ metastatic HER2-positive breast cancer"), a FISH reference range ("Amplified HER
 break) not read as an ISH result. A rule match is not a
 pathologist's read: the page shows the source sentence for every fact.
 
-## Not used: a named-entity model
-`docs/model_survey.md` §8 lists OpenMed-NER-OncologyDetect (278M parameters, Apache-2.0) for
-highlighting. It would not run in the hosted app (1 GB of memory, no local model at runtime) and
-it tags entity types rather than reading results, so the highlights come from the rules.
-Precomputed spans for the bundled reports remain possible later.
+## Round 2: a model's reading beside the rules' (2026-10-21)
+
+### The model and its labels
+`OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M` (Apache-2.0; a GLiNER span model on an
+mT5-base encoder, fine-tuned on the BioNLP 2013 Cancer Genetics corpus of research abstracts;
+registry row in [`registry.md`](registry.md)) is a zero-shot named-entity model: it is given
+label names and marks the spans it takes for each. Ours, for breast pathology
+(`documents.NER_LABELS`): histologic type, histologic grade, tumor size, margin status,
+lymphovascular invasion, lymph node status, estrogen receptor status, progesterone receptor
+status, HER2 status, Ki-67 index, laterality, specimen type, pathologic T stage, pathologic N
+stage, stage group, treatment. Spans are kept at a score of 0.5 or more, the card's example
+threshold, not tuned on these reports.
+
+It runs offline on a local machine (`scripts/documents_pipeline.py ner`), never in the hosted
+app: the bundled reports' spans ship as `app/documents/<barcode>.ner.json` (label, start, end,
+score; 38 files, about 200 KB; no text, no model). An imported document has no spans: the page
+says it is queued for the local pipeline.
+
+**The model's value is only what the characters it marked say** (`documents.ner_values`): a
+span "ER: POSITIVE" labeled estrogen receptor status reads ER positive; a span "ESTROGEN" is a
+mention without a result, drawn but not counted; nothing outside the span is read, so the
+model's reading is not the rules' in disguise. A sign counts only right after the receptor's
+name ("E-. cadherin" marked as estrogen receptor status is not ER negative).
+
+**Speed** (WSL2 on the team's Windows PC, CPU only, shared with other jobs): the 38 bundled
+cases' reports (122,032 characters) took 216 s at 2 threads, 1.8 s per 1,000 characters, load
+average 1 to 6; the 495 held-out reports (1,975,857 characters) took 9,291 s at 2 threads, 4.7 s
+per 1,000 characters, under a load average of 6 to 20 (other sessions' encoders, pipelines and
+test suites). A typical report of 4,000 characters takes 7 to 19 s.
+
+### Measured: the same reports, the same split, the same comparison
+**Held-out half (481 patients): the rules and the model**
+
+| Field | With a TCGA value | Rules: extracted | Rules: precision | Rules: recall | Model: extracted | Model: precision | Model: recall |
+|---|---|---|---|---|---|---|---|
+| ER status (positive / negative) | 459 | 202 | 95% | 42% | 2 | 50% | 0% |
+| PR status (positive / negative) | 458 | 201 | 93% | 41% | 0 | – | 0% |
+| HER2 status (positive / negative / equivocal; ISH first, then IHC) | 422 | 239 | 81% | 46% | 12 | 67% | 2% |
+| pT category (T1–T4, Tis, TX; suffix ignored) | 481 | 269 | 96% | 53% | 54 | 96% | 11% |
+| pN category (N0–N3, NX; suffix ignored) | 481 | 254 | 96% | 51% | 0 | – | 0% |
+| Stage group (I–IV; A–C ignored) | 468 | 28 | 96% | 6% | 0 | – | 0% |
+| Histologic type (ductal, lobular, mixed, special types) | 464 | 388 | 98% | 82% | 14 | 100% | 3% |
+| Margins (negative / positive / close) | 443 | 217 | 91% | 44% | 3 | 67% | 0% |
+| Lymph nodes examined (count) | 441 | 208 | 63% | 30% | 6 | 0% | 0% |
+| Lymph nodes positive (count, H&E) | 432 | 187 | 81% | 35% | 6 | 0% | 0% |
+
+**The bundled cases (38 patients): the rules and the model**
+
+| Field | With a TCGA value | Rules: extracted | Rules: precision | Rules: recall | Model: extracted | Model: precision | Model: recall |
+|---|---|---|---|---|---|---|---|
+| ER status (positive / negative) | 36 | 15 | 100% | 42% | 0 | – | 0% |
+| PR status (positive / negative) | 36 | 15 | 93% | 39% | 0 | – | 0% |
+| HER2 status (positive / negative / equivocal; ISH first, then IHC) | 34 | 18 | 89% | 47% | 1 | 100% | 3% |
+| pT category (T1–T4, Tis, TX; suffix ignored) | 38 | 22 | 91% | 53% | 8 | 88% | 18% |
+| pN category (N0–N3, NX; suffix ignored) | 38 | 24 | 96% | 61% | 0 | – | 0% |
+| Stage group (I–IV; A–C ignored) | 36 | 2 | 100% | 6% | 0 | – | 0% |
+| Histologic type (ductal, lobular, mixed, special types) | 37 | 28 | 100% | 76% | 1 | 100% | 3% |
+| Margins (negative / positive / close) | 33 | 17 | 100% | 52% | 0 | – | 0% |
+| Lymph nodes examined (count) | 36 | 12 | 50% | 17% | 0 | – | 0% |
+| Lymph nodes positive (count, H&E) | 35 | 10 | 70% | 20% | 0 | – | 0% |
+
+**Reading it.**
+- **The model marks where a field is named, not what it says.** Of its 12,693 spans on the
+  held-out reports, 12,458 name a field without a result inside them ("ESTROGEN", "MARGINS",
+  "LYMPH NODES"); 243 hold a value, mostly a grade (73) or a pT (66). So it extracts a value for
+  0 to 54 patients per field where the rules extract 28 to 388, and its recall is 0 to 11%.
+- **Where it does give a value, it is often right**: pT 96% (52 of 54), histologic type 100% (14
+  of 14), HER2 67% (8 of 12), on the same comparison as the rules. Its node counts are wrong (0
+  of 6 and 0 of 6: "2/14" style spans it marks are rarely the totals TCGA records).
+- **Beside the rules, per document** (held-out half): 159 field readings agree, 8 disagree, 22
+  are read by the model only, 3,023 by the rules only; on the queue's receptor and stage fields,
+  66 agree, 5 disagree and 3 are read by the model only. Of the 8 disagreements, 6 are the
+  model's first value coming from another part of the report (pTis, pTX or another specimen's
+  pT; "LEFT FLANK" as laterality; "close margin" in a comment) and 1 is a label confusion
+  ("NEG-HER2" marked as estrogen receptor status, read as ER negative).
+- **So the rules stay the documented reading** and the model is a second opinion of weak
+  trust: its value is shown, measured and set beside the rules', never merged into them. A
+  zero-shot model fine-tuned on research abstracts (not reports) and used untuned is the
+  floor of what a model can do here; a model trained on pathology reports, or a local language
+  model reading the sentence, would need its own measurement on this split.
+- The 38-case numbers are small-sample (the model gives 8 pT values, 7 right).
+
+### On the page
+- The model's spans are a second highlight layer (violet underline, its label and score on
+  hover), labeled **model inference**, over the rules' yellow **documented** facts; a toggle
+  hides them.
+- **The rules and the model, side by side**: per document and field, the first value each
+  reader gives on the measurement's scales (`documents.comparable`, shared with
+  `scripts/prepare_documents.py`): agree, disagree, read by the model only, read by the rules
+  only, with the sentences in words ("the rules read HER2 status negative at sentence 3; the
+  model marked 'Equivocal 2+' as HER2 status (0.66) at sentence 4, which the rules took for a
+  legend").
+- The queue gets **"models disagree"** (M1…) when a receptor or stage field (ER, PR, HER2, pT,
+  pN, stage) differs: consequence 2, trust weak, both sentences to re-read. The summary gets a
+  card with the counts.
+- The model card lists both readers' numbers and the model's known failures
+  (`documents.NER_FAILURES`).
+
+## Round 2: scanned reports
+An imported PDF without a text layer is no longer refused: it becomes a "Scanned report" test
+**queued for the local pipeline**, kept by its file name and page count (`imports.ScannedPDF`,
+`imports.scanned_test`). The local pipeline (`scripts/documents_pipeline.py scan`) renders each
+page (pypdfium2, 144 dpi), reads it with `ibm-granite/granite-docling-258M` (Apache-2.0; an
+Idefics3 page-to-DocTags model, converted to text by docling-core), flags text the reader
+repeated (`looped`), and runs the rules and the named-entity model on the text exactly as on a
+text report; the text it writes is then imported as a report.
+
+On this CPU the reader needs float32 (the checkpoint's bfloat16 is far slower without bf16
+matrix units), the KV cache switched on (its generation config turns it off) and one thread
+under the shared load (four threads spin against the other jobs: a 10-token forward took 4.4 s
+at four threads and 0.2 s at one).
+
+**Text accuracy, four scans** (one thread; load average 6 to 9):
+
+| Scan | Pages | Character accuracy | Word accuracy | Rules' facts kept | Reader looped | Seconds |
+|---|---|---|---|---|---|---|
+| synthetic scan of TCGA-E9-A1N9's report text | 1 | 98.1% | 92.2% | 2 of 3 | no | 291 |
+| synthetic scan of TCGA-A2-A0D2's report text | 2 | 99.2% | 93.3% | 17 of 19 | no | 482 |
+| TCGA-BH-A0DS's original report PDF, text layer removed | 1 | 7.5% | 0.7% | 0 of 19 | yes | 1,002 |
+| the same, read in two bands per page | 1 | 24.6% | 2.9% | 2 of 19 | yes | 1,300 |
+| TCGA-A2-A0CW's original report PDF, text layer removed | 3 | 49.6% | 15.2% | 14 of 17 | yes | 1,436 |
+| the same, read in two bands per page | 3 | 51.7% | 22.9% | 11 of 17 | yes | 2,749 |
+
+Accuracy is 1 − edit distance / reference length, case and runs of whitespace ignored. The
+synthetic scans are a bundled report's own text typeset (DejaVu Sans), rotated by up to 0.8°,
+speckled and blurred, so their reference is exact. The real scans are two bundled cases'
+original pathology report PDFs from the NCI GDC (open access; the scans TCGA-Reports was OCR'd
+from) with their text layer removed; their reference is TCGA-Reports' cleaned OCR of the same
+page, itself imperfect, so those numbers are a floor. "Rules' facts kept": the facts the rules
+read in the reference that they also read in the scan's text.
+
+**Reading it.** Clean typed pages are read almost exactly. Dense, small-print fax-quality pages
+are not: on both real scans the reader fell into a loop (BH-A0DS: a column of numbers, "110"
+repeated; A2-A0CW: "Page 1" written 116 times). Reading each page in two bands (twice
+the resolution) helped a little and did not stop the loops. The pipeline flags a looped text
+(`looped`: one line making up 30% or more of 12 lines or more), and a scanned report's text is
+meant to be checked by a person before it is imported. Four documents are a check, not a
+validation; no open corpus of scanned breast pathology reports with a text reference was
+found.
+
+## Round 2: the documents over time
+- The dated documents (a record entry's or an import's month; TCGA reports are undated) are
+  set on the file's axis with the receptor, stage, grade and type each states
+  (`documents.history`), and every change between documents is named (`documents.changes`):
+  a receptor that flips, a restaging. Both sides stay documented; neither is taken as the
+  current one.
+- A conflict between documents is settled only by the clinician: the page asks which value
+  stands and stores it with a "reviewed" mark under the queue item's own key
+  (`documents.resolution`); until then it is "open: only your mark settles it". The D item in
+  the queue says when the values changed over time.
+- "The record says X, the documents say Y" reaches the discrepancy queue
+  (`crosstest._document_rules`) where the integration session's rules did not already: a
+  receptor documented against the record's diagnosis row on a file without omics scores (the
+  synthetic patient; a TCGA file is covered by the receptor rules against TCGA's clinical
+  data), and a later document's restaging against the record's stage (the first documented
+  stage was already compared). Rule names are the existing ones ("documented vs recorded",
+  "documented vs recorded receptor"), so the uncertainty reducers pick them up.
+
+## Round 2: search and the Spot panel
+- Search finds documented facts and model spans as well as sentences: "HER2", "margin", "node
+  positive" (`documents.search_findings`, the same synonyms); a row opens its sentence.
+- The **Spot panel** of a fact or a span shows its sentence with both layers, the rule (its
+  version and wording) or the model (label, score, the characters read), the TCGA field it was
+  measured against with both readers' precision and recall (`documents.measured_against`), the
+  other reader's value for that field, and the review mark and pin.
+- Exports carry both layers: the JSON has the facts, the model's spans, the agreement rows,
+  the conflicts and the changes; the CSV a "layer" column (documented or model inference) with
+  the model's label and score.
 
 ## Test import
 The patient file's **Import tests** view opens a dialog (`app/workbenches/imports.py`, checks in
@@ -163,8 +327,8 @@ The patient file's **Import tests** view opens a dialog (`app/workbenches/import
   with the reason. Accepted rows become Lab tests and a new report version; the EGTM marker-rise
   rule runs against the file's previous value (with the imported limit when given), so the SOS
   tile, the Tests list, the Timeline and the lab workbench pick them up.
-- **A report**, text or PDF with a text layer (pypdf; no OCR): a Document test, read by the rules
-  above.
+- **A report**, text or PDF with a text layer (pypdf): a Document test, read by the rules above.
+  A PDF without a text layer is queued for the local pipeline (round 2, scanned reports).
 - **Sequencing results**, a VCF annotated by VEP (INFO `CSQ` with `SYMBOL`, `Consequence` and
   `HGVSp`) or SnpEff (INFO `ANN`), or a GDC or cBioPortal MAF (`Hugo_Symbol`,
   `Variant_Classification`, `HGVSp_Short` or `HGVSp`); plain or gzip, at most 5 MB unzipped and

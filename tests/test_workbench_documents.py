@@ -4,6 +4,7 @@ alerts from an imported lab series."""
 
 import io
 import json
+import re
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -189,7 +190,8 @@ def test_synthetic_documents_follow_the_report_version_and_clinic_notes_are_test
 
 
 def test_bundled_tcga_reports_load_by_case_index():
-    files = sorted((ROOT / "app" / "documents").glob("TCGA-*.json"))
+    files = sorted(p for p in (ROOT / "app" / "documents").glob("TCGA-*.json")
+                   if not p.name.endswith(".ner.json"))
     assert 30 <= len(files) <= 40  # the bundled cases with a report, and only those
     data = json.loads(files[0].read_text())
     docs = wb.case_documents(data["case_index"])
@@ -353,3 +355,238 @@ def test_the_documents_page_renders_standalone():
     at.run()
     assert "Jumped to **Histologic type invasive ductal carcinoma**" in " ".join(
         e.value for e in at.markdown) and not at.exception
+
+
+# ------------------------------------------------- round 2: the model's reading, scans, time
+
+DOCS = ROOT / "app" / "documents"
+
+
+def test_shipped_ner_payloads_are_derived_spans_over_their_reports():
+    reports = {p.name[:-5]: json.loads(p.read_text()) for p in DOCS.glob("TCGA-*.json")
+               if not p.name.endswith(".ner.json")}
+    payloads = sorted(DOCS.glob("TCGA-*.ner.json"))
+    assert len(payloads) == len(reports)  # one per bundled report file
+    for p in payloads:
+        d = json.loads(p.read_text())
+        assert d["model"] == wb.NER_MODEL and d["license"] == "Apache-2.0"
+        assert d["labels"] == wb.NER_LABELS and d["threshold"] == wb.NER_THRESHOLD
+        texts = {x["id"]: x["text"] for x in reports[d["barcode"]]["documents"]}
+        assert set(d["documents"]) == set(texts)
+        for doc, spans in d["documents"].items():
+            for s in spans:  # label, start, end, score: never the text or the model
+                assert set(s) == {"label", "start", "end", "score"}
+                assert s["label"] in wb.NER_LABELS
+                assert 0 <= s["start"] < s["end"] <= len(texts[doc])
+                assert wb.NER_THRESHOLD <= s["score"] <= 1
+    first = json.loads(payloads[0].read_text())
+    doc = next(iter(first["documents"]))
+    assert wb.doc_spans(doc) == first["documents"][doc] and wb.doc_spans("import-1") is None
+
+
+def test_two_highlight_layers_are_cut_where_either_starts_or_ends():
+    runs = wb.layers("ER positive HER2 2+", [(0, 11, "rules"), (3, 19, "model 0.62"),
+                                             (12, 16, "rules")])
+    assert runs == [("ER ", ("rules",)), ("positive", ("rules", "model 0.62")),
+                    (" ", ("model 0.62",)), ("HER2", ("model 0.62", "rules")),
+                    (" 2+", ("model 0.62",))]
+    assert wb.layers("abc", []) == [("abc", ())]
+    assert "".join(p for p, _ in wb.layers("x" * 9, [(2, 5, "a"), (0, 30, "b")])) == "x" * 9
+
+
+def test_the_model_s_value_is_only_what_its_span_says():
+    assert wb.ner_values("er", "ESTROGEN") == []  # a mention, no result
+    assert wb.ner_values("er", "ER: POSITIVE") == [("er", "positive")]
+    assert wb.ner_values("er", "E-. cadherin") == []  # a sign only right after the name
+    assert wb.ner_values("her2", "HER2 2+") == [("her2_ihc", "2+")]
+    assert wb.ner_values("her2", "HER2 weakly positive (2+)") == [("her2_ihc", "2+")]
+    assert wb.ner_values("pT", "pT2") == [("pT", "pT2")]
+    assert wb.ner_values("pT", "pN2a") == []
+    assert wb.ner_values("nodes", "2/14 lymph nodes") == [("nodes_positive", "2"),
+                                                          ("nodes_examined", "14")]
+    text = "HER2 status: negative. Legend: Negative 0-1+, Equivocal 2+, Positive 3+. pT2."
+    spans = [{"label": "HER2 status", "start": 0, "end": 4, "score": 0.7},
+             {"label": "pathologic T stage", "start": text.index("pT2"),
+              "end": text.index("pT2") + 3, "score": 0.6},
+             {"label": "not a label", "start": 0, "end": 3, "score": 0.9}]
+    got = wb.ner_facts(text, spans, "d")
+    assert [(f["field"], f["value"], f["status"]) for f in got] == [
+        ("her2", None, "model inference"), ("pT", "pT2", "model inference")]
+
+
+def test_agreement_between_the_rules_and_the_model_on_hand_made_spans():
+    text = ("ER: positive. PR: negative. HER2: negative. Legend: Negative 0-1+, Equivocal 2+, "
+            "Positive 3+. MARGINS: NEGATIVE. pT2 pN1a.")
+
+    def span(label, words):
+        a = text.index(words)
+        return {"label": label, "start": a, "end": a + len(words), "score": 0.66}
+
+    model = wb.ner_facts(text, [span("estrogen receptor status", "ER: positive"),
+                                span("progesterone receptor status", "PR: negative"),
+                                span("HER2 status", "Equivocal 2+"),
+                                span("pathologic T stage", "pT2")], "d")
+    rows = {r["field"]: r for r in wb.agreement(text, wb.extract(text, "d"), model)}
+    assert rows["er"]["kind"] == "agree" and rows["pr"]["kind"] == "agree"
+    assert rows["margins"]["kind"] == "rules only" and rows["pT"]["kind"] == "agree"
+    her2 = rows["her2"]  # the rules read negative; the model's span sits inside the legend
+    assert (her2["kind"], her2["rules"], her2["model"]) == ("disagree", "negative", "equivocal")
+    assert "the rules read HER2 status negative at sentence 3" in her2["line"]
+    assert "the model marked 'Equivocal 2+' as HER2 status (0.66) at sentence 4" in her2["line"]
+    alone = wb.agreement("See legend: Equivocal 2+.", [], wb.ner_facts(
+        "See legend: Equivocal 2+.", [{"label": "HER2 status", "start": 12, "end": 24,
+                                       "score": 0.5}]))
+    assert alone[0]["kind"] == "model only" and "where the rules read no result" in alone[0]["line"]
+    legend = "Negative 0-1+, Equivocal 2+, Positive 3+."
+    inside = wb.agreement(legend, [], wb.ner_facts(legend, [
+        {"label": "HER2 status", "start": 15, "end": 27, "score": 0.5}]))
+    assert "which the rules took for a legend" in inside[0]["line"]
+
+
+def _with_import(pf, text, month, doc="import-1"):
+    test, rows = document_test("Document", "Outside report", text, month, doc, "imported by AB")
+    return add_version(pf, [test], month, "report", "AB", "10:00", rows)
+
+
+def test_models_disagree_in_the_queue_and_the_summary(monkeypatch):
+    text = "HER2/neu: negative. Legend: Negative 0-1+, Equivocal 2+, Positive 3+."
+    pf = _with_import(synthetic(), text, 25)
+    a = text.index("Equivocal 2+")
+    monkeypatch.setattr(wb, "doc_spans", lambda doc, folder=None: [
+        {"label": "HER2 status", "start": a, "end": a + 12, "score": 0.71}]
+        if doc == "import-1" else None)
+    items = [x for x in wb.queue(pf) if x["pointer"].startswith("M")]
+    assert len(items) == 1 and items[0]["what"] == "HER2 status: the rules and the model disagree"
+    assert items[0]["trust"] == "weak" and items[0]["consequence"] == 2
+    assert "which the rules took for a legend" in items[0]["why"]
+    assert items[0]["key"] == finding_key(pf, "document", "models disagree", "import-1",
+                                          "HER2 status")
+    card = next(c for c in wb.summary(pf)["cards"] if c["what"].startswith("The model's"))
+    assert card["evidence"] == "model inference" and "1 disagree (HER2 status)" in card["text"]
+
+
+def test_documents_over_time_changes_and_the_record_says_otherwise():
+    pf = _with_import(synthetic(), "Liver biopsy. HER2: positive (3+). Stage IV.", 25)
+    docs = wb.file_documents(pf)
+    facts = wb.facts(docs)
+    ch = {c["field"]: c for c in wb.changes(docs, facts)}
+    assert (ch["her2"]["from"], ch["her2"]["to"], ch["her2"]["to_month"]) == ("negative",
+                                                                              "positive", 25)
+    assert ch["stage"]["kind"] == "stage" and ch["her2"]["kind"] == "receptor"
+    hist = wb.history(docs, facts)
+    assert hist[0]["month"] == -40 and hist[-1]["facts"]["her2"]["value"] == "positive"
+    d = next(x for x in wb.queue(pf) if x["what"] == "HER2 status: documents disagree")
+    assert "over time: negative at month -40, positive at month 25" in d["why"]
+    i = len(pf.versions) - 1
+    found = {x["rule"]: x for x in crosstest.discrepancies(pf, i)
+             if x["rule"].startswith("documented vs recorded")}
+    assert "HER2: documented positive in Outside report" in found[
+        "documented vs recorded receptor"]["what"]
+    assert found["documented vs recorded"]["what"] == ("Stage: restaged Stage IV at month 25, "
+                                                       "recorded II")
+    assert wb.resolution(None).startswith("open")
+    assert wb.resolution({"mark": "reviewed", "by": "AB", "stands": "positive"}) == \
+        "marked reviewed by AB, positive stands"
+
+
+def test_search_across_facts_and_model_spans():
+    text = "HER2: negative. Margins: negative. Lymph nodes positive: 2. ESTROGEN receptor."
+    facts = wb.extract(text, "d")
+    a = text.index("ESTROGEN")
+    model = wb.ner_facts(text, [{"label": "estrogen receptor status", "start": a, "end": a + 8,
+                                 "score": 0.55}], "d")
+    assert {f["field"] for f in wb.search_findings(facts + model, "HER2")} == {"her2"}
+    assert [f["field"] for f in wb.search_findings(facts + model, "margin")] == ["margins"]
+    assert [f["field"] for f in wb.search_findings(facts, "node positive")] == ["nodes_positive"]
+    assert wb.search_findings(model, "estrogen")[0]["rule"] == "model"
+    assert wb.search_findings(facts, "the") == []
+    m = wb.measured_against("her2_ihc")
+    assert m["field"] == "her2" and "her2_neu" in m["tcga_field"]
+    assert m["rules"]["precision"] > 0.5 and m["model"] is not None
+    assert wb.measured_against("drug") is None
+
+
+def test_validation_holds_both_readers_and_the_scan_accuracy():
+    v = json.loads((DOCS / "validation.json").read_text())
+    rules = [r["field"] for r in v["sets"]["test"]["fields"]]
+    for name in ("test", "bundled"):
+        model = v["model"]["sets"][name]
+        assert [r["field"] for r in model["fields"]] == rules
+        assert model["patients"] == v["sets"][name]["patients"]  # the same reports
+    assert v["model"]["run"]["seconds_per_1000_characters"] > 0
+    assert v["scan"]["rows"] and all(0 <= r["char_accuracy"] <= 1 for r in v["scan"]["rows"])
+
+
+def test_a_scanned_pdf_is_queued_and_the_local_pipeline_reads_it(monkeypatch, tmp_path):
+    import importlib.util
+
+    from muffle.imports import ScannedPDF, scanned_test
+
+    pil = pytest.importorskip("PIL.Image")
+    pytest.importorskip("pypdf")
+    buf = io.BytesIO()
+    pages = [pil.new("RGB", (300, 400), "white") for _ in range(2)]
+    pages[0].save(buf, "PDF", save_all=True, append_images=pages[1:])
+    with pytest.raises(ScannedPDF, match=r"Scanned PDF \(2 pages, no text layer\): queued") as e:
+        read_text("scan.pdf", buf.getvalue())
+    t = scanned_test("scan.pdf", buf.getvalue(), 26, e.value.pages)
+    assert (t.status, t.workbench, t.details["pages"], t.details["file"]) == (
+        QUEUED, "intake", 2, "scan.pdf")
+    spec = importlib.util.spec_from_file_location("documents_pipeline",
+                                                  ROOT / "scripts" / "documents_pipeline.py")
+    pipe = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pipe)
+    page_text = "INVASIVE DUCTAL CARCINOMA. ER: positive. HER2: negative (1+)."
+    monkeypatch.setattr(pipe, "pdf_pages", lambda data, scale: ["page 1", "page 2"])
+    monkeypatch.setattr(pipe, "read_page", lambda proc, model, image: page_text)
+
+    class Ner:  # GLiNER's interface: spans in the text it is given
+        def predict_entities(self, text, labels, threshold, flat_ner):
+            return [{"label": "estrogen receptor status", "start": m.start(), "end": m.end(),
+                     "score": 0.8} for m in re.finditer("ER: positive", text)]
+
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(buf.getvalue())
+    got = pipe.read_scanned(pdf, 2.0, tmp_path / "out", ocr=(None, None), ner=Ner())
+    assert got["pages"] == 2 and got["text"] == f"{page_text}\n\n{page_text}"
+    assert "granite-docling-258M" in got["method"]
+    assert {("er", "positive"), ("her2", "negative")} <= {(f["field"], f["value"])
+                                                          for f in got["facts"]}
+    assert len(got["ner"]) == 2 and got["ner"][1]["start"] > len(page_text)
+    assert (tmp_path / "out" / "scan.txt").read_text().startswith("INVASIVE")
+    assert got["looped"] is False
+    assert pipe.looped("\n".join(["1", "2", "3"] + ["110"] * 12))  # the reader repeating itself
+    page = pil.new("L", (100, 200), 0)  # black, with one white row near the middle
+    page.paste(255, (0, 104, 100, 105))
+    halves = pipe.bands_of(page, 2)
+    assert [h.size for h in halves] == [(100, 104), (100, 96)] and pipe.bands_of(page, 1) == [page]
+
+
+def test_a_tcga_file_shows_the_model_layer():
+    AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
+
+    def page():
+        import json as j
+        import sys as s
+        from pathlib import Path as P
+        from types import SimpleNamespace as N
+
+        s.path.insert(0, str(P.cwd() / "app"))
+        from workbenches import documents as page_wb
+
+        from muffle.workbench import documents as w
+        from muffle.workspace import case_file as cf
+
+        d = j.loads((P(page_wb.APP) / "documents" / "TCGA-AO-A03R.json").read_text())
+        case = N(index=d["case_index"], site="site-1", percentile=50.0, group="mid", age=60.0,
+                 stage="II", layers=["clinical"], missing=[], mutations=None)
+        page_wb.render(cf(case, 0.7, documents=w.case_documents(d["case_index"])))
+
+    at = AppTest.from_function(page, default_timeout=90).run()
+    assert not at.exception, at.exception
+    text = " ".join(e.value for e in [*at.markdown, *at.caption])
+    assert "The named-entity model read 1 of 1 documents" in text
+    assert "underlined in violet" in text and "Spot panel" in text
+    index = json.loads((DOCS / "TCGA-AO-A03R.json").read_text())["case_index"]
+    at.text_input(key=f"docs-q-Case {index}").set_value("HER2").run()
+    assert not at.exception and "**Findings**" in " ".join(e.value for e in at.markdown)

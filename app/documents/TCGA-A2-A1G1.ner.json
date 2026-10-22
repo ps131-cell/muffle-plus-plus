@@ -1,0 +1,107 @@
+{
+ "barcode": "TCGA-A2-A1G1",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 2878,
+  "seconds": 4.7,
+  "seconds_per_1000_characters": 1.65,
+  "threads": 2,
+  "load_before": 3.8,
+  "load_after": 3.9,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-A2-A1G1.E2E6CA22-AFE4-4B8F-90AC-32639687A590": [
+   {
+    "label": "specimen type",
+    "start": 367,
+    "end": 395,
+    "score": 0.525
+   },
+   {
+    "label": "specimen type",
+    "start": 917,
+    "end": 945,
+    "score": 0.505
+   },
+   {
+    "label": "specimen type",
+    "start": 1139,
+    "end": 1140,
+    "score": 0.545
+   },
+   {
+    "label": "specimen type",
+    "start": 1296,
+    "end": 1304,
+    "score": 0.528
+   },
+   {
+    "label": "margin status",
+    "start": 1619,
+    "end": 1634,
+    "score": 0.503
+   },
+   {
+    "label": "margin status",
+    "start": 1726,
+    "end": 1740,
+    "score": 0.592
+   },
+   {
+    "label": "margin status",
+    "start": 1830,
+    "end": 1845,
+    "score": 0.596
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 1913,
+    "end": 1918,
+    "score": 0.536
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 2348,
+    "end": 2353,
+    "score": 0.501
+   },
+   {
+    "label": "margin status",
+    "start": 2498,
+    "end": 2503,
+    "score": 0.5
+   },
+   {
+    "label": "stage group",
+    "start": 2848,
+    "end": 2855,
+    "score": 0.517
+   }
+  ]
+ }
+}

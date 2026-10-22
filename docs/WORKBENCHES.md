@@ -392,9 +392,28 @@ reports (TCGA-Reports, CC BY 4.0) and imported reports and notes.
   and exports** (JSON, CSV) [now].
 - **Import** [now]: a report (text or PDF) or a clinician note joins the file and is read the
   same way.
+- **A second reading by a named-entity model** [now, model inference] (round 2, 2026-10-21):
+  OpenMed's zero-shot oncology NER (Apache-2.0) run offline with 16 breast pathology labels;
+  its spans ship as derived JSON for the bundled reports and are drawn as a second layer
+  (violet underline, label and score), set beside the rules' facts per document (agree,
+  disagree, read by one only, "which the rules took for a legend"), with a "models disagree"
+  item (M1…) in the queue for a receptor or stage field. Measured on the same held-out reports
+  as the rules: it finds where a field is named far more often than its result
+  (documents.md). An imported document is queued for the local pipeline.
+- **Scanned reports** [local pipeline]: a PDF without a text layer is a test queued for the
+  local pipeline (its name and page count kept), which reads the pages with Granite-Docling
+  258M (Apache-2.0) and runs the rules and the model on the text; text accuracy checked on two
+  synthetic and two real scans.
+- **The documents over time** [now]: the dated documents' receptor, stage, grade and type on
+  the file's axis, changes named (a receptor that flips, a restaging), conflicts settled only
+  by the clinician's mark (the value that stands), and "the record says X, the documents say
+  Y" in the discrepancy queue where the cross-test rules did not already cover it (receptors
+  on a file without omics scores, a later restaging).
+- **Search across both layers and a Spot panel** [now]: "HER2", "margin", "node positive"
+  find facts and model spans; the Spot panel shows the sentence, the rule or the model and its
+  score, the TCGA field it was measured against with both readers' numbers, and the mark.
 - **Diagnoses and procedures beyond breast pathology, negation and hedging, specimen linking**
-  [model]: need a clinical language model run locally and its own validation; a named-entity
-  model for highlights did not fit the hosted app (documents.md).
+  [model]: need a clinical language model run locally and its own validation.
 
 ## 9. Cross-test intelligence
 

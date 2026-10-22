@@ -1,0 +1,347 @@
+{
+ "barcode": "TCGA-OL-A5RY",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 7883,
+  "seconds": 15.1,
+  "seconds_per_1000_characters": 1.91,
+  "threads": 2,
+  "load_before": 5.8,
+  "load_after": 6.1,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-OL-A5RY.C8297152-7551-49A1-8C9D-6B411391AC77": [
+   {
+    "label": "lymph node status",
+    "start": 207,
+    "end": 217,
+    "score": 0.537
+   },
+   {
+    "label": "histologic grade",
+    "start": 474,
+    "end": 481,
+    "score": 0.507
+   },
+   {
+    "label": "margin status",
+    "start": 728,
+    "end": 751,
+    "score": 0.534
+   },
+   {
+    "label": "lymph node status",
+    "start": 876,
+    "end": 880,
+    "score": 0.532
+   },
+   {
+    "label": "margin status",
+    "start": 946,
+    "end": 966,
+    "score": 0.59
+   },
+   {
+    "label": "lymph node status",
+    "start": 1045,
+    "end": 1049,
+    "score": 0.528
+   },
+   {
+    "label": "histologic grade",
+    "start": 1251,
+    "end": 1254,
+    "score": 0.533
+   },
+   {
+    "label": "treatment",
+    "start": 1443,
+    "end": 1447,
+    "score": 0.536
+   },
+   {
+    "label": "treatment",
+    "start": 1552,
+    "end": 1556,
+    "score": 0.546
+   },
+   {
+    "label": "margin status",
+    "start": 1568,
+    "end": 1581,
+    "score": 0.624
+   },
+   {
+    "label": "laterality",
+    "start": 1614,
+    "end": 1621,
+    "score": 0.527
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 1732,
+    "end": 1741,
+    "score": 0.505
+   },
+   {
+    "label": "margin status",
+    "start": 1767,
+    "end": 1783,
+    "score": 0.51
+   },
+   {
+    "label": "margin status",
+    "start": 1797,
+    "end": 1804,
+    "score": 0.56
+   },
+   {
+    "label": "lymph node status",
+    "start": 1901,
+    "end": 1921,
+    "score": 0.609
+   },
+   {
+    "label": "HER2 status",
+    "start": 2093,
+    "end": 2095,
+    "score": 0.51
+   },
+   {
+    "label": "HER2 status",
+    "start": 2114,
+    "end": 2118,
+    "score": 0.582
+   },
+   {
+    "label": "HER2 status",
+    "start": 2119,
+    "end": 2122,
+    "score": 0.534
+   },
+   {
+    "label": "HER2 status",
+    "start": 2132,
+    "end": 2136,
+    "score": 0.588
+   },
+   {
+    "label": "HER2 status",
+    "start": 2215,
+    "end": 2217,
+    "score": 0.558
+   },
+   {
+    "label": "margin status",
+    "start": 2808,
+    "end": 2831,
+    "score": 0.575
+   },
+   {
+    "label": "margin status",
+    "start": 2840,
+    "end": 2860,
+    "score": 0.651
+   },
+   {
+    "label": "specimen type",
+    "start": 2885,
+    "end": 2894,
+    "score": 0.557
+   },
+   {
+    "label": "specimen type",
+    "start": 3048,
+    "end": 3070,
+    "score": 0.538
+   },
+   {
+    "label": "lymph node status",
+    "start": 3149,
+    "end": 3159,
+    "score": 0.525
+   },
+   {
+    "label": "specimen type",
+    "start": 3283,
+    "end": 3306,
+    "score": 0.55
+   },
+   {
+    "label": "specimen type",
+    "start": 3517,
+    "end": 3539,
+    "score": 0.559
+   },
+   {
+    "label": "lymph node status",
+    "start": 3738,
+    "end": 3762,
+    "score": 0.593
+   },
+   {
+    "label": "specimen type",
+    "start": 4054,
+    "end": 4062,
+    "score": 0.505
+   },
+   {
+    "label": "laterality",
+    "start": 4240,
+    "end": 4253,
+    "score": 0.539
+   },
+   {
+    "label": "laterality",
+    "start": 4289,
+    "end": 4301,
+    "score": 0.563
+   },
+   {
+    "label": "specimen type",
+    "start": 4361,
+    "end": 4369,
+    "score": 0.546
+   },
+   {
+    "label": "specimen type",
+    "start": 4888,
+    "end": 4896,
+    "score": 0.585
+   },
+   {
+    "label": "margin status",
+    "start": 5016,
+    "end": 5025,
+    "score": 0.506
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 5053,
+    "end": 5058,
+    "score": 0.519
+   },
+   {
+    "label": "margin status",
+    "start": 5637,
+    "end": 5644,
+    "score": 0.522
+   },
+   {
+    "label": "margin status",
+    "start": 5694,
+    "end": 5711,
+    "score": 0.532
+   },
+   {
+    "label": "specimen type",
+    "start": 5860,
+    "end": 5868,
+    "score": 0.536
+   },
+   {
+    "label": "margin status",
+    "start": 5913,
+    "end": 5926,
+    "score": 0.54
+   },
+   {
+    "label": "margin status",
+    "start": 6115,
+    "end": 6129,
+    "score": 0.513
+   },
+   {
+    "label": "margin status",
+    "start": 6209,
+    "end": 6237,
+    "score": 0.5
+   },
+   {
+    "label": "margin status",
+    "start": 6379,
+    "end": 6399,
+    "score": 0.521
+   },
+   {
+    "label": "margin status",
+    "start": 6451,
+    "end": 6470,
+    "score": 0.526
+   },
+   {
+    "label": "margin status",
+    "start": 6533,
+    "end": 6548,
+    "score": 0.512
+   },
+   {
+    "label": "margin status",
+    "start": 6603,
+    "end": 6625,
+    "score": 0.514
+   },
+   {
+    "label": "specimen type",
+    "start": 6791,
+    "end": 6799,
+    "score": 0.534
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 6954,
+    "end": 6961,
+    "score": 0.554
+   },
+   {
+    "label": "margin status",
+    "start": 7241,
+    "end": 7266,
+    "score": 0.506
+   },
+   {
+    "label": "margin status",
+    "start": 7338,
+    "end": 7358,
+    "score": 0.552
+   },
+   {
+    "label": "specimen type",
+    "start": 7710,
+    "end": 7718,
+    "score": 0.558
+   },
+   {
+    "label": "specimen type",
+    "start": 7834,
+    "end": 7842,
+    "score": 0.511
+   }
+  ]
+ }
+}

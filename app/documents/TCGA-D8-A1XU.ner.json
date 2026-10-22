@@ -1,0 +1,65 @@
+{
+ "barcode": "TCGA-D8-A1XU",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 1704,
+  "seconds": 2.7,
+  "seconds_per_1000_characters": 1.59,
+  "threads": 2,
+  "load_before": 4.7,
+  "load_after": 4.7,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-D8-A1XU.845F8FCF-CF3C-4CEF-B673-A57DE626939C": [
+   {
+    "label": "estrogen receptor status",
+    "start": 499,
+    "end": 503,
+    "score": 0.605
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 564,
+    "end": 567,
+    "score": 0.541
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 786,
+    "end": 790,
+    "score": 0.553
+   },
+   {
+    "label": "lymphovascular invasion",
+    "start": 1667,
+    "end": 1675,
+    "score": 0.511
+   }
+  ]
+ }
+}

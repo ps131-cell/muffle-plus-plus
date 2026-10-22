@@ -1,0 +1,149 @@
+{
+ "barcode": "TCGA-BH-A0DS",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 2991,
+  "seconds": 6.4,
+  "seconds_per_1000_characters": 2.13,
+  "threads": 2,
+  "load_before": 4.4,
+  "load_after": 4.5,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-BH-A0DS.E4CBDC29-63E2-4CF0-B02F-16CA9C69F26E": [
+   {
+    "label": "margin status",
+    "start": 534,
+    "end": 548,
+    "score": 0.5
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 977,
+    "end": 985,
+    "score": 0.526
+   },
+   {
+    "label": "HER2 status",
+    "start": 1248,
+    "end": 1250,
+    "score": 0.562
+   },
+   {
+    "label": "HER2 status",
+    "start": 1276,
+    "end": 1281,
+    "score": 0.575
+   },
+   {
+    "label": "HER2 status",
+    "start": 1282,
+    "end": 1285,
+    "score": 0.624
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 1309,
+    "end": 1321,
+    "score": 0.502
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 2083,
+    "end": 2104,
+    "score": 0.53
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 2106,
+    "end": 2109,
+    "score": 0.566
+   },
+   {
+    "label": "stage group",
+    "start": 2173,
+    "end": 2183,
+    "score": 0.515
+   },
+   {
+    "label": "lymph node status",
+    "start": 2798,
+    "end": 2808,
+    "score": 0.563
+   },
+   {
+    "label": "histologic grade",
+    "start": 2848,
+    "end": 2851,
+    "score": 0.523
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 2853,
+    "end": 2860,
+    "score": 0.531
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 2880,
+    "end": 2887,
+    "score": 0.614
+   },
+   {
+    "label": "histologic grade",
+    "start": 2901,
+    "end": 2904,
+    "score": 0.587
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2906,
+    "end": 2924,
+    "score": 0.509
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2926,
+    "end": 2938,
+    "score": 0.589
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2960,
+    "end": 2964,
+    "score": 0.651
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2965,
+    "end": 2968,
+    "score": 0.694
+   }
+  ]
+ }
+}

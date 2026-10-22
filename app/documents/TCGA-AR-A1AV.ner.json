@@ -1,0 +1,101 @@
+{
+ "barcode": "TCGA-AR-A1AV",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 861,
+  "seconds": 1.7,
+  "seconds_per_1000_characters": 2.0,
+  "threads": 2,
+  "load_before": 4.3,
+  "load_after": 4.4,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-AR-A1AV.5AD5B38F-5CC1-4A2F-96E6-F344D8FE0149": [
+   {
+    "label": "histologic grade",
+    "start": 91,
+    "end": 110,
+    "score": 0.537
+   },
+   {
+    "label": "histologic grade",
+    "start": 160,
+    "end": 180,
+    "score": 0.536
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 374,
+    "end": 379,
+    "score": 0.528
+   },
+   {
+    "label": "margin status",
+    "start": 444,
+    "end": 451,
+    "score": 0.609
+   },
+   {
+    "label": "margin status",
+    "start": 476,
+    "end": 488,
+    "score": 0.631
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 508,
+    "end": 513,
+    "score": 0.509
+   },
+   {
+    "label": "margin status",
+    "start": 550,
+    "end": 574,
+    "score": 0.601
+   },
+   {
+    "label": "lymph node status",
+    "start": 679,
+    "end": 690,
+    "score": 0.579
+   },
+   {
+    "label": "lymph node status",
+    "start": 750,
+    "end": 761,
+    "score": 0.612
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 855,
+    "end": 860,
+    "score": 0.558
+   }
+  ]
+ }
+}

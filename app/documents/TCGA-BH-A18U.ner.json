@@ -1,0 +1,161 @@
+{
+ "barcode": "TCGA-BH-A18U",
+ "model": "OpenMed/OpenMed-ZeroShot-NER-Oncology-Base-220M",
+ "revision": "147a2d914ce0659133607f1c39e035fb7f0c24c6",
+ "license": "Apache-2.0",
+ "labels": {
+  "histologic type": "histologic_type",
+  "histologic grade": "grade",
+  "tumor size": "size",
+  "margin status": "margins",
+  "lymphovascular invasion": "lvi",
+  "lymph node status": "nodes",
+  "estrogen receptor status": "er",
+  "progesterone receptor status": "pr",
+  "HER2 status": "her2",
+  "Ki-67 index": "ki67",
+  "laterality": "laterality",
+  "specimen type": "specimen",
+  "pathologic T stage": "pT",
+  "pathologic N stage": "pN",
+  "stage group": "stage",
+  "treatment": "drug"
+ },
+ "threshold": 0.5,
+ "run": {
+  "date": "2026-10-21",
+  "documents": 1,
+  "characters": 2893,
+  "seconds": 4.3,
+  "seconds_per_1000_characters": 1.48,
+  "threads": 2,
+  "load_before": 4.7,
+  "load_after": 4.8,
+  "machine": "WSL2 on the team's Windows PC, CPU only"
+ },
+ "note": "Derived spans only (label, start, end, score) over the document text in the matching <barcode>.json; the model itself is not shipped or run here.",
+ "documents": {
+  "TCGA-BH-A18U.2616F70D-3E15-45BA-8907-65694595F726": [
+   {
+    "label": "estrogen receptor status",
+    "start": 222,
+    "end": 230,
+    "score": 0.509
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 231,
+    "end": 243,
+    "score": 0.605
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 248,
+    "end": 253,
+    "score": 0.644
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 254,
+    "end": 257,
+    "score": 0.705
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 502,
+    "end": 515,
+    "score": 0.598
+   },
+   {
+    "label": "HER2 status",
+    "start": 532,
+    "end": 534,
+    "score": 0.523
+   },
+   {
+    "label": "HER2 status",
+    "start": 726,
+    "end": 728,
+    "score": 0.504
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 799,
+    "end": 804,
+    "score": 0.539
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 805,
+    "end": 808,
+    "score": 0.59
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 912,
+    "end": 917,
+    "score": 0.533
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 918,
+    "end": 921,
+    "score": 0.658
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 1386,
+    "end": 1391,
+    "score": 0.526
+   },
+   {
+    "label": "pathologic T stage",
+    "start": 1637,
+    "end": 1642,
+    "score": 0.561
+   },
+   {
+    "label": "lymph node status",
+    "start": 1838,
+    "end": 1857,
+    "score": 0.526
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2647,
+    "end": 2664,
+    "score": 0.568
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2666,
+    "end": 2687,
+    "score": 0.559
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2692,
+    "end": 2697,
+    "score": 0.678
+   },
+   {
+    "label": "estrogen receptor status",
+    "start": 2698,
+    "end": 2701,
+    "score": 0.73
+   },
+   {
+    "label": "treatment",
+    "start": 2793,
+    "end": 2803,
+    "score": 0.62
+   },
+   {
+    "label": "treatment",
+    "start": 2808,
+    "end": 2826,
+    "score": 0.5
+   }
+  ]
+ }
+}

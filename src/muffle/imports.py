@@ -5,8 +5,10 @@ its file at the boundary and turns what it accepts into tests for ``workspace.ad
   limit or interval: one Lab test per accepted row, rejected rows listed with the reason. Any
   analyte: the reference table's (``muffle.workbench.labs_reference``) are converted to its
   canonical unit, others are kept as reported under a ``lab:<name>`` key.
-* A report as text or PDF (pypdf's text layer; no OCR) and a clinician's note: a document test,
-  read by the documents rules (``muffle.workbench.documents``).
+* A report as text or PDF (pypdf's text layer) and a clinician's note: a document test, read by
+  the documents rules (``muffle.workbench.documents``). A PDF without a text layer (a scan) is a
+  test queued for the local pipeline, which reads its pages with a model
+  (``scripts/documents_pipeline.py scan``); the hosted app runs no models.
 * Sequencing results, an annotated VCF (VEP's CSQ or SnpEff's ANN) or a MAF: one Sequencing test
   with the protein-altering variants in the file's breast driver panel; other rows are rejected
   with the reason.
@@ -89,6 +91,16 @@ IDENTIFIERS = ("PatientName", "PatientID", "PatientBirthDate", "OtherPatientIDs"
 
 class IntakeError(ValueError):
     """A file the import cannot take, with the reason in words for the clinician."""
+
+
+class ScannedPDF(IntakeError):
+    """A PDF with pages but no text layer (a scan): no text here, queued for the local
+    pipeline's page reader (``scanned_test``)."""
+
+    def __init__(self, pages: int):
+        super().__init__(f"Scanned PDF ({pages} page{'s' if pages != 1 else ''}, no text "
+                         f"layer): {QUEUED}.")
+        self.pages = pages
 
 
 def _size(data: bytes, limit: int, what: str) -> None:
@@ -269,8 +281,7 @@ def read_text(name: str, data: bytes) -> str:
         except PdfReadError as e:
             raise IntakeError(f"The PDF could not be read ({e}).") from None
         if not text.strip():
-            raise IntakeError("The PDF has no text layer (a scanned image?): text is not "
-                              "recognized from images on intake.")
+            raise ScannedPDF(len(reader.pages))
     else:
         try:
             text = data.decode("utf-8-sig")
@@ -294,6 +305,15 @@ def document_test(kind: str, title: str, text: str, month: int, doc_id: str,
                 "documents", IMPLEMENTED,
                 {"document": doc_id, "title": title, "text": text, "source": source})
     return test, ([[f"Documented in {title} (month {month})", line]] if line else [])
+
+
+def scanned_test(name: str, data: bytes, month: int, pages: int, report: str = "Report") -> Test:
+    """A scanned PDF report (no text layer), kept by its name and page count; queued for the
+    local pipeline, which reads its pages (granite-docling) and then runs the rules and the
+    named-entity model on the text exactly as on a text report."""
+    return Test("Scanned report", month, name, QUEUED, "intake", QUEUED,
+                {"file": name, "bytes": len(data), "pages": pages, "report": report,
+                 "pipeline": "documents"})
 
 
 def image_test(name: str, data: bytes, month: int) -> Test:
