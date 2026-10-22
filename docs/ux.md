@@ -53,7 +53,49 @@ Where each page's former sections went:
 
 The radiology and documents pages join the skeleton after their second rounds land.
 
-## 2. How the skeleton is tested
+## 2. Navigation
+
+**Breadcrumbs on every screen** (`app/navigation.py`): "Patients › Case 299 › Tests ›
+Pathology slide". "Patients" goes back to the list; the file's crumb is the file picker itself
+(type or pick another patient to switch files); then the view, and in Tests the test opened
+(its kind, or its name where the kind says little: "CA 15-3, month 11"). The Methods and
+validation page carries "Patients › Methods and validation".
+
+**The patient header stays on screen** while the page scrolls: the breadcrumbs, the patient's
+identity and diagnosis, the open SOS alerts ("SOS: 2 open", alerts no reviewer has marked yet,
+as of the report version shown; "SOS: none open" otherwise), the version shown when it isn't
+the latest, and the view control (Report, Tests, Timeline, Evolution, Import tests). The report
+version slider sits under it.
+
+**The way back.** After an "Open" (an attention-queue item, an overview card), the workbench
+shows "← Back to the file" (the file's report, at its top) and, when it came from the queue,
+"← Back to the queue, item 6 of 15", which returns to the queue on that item.
+
+**Deep links.** The address always says what is on screen, so a link or a screenshot's address
+lands on the evidence:
+
+| Parameter | What it holds | Written by |
+|---|---|---|
+| `patient` | the file ("SYNTHETIC-001", "Case 299") | the file picker (bound to it) |
+| `view` | Report, Tests, Timeline, Evolution or Import tests | the view control (bound to it) |
+| `test` | the test open in Tests: kind, month and name, "Lab\|11\|CA 15-3" (an undated test has an empty month: "Data layer\|\|RNA-seq (STAR TPM)") | the Tests view, after every run |
+| `pointer` | the finding an "Open" or a look-here "Spot" landed on: L4, T2, C14, a variant, "ER: IHC vs RNA", an Evolution row | "Open" (attention queue, overview cards), look-here "Spot" |
+| `version` | the report version shown, when it isn't the latest (its index) | the version slider |
+
+An address is applied once, when it is new to the browser session (a link opened, an address
+typed or pasted): the version, the test, then the pointer, which lands the workbench on the
+finding of that version's attention queue with that pointer (the lab value in the Spot panel,
+the slide tile, the omics finding, the variant, the document's sentence, the Evolution row).
+After that the reader moves freely and the address follows. Switching files drops the previous
+file's test, pointer and version; an address the file can't answer (a test it doesn't hold, an
+unknown pointer) opens the file as usual. Example:
+`?patient=SYNTHETIC-001&view=Tests&test=Lab|11|CA 15-3&pointer=L4&version=11` opens the
+synthetic patient's lab workbench as of month 12 with the CA 15-3 rise in the Spot panel.
+
+**Recently opened files** (the last five of the browser session) are buttons above the patient
+list.
+
+## How it is tested
 
 `tests/skeleton.py` reads the parts a page recorded (`st.session_state["page_parts"]`) and the
 headings AppTest rendered (subheaders, "####" headings and expander labels, in page order): the
@@ -61,3 +103,9 @@ parts come in the skeleton's order, the required ones are there, and their headi
 that order on the rendered page. `tests/test_app.py` checks every workbench as the full app
 opens it; `tests/test_pages.py` renders each page on its own in its empty state and checks that
 it says what is missing and which test would provide it.
+`tests/test_navigation.py` drives the whole app: the breadcrumbs and the header on the list,
+in a file, in Tests and on the Methods page; an "Open" from the attention queue writing ?test,
+?pointer and ?version and leading back to the queue's item; deep links reopening the lab
+workbench on L4 as of month 12 and the Evolution view on its row; an address the file can't
+answer; a look-here "Spot" writing the pointer and a file switch dropping it; the recently
+opened files.

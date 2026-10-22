@@ -64,6 +64,8 @@ from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
 from workbenches._page import land  # noqa: E402
 
+import navigation as nav  # noqa: E402
+
 from muffle import crosstest, evolution, overview, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
@@ -240,22 +242,51 @@ with st.sidebar:
 
 
 # --- Patients: the list -----------------------------------------------------------------------
+def to_list():
+    st.session_state.update(patient=None, view="Report")
+
+
+def open_file(pid: str):
+    """A recently opened file's button: open it on its report."""
+    st.session_state.update(patient=pid, view="Report")
+
+
 def patients_page():
-    top = st.container()  # the list's title goes above the picker
-    pid = st.selectbox(
-        "Patient file", list(FILES), index=None, key="patient", bind="query-params",
-        placeholder="Type a patient ID to open the file (the list below searches everything)",
-        help="Every patient file has its own address (…?patient=<id>).")
+    """The breadcrumbs (whose file crumb is the file picker, bound to ?patient) head every
+    screen of this page; the sticky patient header holds them while a file is open."""
+    header = st.container(key="patient-header")
+    with header:
+        row = st.container(horizontal=True, gap="xsmall", vertical_alignment="center")
+    with row:
+        first = st.empty()
+        st.markdown(nav.SEP, width="content")
+        pid = st.selectbox(
+            "Patient file", list(FILES), index=None, key="patient", bind="query-params",
+            placeholder="Open a file by its ID", label_visibility="collapsed", width=240,
+            help="Every patient file has its own address (…?patient=<id>); the list below "
+                 "searches everything.")
+        tail = st.container(horizontal=True, gap="xsmall", vertical_alignment="center",
+                            width="content")
     if pid is None:
-        with top:
-            st.title("MuFFLe++")
-            st.markdown("An evidence-linked picture of each patient's breast cancer, updated as "
-                        "the record grows. Every finding is marked **observed**, **model "
-                        "inference** or **hypothesis**.")
-            st.caption(DISCLAIMER)
+        first.markdown("**Patients**", width="content")
+        st.title("MuFFLe++")
+        st.markdown("An evidence-linked picture of each patient's breast cancer, updated as "
+                    "the record grows. Every finding is marked **observed**, **model "
+                    "inference** or **hypothesis**.")
+        st.caption(DISCLAIMER)
+        recent = [p for p in st.session_state.get("recent", []) if p in FILES]
+        if recent:
+            with st.container(horizontal=True, gap="small", vertical_alignment="center"):
+                st.caption("Recently opened:", width="content")
+                for p in recent:
+                    st.button(p, key=f"recent-{p}", on_click=open_file, args=(p,),
+                              help=f"Open {p} on its latest report")
+        nav.sync(None, None, None, None)  # no file open: no test, pointer or version
         patient_list()
     else:
-        patient_file(FILES[pid])
+        first.button("Patients", type="tertiary", key="crumb-patients", on_click=to_list,
+                     help="Back to the patient list")
+        patient_file(FILES[pid], header, tail)
 
 
 def open_selected():
@@ -334,27 +365,117 @@ def patient_list():
 
 
 # --- Patients: one patient file ----------------------------------------------------------------
-def patient_file(pf: workspace.PatientFile):
-    st.button("← All patients",
-              on_click=lambda: st.session_state.update(patient=None, view="Report"))
-    st.header(pf.id)
+VIEWS = ("Report", "Tests", "Timeline", "Evolution", "Import tests")
+
+
+def patient_file(pf: workspace.PatientFile, header, tail):
+    """One file: the sticky header (breadcrumbs, the patient, open SOS alerts, the views), the
+    report version, then the view. A deep link's ?test, ?pointer and ?version are applied once
+    (``navigation.fresh``); after the view is drawn the address is written back
+    (``navigation.sync``) so that it reopens this screen."""
+    ss = st.session_state
+    nav.remember(pf.id)
+    nav.sticky_css()
+    last = len(pf.versions) - 1
+    link = nav.fresh(pf.id)
+    linked = apply_link(pf, link, last) if link else None
+    with header:
+        ident = st.empty()
+        if "view" not in ss and "view" not in st.query_params:
+            ss.view = "Report"  # no default=: "open the test" sets the view in code
+        view = st.segmented_control("View", VIEWS, required=True, key="view",
+                                    bind="query-params", label_visibility="collapsed")
     st.caption(f"{pf.title} · {pf.diagnosis}  \n{DISCLAIMER}")
     if pf.kind == "synthetic":
         st.warning(pf.note, icon="🧪")
-    last = len(pf.versions) - 1
+    key = f"version-{pf.id}"
+    if last and key not in ss:
+        ss[key] = last
     i = last if not last else st.select_slider(
-        "Report version", options=range(last + 1), value=last, key=f"version-{pf.id}",
+        "Report version", options=range(last + 1), key=key,
         format_func=lambda k: pf.versions[k].label + (" (latest)" if k == last else ""),
         help="Every new test or event adds a version; earlier versions are kept. Move back to "
              "open the report, its tests and its timeline as they were then.")
-    if "view" not in st.session_state and "view" not in st.query_params:
-        st.session_state.view = "Report"  # no default=: "open the test" sets the view in code
-    view = st.segmented_control("View", ["Report", "Tests", "Timeline", "Evolution",
-                                         "Import tests"],
-                                required=True, key="view", bind="query-params",
-                                label_visibility="collapsed")
-    {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
-     "Evolution": evolution_view, "Import tests": import_view}[view](pf, i)
+    reviews = ss.reviews
+    alerts = {overview.alert_key(pf, a) for v in pf.versions[: i + 1] for a in v.alerts}
+    still = len(alerts - set(reviews))
+    ident.markdown(f"**{pf.id}** · {esc(pf.diagnosis)} · "
+                   + (f":red-badge[SOS: {still} open]" if still else
+                      ":gray-badge[SOS: none open]")
+                   + ("" if i == last else f" · as of {pf.versions[i].label}"),
+                   help="Open SOS alerts: alerts no reviewer has marked yet, as of this report "
+                        "version (Report › Attention).")
+    if link and link.get("pointer"):
+        land_pointer(pf, i, link["pointer"], linked)
+    back_buttons(pf, view)
+    shown = {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
+             "Evolution": evolution_view, "Import tests": import_view}[view](pf, i)
+    with tail:
+        st.markdown(nav.SEP, width="content")
+        st.markdown(view if shown is None else f"{view} {nav.SEP} **{nav.crumb(shown)}**",
+                    width="content")
+    test = nav.test_id(shown) if shown is not None else None
+    p = ss.get("_pointer") or {}
+    here = (p.get("pid"), p.get("view"), p.get("test")) == (pf.id, view, test)
+    nav.sync(pf.id, test, p.get("pointer") if here else None, None if i == last else i)
+
+
+def apply_link(pf: workspace.PatientFile, link: dict, last: int) -> tuple | None:
+    """A new address's ?version and ?test: the report version and the test to open (the view
+    comes with ?view, bound to its control). Returns the test, if the file has it."""
+    ss = st.session_state
+    version = link.get("version") or ""
+    if version.isdigit() and 0 < int(version) <= last:
+        ss[f"version-{pf.id}"] = int(version)
+    elif link.get("version") is None and last:
+        ss[f"version-{pf.id}"] = last
+    t = nav.parse_test_id(link.get("test"))
+    if t and any((x.kind, x.month, x.name) == t for x in pf.tests):
+        ss[f"picked-{pf.id}"] = t
+        ss[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
+        ss.tests_n += 1
+        return t
+    return None
+
+
+def land_pointer(pf: workspace.PatientFile, i: int, pointer: str, test: tuple | None):
+    """A deep link's ?pointer: land on the finding of this version's queue with that pointer
+    (in the linked test, when there is one), as an "Open" would."""
+    x = next((x for x in overview_data(pf, i)["queue"] if x["pointer"] == pointer
+              and (test is None or tuple(x["opens"][1:]) == test)), None)
+    if x is not None:
+        land(pf, i, x["focus"] or {})
+        st.session_state["_pointer"] = {"pid": pf.id, "view": st.session_state.get("view"),
+                                        "test": None if test is None else "|".join(
+                                            "" if v is None else str(v) for v in test),
+                                        "pointer": pointer}
+
+
+def back_buttons(pf: workspace.PatientFile, view: str):
+    """After an "Open" from the report: back to the file (its report), and back to the
+    attention queue's item it was opened from."""
+    ss = st.session_state
+    fr = ss.get("_from")
+    if not fr or fr["pid"] != pf.id:
+        return
+    if view == "Report":
+        ss.pop("_from", None)
+        return
+    with st.container(horizontal=True, gap="small"):
+        st.button("← Back to the file", key="back-report", on_click=back_to, args=(fr, False),
+                  help="The file's front page: its latest report, at the top")
+        if "pos" in fr:
+            st.button(f"← Back to the queue, item {fr['n'] + 1} of {fr['total']}",
+                      key="back-queue", on_click=back_to, args=(fr, True),
+                      help=f"The attention queue at the item opened: {fr['what']}")
+
+
+def back_to(fr: dict, queue: bool):
+    ss = st.session_state
+    ss.view = "Report"
+    if queue:
+        ss[fr["pos"]] = fr["n"]
+    ss.pop("_from", None)
 
 
 def report_view(pf: workspace.PatientFile, i: int):
@@ -485,13 +606,16 @@ def overview_header(pf: workspace.PatientFile, i: int, ov: dict):
     for start in range(0, len(cards), per_row):
         for col, c in zip(st.columns(per_row), cards[start:start + per_row], strict=False):
             with col.container(border=True):
-                finding_card(pf, i, c)
+                pointer = c.get("pointer") or next(
+                    (x["pointer"] for x in ov["queue"] if c["focus"] and x["focus"] == c["focus"]),
+                    None)
+                finding_card(pf, i, c, pointer)
     gaps = overview.absent(ov["sums"])
     if gaps:
         st.caption("Not in this file: " + "; ".join(gaps) + ".")
 
 
-def finding_card(pf: workspace.PatientFile, i: int, c: dict):
+def finding_card(pf: workspace.PatientFile, i: int, c: dict, pointer: str | None = None):
     """A card: the statement with its evidence label and trust; "Why?" names the source test,
     the method and version, the threshold's source and the trust; "Open" lands on the evidence."""
     title = (f"**:red[SOS]** · {c['open']} open" if c["what"] == "SOS" and c["open"] else
@@ -511,7 +635,7 @@ def finding_card(pf: workspace.PatientFile, i: int, c: dict):
                         f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
         if c["opens"]:
             st.button("Open", key=f"card-{pf.id}-{i}-{c['what']}", on_click=open_evidence,
-                      args=(pf, i, c["opens"], c["focus"]),
+                      args=(pf, i, c["opens"], c["focus"], pointer, {"card": c["what"]}),
                       help="Opens the test behind this card at its evidence")
 
 
@@ -555,7 +679,8 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
                     on_click=lambda: ss.update({only: not ss.get(only), pos: 0}))
         c[5].button("Open", key=f"open-{pos}", shortcut="O", type="primary", width="stretch",
                     disabled=not cur["opens"], on_click=open_evidence,
-                    args=(pf, i, cur["opens"], cur["focus"]))
+                    args=(pf, i, cur["opens"], cur["focus"], cur["pointer"],
+                          {"pos": pos, "n": k, "total": len(shown), "what": cur["what"]}))
         queue_item(cur, k, len(shown), reviews)
         with st.container(height=320 if len(shown) > 8 else "content"):
             for n, x in enumerate(shown):
@@ -570,7 +695,7 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
                 line.markdown(f"**{text}**" if n == k else text)
                 if x["opens"]:
                     act.button("Open", key=f"open-{pos}-{n}", on_click=open_item,
-                               args=(pf, i, pos, n, x))
+                               args=(pf, i, pos, n, x, len(shown)))
         st.caption("Keys: j next · k previous · p pin · m mark reviewed (Streamlit keeps r for "
                    "rerun) · u unsure list · o open. A mark here is the same mark the "
                    "workbench shows.")
@@ -602,22 +727,33 @@ def queue_item(x: dict, k: int, total: int, reviews: dict):
     review_box(x["key"], x["what"])
 
 
-def open_item(pf: workspace.PatientFile, i: int, pos: str, n: int, x: dict):
+def open_item(pf: workspace.PatientFile, i: int, pos: str, n: int, x: dict, total: int):
     """A row's "Open": make it the current item, then open its evidence."""
     st.session_state[pos] = n
-    open_evidence(pf, i, x["opens"], x["focus"])
+    open_evidence(pf, i, x["opens"], x["focus"], x["pointer"],
+                  {"pos": pos, "n": n, "total": total, "what": x["what"]})
 
 
-def open_evidence(pf: workspace.PatientFile, i: int, opens: tuple, focus: dict | None = None):
+def open_evidence(pf: workspace.PatientFile, i: int, opens: tuple, focus: dict | None = None,
+                  pointer: str | None = None, back: dict | None = None):
     """"Open": switch the file to the view that holds the evidence (``opens``, the shape of
-    ``Alert.opens``) and land the workbench on it (``focus``)."""
-    if opens and opens[0] == "Tests":
-        st.session_state[f"picked-{pf.id}"] = tuple(opens[1:])
-        st.session_state[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
-        st.session_state.tests_n += 1  # a fresh tests table, so no old row selection wins
-        land(pf, i, focus or {})
-    if opens:
-        st.session_state.view = opens[0]
+    ``Alert.opens``), land the workbench on it (``focus``), let the address carry the pointer
+    (?pointer) and remember where it was opened from (``back``: the queue's position and item,
+    or a card), for the way back."""
+    ss = st.session_state
+    if not opens:
+        return
+    test = None
+    if opens[0] == "Tests":
+        ss[f"picked-{pf.id}"] = tuple(opens[1:])
+        ss[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
+        ss.tests_n += 1  # a fresh tests table, so no old row selection wins
+        test = nav.test_key(*opens[1:])
+    if focus:
+        land(pf, i, focus)
+    ss.view = opens[0]
+    ss["_pointer"] = {"pid": pf.id, "view": opens[0], "test": test, "pointer": pointer}
+    ss["_from"] = {"pid": pf.id, **(back or {})}
 
 
 def mark(key: str, what: str, value: str | None):
@@ -881,13 +1017,17 @@ def tests_view(pf: workspace.PatientFile, i: int):
         "Months count from the first tumor sequencing." if pf.kind == "synthetic" else
         "TCGA holds one sample per patient, so its tests carry no dates."))
     if not shown:
-        return
+        return None
     picked = f"picked-{pf.id}"  # the last test opened here or from an alert
     if rows:
-        st.session_state[picked] = (shown[rows[0]].kind, shown[rows[0]].month, shown[rows[0]].name)
+        new = (shown[rows[0]].kind, shown[rows[0]].month, shown[rows[0]].name)
+        if st.session_state.get(picked) != new:  # another test: the address drops the pointer
+            st.session_state.pop("_pointer", None)
+        st.session_state[picked] = new
     t = next((t for t in shown if (t.kind, t.month, t.name) == st.session_state.get(picked)),
              None) or next((t for w in ("labs", "mutations", "omics", "record") for t in shown
                             if t.workbench == w), shown[0])
+    st.session_state["_test_shown"] = nav.test_id(t)
     st.divider()
     if t.workbench == "labs":  # the record's results and this session's imported ones
         labs.render(pf, events=workspace.record_events(pf), version=i, test=t)
@@ -932,6 +1072,7 @@ def tests_view(pf: workspace.PatientFile, i: int):
         st.info(PLANNED_WORKBENCHES.get(t.workbench, "This test's workbench.") + " Planned, "
                 "pending the model and dataset survey's shortlist (docs/WORKSPACE.md).",
                 icon="🧭")
+    return t
 
 
 def timeline_view(pf: workspace.PatientFile, i: int):
@@ -1004,13 +1145,16 @@ def import_view(pf: workspace.PatientFile, i: int):
 def methods():
     import methods_page  # a card per model and rule, every known failure and placeholder
 
+    with st.container(horizontal=True, gap="xsmall", vertical_alignment="center"):
+        st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
+        st.markdown(nav.SEP, width="content")
+        st.markdown("**Methods and validation**", width="content")
     methods_page.render(demo, TL, results())
 
 
-st.navigation([
-    st.Page(patients_page, title="Patients", icon="🗂️", default=True),
-    st.Page(methods, title="Methods and validation", icon="📖", url_path="methods"),
-]).run()
+PATIENTS = st.Page(patients_page, title="Patients", icon="🗂️", default=True)
+METHODS = st.Page(methods, title="Methods and validation", icon="📖", url_path="methods")
+st.navigation([PATIENTS, METHODS]).run()
 
 if LIVE:
     notes_left = max(0, CAP - st.session_state.live_used)
