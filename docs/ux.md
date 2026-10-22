@@ -53,8 +53,9 @@ Where each page's former sections went:
 | Radiology, an image study (MRI) | Viewer (series, candidate, slice, window and level, overlays) | three planes, the cine through the phases (loaded when opened), candidates, since the last study (or the change view on a public example pair, loaded when opened) | one candidate: size, volume, kinetics, how its box was chosen, the model |
 | Radiology, a mammogram | Mammograms (the four views) | left and right, CC and MLO linked | none |
 | Radiology, reports only | Imaging reports (each read in its words; an imported report with what its import read and set aside) | lesion table, change between reads, the change view on a public example pair (loaded when opened), against the tumor marker | one named site |
+| Clinical documents | Documents (the rules' facts in yellow, the named-entity model's spans underlined in violet) | documented facts, the rules and the model side by side, the model's spans, documented versus inferred, conflicts between documents, the documents over time | one documented fact or model span: its sentence with both layers, the rule or the model and its score, the other reader's value, its review mark and pin |
 
-The radiology page joined on 2026-10-22, after its second round; the clinical documents page joins after its own.
+The radiology page joined on 2026-10-22 after its second round, the clinical documents page with its own (#123).
 
 ## 2. Navigation
 

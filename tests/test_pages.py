@@ -53,6 +53,8 @@ def text(at) -> str:
      ["No imaging in this file", "Import tests", "Nothing to export"]),
     ("radiology", "from workbenches import radiology\nradiology.render(SYN, version=0)",
      ["No imaging read in the record up to this version"]),
+    ("documents", "from workbenches import documents\ndocuments.render(CASE)",
+     ["No document in this file yet", "Import tests", "Nothing to export"]),
     ("imports", "from workbenches import imports\nimports.render_view(CASE)",
      ["Nothing imported into this file in this session", "Nothing to export"]),
     ("intake", "from workbenches import imports\n"

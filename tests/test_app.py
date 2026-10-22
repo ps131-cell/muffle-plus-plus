@@ -130,6 +130,7 @@ def test_patient_files_render_in_every_view(app):
     at.run()
     assert "Clinical documents" in shown(at) and "documented facts" in shown(at)
     assert not at.exception
+    assert_skeleton(at, "documents")
     # the ctDNA monitor opens from a ctDNA test, labeled synthetic, and links to Evolution
     at.session_state["picked-SYNTHETIC-001"] = ("ctDNA (liquid biopsy)", 9,
                                                 "ctDNA panel (synthetic series)")
