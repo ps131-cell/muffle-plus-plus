@@ -139,6 +139,10 @@ WORKBENCH_GUIDE = {  # the guide's "This screen": what it shows, and what it can
     "methods": ("a card per model and rule with its numbers and known failures, the data "
                 "sources and licenses, every placeholder", "a patient's findings: open a "
                 "file"),
+    "feedback": ("this session's review marks as a ledger, the share marked disagree per model "
+                 "or rule, the disagreed findings, the ledger's download and upload",
+                 "whether a model is right: a mark is a judgment, not a measured error; nothing "
+                 "is trained on the marks"),
 }
 
 

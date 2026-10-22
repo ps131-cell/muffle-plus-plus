@@ -2,6 +2,25 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-22 — Learning from clinicians starts as a ledger of review marks; nothing trains on it
+- **What:** a Feedback page (`app/feedback_page.py`, `src/muffle/feedback.py`,
+  [`feedback.md`](feedback.md)) turns the session's review marks into a ledger: each mark with
+  the model or rule behind its finding (derived from the finding key), its version and inputs,
+  and the evidence label; disagreement rates per model or rule with a 95% Wilson interval; the
+  disagreed findings as a queue; a JSON-lines export (`muffle-feedback/1`) and an import checked
+  at the boundary. Methods and validation shows each card's "reviewed / disagreed this session"
+  line; the report export gains a Feedback section.
+- **Why:** VISION part four separates storing an observation, updating a research dataset and
+  retraining a model, and says new data never becomes training data automatically. The first
+  step can be real today without patient data leaving the browser; the others need consent,
+  ethics approval and data agreements.
+- **Consequence:** marks stay in the browser session and in files the clinician downloads; no
+  server storage, no upload anywhere, no model or cutoff changes. A disagreement rate is one
+  session's judgments, not a measured error rate, and the page says so. Re-calibration of
+  placeholder cutoffs, head retraining on disagreed tiles and federated rounds are a labeled
+  roadmap card. The method behind a mark is derived from its key, never read from an uploaded
+  file.
+
 ## 2026-10-22 — Clinical documents round 2: a named-entity model beside the rules, scanned reports
 - **What:** OpenMed's zero-shot oncology NER (Apache-2.0, 220M) reads the bundled TCGA reports
   offline with 16 breast pathology labels we define; its spans ship as derived JSON

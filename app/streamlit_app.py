@@ -8,12 +8,13 @@ Without the checkpoint and cohort (the hosted demo), it loads a demo bundle inst
 MUFFLE_BUNDLE (a path or URL; default: the GitHub release asset). For a private repo's release,
 set GITHUB_TOKEN to a token that can read the repo.
 
-Two pages (docs/WORKSPACE.md, "Product framing"). Patients is the clinician workspace: a list of
+Three pages (docs/WORKSPACE.md, "Product framing"). Patients is the clinician workspace: a list of
 patient files, the synthetic timeline patient first (its 12-month risk re-predicted at each event
 by the MSK-CHORD models; app/timeline_synthetic.json from `make demo-timeline`), then the held-out
 TCGA cases. A file opens on its latest report, with an SOS tile, its tests and their workbenches,
 and a timeline of report versions; ?patient=<id> opens one. Methods and validation holds the model
-cards, alert rules, how the case note is made, federated training and the data sources. No
+cards, alert rules, how the case note is made, federated training and the data sources. Feedback
+(app/feedback_page.py) holds the session's review marks as a ledger (docs/feedback.md). No
 hackathon or "demo" wording in the app's text. Live notes are capped per session
 (DEMO_LIVE_NOTES_PER_SESSION, default 5); saved notes (app/saved_notes.json,
 scripts/save_demo_notes.py) show without a key or once the cap is reached. CIViC's evidence table
@@ -1246,9 +1247,35 @@ def methods():
     safely("The Methods and validation page", methods_page.render, demo, TL, results())
 
 
+# --- Feedback: the review marks as a ledger (app/feedback_page.py, muffle.feedback) ------------
+def open_finding(pid: str, opens: tuple, focus: dict | None):
+    """A Feedback queue item's "Open": the patient file at its latest version, landed on the
+    finding as the report's queue lands."""
+    pf = FILES[pid]
+    i = len(pf.versions) - 1
+    st.session_state.patient = pid
+    if i:
+        st.session_state[f"version-{pid}"] = i
+    open_evidence(pf, i, opens, focus)
+
+
+def feedback_view():
+    import feedback_page  # the review marks as a ledger; nothing is trained on them
+
+    with st.container(horizontal=True, gap="xsmall", vertical_alignment="center"):
+        st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
+        st.markdown(nav.SEP, width="content")
+        st.markdown("**Feedback**", width="content")
+        st.space("stretch")
+        guide.help_icon("feedback")
+    safely("The Feedback page", feedback_page.render, FILES, CODE_DIGEST[:12], open_finding,
+           PATIENTS)
+
+
 PATIENTS = st.Page(patients_page, title="Patients", icon="🗂️", default=True)
 METHODS = st.Page(methods, title="Methods and validation", icon="📖", url_path="methods")
-st.navigation([PATIENTS, METHODS]).run()
+FEEDBACK = st.Page(feedback_view, title="Feedback", icon="🗳️", url_path="feedback")
+st.navigation([PATIENTS, METHODS, FEEDBACK]).run()
 
 if LIVE:
     notes_left = max(0, CAP - st.session_state.live_used)
