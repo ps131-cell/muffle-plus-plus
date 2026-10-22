@@ -32,6 +32,9 @@ and `docs/video.md`. What stays in the app, in product language:
   last update, open SOS alerts).
 - Each row: patient, diagnosis summary, date of the latest report, open SOS alerts, which kinds of
   tests the file holds.
+- Built 2026-10-22: a one-line explanation, sorting by last update, risk or open SOS alerts, the
+  open SOS count second ("🔴 3 open"), a risk column, the recently opened files, and a
+  four-step walk-through the first time the page opens ([`ux.md`](ux.md) §3, §5).
 
 ### 2. Patient file: the latest report first
 The front page of a file is always the newest version of the report:

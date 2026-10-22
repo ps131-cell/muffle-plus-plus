@@ -277,6 +277,30 @@ def matches(row: dict, query: str) -> bool:
     return all(w in hay for w in query.lower().split())
 
 
+SORTS = ("Last update", "Risk", "Open SOS")
+
+
+def open_alerts(row: dict, reviews: dict | None = None) -> int:
+    """A list row's SOS alerts without a review mark."""
+    return sum(k not in (reviews or {}) for k in row["alerts"])
+
+
+def sort_rows(rows: list[dict], by: str = "Last update", reviews: dict | None = None) -> list[dict]:
+    """The list in the order asked for (``SORTS``): the latest update first (a file imported
+    into this session, then the record's latest month; a TCGA file's single sample has none),
+    the highest cohort risk percentile first (files without one, the synthetic patient's
+    12-month risk being another measure, after them), or the most open SOS alerts first. Ties
+    keep the list's own order. Rows carry "updated" (a month or None), "imported" and
+    "percentile" (None without one)."""
+    if by == "Risk":
+        return sorted(rows, key=lambda r: (r.get("percentile") is None,
+                                           -(r.get("percentile") or 0)))
+    if by == "Open SOS":
+        return sorted(rows, key=lambda r: -open_alerts(r, reviews))
+    return sorted(rows, key=lambda r: (not r.get("imported"),
+                                       r.get("updated") is None, -(r.get("updated") or 0)))
+
+
 def filter_rows(rows: list[dict], query: str = "", subtypes=(), genes=(), stages=(),
                 open_sos: bool = False, holds=(), reviews: dict | None = None) -> list[dict]:
     """The rows that match the search and every filter: subtype, any of the genes, stage, an

@@ -936,8 +936,9 @@ def render_example(page: Page, pf: PatientFile, result: dict | None) -> None:
     if result is None:
         page.title(PLANNED)
         with page.overview():
-            st.warning("The example slide result is not in this checkout (app/workbenches/"
-                       "slides_example). Run `python scripts/slide_spike.py result` to make it.")
+            st.warning("The public example region is not installed on this server, so there "
+                       "is nothing to show here. A scanned H&E section of this tumor would open "
+                       "the patient's own map.")
         with page.card():
             st.caption("The tissue head's card appears with a scored section.")
         cannot_see(page)

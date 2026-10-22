@@ -251,7 +251,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                colors={f"subtype call: {wb.VALIDATED}": "green"})
     st.caption(f"{pf.title} · {v.label}")
     st.caption("Data: TCGA-BRCA open access (UCSC Xena GDC hub; IHC from TCGA clinical data via "
-               "cBioPortal) · scores: scripts/omics_scores.py and omics_scores_2.py, "
+               "cBioPortal) · scores precomputed offline from derived numbers, "
                f"{(data or {}).get('version', 'not computed')}, "
                f"{(data or {}).get('version2', 'round 2 not computed')} · protein pathways: "
                "Akbani et al. 2014 · CpG annotation: Illumina 450K manifest · immune and stromal "

@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -62,7 +63,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
 import charts  # noqa: E402
 from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
-from workbenches._page import land  # noqa: E402
+from workbenches._page import land, strict  # noqa: E402
 
 import guide  # noqa: E402
 import navigation as nav  # noqa: E402
@@ -91,9 +92,11 @@ from muffle.report.nemotron import (  # noqa: E402
 )
 from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench.documents import case_documents  # noqa: E402
+from muffle.workbench.grammar import WORKBENCHES as WORKBENCH_NAMES  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
+LOG = logging.getLogger("muffle.app")
 BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
 BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
@@ -221,25 +224,52 @@ for pid, records in st.session_state.imports.items():  # each import adds a repo
         FILES[pid] = workspace.add_version(FILES[pid], **r["version"],
                                            evidence=partial(civic_items, FILES[pid]))
 
-# --- sidebar: what is running ----------------------------------------------------------------
+# --- sidebar: what is running, and this session ------------------------------------------------
 with st.sidebar:
     st.markdown("### MuFFLe++")
     st.caption("Breast cancer intelligence: an evidence-linked patient profile that updates as "
-               "the record grows.")
-    st.markdown(
-        f"**Model** · FedAvg across {len(demo.sites)} simulated hospitals (NVIDIA FLARE)  \n"
-        f"**Held-out C-index** · {demo.c_index:.3f}  \n"
-        f"**Case agent** · {'live' if LIVE else 'offline (no key)'}: "
-        f"{model_name(DEFAULT_MODEL)} plans, {model_name(WRITER_MODEL)} writes, on Nebius "
-        f"Token Factory  \n"
-        f"**Treatment evidence** · "
-        f"{'CIViC (CC0), for clinician review' if EVIDENCE else 'off (CIViC table unavailable)'}"
-        f"  \n**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
-    budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
+               f"the record grows. {DISCLAIMER}")
+    with st.expander("About this system"):  # provenance: the model, the agent, the evidence
+        civic_line = ("CIViC (CC0), for clinician review" if EVIDENCE else
+                      "off (CIViC table unavailable)")
+        st.markdown(
+            f"**Model** · FedAvg across {len(demo.sites)} simulated hospitals (NVIDIA FLARE)  \n"
+            f"**Held-out C-index** · {demo.c_index:.3f}  \n"
+            f"**Case agent** · {'live' if LIVE else 'offline (no key)'}: "
+            f"{model_name(DEFAULT_MODEL)} plans, {model_name(WRITER_MODEL)} writes, on Nebius "
+            f"Token Factory  \n"
+            f"**Treatment evidence** · {civic_line}  \n"
+            f"**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
+        st.caption("Every model, rule and data source: the Methods and validation page. "
+                   f"[Source code]({REPO})")
+    st.markdown("**Session**")
     st.text_input("Reviewer initials", key="reviewer", max_chars=5,
                   help="Saved with each review mark. Marks and pins stay in this browser "
                        "session and go into the report export.")
-    st.caption(f"{DISCLAIMER} [Source code]({REPO})")
+    budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
+    marks_slot = st.empty()   # this session's marks, filled at the end of the run
+
+
+def session_marks(slot):
+    """The sidebar's tally of this session's review marks and pins, with their export (they
+    also go into each report version's export)."""
+    reviews, pins = st.session_state.reviews, st.session_state.pins
+    with slot.container():
+        st.caption(f"{len(reviews)} review mark{'' if len(reviews) == 1 else 's'} and "
+                   f"{len(pins)} pin{'' if len(pins) == 1 else 's'} in this session, kept in this "
+                   "browser session and in each report's export.")
+        if reviews or pins:
+            rows = [{"patient": k.split("|")[0], "kind": k.split("|")[1], "finding": r["what"],
+                     "mark": r["mark"], "by": r["by"], "at": r["at"]}
+                    for k, r in reviews.items()] + [
+                {"patient": k.split("|")[0], "kind": k.split("|")[1], "finding": w,
+                 "mark": "pinned", "by": "", "at": ""} for k, w in pins.items()]
+            st.download_button("Download this session's marks (CSV)",
+                               pd.DataFrame(rows).to_csv(index=False),
+                               file_name="review_marks_this_session.csv", mime="text/csv",
+                               key="session-marks-csv",
+                               help="Every mark and pin of this session, with the reviewer's "
+                                    "initials and time")
 
 
 # --- Patients: the list -----------------------------------------------------------------------
@@ -288,7 +318,7 @@ def patients_page():
                     st.button(p, key=f"recent-{p}", on_click=open_file, args=(p,),
                               help=f"Open {p} on its latest report")
         nav.sync(None, None, None, None)  # no file open: no test, pointer or version
-        patient_list()
+        safely("The patient list", patient_list)
     else:
         first.button("Patients", type="tertiary", key="crumb-patients", on_click=to_list,
                      help="Back to the patient list")
@@ -316,6 +346,20 @@ def bundle_rows(source: str, code: str) -> dict[str, dict]:
     return {pid: overview.list_row(pf) for pid, pf in BUNDLE_FILES.items()}
 
 
+def risk_text(pf: workspace.PatientFile, case) -> str:
+    """The list's risk column: the cohort percentile of a TCGA file, the synthetic patient's
+    latest 12-month risk (another measure, said so)."""
+    if case is not None:
+        return f"{ordinal(case.percentile)} percentile ({case.group})"
+    r = next((v.risk for v in reversed(pf.versions) if v.risk and "value" in v.risk), None)
+    return f"12-month {r['value']:.0%}" if r else "not estimated"
+
+
+def sos_badge(n: int) -> str:
+    """Open SOS alerts in words, marked so the count never rests on color alone."""
+    return f"🔴 {n} open" if n else "none"
+
+
 def patient_list():
     base, reviews, rows = bundle_rows(SOURCE, CODE_DIGEST), st.session_state.reviews, []
     for pid, pf in FILES.items():
@@ -324,7 +368,12 @@ def patient_list():
                      "diagnosis": pf.diagnosis, "latest": pf.latest.label,
                      "kind": "Synthetic (written by hand)" if case is None
                              else f"TCGA-BRCA · simulated {case.site}",
-                     "note": "★" if case and case.index in demo.notes else ""})
+                     "note": "★" if case and case.index in demo.notes else "",
+                     "percentile": None if case is None else case.percentile,
+                     "risk": risk_text(pf, case), "updated": pf.latest.month,
+                     "imported": bool(pf.versions[-1].imported)})
+    st.markdown("**Your patient files.** Open one to see its latest report, its tests in their "
+                "workbenches and how the report changed over time.")
     q, sos = st.columns([3, 1], vertical_alignment="center")
     query = q.text_input("Search", key="list-search", label_visibility="collapsed",
                          placeholder="Search a patient, a gene (PIK3CA), a subtype (luminal), a "
@@ -341,20 +390,33 @@ def patient_list():
                               key="list-stage", placeholder="Any")
     holds = f[3].pills("Has", ["Slides", "Imaging", "Documents"], selection_mode="multi",
                        key="list-holds")
-    shown = overview.filter_rows(rows, query, subtypes, genes, stages, open_sos, holds or (),
-                                 reviews)
+    by = st.segmented_control("Sort by", overview.SORTS, default=overview.SORTS[0],
+                              required=True, key="list-sort",
+                              help="Last update: an import of this session, then the record's "
+                                   "latest month. Risk: the cohort percentile of the TCGA files "
+                                   "(the synthetic patient's 12-month risk is another measure, "
+                                   "listed after them). Open SOS: alerts no reviewer has marked.")
+    shown = overview.sort_rows(overview.filter_rows(rows, query, subtypes, genes, stages,
+                                                    open_sos, holds or (), reviews), by, reviews)
     table = pd.DataFrame([{
-        "Patient": r["id"], "Kind": r["kind"], "Diagnosis": r["diagnosis"],
-        "Subtype (PAM50)": r["subtype"], "Mutated genes": r["genes"],
+        "Patient": r["id"], "Open SOS": sos_badge(overview.open_alerts(r, reviews)),
+        "Kind": r["kind"], "Diagnosis": r["diagnosis"],
+        "Risk": r["risk"], "Subtype (PAM50)": r["subtype"], "Mutated genes": r["genes"],
         "Workbenches with data": r["holds"], "Latest report": r["latest"],
-        "Open SOS": sum(k not in reviews for k in r["alerts"]), "Saved note": r["note"]}
-        for r in shown], columns=["Patient", "Kind", "Diagnosis", "Subtype (PAM50)",
-                                  "Mutated genes", "Workbenches with data", "Latest report",
-                                  "Open SOS", "Saved note"])
+        "Saved note": r["note"]}
+        for r in shown], columns=["Patient", "Open SOS", "Kind", "Diagnosis", "Risk",
+                                  "Subtype (PAM50)", "Mutated genes", "Workbenches with data",
+                                  "Latest report", "Saved note"])
     st.session_state.list_ids = table["Patient"].tolist()
     st.dataframe(table, hide_index=True, on_select=open_selected, selection_mode="single-row",
                  key=f"list-{st.session_state.list_n}", width="stretch", column_config={
                      "Patient": st.column_config.TextColumn(pinned=True),
+                     "Open SOS": st.column_config.TextColumn(
+                         help="SOS alerts no reviewer has marked yet, in this session"),
+                     "Risk": st.column_config.TextColumn(
+                         help="Model inference. TCGA files: the cohort percentile of overall "
+                              "survival risk (group by tertile); the synthetic patient: the "
+                              "latest 12-month risk of progression or death, another model"),
                      "Mutated genes": st.column_config.ListColumn(
                          help="Observed driver mutations; an empty cell is not sequenced or "
                               "none found (the file says which)"),
@@ -362,9 +424,7 @@ def patient_list():
                          help="The workbenches that hold this patient's own data"),
                      "Subtype (PAM50)": st.column_config.TextColumn(
                          help="Model inference from bulk RNA (Methods and validation); 'not "
-                              "called' without RNA"),
-                     "Open SOS": st.column_config.NumberColumn(
-                         help="Alerts without a review mark in this session")})
+                              "called' without RNA")})
     st.caption(
         f"{len(shown)} of {len(rows)} files. Click a row to open the file. SYNTHETIC-001 is a "
         "synthetic patient, written by hand. The TCGA cases are public TCGA-BRCA patients the "
@@ -374,6 +434,24 @@ def patient_list():
 
 # --- Patients: one patient file ----------------------------------------------------------------
 VIEWS = ("Report", "Tests", "Timeline", "Evolution", "Import tests")
+
+
+def safely(what: str, draw, *args, **kwargs):
+    """Draw one part of a screen. When it fails, say which part in plain words and where its
+    method and known failures are described, never a traceback; the server's log keeps the
+    traceback, and the tests re-raise (``_page.strict``)."""
+    try:
+        return draw(*args, **kwargs)
+    except Exception as e:  # noqa: BLE001 - the clinician gets a sentence, the log the traceback
+        if strict():
+            raise
+        LOG.exception("%s could not be drawn", what)
+        st.error(f"{what} could not be drawn. The rest of the file works: the other views and "
+                 "tests open as usual. How this part is built, and its known failures, are on "
+                 "the Methods and validation page.", icon="⚠️")
+        st.page_link(METHODS, label="Methods and validation", icon="📖")
+        st.caption(f"Logged for the team: {type(e).__name__}.")
+        return None
 SCREENS = {"labs": "labs", "mutations": "genomics", "slides": "slides", "omics": "omics",
            "record": "omics", "documents": "documents", "imaging": "radiology",
            "ctdna": "ctdna", "intake": "imports"}  # a test's workbench -> its guide entry
@@ -419,8 +497,9 @@ def patient_file(pf: workspace.PatientFile, header, tail):
     if link and link.get("pointer"):
         land_pointer(pf, i, link["pointer"], linked)
     back_buttons(pf, view)
-    shown = {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
-             "Evolution": evolution_view, "Import tests": import_view}[view](pf, i)
+    shown = safely(f"The {view.lower()} view" if view != "Import tests" else "Import tests",
+                   {"Report": report_view, "Tests": tests_view, "Timeline": timeline_view,
+                    "Evolution": evolution_view, "Import tests": import_view}[view], pf, i)
     with tail:
         st.markdown(nav.SEP, width="content")
         st.markdown(view if shown is None else f"{view} {nav.SEP} **{nav.crumb(shown)}**",
@@ -594,6 +673,15 @@ def report_view(pf: workspace.PatientFile, i: int):
 
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
+CARD_WIDTH, CARD_TEXT = 240, 150  # px; characters a card shows before "more"
+
+
+def shorten(text: str, limit: int) -> str:
+    """``text`` cut at a word before ``limit`` characters, with an ellipsis."""
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(",;:·") + " …"
 MARKS = workspace.MARKS[1:]  # "reviewed" comes from the "Mark reviewed" button
 KINDS = {"SOS": chip("SOS", "red"), "discrepancy": chip("tests disagree")}
 
@@ -618,10 +706,9 @@ def overview_header(pf: workspace.PatientFile, i: int, ov: dict):
     """One row of finding cards from the workbenches' summaries (docs/WORKBENCHES.md §2)."""
     cards = overview.header(pf, i, ov["sums"], ov["queue"], st.session_state.reviews)
     cards = cards[-1:] + cards[:-1]  # the SOS card first
-    per_row = len(cards) if len(cards) <= 5 else -(-len(cards) // 2)  # one row, else two
-    for start in range(0, len(cards), per_row):
-        for col, c in zip(st.columns(per_row), cards[start:start + per_row], strict=False):
-            with col.container(border=True):
+    with st.container(horizontal=True, gap="small"):  # cards of one width wrap: 3 a row at 800 px
+        for c in cards:
+            with st.container(border=True, width=CARD_WIDTH):
                 pointer = c.get("pointer") or next(
                     (x["pointer"] for x in ov["queue"] if c["focus"] and x["focus"] == c["focus"]),
                     None)
@@ -637,10 +724,13 @@ def finding_card(pf: workspace.PatientFile, i: int, c: dict, pointer: str | None
     title = (f"**:red[SOS]** · {c['open']} open" if c["what"] == "SOS" and c["open"] else
              f"**{c['what']}**")
     st.markdown(f"{title}  \n{tags(c['evidence'])}")
-    if "sides" in c:
-        st.markdown("  \n".join(f"*{k}:* {esc(text)}" for k, text, _ in c["sides"]))
-    else:
-        st.markdown(esc(c["text"]))
+    sides = c["sides"] if "sides" in c else [(None, c["text"], None)]
+    cut = [(k, shorten(text, CARD_TEXT // len(sides))) for k, text, _ in sides]
+    st.markdown("  \n".join((f"*{k}:* " if k else "") + esc(text) for k, text in cut))
+    if any(text != full for (_, text), (_, full, _) in zip(cut, sides, strict=True)):
+        with st.popover("more", type="tertiary", help="The card's full text"):
+            st.markdown("  \n".join((f"*{k}:* " if k else "") + esc(text)
+                                     for k, text, _ in sides))
     placeholder = " " + chip("placeholder threshold") if "placeholder" in c["threshold"] \
         else ""
     st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}")
@@ -917,7 +1007,7 @@ def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
 def sources(pf: workspace.PatientFile) -> list[str]:
     if pf.kind == "synthetic":
         return [pf.model["note"],
-                "Record: written by hand (src/muffle/timeline.py); not a real person.",
+                "Record: written by hand for this platform; not a real person.",
                 "Treatment evidence: CIViC (CC0), as of the timeline file's build.",
                 "These scores never go to a language model, so this file has no case note."]
     return ["Data: TCGA-BRCA open access (GDC, UCSC Xena); mutations from GDC's open-access "
@@ -1045,6 +1135,14 @@ def tests_view(pf: workspace.PatientFile, i: int):
                             if t.workbench == w), shown[0])
     st.session_state["_test_shown"] = nav.test_id(t)
     st.divider()
+    name = WORKBENCH_NAMES.get(SCREENS.get(t.workbench, ""), "test's page")
+    safely("The " + (name[0].lower() + name[1:] if name[1:2].islower() else name), draw_test,
+           pf, i, t)
+    return t
+
+
+def draw_test(pf: workspace.PatientFile, i: int, t: workspace.Test):
+    """The opened test's workbench."""
     if t.workbench == "labs":  # the record's results and this session's imported ones
         labs.render(pf, events=workspace.record_events(pf), version=i, test=t)
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
@@ -1086,9 +1184,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
         st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.result)}")
         st.info(PLANNED_WORKBENCHES.get(t.workbench, "This test's workbench.") + " Planned, "
-                "pending the model and dataset survey's shortlist (docs/WORKSPACE.md).",
+                "pending the model and dataset survey's shortlist.",
                 icon="🧭")
-    return t
 
 
 def timeline_view(pf: workspace.PatientFile, i: int):
@@ -1167,7 +1264,7 @@ def methods():
         st.markdown("**Methods and validation**", width="content")
         st.space("stretch")
         guide.help_icon("methods")
-    methods_page.render(demo, TL, results())
+    safely("The Methods and validation page", methods_page.render, demo, TL, results())
 
 
 PATIENTS = st.Page(patients_page, title="Patients", icon="🗂️", default=True)
@@ -1178,3 +1275,4 @@ if LIVE:
     notes_left = max(0, CAP - st.session_state.live_used)
     budget_slot.progress(notes_left / CAP if CAP else 0,
                          text=f"Live notes left this session: {notes_left} of {CAP}")
+session_marks(marks_slot)

@@ -755,8 +755,8 @@ def _method_card(g: dict, effects: dict) -> None:
             "what": "What", "rule": "Rule", "source": "Source", "tag": "Tag",
             "status": "Status"}), hide_index=True, width="stretch")
         st.caption(f"Scores: {(g['data'] or {}).get('version', 'not computed')} "
-                   "(scripts/genomics_scores.py, offline); effects: snapshot "
-                   f"{(effects or {}).get('snapshot', 'not taken')} (scripts/genomics_effect.py). "
+                   "(precomputed offline from the open-access files); effects: snapshot "
+                   f"{(effects or {}).get('snapshot', 'not taken')} (Ensembl VEP, offline). "
                    f"Pathway references checked against PubMed on {gx.VERIFIED}. Known limits: "
                    "a gene-level copy number hides segment boundaries; the ploidy is estimated; "
                    "purity is one number for the whole sample; AlphaMissense is not approved for "
@@ -916,9 +916,9 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         st.markdown(" · ".join(f"{badge(s)} {n}" for s, n in counts.items()))
         st.dataframe(pd.DataFrame(coverage).rename(columns={"gene": "Gene", "status": "Status"}),
                      hide_index=True, width="stretch", height=200)
-        st.caption("The 16 breast cancer driver genes of the TCGA panel (src/muffle/data/tcga.py)."
-                   " A gene that was not tested, or whose panel is not stated, is unknown: never "
-                   "read it as wild type.")
+        st.caption("The 16 breast cancer driver genes of the TCGA panel. A gene that was not "
+                   "tested, or whose panel is not stated, is unknown: never read it as wild "
+                   "type.")
     with page.details("Review queue", sum(len(n) for n in queue.values())):
         for col, (name, names) in zip(st.columns(3), queue.items(), strict=True):
             col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
