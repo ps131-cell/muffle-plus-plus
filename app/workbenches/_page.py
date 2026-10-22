@@ -136,12 +136,20 @@ class Page:
                 line, act = st.columns([9, 1], vertical_alignment="center")
                 line.markdown(text, help=x["why"] or None)
                 h = hashlib.sha1(x["key"].encode()).hexdigest()[:10]
-                act.button("Spot", key=f"look-{self.workbench}-{h}-{n}", on_click=land,
-                           args=(x["focus"],), help="Open it in the Spot panel below")
+                act.button("Spot", key=f"look-{self.workbench}-{h}-{n}", on_click=self._spot,
+                           args=(land, x), help="Open it in the Spot panel below")
             else:
                 st.markdown(text, help=x["why"] or None)
         if len(order) > limit:
             st.caption(f"{len(order) - limit} more" + (f" in {more}" if more else "") + ".")
+
+    def _spot(self, land, x: dict) -> None:
+        """A look-here item's "Spot": land on it, and let the address carry its pointer."""
+        land(x["focus"])
+        ss = st.session_state
+        view = ss.get("view")
+        ss["_pointer"] = {"pid": self.pf.id, "view": view, "pointer": x["pointer"],
+                          "test": ss.get("_test_shown") if view == "Tests" else None}
 
     @contextmanager
     def picture(self, heading: str, caption: str | None = None):

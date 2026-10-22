@@ -51,3 +51,12 @@ def small_cfg():
 @pytest.fixture(scope="session")
 def cohort():
     return make_cohort(600, SMALL_DIMS, seed=1)
+
+
+@pytest.fixture
+def app(cohort, small_cfg, tmp_path, monkeypatch):
+    """The whole app under AppTest on a bundle built from the test cohort
+    (``tests.appfixture.make_app``)."""
+    from tests.appfixture import make_app
+
+    return make_app(cohort, small_cfg, tmp_path, monkeypatch)

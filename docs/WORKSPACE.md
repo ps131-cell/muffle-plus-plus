@@ -81,6 +81,21 @@ Three buttons lead on: **Import tests**, **Tests** and **Timeline**.
   in that version, explorable the same way as current ones.
 - Any two versions can be compared: what changed and why.
 
+### Moving between screens
+Built 2026-10-22 ([`ux.md`](ux.md) §1–2):
+- **Breadcrumbs** head every screen ("Patients › Case 299 › Tests › Pathology slide"); the
+  file's crumb is the file picker, so another patient is one pick away.
+- **A sticky patient header** keeps the patient, the open SOS alerts and the views on screen.
+- **The way back**: after an "Open", "← Back to the file" and "← Back to the queue, item n of
+  N".
+- **Deep links**: `?patient`, `?view`, `?test`, `?pointer` and `?version` reopen exactly the
+  screen on display, with the pointer in its Spot panel; "Open" and a look-here "Spot" write
+  them.
+- **Recently opened files** above the patient list.
+- **One page skeleton** for every workbench: title, status chips, overview with the look-here
+  queue, the picture, collapsed details with their counts, the Spot panel, the Model and
+  validation card, what the test cannot see, export.
+
 ## Test workbenches
 The depth and the quality-of-life features of each workbench, and what ships before the
 freeze, are designed in [`WORKBENCHES.md`](WORKBENCHES.md).

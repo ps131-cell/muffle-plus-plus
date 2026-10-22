@@ -3,68 +3,21 @@
 
 import hashlib
 import json
-import sys
-from pathlib import Path
 
-import numpy as np
 import pytest
-import torch
 
 from muffle import evolution, workspace
-from muffle.demo import build_demo, pick_cases, save_bundle, subset
-from muffle.hotreload import source_digest
 from muffle.imports import imaging_test, lab_tests, parse_labs, sequencing_test
-from muffle.models import MuffleNet
-from muffle.report import civic, trials
-from muffle.workbench import radiology
+from tests.appfixture import APP, button, shown
 from tests.skeleton import assert_skeleton
 
-AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
-ROOT = Path(__file__).resolve().parents[1]
-APP = ROOT / "app" / "streamlit_app.py"
-RESULTS = ROOT / "app" / "workbenches" / "radiology_results"
 VIEWS = ("Tests", "Timeline", "Evolution", "Import tests", "Report")
 
 
-def shown(at) -> str:
-    return " ".join(e.value for kind in ("title", "header", "subheader", "markdown", "caption",
-                                         "info") for e in getattr(at, kind))
-
-
-def button(at, label: str):
-    return next(b for b in at.button if b.label == label)
-
-
-def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeypatch):
-    np.savez(tmp_path / "cohort.npz", **cohort)
-    torch.manual_seed(0)
-    torch.save({"model": MuffleNet.from_config(small_cfg).state_dict(), "config": small_cfg},
-               tmp_path / "m.pt")
-    demo = build_demo(tmp_path / "m.pt", tmp_path, n_clients=3)
-    demo.cases[0].mutations = ["PIK3CA p.H1047R"]
-    bundle = save_bundle(subset(demo, pick_cases(demo, 4, [demo.cases[0].index])),
-                         tmp_path / "bundle.pt")
-    monkeypatch.setenv("MUFFLE_BUNDLE", str(bundle))
-    for key in ("NEBIUS_API_KEY", "TAVILY_API_KEY"):
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(civic, "load_table", lambda *a, **k: None)  # no CIViC download
-
-    def offline(*a, **k):
-        raise OSError("no registry calls in tests")
-
-    monkeypatch.setattr(trials, "CACHE", tmp_path / "trials")  # the trials come from the snapshot
-    monkeypatch.setattr(trials, "_get", offline)
-    # the test cohort's first case stands in for a TCGA patient with a processed public MRI
-    shipped = [s for v in radiology.load_index(RESULTS).values() for s in v
-               if s["modality"] == "MR"]
-    monkeypatch.setattr(radiology, "load_index",
-                        lambda folder: {demo.cases[0].index: shipped[:1]})
-    # this process already runs this code, so the app's hot-reload guard must not purge it
-    monkeypatch.setattr(sys, "_muffle_code_digest",
-                        source_digest([APP.parent, ROOT / "src" / "muffle"]), raising=False)
-
-    at = AppTest.from_file(str(APP), default_timeout=120).run()
+def test_patient_files_render_in_every_view(app):
+    demo, shipped = app.demo, app.shipped
+    at = app.new().run()
     assert not at.exception
     patients = at.dataframe[0].value["Patient"].tolist()
     case = f"Case {demo.cases[0].index}"
