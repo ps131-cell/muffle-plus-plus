@@ -329,6 +329,20 @@ Newest at the top. One entry per decision: date, what, why.
   CPU's load means a slide takes 30–60 min; a stronger encoder behind `HF_TOKEN` changes only
   the `encoder` entry of the result files.
 
+## 2026-10-22 — Encoder comparison on the BCSS spike: GigaPath-Flash is the open-license winner
+- **What:** seven encoders measured on the spike's tiles with the same head and the same three
+  held-out slides (`docs/encoders.md`): GigaPath-Flash 0.919 accuracy (0.917 balanced) against
+  QuiltNet-B-32 0.877 (0.854); Hibou-B 0.880, Hibou-L 0.810, and the local-only CONCH 0.896,
+  UNI2-h 0.838, GPFM 0.863. With C chosen by cross-validation on the training slides the ranking
+  at the top holds (GigaPath-Flash 0.922 / 0.923). Recommendation: re-score the eight sections
+  with GigaPath-Flash; the swap itself is the slide pipeline's step, not made here.
+- **Why:** the only open-license encoder better than QuiltNet on every held-out slide; the paired
+  gain (+4.2 points, interval +0.3 to +8.1) is just clear of zero on 357 correlated tiles.
+- **Consequence:** GPFM is treated as local only: its Hugging Face tag says MIT, but its official
+  repository is CC BY-NC-ND 4.0 and it is distilled from UNI and CONCH. Hibou loads into
+  transformers 5's own DINOv2-with-registers class (its repo code needs transformers 4). Path
+  Foundation, H-optimus-0 and Virchow wait for access; Midnight-12k for a GPU.
+
 ## 2026-10-20 — Stronger encoders one command away; CC BY-NC-ND encoders enforced local only
 - **What:** `scripts/slide_spike.py` gains ten encoder entries (license, gate, preprocessing,
   pooling per model card), `HF_TOKEN` from the environment or `.env` (never printed), `--device

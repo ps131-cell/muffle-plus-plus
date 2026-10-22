@@ -73,12 +73,14 @@ ENCODERS = {
     "kaiko-ai/midnight": {
         "loader": "hf_auto", "pool": "cls+mean", "size": 224, "mean": (0.5, 0.5, 0.5),
         "std": (0.5, 0.5, 0.5), "params_m": 1137, "dim": 3072,
-        "license": "MIT", "gate": "none", "local_only": False},
+        "license": "MIT", "gate": "none", "local_only": False,
+        "tcga_pretraining": "yes (TCGA only)"},
     # MIT, ungated. Card: research output, "any deployed use case ... is out of scope": the
     # hosted app shows precomputed results only and runs no encoder.
     "wisdomik/QuiltNet-B-32": {
         "loader": "hf_clip", "pool": "clip_proj", "size": 224, **OPENAI_CLIP, "params_m": 88,
-        "dim": 512, "license": "MIT", "gate": "none", "local_only": False},
+        "dim": 512, "license": "MIT", "gate": "none", "local_only": False,
+        "tcga_pretraining": "not listed (Quilt-1M: videos, papers, social media)"},
     # Health AI Developer Foundations terms (HAI-DEF): click-through, instant. Use restrictions
     # pass on to anyone given fine-tuned weights; "Clinical Use" includes research studies on
     # patients (ours are public TCGA slides). The HF release is a TensorFlow SavedModel (tf-keras,
@@ -87,7 +89,8 @@ ENCODERS = {
     "google/path-foundation": {
         "loader": "tf_savedmodel", "pool": "output_0", "size": 224, "mean": (0.0, 0.0, 0.0),
         "std": (1.0, 1.0, 1.0), "params_m": 22, "dim": 384, "needs": "tensorflow-cpu",
-        "license": "HAI-DEF terms", "gate": "click-through (instant)", "local_only": False},
+        "license": "HAI-DEF terms", "gate": "click-through (instant)", "local_only": False,
+        "tcga_pretraining": "yes (TCGA only)"},
     # Apache-2.0; gate: share contact information (instant). Card: research use only, "not
     # intended to be used in clinical care", "any deployed use case ... is out of scope". The
     # tile encoder is a DINOv2-small ViT-S/16 (SwiGLU, LayerScale) whose architecture lives in the
@@ -101,29 +104,33 @@ ENCODERS = {
                         "num_heads": 6, "mlp_ratio": 2048 / 384, "mlp_layer": "SwiGLUPacked",
                         "act_layer": "SiLU", "init_values": 1e-5, "num_classes": 0,
                         "global_pool": "token", "class_token": True, "reg_tokens": 0},
-        "license": "Apache-2.0", "gate": "contact info (instant)", "local_only": False},
-    # Apache-2.0; gate: contact information (instant). DINOv2 with registers in the repo's own
-    # modeling code (trust_remote_code), pinned to the revision read on 2026-10-20. Preprocessing
-    # from HistAI/hibou example.ipynb; embedding is pooler_output as in that notebook.
+        "license": "Apache-2.0", "gate": "contact info (instant)", "local_only": False,
+        "tcga_pretraining": "not stated (distilled from Prov-GigaPath: Providence slides)"},
+    # Apache-2.0; gate: contact information (instant). DINOv2 with 4 registers and SwiGLU. The
+    # repo's own modeling code needs transformers 4 internals, so the weights (pinned revision)
+    # load strictly into transformers 5's Dinov2WithRegistersModel, whose embeddings, SwiGLU and
+    # pooler match that code line for line (checked 2026-10-21); no repo code runs. Preprocessing
+    # from preprocessor_config.json; embedding is pooler_output (layer-normed CLS token).
     "histai/hibou-b": {
-        "loader": "hf_auto", "remote_code": True,
+        "loader": "dinov2_registers",
         "revision": "7fdc8cce365ebfd9e7e60ee6ee9a8d4d59388f3c", "pool": "pooler", "size": 224,
         "mean": (0.7068, 0.5755, 0.7220), "std": (0.1950, 0.2316, 0.1816), "params_m": 86,
         "dim": 768, "license": "Apache-2.0", "gate": "contact info (instant)",
-        "local_only": False},
+        "local_only": False, "tcga_pretraining": "not listed (private HistAI set)"},
     "histai/hibou-L": {
-        "loader": "hf_auto", "remote_code": True,
+        "loader": "dinov2_registers",
         "revision": "31a3b9fee16554c8552cb643d311733bce8faf7c", "pool": "pooler", "size": 224,
         "mean": (0.7068, 0.5755, 0.7220), "std": (0.1950, 0.2316, 0.1816), "params_m": 304,
         "dim": 1024, "license": "Apache-2.0", "gate": "contact info (instant)",
-        "local_only": False},
+        "local_only": False, "tcga_pretraining": "not listed (private HistAI set)"},
     # Apache-2.0; gate: contact information (instant). Card: 224 px at 0.5 µm/px, its own
     # mean/std, 1536-d output from the timm model; no published validation (software citation).
     "bioptimus/H-optimus-0": {
         "loader": "timm", "pool": "pooled", "size": 224, "mean": (0.707223, 0.578729, 0.703617),
         "std": (0.211883, 0.230117, 0.177517), "params_m": 1100, "dim": 1536,
         "timm_kwargs": {"init_values": 1e-5, "dynamic_img_size": False},
-        "license": "Apache-2.0", "gate": "contact info (instant)", "local_only": False},
+        "license": "Apache-2.0", "gate": "contact info (instant)", "local_only": False,
+        "tcga_pretraining": "not listed (proprietary 500k slides)"},
     # Apache-2.0 plus "additional terms": the HF primary email must match an institutional email;
     # "not intended for use in medical diagnosis, treatment, or prevention of disease of real
     # patients". Embedding: class token and mean patch token concatenated (card), 2560-d.
@@ -131,7 +138,7 @@ ENCODERS = {
         "loader": "timm", "pool": "cls+mean", "size": 224, **IMAGENET, "params_m": 632,
         "dim": 2560, "timm_kwargs": {"mlp_layer": "SwiGLUPacked", "act_layer": "SiLU"},
         "license": "Apache-2.0 (+ card terms)", "gate": "institutional email (approval)",
-        "local_only": False},
+        "local_only": False, "tcga_pretraining": "no (MSKCC slides)"},
     # CC BY-NC-ND 4.0: "non-commercial, academic research purposes"; derivatives "include models
     # trained on outputs from the UNI 2 model or datasets created from" it; no distribution. Gate:
     # HF primary email must be institutional (@gmail etc. denied). LOCAL ONLY.
@@ -143,7 +150,7 @@ ENCODERS = {
                         "num_classes": 0, "no_embed_class": True, "mlp_layer": "SwiGLUPacked",
                         "act_layer": "SiLU", "reg_tokens": 8, "dynamic_img_size": True},
         "license": "CC BY-NC-ND 4.0", "gate": "institutional email (approval)",
-        "local_only": True},
+        "local_only": True, "tcga_pretraining": "no (Mass General Brigham)"},
     # CC BY-NC-ND 4.0, same terms and gate as UNI2-h. Loads through the CONCH package (open_clip
     # fork): 448 px input, OpenAI CLIP mean/std (conch_ViT-B-16 config); embedding before the
     # projection head, as the card recommends for linear probes. LOCAL ONLY.
@@ -151,7 +158,21 @@ ENCODERS = {
         "loader": "conch", "pool": "conch_image", "size": 448, **OPENAI_CLIP, "params_m": 90,
         "dim": 512, "needs": "git+https://github.com/Mahmoodlab/CONCH.git",
         "license": "CC BY-NC-ND 4.0", "gate": "institutional email (approval)",
-        "local_only": True},
+        "local_only": True,
+        "tcga_pretraining": "no (card: no large public slide sets such as TCGA)"},
+    # GPFM (Ma et al., Nat Biomed Eng 2025): ViT-L/14 distilled from UNI, CONCH and Phikon on
+    # ~190M tiles of ~72,000 public slides; ungated. The HF card is tagged MIT, but the official
+    # repository (birkhoffkiki/GPFM) is CC BY-NC-ND 4.0, and UNI's and CONCH's terms count models
+    # trained on their outputs as derivatives, so it is treated as LOCAL ONLY. Card and repo
+    # (models/dinov2.py build_transform): 224 px bicubic, ImageNet mean/std; timm
+    # vit_large_patch14_dinov2 with init_values 1e-5 loads GPFM.pth strictly; 1024-d pooled CLS.
+    "majiabo/GPFM": {
+        "loader": "timm_file", "arch": "vit_large_patch14_dinov2", "file": "GPFM.pth",
+        "pool": "pooled", "size": 224, **IMAGENET, "params_m": 304, "dim": 1024,
+        "timm_kwargs": {"img_size": 224, "init_values": 1e-5, "num_classes": 0},
+        "license": "CC BY-NC-ND 4.0 (repository; HF tag says MIT)", "gate": "none",
+        "local_only": True,
+        "tcga_pretraining": "not confirmed (72,000 public slides; source list not read)"},
 }
 LOCAL_ONLY = {name for name, spec in ENCODERS.items() if spec["local_only"]}
 
@@ -316,6 +337,40 @@ def _timm_kwargs(spec: dict) -> dict:
             for k, v in spec.get("timm_kwargs", {}).items()}
 
 
+LEGACY_DINOV2_KEYS = {"attention.attention.query": "attention.q_proj",
+                      "attention.attention.key": "attention.k_proj",
+                      "attention.attention.value": "attention.v_proj",
+                      "attention.output.dense": "attention.o_proj",
+                      "mlp.weights_out": "mlp.down_proj"}
+
+
+def _dinov2_registers(name: str, revision: str):
+    """A transformers-4 DINOv2-with-registers checkpoint (Hibou) in transformers 5's own class:
+    legacy key names mapped, the fused SwiGLU input split into gate (first half) and up."""
+    from huggingface_hub import hf_hub_download
+    from safetensors.torch import load_file
+    from transformers import Dinov2WithRegistersConfig, Dinov2WithRegistersModel
+
+    cfg = json.load(open(hf_hub_download(name, "config.json", revision=revision)))
+    known = set(Dinov2WithRegistersConfig().to_dict()) - {
+        "model_type", "architectures", "transformers_version", "_name_or_path", "out_features",
+        "out_indices", "stage_names"}
+    model = Dinov2WithRegistersModel(
+        Dinov2WithRegistersConfig(**{k: v for k, v in cfg.items() if k in known}))
+    state = {}
+    for k, v in load_file(hf_hub_download(name, "model.safetensors", revision=revision)).items():
+        if "mlp.weights_in" in k:
+            gate, up = v.chunk(2, 0)
+            state[k.replace("weights_in", "gate_proj")] = gate
+            state[k.replace("weights_in", "up_proj")] = up
+            continue
+        for old, new in LEGACY_DINOV2_KEYS.items():
+            k = k.replace(old, new)
+        state[k] = v
+    model.load_state_dict(state, strict=True)
+    return model
+
+
 def load_encoder(name: str, device: str = "cpu"):
     """Load one ENCODERS entry. A gated model without access, or a missing extra package, ends
     with a one-line message instead of a traceback."""
@@ -335,8 +390,9 @@ def load_encoder(name: str, device: str = "cpu"):
             model = CLIPModel.from_pretrained(name)
         elif spec["loader"] == "hf_auto":
             from transformers import AutoModel
-            model = AutoModel.from_pretrained(name, revision=spec.get("revision"),
-                                              trust_remote_code=spec.get("remote_code", False))
+            model = AutoModel.from_pretrained(name, revision=spec.get("revision"))
+        elif spec["loader"] == "dinov2_registers":
+            model = _dinov2_registers(name, spec["revision"])
         elif spec["loader"] == "timm":
             import timm
             model = timm.create_model(f"hf-hub:{name}", pretrained=True, **_timm_kwargs(spec))
@@ -344,7 +400,8 @@ def load_encoder(name: str, device: str = "cpu"):
             import timm
             from huggingface_hub import hf_hub_download
             model = timm.create_model(spec["arch"], pretrained=False, **_timm_kwargs(spec))
-            state = torch.load(hf_hub_download(name, "pytorch_model.bin"), map_location="cpu")
+            state = torch.load(hf_hub_download(name, spec.get("file", "pytorch_model.bin")),
+                               map_location="cpu")
             missing, _ = model.load_state_dict(state.get("model", state), strict=False)
             if missing:
                 raise SystemExit(f"{name}: weights do not fit {spec['arch']} "
@@ -438,10 +495,19 @@ def cmd_embed(a):
         if not rgb_path.exists() or ((folder / "embeddings.npy").exists() and not a.limit):
             continue
         rgb = np.load(rgb_path)
+        keep = None
+        if a.labeled_only:  # only the tiles `train` can use; the others get NaN rows
+            df = pd.read_csv(folder / "tiles.csv")
+            keep = (df["bcss_label"].isin(CLASSES) & (df["qc"] == "ok")).to_numpy()
+            rgb = rgb[keep]
         if a.limit:
             rgb = rgb[:a.limit]
         emb, rate = embed_stack(encoder, rgb, a.batch)
         if not a.limit:
+            if keep is not None:
+                full = np.full((len(keep), emb.shape[1]), np.nan, np.float32)
+                full[keep] = emb
+                emb = full
             np.save(folder / "embeddings.npy", emb)
         rates.append(rate)
         print(f"{folder.name}: {len(rgb)} tiles, {rate:.2f} tiles/s, dim {emb.shape[1]}",
@@ -450,6 +516,7 @@ def cmd_embed(a):
             break
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
     timing = {"model": a.model, "device": encoder[2], "threads": a_threads, "batch": a.batch,
+              "labeled_only": a.labeled_only,
               "nice": os.nice(0), "load_1min_start": round(load_start, 2),
               "load_1min_end": round(os.getloadavg()[0], 2),
               "tiles_per_s_median": round(float(np.median(rates)), 3) if rates else None,
@@ -468,6 +535,9 @@ def load_sets(work: Path):
             df = pd.read_csv(folder / "tiles.csv")
             sets[folder.name] = (df, np.load(folder / "embeddings.npy"))
     return sets
+
+
+CV_GRID = (0.003, 0.01, 0.03, 0.1, 0.3, 1.0)
 
 
 def cmd_train(a):
@@ -490,10 +560,23 @@ def cmd_train(a):
             slides += [k] * int(keep.sum())
         return np.concatenate(xs), np.array(ys), np.array(slides)
 
-    xtr, ytr, _ = pure(train)
+    xtr, ytr, gtr = pure(train)
     xte, yte, ste = pure(sorted(test))
+    C, cv_scores, suffix = a.C, None, ""
+    if a.cv:  # C chosen on the training slides only: leave one training slide out
+        from sklearn.metrics import balanced_accuracy_score
+        from sklearn.model_selection import LeaveOneGroupOut, cross_val_predict
+        from sklearn.pipeline import make_pipeline
+
+        cv_scores = {}
+        for c in CV_GRID:
+            pipe = make_pipeline(StandardScaler(), LogisticRegression(
+                C=c, max_iter=3000, class_weight="balanced"))
+            oof = cross_val_predict(pipe, xtr, ytr, groups=gtr, cv=LeaveOneGroupOut())
+            cv_scores[c] = round(float(balanced_accuracy_score(ytr, oof)), 3)
+        C, suffix = max(cv_scores, key=cv_scores.get), "_cv"
     scaler = StandardScaler().fit(xtr)
-    clf = LogisticRegression(C=a.C, max_iter=3000, class_weight="balanced")
+    clf = LogisticRegression(C=C, max_iter=3000, class_weight="balanced")
     clf.fit(scaler.transform(xtr), ytr)
     pred = clf.predict(scaler.transform(xte))
     proba = clf.predict_proba(scaler.transform(xte))
@@ -522,13 +605,14 @@ def cmd_train(a):
         round(float((pred[top >= cutoff] == yte[top >= cutoff]).mean()), 3)
         if (top >= cutoff).any() else None,
         "share_below_cutoff": round(float((top < cutoff).mean()), 3),
-        "C": a.C, "encoder": json.load(open(Path(a.work) / "timing.json"))["model"],
+        "C": C, "C_cv_balanced_accuracy": cv_scores,
+        "encoder": json.load(open(Path(a.work) / "timing.json"))["model"],
     }
-    json.dump(metrics, open(Path(a.work) / "head_metrics.json", "w"), indent=1)
+    json.dump(metrics, open(Path(a.work) / f"head_metrics{suffix}.json", "w"), indent=1)
     head = {"classes": list(clf.classes_), "coef": clf.coef_.tolist(),
             "intercept": clf.intercept_.tolist(), "scaler_mean": scaler.mean_.tolist(),
             "scaler_scale": scaler.scale_.tolist()}
-    json.dump(head, open(Path(a.work) / "head.json", "w"))
+    json.dump(head, open(Path(a.work) / f"head{suffix}.json", "w"))
     print(json.dumps({k: v for k, v in metrics.items() if k != "confusion"}, indent=1))
     print("confusion (rows true, cols predicted):", present)
     print(cm)
@@ -545,7 +629,9 @@ def cmd_result(a):
     metrics = json.load(open(work / "head_metrics.json"))
     df = pd.read_csv(work / a.slide / "tiles.csv")
     emb = np.load(work / a.slide / "embeddings.npy")
-    z = (emb - np.array(head["scaler_mean"])) / np.array(head["scaler_scale"])
+    if np.isnan(emb).any():
+        raise SystemExit(f"{a.slide}: embeddings made with --labeled-only; re-embed every tile")
+    z =(emb - np.array(head["scaler_mean"])) / np.array(head["scaler_scale"])
     logits = z @ np.array(head["coef"]).T + np.array(head["intercept"])
     logits -= logits.max(1, keepdims=True)
     proba = np.exp(logits) / np.exp(logits).sum(1, keepdims=True)
@@ -609,9 +695,10 @@ def run_dir(name: str) -> str:
 def compare_table(runs: Path, tiles: str = "TILES", test: str = "SLIDE ...") -> str:
     """Markdown table of every ENCODERS entry, filled from RUNS/<short name>/timing.json and
     head_metrics.json; entries without a head get the commands that make one."""
-    cols = ["Encoder", "License", "Gate", "Params (M)", "Tiles/s measured (device, threads, "
-            "1-min load)", "Min per 15k-tile slide", "Held-out accuracy (balanced)",
-            *HEAD_CLASSES]
+    cols = ["Encoder", "License", "Gate", "Params (M)", "TCGA in pretraining",
+            "Tiles/s measured (device, threads, 1-min load)", "Min per 15k-tile slide",
+            "Held-out accuracy (balanced), C = 0.1", *HEAD_CLASSES,
+            "Held-out accuracy (balanced), C chosen by CV on training slides"]
     lines = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     todo = []
     for name, spec in ENCODERS.items():
@@ -619,29 +706,34 @@ def compare_table(runs: Path, tiles: str = "TILES", test: str = "SLIDE ...") -> 
         timing = json.load(open(run / "timing.json")) if (run / "timing.json").exists() else {}
         metrics = (json.load(open(run / "head_metrics.json"))
                    if (run / "head_metrics.json").exists() else {})
+        cv = (json.load(open(run / "head_metrics_cv.json"))
+              if (run / "head_metrics_cv.json").exists() else {})
+        acc_cv = (f"{cv['accuracy']:.3f} ({cv['balanced_accuracy']:.3f}), C = {cv['C']:g}" if cv
+                  else "–")
         rate = timing.get("tiles_per_s_median")
         load = timing.get("load_1min_start", "not recorded")
         if "load_1min_end" in timing:
             load = f"{load} → {timing['load_1min_end']}"
         speed = (f"{rate:g} ({timing.get('device', 'cpu')}, {timing['threads']} threads, load "
-                 f"{load})" if rate else "pending access")
+                 f"{load})" if rate else "not run")
         minutes = f"{15000 / rate / 60:,.0f}" if rate else "–"
         acc = (f"{metrics['accuracy']:.3f} ({metrics['balanced_accuracy']:.3f})" if metrics
-               else "pending access" if spec["gate"] != "none" else "not run (CPU too slow)")
+               else "not run")
         per = [f"{metrics['per_class'][c]['recall']:.2f}" if metrics
                and metrics["per_class"].get(c, {}).get("recall") is not None else "–"
                for c in HEAD_CLASSES]
         lic = spec["license"] + (", **local only**" if spec["local_only"] else "")
-        lines.append(f"| `{name}` | {lic} | {spec['gate']} | {spec['params_m']:,} | {speed} | "
-                     f"{minutes} | {acc} | " + " | ".join(per) + " |")
+        lines.append(f"| `{name}` | {lic} | {spec['gate']} | {spec['params_m']:,} | "
+                     f"{spec['tcga_pretraining']} | {speed} | "
+                     f"{minutes} | {acc} | " + " | ".join(per) + f" | {acc_cv} |")
         if not metrics:
             env = "HF_TOKEN=… " if spec["gate"] != "none" else ""
             work = f"~/muffle-encoders/runs/{run_dir(name)}"
             todo.append(f"- `{name}`:\n  `{env}python scripts/slide_spike.py embed --tiles "
                         f"{tiles} --work {work} --model {name} && python scripts/slide_spike.py "
                         f"train --work {work} --test {test}`")
-    return "\n".join(lines) + "\n\nTo fill a pending row (from the clone, venv active):\n\n" + \
-        "\n".join(todo)
+    return ("\n".join(lines) + "\n\nTo fill a row that was not run (from the clone, venv "
+            "active):\n\n" + "\n".join(todo))
 
 
 def cmd_compare(a):
@@ -688,11 +780,16 @@ if __name__ == "__main__":
     e.add_argument("--threads", type=int, default=8)
     e.add_argument("--limit", type=int, default=0,
                    help="time this many tiles per slide, save nothing")
+    e.add_argument("--labeled-only", action="store_true",
+                   help="embed only the tiles train uses (other rows NaN; result refuses them)")
     tr = sub.add_parser("train")
     tr.add_argument("--work", required=True)
     tr.add_argument("--test", nargs="+", required=True)
     tr.add_argument("--classes", nargs="+", default=CLASSES)
     tr.add_argument("--C", type=float, default=0.1)
+    tr.add_argument("--cv", action="store_true",
+                    help="choose C by leave-one-training-slide-out balanced accuracy; writes "
+                         "head_cv.json and head_metrics_cv.json (held-out slides untouched)")
     r = sub.add_parser("result")
     r.add_argument("--work", required=True)
     r.add_argument("--slide", required=True)
