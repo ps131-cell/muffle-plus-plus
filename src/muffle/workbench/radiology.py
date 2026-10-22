@@ -78,8 +78,9 @@ CUTOFFS = {
     # change over time (round 2)
     "register_grid_mm": ("4 then 2", DESIGN, "the rigid alignment runs on 4 mm, then 2 mm voxels "
                          "of the two pre-contrast volumes"),
-    "residual_search_mm": (10, DESIGN, "the local check searches shifts up to 10 mm in 2 mm "
-                           "steps around each place, in a 40 mm cube"),
+    "residual_search_mm": (10, DESIGN, "the local check searches shifts up to 10 mm (4 mm "
+                           "steps, then 2 mm around the best) for a 40 mm cube (30 mm on the "
+                           "block grid); a best shift at the search's edge counts as unreliable"),
     "residual_unreliable_mm": (5, PLACEHOLDER, "where the local check finds the aligned studies "
                                "still more than 5 mm apart, the comparison says unreliable here"),
     "residual_min_ncc": (0.5, PLACEHOLDER, "where the best local correlation of the two aligned "
@@ -103,7 +104,7 @@ CUTOFFS = {
 # every value nobody has validated yet, as (what, value) for the Methods page's one table
 PLACEHOLDERS = [(k, f"{v} ({note})") for k, (v, tag, note) in CUTOFFS.items() if tag != DESIGN]
 
-# what the workbench gets wrong, as far as it has been seen (docs/radiology.md §3)
+# what the workbench gets wrong, as far as it has been seen (docs/radiology.md §6)
 KNOWN_FAILURES = [
     "Lesions behind the cleft-plus-margin line (deep, at the chest wall, in the axilla) are never "
     "proposed; non-mass enhancement and vessel-like or plate-like shapes are left out by the "
@@ -584,9 +585,9 @@ def register(fixed: np.ndarray, moving: np.ndarray, spacing_f, spacing_m,
 
 def local_residual(fixed: np.ndarray, moving: np.ndarray, spacing_f, spacing_m,
                    transform: dict, at_mm, half_mm: float = 20.0) -> dict:
-    """How far off the rigid alignment still is at one place of the later study: the shift (in
-    2 mm steps, up to ``residual_search_mm``) that best matches a ``half_mm`` cube of the later
-    study to the aligned earlier one, by normalised cross-correlation. Above
+    """How far off the rigid alignment still is at one place of the later study: the shift (4 mm
+    steps, then 2 mm, up to ``residual_search_mm``) that best matches a ``half_mm`` cube of the
+    later study to the aligned earlier one, by normalised cross-correlation. Above
     ``residual_unreliable_mm``, or with the best correlation under ``residual_min_ncc``, the
     comparison is unreliable here."""
     step, search = 2.0, CUTOFFS["residual_search_mm"][0]
@@ -598,19 +599,23 @@ def local_residual(fixed: np.ndarray, moving: np.ndarray, spacing_f, spacing_m,
         return {"at_mm": [round(float(v), 1) for v in at_mm], "shift_mm": None,
                 "residual_mm": None, "ncc_aligned": None, "ncc_best": None,
                 "reliable": False, "why": "outside the later study or no structure to match"}
-    s = np.arange(-search, search + step / 2, step)
-    best, ncc0 = (-2.0, None), None
-    for dz in s:
-        for dy in s:
-            for dx in s:
-                b = _sample(moving.astype(np.float32), spacing_m,
-                            map_points(cube + [dz, dy, dx], transform))
-                r = _ncc(a, b)
-                if dz == dy == dx == 0:
-                    ncc0 = r
-                if r > best[0]:
-                    best = (r, (dz, dy, dx))
-    shift = np.array(best[1], float)
+    m = moving.astype(np.float32)
+    seen = {}
+
+    def score(shift) -> float:
+        key = tuple(float(v) for v in shift)
+        if key not in seen:
+            seen[key] = _ncc(a, _sample(m, spacing_m, map_points(cube + shift, transform)))
+        return seen[key]
+
+    # 4 mm steps over the search, then 2 mm steps around the best (about 150 shifts, not 1,331)
+    coarse = np.arange(-2 * step * (search // (2 * step)), search + step / 2, 2 * step)
+    grid = np.stack(np.meshgrid(coarse, coarse, coarse, indexing="ij"), -1).reshape(-1, 3)
+    centre = max(grid, key=score)
+    fine = np.stack(np.meshgrid(*[np.clip(c + np.array([-step, 0, step]), -search, search)
+                                  for c in centre], indexing="ij"), -1).reshape(-1, 3)
+    shift = np.array(max(fine, key=score), float)
+    best, ncc0 = (score(shift), None), score(np.zeros(3))
     residual = float(np.linalg.norm(shift))
     edge = bool(np.abs(shift).max() >= search)  # the best shift is at the search's edge
     reliable = residual <= CUTOFFS["residual_unreliable_mm"][0] and \

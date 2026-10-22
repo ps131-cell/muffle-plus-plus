@@ -291,9 +291,11 @@ def three_planes(study: dict, key0: str, vol: np.ndarray, i: int, picked: dict |
     views; the contours resliced from the candidates' masks; the craniocaudal extent and the
     longest-diameter slice carried over as marks."""
     d = study["display"]
-    for k, default in ((f"{key0}-row", d["rows"] // 2), (f"{key0}-col", d["cols"] // 2)):
+    box = (picked or {}).get("per_slice", {}).get(str(i), {}).get("box")
+    at = ((box[1] + box[3]) / 2, (box[0] + box[2]) / 2) if box else (d["rows"] / 2, d["cols"] / 2)
+    for k, default in ((f"{key0}-row", at[0]), (f"{key0}-col", at[1])):
         if k not in st.session_state:
-            st.session_state[k] = default + 1
+            st.session_state[k] = int(default) + 1
     c1, c2 = st.columns(2)
     r = c1.slider("Coronal plane (row, front to back)", 1, d["rows"], key=f"{key0}-row") - 1
     c = c2.slider("Sagittal plane (column, patient's right to left)", 1, d["cols"],
@@ -439,7 +441,11 @@ def mri_page(pf: PatientFile, study: dict) -> None:
         st.caption(f"Slice {i + 1} of {d['slices']} (every {d['slice_step']} of "
                    f"{d['native_slices']} native slices), position {d['z_mm'][i]:g} mm; "
                    f"{d['pixel_mm']:g} mm per shown pixel (native {d['native_pixel_mm'][0]:g} mm, "
-                   f"slices {d['slice_mm']:g} mm apart). {d['orientation'].capitalize()}.")
+                   f"slices {d['slice_mm']:g} mm apart). {d['orientation'].capitalize()}."
+                   + (f" Acquired {acq['plane']}: {acq['slices']} slices {acq['slice_mm']:g} mm "
+                      f"apart, {acq['pixel_mm'][0]:g} mm pixels; the axial view is resampled "
+                      "from them." if (acq := d.get("acquisition", {})).get("plane", "axial")
+                      != "axial" else ""))
         level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
         width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
         t1, t2, t3, t4 = st.columns(4)
@@ -512,8 +518,13 @@ def _ld_index(study: dict, c: dict) -> int:
 def _jump(study: dict, key0: str) -> None:
     c = next((c for c in study["candidates"] if c["id"] == st.session_state.get(f"{key0}-cand")),
              None)
-    if c:
-        st.session_state[f"{key0}-slice"] = _ld_index(study, c) + 1
+    if c:  # all three planes go to the candidate: its slice, and its box's centre
+        i = _ld_index(study, c)
+        st.session_state[f"{key0}-slice"] = i + 1
+        box = c["per_slice"].get(str(i), {}).get("box")
+        if box:
+            st.session_state[f"{key0}-row"] = int((box[1] + box[3]) / 2) + 1
+            st.session_state[f"{key0}-col"] = int((box[0] + box[2]) / 2) + 1
 
 
 def lesion_rows(study: dict) -> list[dict]:
@@ -655,9 +666,9 @@ def _blocks(ch: dict, display: dict, plane: str, index: int) -> list[tuple]:
     return out
 
 
-def change_view(pf: PatientFile, changes: dict, key0: str) -> None:
+def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -> None:
     """Two dates side by side at the same position: the later study and the earlier one moved
-    onto it by the rigid alignment, the unreliable blocks hatched, the lesions paired across
+    onto it by the rigid alignment, the unreliable blocks tinted red, the lesions paired across
     dates with both sizes and the change, the computed sum and the 'what changed' paragraph."""
     ch, earlier, later = changes["change"], changes["earlier"], changes["later"]
     d = later["display"]
@@ -673,12 +684,13 @@ def change_view(pf: PatientFile, changes: dict, key0: str) -> None:
     st.caption(f"Method: {reg['method']}. Normalised mutual information {reg['nmi_start']:g} at "
                f"the start, {reg['nmi_after']:g} aligned; {reg['evaluations']} evaluations, "
                f"{reg['seconds']:g} CPU seconds. Local check: "
-               f"{rad.CUTOFFS['residual_search_mm'][0]} mm search, 2 mm steps; "
+               f"shifts up to {rad.CUTOFFS['residual_search_mm'][0]} mm (4 mm, then 2 mm "
+               "steps); "
                f"{n_bad} of {len(ch['blocks'])} 30 mm blocks of the breasts unreliable "
                f"(more than {rad.CUTOFFS['residual_unreliable_mm'][0]} mm left over, or a best "
-               f"correlation under {rad.CUTOFFS['residual_min_ncc'][0]}; placeholders), hatched "
-               "red on the views. Registration is rigid: it cannot follow the breast's own "
-               "deformation between exams.")
+               f"correlation under {rad.CUTOFFS['residual_min_ncc'][0]}; placeholders), tinted "
+               "red on the views (a toggle hides them). Registration is rigid: it cannot follow "
+               "the breast's own deformation between exams.")
     c1, c2, c3 = st.columns([2, 2, 3])
     plane = c1.segmented_control("Plane", ["axial", "coronal", "sagittal"], default="axial",
                                  key=f"{key0}-cmp-plane") or "axial"
@@ -706,17 +718,17 @@ def change_view(pf: PatientFile, changes: dict, key0: str) -> None:
     layers_a = [(rad.aligned_view(ms_a[c["id"]].astype(np.uint8) * 255, earlier["display"], d,
                                   reg, plane, idx) > 127, COLORS.get(c["id"], (255, 255, 0)))
                 for c in earlier["candidates"]]
-    hatch = _blocks(ch, d, plane, idx)
+    hatch = _blocks(ch, d, plane, idx) if st.toggle(
+        "Show where the alignment is unreliable", True, key=f"{key0}-cmp-blocks") else []
     shown = []
     for img, layers in ((img_b, layers_b), (img_a, layers_a)):
-        out = pane(img, [x for x in layers if x[0].any()], [], [])
-        draw = ImageDraw.Draw(out)
-        for x0, y0, x1, y1 in hatch:
-            draw.rectangle([x0 * K, y0 * K, x1 * K, y1 * K], outline=(255, 60, 60), width=2)
-            for t in range(int(x0 * K), int(x1 * K), 10):
-                draw.line([(t, y0 * K), (min(t + 10, x1 * K), y1 * K)], fill=(255, 60, 60))
-            draw.text((x0 * K + 3, y0 * K + 2), "unreliable here", fill=(255, 90, 90))
-        shown.append(out)
+        out = pane(img, [x for x in layers if x[0].any()], [], []).convert("RGBA")
+        tint = Image.new("RGBA", out.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(tint)
+        for x0, y0, x1, y1 in hatch:  # a light red tint and a thin edge: the anatomy stays seen
+            draw.rectangle([x0 * K, y0 * K, x1 * K, y1 * K], fill=(255, 60, 60, 38),
+                           outline=(255, 90, 90, 150), width=1)
+        shown.append(Image.alpha_composite(out, tint).convert("RGB"))
     left, right = st.columns(2)
     left.image(shown[0], caption=f"{later['study']['date']} (later), {plane} {idx + 1}: its "
                                  "own candidates", width="stretch")
@@ -742,6 +754,9 @@ def change_view(pf: PatientFile, changes: dict, key0: str) -> None:
                f"candidates of ≥ {rad.CUTOFFS['measurable_mm'][0]} mm on the earlier date, at "
                f"most {rad.CUTOFFS['targets_per_organ'][0]} (RECIST 1.1's measurable size and "
                "per-organ limit).")
+    if not marks:  # the example pair is not this file's: no mark goes into its export
+        st.caption("Review marks: none on the example pair; it is not this patient's data.")
+        return
     barcode, span = later["barcode"], f"{ch['dates'][0]} to {ch['dates'][1]}"
     pick = st.selectbox("Mark a lesion's change", [r["lesion"] for r in rows],
                         key=f"{key0}-cmp-mark")
@@ -785,7 +800,7 @@ def since_last(pf: PatientFile, study: dict, changes: dict | None) -> None:
     if example and study["modality"] == "MR":
         with st.expander("Change over time on a public example pair (another TCGA-BRCA "
                          "patient, not this patient)"):
-            change_view(pf, example, f"rad-{pf.id}-example")
+            change_view(pf, example, f"rad-{pf.id}-example", marks=False)
 
 
 def _cannot_see(rows: list[tuple]) -> None:
@@ -1237,7 +1252,7 @@ def report_page(pf: PatientFile, version: int | None) -> None:
     if example:
         with st.expander("What the change view shows with images: a public example pair "
                          "(a TCGA-BRCA patient, not this patient)"):
-            change_view(pf, example, f"rad-{pf.id}-example")
+            change_view(pf, example, f"rad-{pf.id}-example", marks=False)
 
     st.markdown("#### Against the tumor marker")
     chips(IMPLEMENTED, OBSERVED)
