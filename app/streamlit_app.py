@@ -1187,15 +1187,9 @@ def draw_test(pf: workspace.PatientFile, i: int, t: workspace.Test):
 
         slides.render(pf, version=i, test=t)
     elif t.workbench == "imaging":  # the image viewer, or the reports' words when no images
-        from workbenches import radiology
+        from workbenches import radiology  # an imported report: its text and what the rule read
 
-        if "read" in t.details:  # an imported report: its text and what the intake rule read
-            from workbenches import imports
-
-            st.markdown(f"#### {esc(t.details['title'])}, month {t.month} · imported report")
-            st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.details['text'])}")
-            imports.read_details(t.details)
-        radiology.render(pf, version=i)
+        radiology.render(pf, version=i, test=t)
     elif t.workbench in ("omics", "record"):
         omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo,
                      test=t)

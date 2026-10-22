@@ -49,6 +49,10 @@ def text(at) -> str:
      ["nothing below is this patient's tissue", "scanned H&E section", "Nothing to export"]),
     ("evolution", "from workbenches import evolution\nevolution.render(CASE)",
      ["One timepoint, no dated events", "No observed driver in this file"]),
+    ("radiology", "from workbenches import radiology\nradiology.render(CASE)",
+     ["No imaging in this file", "Import tests", "Nothing to export"]),
+    ("radiology", "from workbenches import radiology\nradiology.render(SYN, version=0)",
+     ["No imaging read in the record up to this version"]),
     ("imports", "from workbenches import imports\nimports.render_view(CASE)",
      ["Nothing imported into this file in this session", "Nothing to export"]),
     ("intake", "from workbenches import imports\n"

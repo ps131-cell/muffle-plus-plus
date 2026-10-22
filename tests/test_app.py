@@ -54,6 +54,7 @@ def test_patient_files_render_in_every_view(app):
     assert at.segmented_control(key="view").value == "Tests"
     assert "Imaging report, month 12" in shown(at) and "Radiology workbench" in shown(at)
     assert "no measurements recorded" in shown(at) and not at.exception
+    assert_skeleton(at, "radiology")
     at.segmented_control(key="view").set_value("Report").run()
     for _ in range(5):
         at.button(key=f"next-{queue}").click().run()
@@ -210,9 +211,12 @@ def test_patient_files_render_in_every_view(app):
     if shipped:  # the imaging test opens the image viewer on the shipped study
         at.session_state[f"picked-{case}"] = ("Imaging", None, shipped[0]["name"])
         at.run()
-        assert "Radiology workbench" in shown(at) and "Spot panel · C1" in shown(at)
+        assert "Radiology workbench" in shown(at) and "**C1** ·" in shown(at)
         assert "not validated on breast mri here" in shown(at).lower() and not at.exception
-        assert "Three planes" in shown(at) and "Since the last study" in shown(at)
+        labels = [e.label for e in at.expander]
+        assert any(x.startswith("Three planes") for x in labels)
+        assert any(x.startswith("Since the last study") for x in labels)
+        assert_skeleton(at, "radiology")
     for view in VIEWS:
         at.segmented_control(key="view").set_value(view).run()
         assert not at.exception, view

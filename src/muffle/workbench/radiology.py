@@ -1297,5 +1297,6 @@ def queue(pf, version: int | None = None) -> list[dict]:
                 "weak", 1, _opens(t), source=t.name,
                 key=finding_key(pf, "imaging", s["barcode"], s["study"]["date"],
                                 q["candidate"]),
+                focus={"study": s["barcode"], "candidate": q["candidate"]},
                 threshold="the seed rule's cutoffs (placeholders)"))
     return out

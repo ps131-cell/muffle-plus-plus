@@ -255,6 +255,8 @@ def land(pf, i: int, focus: dict) -> None:
         ss[f"docs-jump-{pf.id}"] = (focus["doc"], tuple(focus["sentence"]))
     if "site" in focus:  # radiology: the lesion table's Spot panel on the site
         ss[f"rad-site-{pf.id}"] = focus["site"]
+    if "candidate" in focus:  # radiology: the study's candidate in the viewer and Spot panel
+        ss[f"rad-{pf.id}-{focus['study']}-cand"] = focus["candidate"]
     if "evolution" in focus:  # evolution: the watched event in its Spot panel
         ss[f"evolution-spot-{pf.id}"] = focus["evolution"]
     if "ctdna" in focus:  # ctDNA: the sample and variant in its Spot panel

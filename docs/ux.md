@@ -50,8 +50,11 @@ Where each page's former sections went:
 | Expression, methylation and protein | Subtype and pathway scores | receptor consistency, protein pathways (RPPA), promoter methylation, the immune and stromal picture, the data layers, the what-if | one finding |
 | Evolution | The record over time | what to watch next (a row opens the Spot panel), the rows not raised and why, clonal order, trials | one hypothesis, with the evidence for and against and its CIViC items |
 | Import tests | Imported in this session | rejected on intake, what each adapter accepts | none |
+| Radiology, an image study (MRI) | Viewer (series, candidate, slice, window and level, overlays) | three planes, the cine through the phases (loaded when opened), candidates, since the last study (or the change view on a public example pair, loaded when opened) | one candidate: size, volume, kinetics, how its box was chosen, the model |
+| Radiology, a mammogram | Mammograms (the four views) | left and right, CC and MLO linked | none |
+| Radiology, reports only | Imaging reports (each read in its words; an imported report with what its import read and set aside) | lesion table, change between reads, the change view on a public example pair (loaded when opened), against the tumor marker | one named site |
 
-The radiology and documents pages join the skeleton after their second rounds land.
+The radiology page joined on 2026-10-22, after its second round; the clinical documents page joins after its own.
 
 ## 2. Navigation
 
@@ -193,12 +196,13 @@ What changed:
 - **Lazy where it pays.** Content that is hidden runs only while it is open: the "?" panel
   (half of every rerun when it was first built), the genomics picture's tabs other than
   Variants, the lab trends' panels other than the one open, the second slide viewer of "The
-  sections side by side". The comparison of sections reads the other sections' stored numbers
-  instead of analysing them again. Each page's look-here items are computed once per browser
-  session, file state and version. The TCGA report's two charts are built once per case as
-  Vega-Lite specs (Altair took about half a second to encode the cohort histogram on every
-  rerun). Per-case folders were already read on demand and cached per process (a scored
-  section, the omics scores, the genome numbers, the pathology reports).
+  sections side by side", the radiology cine and the public example pair. The comparison of
+  sections reads the other sections' stored numbers instead of analysing them again. Each
+  page's look-here items are computed once per browser session, file state and version. The
+  TCGA report's two charts are built once per case as Vega-Lite specs (Altair took about half
+  a second to encode the cohort histogram on every rerun). Per-case folders were already read
+  on demand and cached per process (a scored section, the omics scores, the genome numbers,
+  the pathology reports).
 - **How it was measured**: `scripts/time_views.py`. AppTest alone re-parses the 1,300-line
   shell on every run (Streamlit's "magic" pass, 0.4–0.8 s under load), which a server does once
   per process; the script shares one script cache across runs, as a server does.
