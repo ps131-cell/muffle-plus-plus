@@ -1,41 +1,63 @@
-# MuFFLe++ — toward a cancer intelligence platform (breast cancer)
+# MuFFLe++: a breast cancer intelligence platform, milestone 1
 
-Cancer changes over time, and the evidence about one patient is scattered across tests, visits
-and hospitals that can't pool their data. Our long-term goal ([`docs/VISION.md`](docs/VISION.md))
-is a **multimodal, longitudinal cancer intelligence platform**: it connects specialized models,
-public datasets and each patient's record over time into one evidence-linked picture of the
-disease, keeps what was **observed** apart from what a model **inferred** and what is only a
-**hypothesis**, and learns across institutions without centralizing patient data. It is research
-support for clinicians, not a diagnosis or a prescription.
+A breast cancer changes over time, and the evidence about one patient is scattered across
+slides, scans, reports, sequencing, blood tests and hospitals that can't pool their data.
+MuFFLe++ is a clinician application that keeps that evidence in one patient file: it opens on
+an overview of what every test says, each test opens a workbench built for its own data, and the
+report keeps a version for every new result. Every finding is labeled **observed** (measured or
+recorded), **model inference** (a prediction, with its uncertainty) or **hypothesis**
+(literature and evidence leads); every module says whether it is implemented, experimentally
+validated or planned; every threshold names its source, and an unvalidated one is marked
+**placeholder**. It is research and decision support for clinicians, not a diagnosis or a
+prescription.
 
-**Live demo:** https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; it runs on a bundle of 40 held-out TCGA-BRCA cases and writes live Nemotron notes, a few per session).
+It is milestone 1 of a multimodal, longitudinal cancer intelligence platform
+([`docs/VISION.md`](docs/VISION.md)), built for the Nebius × NVIDIA Global AI Hackathon: an
+**NVIDIA Nemotron** case agent on **Nebius Token Factory** writes each tumor-board note, and the
+risk model is trained across simulated hospitals with **NVIDIA FLARE**.
 
-**MuFFLe++ is milestone 1** of that platform, for breast cancer:
-- **Evidence-linked patient profile.** A multi-omic survival model (copy number, RNA,
-  methylation, protein, clinical) gives a risk estimate that copes with missing tests; an
-  **NVIDIA Nemotron** case agent on **Nebius Token Factory** calls our models as tools and writes
-  a tumor-board note with literature from **Tavily**. Every statement is labeled observed /
-  inferred / hypothesis, and observed driver mutations come with **CIViC** treatment evidence
-  for clinician review.
-- **Patient timeline.** Risk is re-estimated as new results arrive (treatments,
-  tumor markers, sequencing), measured on real MSK-CHORD timelines (aggregate results only) and
-  shown in the demo on a clearly labeled synthetic patient.
-- **Learning across hospitals.** One survival model is trained **across simulated hospitals
-  without moving any patient data**: each site trains locally and only model weights are
-  aggregated with **NVIDIA FLARE** (FedAvg).
+**Live app:** https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud, no
+login). It holds 40 held-out TCGA-BRCA patients, each assigned to one of three **simulated**
+hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
+
+## What is in the app
+- **Patients:** search by patient, gene, subtype, stage or workbench; filters by subtype, gene,
+  stage, open alerts and what the file holds.
+- **Patient file:** finding cards from every workbench with **Why?** and **Open**; one attention
+  queue (alerts, tests that disagree, every workbench's look-here items) with keyboard triage and
+  review marks; risk with its model and uncertainty; mutations with CIViC evidence for clinician
+  review; a one-page export.
+- **Case note:** Nemotron 3 Super plans and calls our tools, Nemotron 3 Ultra writes, a
+  plain-code grounding check verifies every number, gene and link (TCGA files).
+- **Timeline:** every report version of SYNTHETIC-001, any two compared.
+- **Import tests:** lab CSVs, reports (text, PDF), VCF / MAF, imaging reports, slide images,
+  DICOM headers, notes; public or synthetic data only.
+- **Methods and validation:** a card per model and rule, federated training, data sources,
+  every known failure and every placeholder.
+
+| Workbench | What it does | Status |
+|---|---|---|
+| Pathology ([`docs/pathology.md`](docs/pathology.md)) | the patient's own section in a pan-and-zoom viewer (5 cases, 8 sections); tissue map from a BCSS-trained head on QuiltNet-B-32; invasive front and direction of invasion; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (87.7%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
+| Expression, methylation, protein ([`docs/omics.md`](docs/omics.md)) | PAM50, Hallmark and RPPA pathway scores, promoter methylation, immune and stromal picture, receptor consistency | PAM50 experimentally validated against TCGA's calls (94.7%); the rest implemented, methylation cutoffs placeholders |
+| Genomics ([`docs/genomics.md`](docs/genomics.md)) | variants with detection, interpretation and predicted effect apart (VEP, ClinVar, AlphaMissense); CIViC ladder; copy-number landscape with ABSOLUTE purity and ploidy; burden; pathway map; variants over time | implemented; copy-number cutoffs placeholders |
+| Radiology ([`docs/radiology.md`](docs/radiology.md)) | report reading; DCE-MRI viewers in three planes with MedSAM contours and kinetics (5 TCIA cases); mammoscreen and MONAI density; change over time on a labeled public example pair | implemented; not validated on breast imaging here; kinetic cutoffs placeholders |
+| Clinical documents ([`docs/documents.md`](docs/documents.md)) | breast pathology facts by rules, each at its source sentence; conflicts side by side | implemented; measured on 481 held-out TCGA reports (precision 81–98% on 9 of 10 fields) |
+| Labs ([`docs/labs.md`](docs/labs.md)) | any analyte with cited reference intervals, CTCAE grades, kinetics, EGTM rise confirmation | implemented, rules only, not validated on a cohort |
+| ctDNA monitor ([`docs/ctdna.md`](docs/ctdna.md)) | allele fractions over time, the ESR1 rule, clonal hematopoiesis flag | implemented on a **synthetic** series only |
+| Evolution ([`docs/evolution.md`](docs/evolution.md)) | what to watch next from a cited table (18 rows, 37 papers), clonal order as alternatives, ClinicalTrials.gov matching | implemented; hypotheses for clinician review, not validated predictions |
 
 ```
  Hospital A ─┐  encoders: genomic · RNA · methylation · protein · clinical
  Hospital B ─┼▶ masked late fusion ─▶ DeepSurv (Cox) head ─▶ risk
  Hospital C ─┘  weights only ─▶ NVFlare server (FedAvg) ─▶ global model
                                               │
-                    patient risk + drivers ───┴─▶ Nemotron (Token Factory) ─▶ report
+     risk + drivers + CIViC + literature ─────┴─▶ Nemotron (Token Factory) ─▶ case note
 ```
 
 Sites missing a data type still participate: that encoder is masked out (MuFFLe-style), and the
 model is trained with modality dropout so it stays calibrated when layers are missing.
 
-## Quick start (macOS or Linux, Python 3.10–3.13)
+## Quick start (macOS or Linux, Python 3.10–3.13; on Windows, use WSL)
 
 ```bash
 git clone https://github.com/ps131-cell/muffle-plus-plus.git && cd muffle-plus-plus
@@ -50,6 +72,7 @@ make fl-tcga    # the demo model: clinical-anchored residual FedAvg -> outputs/t
 cp .env.example .env   # add NEBIUS_API_KEY (Token Factory) and optionally TAVILY_API_KEY
 make demo       # Streamlit app: risk groups + Nemotron-written patient report (synthetic)
 make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene names
+.venv/bin/streamlit run app/streamlit_app.py   # no local data: loads the release demo-bundle-v2, as hosted
 ```
 
 ## Hackathon: how NVIDIA and Nebius are used
@@ -88,6 +111,8 @@ make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene 
   tool trace. Without `NEBIUS_API_KEY` the same tools run in a fixed order and a template writes
   the note. Try one TCGA case from the terminal (after `make tcga` and `make fl-tcga`):
   `make agent-tcga PATIENT=0`.
+  In the app, every note names its models and Token Factory, and the Methods page's case-note
+  card shows how a note is made and checked.
 - **Nebius AI Cloud** — not used in the submission: Nebius usage is Token Factory only, and FL
   runs in the NVFlare simulator. `docs/NEBIUS.md` keeps untested notes for a Serverless Job.
 - **Tavily** — the agent's literature and clinical-trial search on the genes behind a patient's
@@ -97,7 +122,10 @@ make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene 
 
 Requirements checklist and day-by-day plan: [`docs/HACKATHON.md`](docs/HACKATHON.md).
 
-## Results so far (TCGA-BRCA, overall survival)
+## Results (TCGA-BRCA, overall survival)
+Two different numbers are quoted (decisions 2026-10-21). The **demo model** in the app (release
+`demo-bundle-v2`) scores a held-out **C-index of 0.728** on its 40 held-out cases; a local
+rebuild from re-downloaded data reads 0.730. The table below is the protocol result:
 1,064 patients, 148 deaths, split into 3 simulated hospitals made of whole tissue source sites.
 Leave one site out: train on two hospitals, test on every patient of the third. Pooled
 site-stratified C-index, mean ± sd over 5 seeds (`make experiment-tcga`):
@@ -128,40 +156,52 @@ fell short. On this endpoint the omics don't (yet) add signal beyond clinical da
 | `configs/` | `default.yaml` (synthetic), `tcga_brca.yaml` (real data; inherits the default) |
 | `src/muffle/fl/client.py` | NVFlare Client API script that runs at each site |
 | `src/muffle/explain.py`, `report/` | per-patient drivers + Nemotron case agent and its tools |
+| `src/muffle/workspace.py`, `overview.py`, `crosstest.py`, `timeline.py` | patient files and report versions, the overview and attention queue, cross-test rules, the synthetic patient |
+| `src/muffle/workbench/` | each workbench's logic (labs, ctDNA, genomics, slides, omics, documents, radiology) |
 | `jobs/fedavg_job.py` | FedAvgRecipe job, run in the NVFlare simulator |
-| `app/streamlit_app.py` | demo UI |
-| `scripts/` | data prep: synthetic cohort, open-tier TCGA-BRCA (`prepare_tcga.py`) |
-| `docs/` | plan PDFs, hackathon checklist, decisions log, Nebius notes |
+| `app/streamlit_app.py`, `app/methods_page.py` | the clinician app and its Methods and validation page |
+| `app/workbenches/` | each workbench's page and its precomputed results |
+| `scripts/` | data prep and offline pipelines: TCGA-BRCA (`prepare_tcga.py`), slides, radiology, omics and genomics scores, documents, trials |
+| `docs/` | vision, workspace spec, a method note per workbench, registry, decisions log, hackathon checklist |
 | `data/`, `outputs/`, `workspaces/` | **git-ignored** — never commit patient data or checkpoints |
 
-## Data and licenses
-| Source | Used for | Terms |
-|---|---|---|
-| TCGA-BRCA via the GDC / UCSC Xena GDC hub | multi-omic cohort, overall survival | open tier |
-| GDC masked somatic mutation files | observed driver mutations in the case note (not a model input) | open access |
-| [CIViC](https://civicdb.org) | treatment evidence for observed variants, for clinician review | CC0 |
-| [MSK-CHORD](https://www.cbioportal.org/study/summary?id=msk_chord_2024) (Jee et al., Nature 2024) | real patient timelines: 12-month risk re-predicted as the record grows; scores the demo's synthetic patient | CC BY-NC-ND 4.0: used locally; only code, aggregate results and the synthetic patient's scores are published |
+## Data, models and licenses
+Every dataset, model and service, with its license, access tier and what leaves the machine, is
+in [`docs/registry.md`](docs/registry.md). In short:
+- **Data:** TCGA-BRCA open access (GDC / UCSC Xena: omics, masked somatic mutations, copy
+  number, diagnostic slides), BCSS (CC0), TCGA-Reports (CC BY 4.0), TCIA breast imaging (CC BY
+  3.0), CIViC (CC0), ClinicalTrials.gov, Ensembl VEP and ClinVar, AlphaMissense (CC BY 4.0).
+- **Models in the app** (open licenses, precomputed offline; the hosted app runs no model):
+  QuiltNet-B-32 (MIT), StarDist (BSD-3-Clause), WSInfer TIL (CC BY 4.0), MedSAM, mammoscreen and
+  MONAI breast density (Apache-2.0), and NVIDIA Nemotron 3 Super and Ultra on Token Factory.
+- **Local only:** MSK-CHORD (Jee et al., *Nature* 2024; CC BY-NC-ND 4.0) and the timeline models
+  trained on it, and encoders with non-commercial or no-derivatives terms (UNI2-h, CONCH,
+  SPIDER-breast): used on our machine; only code and aggregate results are published, never a
+  patient, a model or an output, and nothing from them goes to an LLM.
 
-No patient-level data is stored in this repository. Simulated hospitals and the demo's synthetic
-timeline patient are labeled as simulated. Full list with access tiers: `docs/registry.md`.
+No patient-level data is stored in this repository. Simulated hospitals, the synthetic patient
+and its synthetic ctDNA series are labeled as such everywhere.
 
-## Roadmap
-Milestone 1 (hackathon, Oct 30 2026):
-- [x] Repo, CI, TCGA-BRCA multi-omic cohort, survival model with missing-layer masking
-- [x] Federated training across simulated hospitals, baselines, leave-one-site-out, calibration
-- [x] Nemotron case agent with tools, Tavily literature, spending cap
-- [x] Observed / inferred / hypothesis labels in the case note
-- [x] Observed driver mutations + CIViC evidence
-- [x] Patient timeline: risk re-estimated as results arrive (MSK-CHORD, aggregate results)
-- [x] Synthetic timeline patient in the demo
+## Status and roadmap
+Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 28):
+- [x] TCGA-BRCA multi-omic survival model with missing-layer masks; federated training with
+      NVIDIA FLARE across simulated hospitals; baselines, leave-one-hospital-out, calibration
+- [x] Nemotron case agent on Token Factory with tools, CIViC evidence, Tavily literature, a
+      grounding check and a spending cap
+- [x] Patient timeline: risk re-estimated as results arrive (MSK-CHORD, aggregate results), shown
+      on a synthetic patient
+- [x] Clinician app: patient list, overview and attention queue, eight workbenches, import,
+      timeline, Methods and validation; hosted on Streamlit Community Cloud
 - [x] Registry of datasets, models and services (`docs/registry.md`)
-- [x] Hosted demo (Streamlit Community Cloud)
-- [ ] Video; submit by Oct 30, 10 am PT
+- [ ] In progress on Oct 22: navigation and clarity, documents round 2, timeline round 2,
+      clinician feedback, encoder comparison
+- [ ] Video; Devpost text (`docs/submission.md`); submit
 
-Beyond the hackathon (see [`docs/VISION.md`](docs/VISION.md)): pathology and radiology
-encoders, inferred mutation status with calibrated uncertainty, evolutionary hypotheses from
-repeated sequencing, resistance and treatment-strategy research, real contributing institutions
-with privacy techniques.
+Beyond the hackathon ([`docs/VISION.md`](docs/VISION.md)): review by pathologists and
+radiologists and calibrated cutoffs in place of placeholders; stronger encoders on a GPU;
+inferred mutation status with calibrated uncertainty; evolutionary hypotheses from repeated
+sequencing and real serial ctDNA; real contributing institutions, with consent, ethics approval
+and data agreements first.
 
 ## License
 MIT — see [LICENSE](LICENSE).
