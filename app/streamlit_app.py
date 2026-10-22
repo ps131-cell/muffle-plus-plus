@@ -1198,7 +1198,8 @@ def draw_test(pf: workspace.PatientFile, i: int, t: workspace.Test):
 
         saved = demo.notes.get(CASES[pf.id].index) if pf.id in CASES else None
         documents.render(pf, version=i, focus=t.details.get("document"),
-                         note=CaseReport.from_dict(saved["report"]).text if saved else None)
+                         note=CaseReport.from_dict(saved["report"]).text if saved else None,
+                         test=t)
     elif t.workbench == "intake":  # an imported image or scan, queued for the local pipeline
         from workbenches import imports
 

@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from muffle import crosstest
+from tests.skeleton import assert_skeleton
 from muffle.imports import (
     QUEUED,
     IntakeError,
@@ -586,6 +587,7 @@ def test_a_tcga_file_shows_the_model_layer():
     assert not at.exception, at.exception
     text = " ".join(e.value for e in [*at.markdown, *at.caption])
     assert "The named-entity model read 1 of 1 documents" in text
+    assert_skeleton(at, "documents")
     assert "underlined in violet" in text and "Spot panel" in text
     index = json.loads((DOCS / "TCGA-AO-A03R.json").read_text())["case_index"]
     at.text_input(key=f"docs-q-Case {index}").set_value("HER2").run()

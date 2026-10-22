@@ -22,7 +22,8 @@ Newest at the top. One entry per decision: date, what, why.
   second opinion of weak trust (docs/documents.md, round 2). The page reader reads clean
   scans well and fails on dense fax-quality scans (it loops; the pipeline flags that), so a
   scanned report's text needs a person's check before import. Imported documents get the
-  rules at once and the model only through the local pipeline.
+  rules at once and the model only through the local pipeline. The documents page now follows
+  the shared page skeleton (`workbenches._page`), as the 2026-10-22 skeleton entry planned.
 ## 2026-10-22 — The address reopens the screen; a failing part says so in words; hidden content loads when opened
 - **What:** breadcrumbs, a sticky patient header and "back to the queue" after an "Open"; the
   address carries ?patient, ?view, ?test, ?pointer and ?version, written after each run and
