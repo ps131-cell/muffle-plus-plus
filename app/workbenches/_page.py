@@ -24,12 +24,19 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 
 import streamlit as st
 
-from muffle.workbench.grammar import (
+APP = Path(__file__).resolve().parents[1]
+if str(APP) not in sys.path:  # a page run on its own still finds the app's modules
+    sys.path.insert(0, str(APP))
+
+from guide import chip_row  # noqa: E402
+from muffle.workbench.grammar import (  # noqa: E402
     DETAILS,
     HEADINGS,
     LOOK_HERE,
@@ -40,7 +47,7 @@ from muffle.workbench.grammar import (
     esc,
     title,
 )
-from muffle.workspace import TRUST
+from muffle.workspace import TRUST  # noqa: E402
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
 EVIDENCE = ("observed", "model inference", "hypothesis")
@@ -100,12 +107,13 @@ class Page:
 
     # --- the parts -------------------------------------------------------------------------
     def title(self, *labels: str, colors: dict | None = None) -> None:
-        """The one-line title and the status chips under it."""
+        """The one-line title and the status chips under it; a click on a chip says what it
+        means (``guide.chip_row``)."""
         text = title(self.workbench, self.pf.id, self.test, self.as_of)
         self._enter("title", text)
         st.subheader(text)
         self._enter("chips", " ".join(labels))
-        chips(*labels, colors=colors)
+        chip_row(*labels, colors=colors, key=f"chips-{self.workbench}")
 
     @contextmanager
     def overview(self):
