@@ -95,6 +95,31 @@ synthetic patient's lab workbench as of month 12 with the CA 15-3 rise in the Sp
 **Recently opened files** (the last five of the browser session) are buttons above the patient
 list.
 
+## 3. The guide inside the app
+
+**"?" on every screen** (`app/guide.py`), at the right end of the breadcrumb line, opens "How to
+read this", a short panel in three tabs:
+- **Labels**: observed, model inference, hypothesis, trust, placeholder, implemented,
+  experimentally validated, planned, synthetic and SOS, one sentence each
+  (`grammar.GLOSSARY`);
+- **This screen**: what the screen's workbench shows and what it cannot see
+  (`grammar.WORKBENCH_GUIDE`: the patient list, the report, each workbench, the Evolution view,
+  imports, the timeline, Methods and validation), and the shared page layout;
+- **Keys**: the attention queue's shortcuts, j next, k previous, p pin, m mark reviewed
+  (Streamlit keeps r for its own rerun), u the unsure list, o open; Tab moves through the
+  queue's buttons in that order.
+
+**A first-visit walk-through** on the Patients page: four short steps (your patients; a file
+opens on its latest report; every test has its workbench; read the labels), with Back, Next
+and "Skip the tour"; finished or skipped, it stays away for the browser session.
+
+**Chips explain themselves.** The status chips at the top of every workbench page and the
+label row under the report's title are buttons: clicking "model inference" opens its one
+sentence ("A model's or a rule's estimate from the data, with its uncertainty; not a
+measurement."). A chip that names a label inherits that label's sentence ("placeholder
+threshold", "subtype call: experimentally validated"). Chips inside sentences stay plain
+badges; their meanings are one click away in the guide.
+
 ## How it is tested
 
 `tests/skeleton.py` reads the parts a page recorded (`st.session_state["page_parts"]`) and the
@@ -109,3 +134,6 @@ in a file, in Tests and on the Methods page; an "Open" from the attention queue 
 workbench on L4 as of month 12 and the Evolution view on its row; an address the file can't
 answer; a look-here "Spot" writing the pointer and a file switch dropping it; the recently
 opened files.
+`tests/test_guide.py` walks the walk-through (next, back, skip, gone for the session), opens the
+"?" on the list, the report, a workbench and the Methods page (each with its own "This screen"
+text), clicks the report's and a workbench's chips, and checks every label's sentence.

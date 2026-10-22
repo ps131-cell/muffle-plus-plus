@@ -64,6 +64,7 @@ from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
 from workbenches._page import land  # noqa: E402
 
+import guide  # noqa: E402
 import navigation as nav  # noqa: E402
 
 from muffle import crosstest, evolution, overview, workspace  # noqa: E402
@@ -267,13 +268,18 @@ def patients_page():
                  "searches everything.")
         tail = st.container(horizontal=True, gap="xsmall", vertical_alignment="center",
                             width="content")
+        st.space("stretch")
+        help_slot = st.empty()  # the guide's "?", for the screen drawn below
     if pid is None:
         first.markdown("**Patients**", width="content")
+        with help_slot.container():
+            guide.help_icon("patients")
         st.title("MuFFLe++")
         st.markdown("An evidence-linked picture of each patient's breast cancer, updated as "
                     "the record grows. Every finding is marked **observed**, **model "
                     "inference** or **hypothesis**.")
         st.caption(DISCLAIMER)
+        guide.walkthrough()
         recent = [p for p in st.session_state.get("recent", []) if p in FILES]
         if recent:
             with st.container(horizontal=True, gap="small", vertical_alignment="center"):
@@ -286,7 +292,9 @@ def patients_page():
     else:
         first.button("Patients", type="tertiary", key="crumb-patients", on_click=to_list,
                      help="Back to the patient list")
-        patient_file(FILES[pid], header, tail)
+        screen = patient_file(FILES[pid], header, tail)
+        with help_slot.container():
+            guide.help_icon(screen)
 
 
 def open_selected():
@@ -366,6 +374,9 @@ def patient_list():
 
 # --- Patients: one patient file ----------------------------------------------------------------
 VIEWS = ("Report", "Tests", "Timeline", "Evolution", "Import tests")
+SCREENS = {"labs": "labs", "mutations": "genomics", "slides": "slides", "omics": "omics",
+           "record": "omics", "documents": "documents", "imaging": "radiology",
+           "ctdna": "ctdna", "intake": "imports"}  # a test's workbench -> its guide entry
 
 
 def patient_file(pf: workspace.PatientFile, header, tail):
@@ -418,6 +429,9 @@ def patient_file(pf: workspace.PatientFile, header, tail):
     p = ss.get("_pointer") or {}
     here = (p.get("pid"), p.get("view"), p.get("test")) == (pf.id, view, test)
     nav.sync(pf.id, test, p.get("pointer") if here else None, None if i == last else i)
+    return SCREENS.get(shown.workbench, "report") if shown is not None else {
+        "Report": "report", "Timeline": "timeline", "Evolution": "evolution",
+        "Import tests": "imports"}.get(view, "report")
 
 
 def apply_link(pf: workspace.PatientFile, link: dict, last: int) -> tuple | None:
@@ -482,6 +496,8 @@ def report_view(pf: workspace.PatientFile, i: int):
     v, case = pf.versions[i], CASES.get(pf.id)
     st.subheader(f"Report · {v.label}" + ("" if i == len(pf.versions) - 1 else
                                          " (as it was then)"))
+    guide.chip_row(OBSERVED, INFERENCE, HYPOTHESIS, "trust", "placeholder", "SOS",
+                   key="report-labels")
     arrived = v.event + ("" if v.month is None else f" (month {v.month})")
     st.markdown(f"**Summary** · {pf.diagnosis}. Latest in the record: {arrived}. "
                 f"{tags(OBSERVED)}  \n{v.summary} {tags(INFERENCE) if v.risk else ''}")
@@ -1149,6 +1165,8 @@ def methods():
         st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
         st.markdown(nav.SEP, width="content")
         st.markdown("**Methods and validation**", width="content")
+        st.space("stretch")
+        guide.help_icon("methods")
     methods_page.render(demo, TL, results())
 
 
