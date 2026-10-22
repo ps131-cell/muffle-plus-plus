@@ -2,6 +2,24 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-22 — The Timeline: lanes, time travel from any point, and what each version brought
+- **What:** the Timeline view becomes the file's longitudinal view (`docs/timeline.md`): an
+  event chart with one lane per kind on a month axis, report versions on top; a click on any
+  point opens the file as of the version that point created; a "new in this version" card; the
+  risk chart with toggled overlays; the version diff with "jump to this version"; a Timeline
+  section in the report export. Data in the pure `muffle.timeline_view`, the page in
+  `app/timeline_page.py`; the shell keeps a two-line hook.
+- **Why:** a clinician reads a cancer as a story over time; the version slider alone showed
+  where you were, not what happened between versions or what each test changed.
+- **Rules decided:** (1) time travel is as-of for everything except the event chart, which keeps
+  the whole record visible (later entries faded) so any point can be clicked forward or back;
+  (2) the record holds treatment start dates only, so a drug's bar runs to the next treatment
+  entry that does not name it, or stays open: a display rule, said on the page; (3) imports get
+  their own lane, signed, so the record and this session's additions never blur; (4) the PNG
+  export is Streamlit's own chart toolbar button: no rendering dependency for the hosted app.
+- **Consequence:** time travel sets the report version slider's session key, the same key a
+  `?version=` deep link sets, so the address follows the version being viewed.
+
 ## 2026-10-22 — One page skeleton for every workbench, enforced by a shared helper
 - **What:** every workbench page draws the same parts in the same order through
   `app/workbenches/_page.py`: the title (workbench · patient · test), the status chips, the

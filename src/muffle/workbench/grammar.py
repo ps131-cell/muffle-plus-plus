@@ -130,9 +130,12 @@ WORKBENCH_GUIDE = {  # the guide's "This screen": what it shows, and what it can
                 "file, each checked on intake and added as a new report version",
                 "anything beyond this browser session; images and scans are not analyzed "
                 "here"),
-    "timeline": ("every report version on a time axis, the risk at each, and any two versions "
-                 "compared: what changed and why", "change between versions of a file that "
-                 "holds one sample (the TCGA cases)"),
+    "timeline": ("the record in lanes over time (versions, treatments, imaging, labs, ctDNA, "
+                 "sequencing, documents, imports) with SOS alerts on them; a click opens the file "
+                 "as it was at that point; what each version brought; the risk with the record "
+                 "beside it; any two versions compared",
+                 "change in a file that holds one sample (the TCGA cases) until imports add "
+                 "versions; treatment stop dates (the record holds starts only)"),
     "methods": ("a card per model and rule with its numbers and known failures, the data "
                 "sources and licenses, every placeholder", "a patient's findings: open a "
                 "file"),

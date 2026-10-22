@@ -90,6 +90,19 @@ def test_patient_files_render_in_every_view(app):
     assert_skeleton(at, "slides")
     at.segmented_control(key="view").set_value("Timeline").run()  # compare month 11 with 12
     assert "~ Metastatic sites" in shown(at) and "12-month risk" in shown(at)
+    # the timeline: what this version brought, and time travel from it and back
+    assert "You are viewing **month 12**" in shown(at) and not at.exception
+    assert "New in this version** · month 12 · Imaging" in shown(at)
+    assert "SOS alerts raised** · 3" in shown(at) and "Workbench findings that changed" in shown(at)
+    at.button(key="jump-from-SYNTHETIC-001-11").click().run()  # the compare's From side
+    assert at.select_slider(key="version-SYNTHETIC-001").value == 10 and not at.exception
+    assert "New in this version** · month 11 · Lab" in shown(at)
+    at.button(key="new-SYNTHETIC-001-10-report").click().run()  # its report, as it was then
+    assert at.segmented_control(key="view").value == "Report" and "(as it was then)" in shown(at)
+    at.button(key="latest-SYNTHETIC-001").click().run()  # the banner's way back
+    assert at.select_slider(key="version-SYNTHETIC-001").value == 15
+    assert "You are viewing" not in shown(at) and not at.exception
+    at.select_slider(key="version-SYNTHETIC-001").set_value(11).run()
     at.segmented_control(key="view").set_value("Report").run()
     button(at, "Open the Evolution view").click().run()  # the report's hook, as of month 12
     assert at.segmented_control(key="view").value == "Evolution"
@@ -146,7 +159,12 @@ def test_patient_files_render_in_every_view(app):
         shown(at)
     assert_skeleton(at, "imports")
     at.segmented_control(key="view").set_value("Timeline").run()
-    assert not at.exception
+    assert not at.exception  # the import is a node, and its card names who, the test and alert
+    assert "New in this version** · month 27 · imported by AB at 14:03" in shown(at)
+    assert "imported by AB at 14:03; kept for this browser session only" in shown(at)
+    assert "CA 15-3 rose from 31 to 45" in shown(at)
+    spec = " ".join(c.proto.spec for c in at.get("vega_lite_chart"))
+    assert "Imported tests" in spec and '"node"' in spec
     # imported sequencing joins the genomics workbench; an imported imaging report raises its
     # alerts and opens on its text and what the rule read, above the radiology report page
     seq = sequencing_test([{"variant": "ESR1 Y537S", "allele_fraction": "not read"}],
@@ -211,6 +229,7 @@ def test_patient_files_render_in_every_view(app):
     assert "**:red[SOS]** · 1 open" in shown(at)
     at.segmented_control(key="view").set_value("Timeline").run()
     assert "+ Lab: CA 15-3 (month 1)" in shown(at) and not at.exception
+    assert "One sample; the timeline grows with imports" in shown(at)
 
     # Methods and validation: a card per model and rule, one list of failures and placeholders
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}

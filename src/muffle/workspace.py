@@ -528,9 +528,10 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
                     summaries: dict | None = None, queue: list[dict] | None = None) -> str:
     """Report version ``i`` as one Markdown page: summary, alerts, every workbench's finding
     cards, the attention queue, the three kinds of finding, missing data, tests that disagree,
-    what would reduce uncertainty, every placeholder, model and sources, and the reviewers' marks
-    by finding kind. ``evidence`` maps "GENE CHANGE" to its CIViC items (None: the table couldn't
-    load); ``reviews`` maps ``finding_key`` names to {"what", "mark", "by", "at"}; ``disagree``
+    what would reduce uncertainty, every placeholder, model and sources, what each version up to
+    ``i`` brought (``muffle.timeline_view.markdown``), and the reviewers' marks by finding kind.
+    ``evidence`` maps "GENE CHANGE" to its CIViC items (None: the table couldn't load);
+    ``reviews`` maps ``finding_key`` names to {"what", "mark", "by", "at"}; ``disagree``
     and ``reducers`` are ``muffle.crosstest``'s lists; ``summaries`` and ``queue`` are
     ``muffle.overview``'s. Variant names keep their stars and underscores (``esc``)."""
     from muffle.workbench.grammar import esc  # here, not at the top: grammar imports this module
@@ -619,6 +620,9 @@ def report_markdown(pf: PatientFile, i: int, evidence: dict | None = None,
     out += ["", "## Model and sources",
             f"- {pf.model['name']} ({pf.model['status']}); endpoint: {pf.model['endpoint']}"]
     out += [f"- {s}" for s in sources]
+    from muffle.timeline_view import markdown  # here: it imports this module
+
+    out += markdown(pf, i)
     imports = [w for w in pf.versions[: i + 1] if w.imported]
     if imports:
         out += ["", "## Imported in this session (kept for this browser session only)"]

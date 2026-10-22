@@ -55,12 +55,13 @@ from muffle.hotreload import purge_modules, source_digest  # noqa: E402
 # from what this process last ran, drop those modules and the caches their old code built.
 CODE_DIGEST = source_digest([APP, APP.parent / "src" / "muffle"])
 if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
-    purge_modules(("charts", "methods_page", "muffle", "workbenches"))
+    purge_modules(("charts", "methods_page", "muffle", "timeline_page", "workbenches"))
     st.cache_resource.clear()
     st.cache_data.clear()
     sys._muffle_code_digest = CODE_DIGEST
 
 import charts  # noqa: E402
+import timeline_page  # noqa: E402
 from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
 from workbenches._page import land, strict  # noqa: E402
@@ -90,7 +91,6 @@ from muffle.report.nemotron import (  # noqa: E402
     run_case_agent,
     tavily_search,
 )
-from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench.documents import case_documents  # noqa: E402
 from muffle.workbench.grammar import WORKBENCHES as WORKBENCH_NAMES  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
@@ -485,6 +485,7 @@ def patient_file(pf: workspace.PatientFile, header, tail):
         format_func=lambda k: pf.versions[k].label + (" (latest)" if k == last else ""),
         help="Every new test or event adds a version; earlier versions are kept. Move back to "
              "open the report, its tests and its timeline as they were then.")
+    timeline_page.banner(pf, i)
     reviews = ss.reviews
     alerts = {overview.alert_key(pf, a) for v in pf.versions[: i + 1] for a in v.alerts}
     still = len(alerts - set(reviews))
@@ -1189,57 +1190,7 @@ def draw_test(pf: workspace.PatientFile, i: int, t: workspace.Test):
 
 
 def timeline_view(pf: workspace.PatientFile, i: int):
-    if len(pf.versions) == 1:
-        st.info(pf.note)
-    elif pf.kind == "synthetic":  # a TCGA file's later versions are imports: no risk timeline
-        month = pf.versions[i].month
-        updates = TL["updates"][: i + 1]
-        if any("risk" in u for u in updates):
-            treatments = [{"month": e["month"], "text": e["text"]} for e in EVENTS
-                          if e.get("treatments") and e["month"] <= month]
-            st.altair_chart(charts.risk_timeline(updates, TL["events"], month, treatments),
-                            width="stretch")
-            st.caption(f"{tags(INFERENCE)} {TL['task'].capitalize()} at each version from the "
-                       "first tumor sequencing (month 0) on: the record-so-far models (the band "
-                       "is the range of 5 models) and the diagnosis-only baseline. Dashed "
-                       "vertical lines: treatment starts. Move the report version above to open "
-                       "any version.")
-    st.dataframe(pd.DataFrame([{
-        "Month": v.month, "Version": v.label, "What arrived": v.event,
-        "12-month risk": v.risk.get("value") if v.risk else None, "SOS": len(v.alerts),
-        "Tests added": ", ".join(t.name for t in v.tests),
-        "Treatment started": ", ".join(v.treatments)} for v in pf.versions[: i + 1]]),
-        hide_index=True, width="stretch",
-        column_config={"12-month risk": st.column_config.NumberColumn(format="percent")})
-    if i:
-        compare(pf, i)
-
-
-def compare(pf: workspace.PatientFile, i: int):
-    st.markdown("**Compare two versions** · what changed and why")
-    a, b = st.columns(2)
-    ia = a.selectbox("From", range(i + 1), index=i - 1, key=f"from-{pf.id}-{i}",
-                     format_func=lambda k: pf.versions[k].label)
-    ib = b.selectbox("To", range(i + 1), index=i, key=f"to-{pf.id}-{i}",
-                     format_func=lambda k: pf.versions[k].label)
-    lo, hi = sorted((ia, ib))
-    diff = crosstest.diff_versions(pf, lo, hi)
-    if not diff:
-        st.caption("Nothing changed between these versions.")
-    for col, kind in zip(st.columns(3), (OBSERVED, INFERENCE, HYPOTHESIS), strict=True):
-        items = [d for d in diff if d["column"] == kind]
-        with col:
-            st.markdown(f"**{kind.capitalize()}** {tags(kind)} · {len(items)} changed")
-            for d in items:
-                st.markdown({
-                    "added": f":green[**+ {d['finding']}**]: {d['after']}",
-                    "removed": f":red[**− {d['finding']}**]: ~~{d['before']}~~",
-                    "changed": f":orange[**~ {d['finding']}**]: {d['before']} → {d['after']}",
-                }[d["status"]])
-    why = [v for v in pf.versions[lo + 1: hi + 1] if v.changes]
-    if why:
-        st.markdown(f"**Why the risk changed** {tags(INFERENCE)}")
-        st.markdown("\n".join(f"- **{v.label}** · {v.summary}" for v in why))
+    timeline_page.render(pf, i, TL, lambda j: overview_data(pf, j)["sums"], open_evidence)
 
 
 def evolution_view(pf: workspace.PatientFile, i: int):

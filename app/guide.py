@@ -30,7 +30,8 @@ STEPS = [
     ("Every test has its workbench", "Tests opens each test in its workbench, all laid out the "
      "same way: overview with the look-here list, the picture, details (collapsed, counted), "
      "the Spot panel, the model and validation card, what the test cannot see, export. "
-     "Timeline shows the report's versions and compares any two."),
+     "Timeline lays the record out over time: click any point to open the file as it was "
+     "then, see what each version brought, compare any two."),
     ("Read the labels", "Every finding says whether it is **observed**, **model inference** "
      "or a **hypothesis**, how far to trust it, and where its threshold comes from; a "
      "placeholder is always orange. Click a label to see what it means; the **?** on every "
