@@ -63,3 +63,23 @@ def shown(at) -> str:
 
 def button(at, label: str):
     return next(b for b in at.button if b.label == label)
+
+
+def popovers(at) -> dict[str, str]:
+    """Every popover on the page: its label -> the Markdown and captions inside it."""
+    out: dict[str, str] = {}
+
+    def text(node) -> list[str]:
+        if getattr(node, "type", None) in ("markdown", "caption"):
+            return [str(node.value)]
+        return [t for k in sorted(getattr(node, "children", {}) or {})
+                for t in text(node.children[k])]
+
+    def walk(node) -> None:
+        if getattr(node, "type", None) == "popover":
+            out[node.proto.popover.label] = " ".join(text(node))
+        for k in sorted(getattr(node, "children", {}) or {}):
+            walk(node.children[k])
+
+    walk(at.main)
+    return out

@@ -120,6 +120,40 @@ measurement."). A chip that names a label inherits that label's sentence ("place
 threshold", "subtype call: experimentally validated"). Chips inside sentences stay plain
 badges; their meanings are one click away in the guide.
 
+## 4. Wording, density and states
+
+- **Plain clinical English.** No internal names on a screen: no file paths, module or function
+  names ("finding_key", "pf", "FINDING_KINDS"), no "version index". Provenance stays: data
+  source, method, model and version, in words ("precomputed offline from the open-access
+  files", "Ensembl VEP, offline").
+- **The report's cards** are one width (240 px) and wrap: three a row at 800 px, more on a wide
+  screen. A card shows at most about 150 characters and ends in " …"; "more" opens the full
+  text.
+- **Numbers carry their unit**, and a hover says how they were measured (the slide's tumor
+  area, front length, arcs, unsure share; the risk's percentile and model).
+- **Empty states say what is missing and which test would provide it** (§1 has the workbench
+  pages): "Not sequenced … Tumor sequencing (a panel or an exome, or a VCF or MAF brought in
+  through Import tests) would fill this workbench".
+- **Error states never show a traceback.** A view, a workbench, the patient list or the
+  Methods page that fails says which part failed ("The blood and lab workbench could not be
+  drawn"), that the rest of the file works, links the Methods and validation page, and names
+  the error type logged for the team; the server's log keeps the traceback. The tests re-raise.
+
+## 5. Sidebar and Patients page
+
+- **Sidebar:** the product name and the line "Research and decision support for clinicians;
+  not a diagnosis or a prescription"; **About this system** (collapsed: the model and its
+  held-out C-index, the case agent, the treatment evidence, the literature search; these are
+  provenance and stay); **Session**: the reviewer's initials, the live notes left, and this
+  session's review marks and pins with "Download this session's marks (CSV)".
+- **Patients page:** one line ("Your patient files. Open one to see its latest report, its
+  tests in their workbenches and how the report changed over time."), search and filters as
+  before, **Sort by** last update (an import of this session, then the record's latest month),
+  risk (the TCGA files' cohort percentile; the synthetic patient's 12-month risk, another
+  measure, listed after them) or open SOS; the open SOS count as the second column, "🔴 3 open"
+  or "none" (the count is in words, never color alone); a Risk column; the recently opened
+  files (§2).
+
 ## How it is tested
 
 `tests/skeleton.py` reads the parts a page recorded (`st.session_state["page_parts"]`) and the
@@ -137,3 +171,7 @@ opened files.
 `tests/test_guide.py` walks the walk-through (next, back, skip, gone for the session), opens the
 "?" on the list, the report, a workbench and the Methods page (each with its own "This screen"
 text), clicks the report's and a workbench's chips, and checks every label's sentence.
+`tests/test_states.py`: a workbench that fails (made to raise, with the tests' strict switch
+off) says so in words, links the Methods page and leaves the tests table and the other views
+working; the list's sort orders; the sidebar's session tally and its export; the report's
+shortened cards with their full text behind "more".

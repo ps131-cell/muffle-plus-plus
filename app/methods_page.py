@@ -444,7 +444,7 @@ def sources() -> None:
                  hide_index=True, width="stretch")
     st.caption("SYNTHETIC-001's record is written by hand and labeled synthetic; it is not a "
                "real person and was not taken from any dataset. Every source, its access tier "
-               "and what leaves this machine: docs/registry.md.")
+               "and what leaves this machine: the project's [data registry](https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/registry.md).")
 
 
 # --- one list of known failures, one table of placeholders ------------------------------------

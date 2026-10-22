@@ -323,7 +323,7 @@ def method_card(page) -> None:
             f"matter. Every PMID and DOI was checked against PubMed on {evolution.VERIFIED}; a "
             "row whose source could not be verified was dropped. CIViC items (CC0) are matched "
             "to each event by its molecular profile. The full table with references: "
-            f"[docs/evolution.md]({DOCS}).")
+            f"[the evolution method note]({DOCS}).")
         with st.expander(count_label("The constraints this view applies",
                                      len(evolution.CONSTRAINTS))):
             for c in evolution.CONSTRAINTS:
@@ -458,7 +458,7 @@ def methods_card() -> None:
         f"{len(evolution.SOURCES)} papers. Each PMID and DOI was checked against PubMed (NCBI "
         f"E-utilities) on {evolution.VERIFIED} and each statement is what the abstract reports, "
         f"cohort and frequency included; a row whose source could not be verified was dropped "
-        f"([docs/evolution.md]({DOCS})).\n"
+        f"([the evolution method note]({DOCS})).\n"
         "- **What to watch next:** the rows a file raises from its recorded treatments, "
         "receptor status (the record's, else the ER, PR and HER2 status its pathology reports "
         "state, read by the documents rules and named by document; a disagreement is shown, "

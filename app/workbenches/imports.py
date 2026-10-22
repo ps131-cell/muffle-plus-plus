@@ -136,8 +136,8 @@ def render_view(file: PatientFile) -> None:
                     "at the boundary (columns, units, sizes, annotations, a text layer), keeps "
                     "what it can read and lists every rejected row with the reason; nothing is "
                     "forced into a result the data can't support. **Validation:** tested on "
-                    "sample files (tests/test_imports.py), not validated on a set of real "
-                    "laboratory exports or reports. **Signed:** every import carries the "
+                    "sample files by the platform's automated tests, not validated on a set of "
+                    "real laboratory exports or reports. **Signed:** every import carries the "
                     "initials and time of the person who added it.")
         st.markdown("**Known failures:** a scanned PDF without a text layer has no text to read; "
                     "a VCF stores allele fractions differently by caller, so they are not read "

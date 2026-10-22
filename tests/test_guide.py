@@ -6,29 +6,9 @@ import pytest
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench.grammar import GLOSSARY, WORKBENCH_GUIDE, glossary
 from muffle.workspace import PLANNED, VALIDATED
-from tests.appfixture import ROOT
+from tests.appfixture import ROOT, popovers
 
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
-
-
-def popovers(at) -> dict[str, str]:
-    """Every popover on the page: its label -> the Markdown and captions inside it."""
-    out: dict[str, str] = {}
-
-    def text(node) -> list[str]:
-        if getattr(node, "type", None) in ("markdown", "caption"):
-            return [str(node.value)]
-        return [t for k in sorted(getattr(node, "children", {}) or {})
-                for t in text(node.children[k])]
-
-    def walk(node) -> None:
-        if getattr(node, "type", None) == "popover":
-            out[node.proto.popover.label] = " ".join(text(node))
-        for k in sorted(getattr(node, "children", {}) or {}):
-            walk(node.children[k])
-
-    walk(at.main)
-    return out
 
 
 def test_every_label_has_its_sentence():

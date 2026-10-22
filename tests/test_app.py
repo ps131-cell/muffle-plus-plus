@@ -31,7 +31,7 @@ def test_patient_files_render_in_every_view(app):
     at.pills(key="list-holds").set_value([]).run()
     at.toggle(key="list-sos").set_value(True).run()
     assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
-    assert at.dataframe[0].value["Open SOS"].tolist() == [7]
+    assert at.dataframe[0].value["Open SOS"].tolist() == ["🔴 7 open"]
     at.toggle(key="list-sos").set_value(False).run()
 
     at.selectbox(key="patient").select("SYNTHETIC-001").run()
@@ -71,7 +71,7 @@ def test_patient_files_render_in_every_view(app):
     at.button(key=f"unsure-{queue}").click().run()  # u: weak trust or marked second look
     assert "**unsure list**" in shown(at) and "1/8 · 12-month risk up" in shown(at)
     at.button(key=f"unsure-{queue}").click().run()
-    assert [b.label for b in at.get("download_button")] == [
+    assert [b.label for b in at.main.get("download_button")] == [
         "Download this report version (Markdown)"]
     at.segmented_control(key="view").set_value("Tests").run()
     at.session_state["picked-SYNTHETIC-001"] = ("Lab", 11, "CA 15-3")
