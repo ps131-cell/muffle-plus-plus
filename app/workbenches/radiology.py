@@ -970,6 +970,9 @@ def mammo_geometry(pf: PatientFile, study: dict, views: list[dict], key0: str, l
                                 format_func={"R": "right", "L": "left"}.get) or sides[0]
     px = next(v["pixel_mm"] for v in views if v["laterality"] == side)
     outs = {v: rad.breast_outline(imgs[(side, v)]) for v in ("CC", "MLO")}
+    if any(o["nipple"] is None for o in outs.values()):
+        st.caption("No breast outline found on one of the views: nothing to link.")
+        return asym
     reach = min(abs(o["nipple"][0] - (0 if o["chest"] == "left" else o["mask"].shape[1]))
                 for o in outs.values()) * px
     depth = c2.slider("Distance behind the nipple (mm)", 0, max(10, int(reach)),
