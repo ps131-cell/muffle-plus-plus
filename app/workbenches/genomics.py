@@ -59,7 +59,7 @@ from muffle.workbench import genomics as wb  # noqa: E402
 from muffle.workbench import omics as om  # noqa: E402
 from muffle.workbench.grammar import chip, count_label, esc  # noqa: E402
 from muffle.workspace import finding_key  # noqa: E402
-from workbenches._page import Page, land  # noqa: E402
+from workbenches._page import Page, land, queue_items  # noqa: E402
 
 # page-specific colors; statuses and evidence types take the shared grammar's
 COLORS = {wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray", "derived": "blue",
@@ -176,7 +176,7 @@ EVIDENCE_LEGEND = (f"{badge('observed', 'blue')} measured · {badge('derived', '
                    f"{badge('placeholder', 'orange')} (placeholders are drawn dashed)")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="Reading the tumor's precomputed genome numbers…")
 def _genome_files() -> tuple:
     """genomics_cn.json, genomics_effect.json, omics_scores.json and evolution_vaf.json, or None
     for a file that is missing (the page still renders)."""
@@ -511,7 +511,12 @@ def _cn_view(file, g, omics_view, key) -> None:
     shown = [{**r, "rank": n} for n, r in enumerate(shown)]
     if shown:
         ev = st.altair_chart(_cn_chart(shown), on_select="rerun", selection_mode=["gene"],
-                             key=f"{key}-cnchart-{show}", width="stretch")
+                             key=f"{key}-cnchart-{show}", width="stretch",
+                             alt="Copy number of each gene relative to the ploidy, in genome "
+                                 "order: " + ", ".join(f"{r['gene']} {r['call_text']}"
+                                                       for r in shown
+                                                       if r["call"] in gx.ALTERED)
+                                 + "; the other genes neutral")
         _picked(ev, "gene", f"{key}-gene", f"{key}-spotmode")
         st.caption("Genes in genome order, evenly spaced (not to scale); larger points: the breast "
                    "drivers of interest. Hover for the numbers, click a gene to open it in the "
@@ -683,7 +688,10 @@ def _pathway_chart(nodes: list[dict]) -> alt.LayerChart:
 def _pathway_view(file, nodes, table, reviews, key) -> None:
     st.markdown(f"{badge('hypothesis')} {gx.PATHWAY_NOTE}")
     ev = st.altair_chart(_pathway_chart(nodes), on_select="rerun", selection_mode=["node"],
-                         key=f"{key}-pathchart", width="stretch")
+                         key=f"{key}-pathchart", width="stretch",
+                         alt="Pathway map: " + ("; ".join(
+                             f"{n['gene']} ({n['pathway']}) {', '.join(n['statuses'])}"
+                             for n in nodes if n["statuses"]) or "no gene altered"))
     _picked(ev, "node", f"{key}-gene", f"{key}-spotmode")
     st.caption("Purple: a sequenced mutation; red and blue: copy-number amplification and deep "
                "deletion, lighter for gain and loss; gray: measured, not altered; white: not "
@@ -868,8 +876,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         else:
             st.info("Sequenced: none of the panel's genes mutated (panel genes only; purity and "
                     "depth unknown, so this is not proof of absence).")
-        page.look_here(wb.queue(full, version, lookup=None if full.kind == "synthetic"
-                                else lookup),
+        page.look_here(queue_items("genomics", full, version, lambda: wb.queue(
+                           full, version, lookup=None if full.kind == "synthetic" else lookup)),
                        land=lambda focus: land(full, page.version, focus))
         _genome_search(gv, key)
 
@@ -878,20 +886,24 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         if g["stale"]:
             st.warning("The precomputed genome numbers were made for another build of the cases "
                        "and are not shown for this file.")
-        t_var, t_cn, t_bur, t_eff, t_path = st.tabs([
-            "Variants", "Copy-number landscape", "Burden and allele fractions",
-            "Predicted effect", "Pathway map"])
-        with t_var:
+        t_var, t_cn, t_bur, t_eff, t_path = st.tabs(
+            ["Variants", "Copy-number landscape", "Burden and allele fractions",
+             "Predicted effect", "Pathway map"], key=f"{key}-tabs", on_change="rerun")
+        with t_var:  # always drawn: the Spot panel reads its selection
             shown = _variant_browser(file, vs, levels, queue, ladders, coverage, reviews,
                                      key, mode_key)
-        with t_cn:
-            _cn_view(file, {**g, "rows": gv["rows"]}, gv["omics_view"], key)
+        with t_cn:  # the other views run only while their tab is open
+            if t_cn.open:
+                _cn_view(file, {**g, "rows": gv["rows"]}, gv["omics_view"], key)
         with t_bur:
-            _burden_view(gv["bur"], g["afs"], g["data"], gv["sequenced"], file)
+            if t_bur.open:
+                _burden_view(gv["bur"], g["afs"], g["data"], gv["sequenced"], file)
         with t_eff:
-            _effect_view(vs, effects, g["afs"])
+            if t_eff.open:
+                _effect_view(vs, effects, g["afs"])
         with t_path:
-            _pathway_view(file, gv["nodes"], table, reviews, key)
+            if t_path.open:
+                _pathway_view(file, gv["nodes"], table, reviews, key)
 
     # details: collapsed, each with its count
     with page.details("Resistance watchlist", len(watch["rows"])):

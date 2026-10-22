@@ -51,7 +51,7 @@ from muffle.workbench.grammar import chip  # noqa: E402
 from muffle.workbench.slides import queue as slide_queue  # noqa: E402
 from muffle.workspace import MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
 from workbenches import slide_viewer  # noqa: E402
-from workbenches._page import Page, land  # noqa: E402
+from workbenches._page import Page, land, queue_items  # noqa: E402
 
 EXAMPLE = APP / "workbenches" / "slides_example"
 RESULTS = APP / "workbenches" / "slides_results"
@@ -345,7 +345,9 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
     with left:
         img = crop_image(result, r, c)
         if img is not None:
-            st.image(img, caption=f"{t['tile']}: 112 µm, the patient's own section", width=260)
+            st.image(img, caption=f"{t['tile']}: 112 µm, the patient's own section", width=260,
+                     alt=f"H&E crop of tile {t['tile']}, 112 µm across, with the nuclei found "
+                         "marked: lymphocyte-like in blue, others in red")
         else:
             st.caption("No crop stored for this tile (crops are kept for the queue, the "
                        "counting field, the cards and the roughest front tiles).")
@@ -455,7 +457,17 @@ def cannot_see(page: Page, cutoffs: dict | None = None) -> None:
                        "invasion is a hypothesis about this section.")
 
 
-@st.cache_data(max_entries=8, show_spinner="Reading the scored section...")
+@st.cache_data(max_entries=16, show_spinner=False)
+def section_numbers(slide: str) -> dict | None:
+    """A scored section's stored numbers (its summary.json), for the comparison of sections:
+    the other sections are read, not analysed again."""
+    path = RESULTS / slide / "summary.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8")).get("numbers", {})
+
+
+@st.cache_data(max_entries=8, show_spinner="Reading the scored section…")
 def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
     """A scored section, its analysis and its tile frame: they depend on the slide only, so
     they are computed once per process, not on every click in the workbench."""
@@ -474,7 +486,8 @@ def look_items(pf: PatientFile, slide: str, version: int | None, res: dict) -> l
     """The section's look-here items: the ones the report's attention queue carries
     (``muffle.workbench.slides.queue``), or, for a section scored before those were stored,
     the page's own pointers in the same shape."""
-    items = [x for x in slide_queue(pf, version) if x["focus"]["slide"] == slide]
+    items = [x for x in queue_items("slides", pf, version, lambda: slide_queue(pf, version))
+             if x["focus"]["slide"] == slide]
     if items:
         return items
     return [{"pointer": q["pointer"], "what": q["what"], "why": f"{q['why']}; check by eye: "
@@ -614,7 +627,10 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
             mc, tc = st.columns([3, 2])
             with mc:
                 st.altair_chart(slide_map(df, res, layer, overlays or [], classes, px),
-                                width="content")
+                                width="content",
+                                alt=f"Tile map of slide {slide} coloured by {layer}: "
+                                    + ", ".join(f"{LABELS[k].lower()} {v:.0%}" for k, v in
+                                                top3) + f"; {len(res['queue'])} pointers")
             with tc:
                 if result["thumbnail"]:
                     st.image(str(result["thumbnail"]), caption="The scored region (H&E, the "
@@ -873,11 +889,12 @@ def render_own(page: Page, pf: PatientFile, slides: list[str], version: int | No
         if len(slides) > 1 else slides[0]
 
     def compare(page: Page) -> None:
-        numbers = {}
+        numbers = {}  # the open section's own analysis; the others' stored numbers, unanalysed
         for name in slides:
-            if got := scored(name):
-                numbers[name] = ({**got[1]["numbers"], "slide": name} if name == chosen else
-                                 {**got[0]["meta"].get("numbers", {}), "slide": name})
+            if name == chosen and (got := scored(name)):
+                numbers[name] = {**got[1]["numbers"], "slide": name}
+            elif name != chosen and (stored := section_numbers(name)) is not None:
+                numbers[name] = {**stored, "slide": name}
         pairs = [(a, b) for i, a in enumerate(slides) for b in slides[i + 1:]
                  if numbers.get(a) and numbers.get(b)]
         with page.details("The sections compared", len(slides)):

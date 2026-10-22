@@ -5,9 +5,10 @@ A Streamlit component (``slide_viewer_frontend/``: OpenSeadragon 6.1.1, BSD-3-Cl
 JavaScript speaking the component protocol; no build step). Each section's Deep Zoom pyramid
 (``scripts/slide_pyramid.py``: JPEG tiles of the open-access TCGA section at about 1 µm/px) is a
 zip on the release named in ``slides_results/pyramids.json``. The first time a section's viewer
-opens, the app downloads that zip, checks its SHA-256 and unzips it into
-``app/static/slides/<slide>/``, which Streamlit serves (``enableStaticServing`` in
-``.streamlit/config.toml``); the analysis layers (``muffle.workbench.viewer.overlay``) are
+opens, the app downloads that zip (a progress bar counts the megabytes), checks its SHA-256
+and unzips it into ``app/static/slides/<slide>/``, which Streamlit serves
+(``enableStaticServing`` in ``.streamlit/config.toml``); the analysis layers
+(``muffle.workbench.viewer.overlay``) are
 written next to the tiles as one JSON file. Streamlit reads that setting when the server
 starts, so a server that has not restarted since (a hot-updated deployment) or was started
 without the config unzips into the component's own folder instead, which Streamlit serves
@@ -23,6 +24,7 @@ import json
 import os
 import shutil
 import threading
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -57,7 +59,8 @@ def served() -> tuple[Path, str]:
 
 def ensure(slide: str) -> str:
     """'' when the section's pyramid is unpacked where the server serves it (downloading it on
-    first use), otherwise the reason it isn't."""
+    first use, with a progress bar in megabytes), otherwise the reason it isn't. A failed
+    download is retried after ``RETRY_S`` seconds."""
     m = manifest()
     entry = m["slides"].get(slide)
     if not entry:
@@ -68,22 +71,49 @@ def ensure(slide: str) -> str:
     base = os.getenv("MUFFLE_SLIDE_TILES") or f"{RELEASES}/{m['release']}"
     if base.strip().lower() in OFF:
         return "tile downloads are switched off on this server"
-    with st.spinner(f"Fetching the section's tiles once ({entry['zip_bytes'] / 1e6:.0f} MB)…"):
-        return _download(slide, base.rstrip("/"), entry["sha256"], str(root))
+    when, why = _failed.get(slide, (0.0, ""))
+    if why and time.time() - when < RETRY_S:
+        return why
+    total = entry["zip_bytes"]
+    bar = st.progress(0.0, text=f"Fetching this section's tiles, once for this server: 0 of "
+                                f"{total / 1e6:.0f} MB")
+
+    def progress(done: int, text: str | None = None) -> None:
+        bar.progress(min(done / total, 1.0), text=text or (
+            f"Fetching this section's tiles, once for this server: {done / 1e6:.0f} of "
+            f"{total / 1e6:.0f} MB"))
+
+    why = _download(slide, base.rstrip("/"), entry["sha256"], str(root), progress)
+    bar.empty()
+    if why:
+        _failed[slide] = (time.time(), why)
+    return why
 
 
-@st.cache_resource(show_spinner=False, ttl=600)  # a failure is retried after 10 minutes
-def _download(slide: str, base: str, sha256: str, root: str) -> str:
+RETRY_S = 600  # a failed download is tried again after 10 minutes
+_failed: dict[str, tuple[float, str]] = {}  # slide -> (when, why) of its last failed download
+
+
+def _download(slide: str, base: str, sha256: str, root: str, progress=None) -> str:
+    """Download, check and unpack one section's pyramid; '' or the reason it failed.
+    ``progress(bytes done, text=None)`` follows the transfer."""
     root = Path(root)
     with _lock:
-        if (root / slide / f"{slide}.dzi").exists():
+        if (root / slide / f"{slide}.dzi").exists():  # another session fetched it meanwhile
             return ""
         root.mkdir(parents=True, exist_ok=True)
         zpath, tmp = root / f".{slide}.zip", root / f".{slide}.unzip"
         try:
             with urllib.request.urlopen(f"{base}/{slide}.zip", timeout=60) as r, \
                     open(zpath, "wb") as f:
-                shutil.copyfileobj(r, f, 1 << 20)  # streamed: a big section never sits in memory
+                done = 0
+                while block := r.read(1 << 20):  # streamed: a big section never sits in memory
+                    f.write(block)
+                    done += len(block)
+                    if progress:
+                        progress(done)
+            if progress:
+                progress(done, "Checking and unpacking the tiles…")
             digest = hashlib.sha256()
             with open(zpath, "rb") as f:
                 for block in iter(lambda: f.read(1 << 20), b""):

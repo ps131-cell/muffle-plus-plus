@@ -74,7 +74,7 @@ from muffle.workspace import (  # noqa: E402
 )
 from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
-from workbenches._page import Page, land  # noqa: E402
+from workbenches._page import Page, land, queue_items  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, BELOW: RED, RISING: ORANGE, FALLING: BLUE,
@@ -240,6 +240,15 @@ def trend(rows: list[dict], intervals: list[dict], band: dict | None, kin: dict)
     layers.append(base.mark_text(dy=-13, fontSize=10, fontWeight="bold").encode(
         text="pointer:N"))
     return alt.layer(*layers).properties(height=300).configure_axis(**GRID)
+
+
+def trend_alt(series: list[dict]) -> str:
+    """A trend chart in words, for a screen reader: the analyte, its values and its flags."""
+    return (f"{series[0]['marker']} in {series[0]['unit']} over months {series[0]['month']} to "
+            f"{series[-1]['month']}: " + "; ".join(
+                f"month {r['month']} {r['value']:g}" + (f" ({r['pointer']}, {r['flag']})"
+                                                       if r["pointer"] else "")
+                for r in series))
 
 
 def _table(rows: list[dict], reviews: dict | None = None,
@@ -428,12 +437,15 @@ def render(file: PatientFile, events: list[dict] | None = None,
             "lines: the latest value's reference limits.")):
         chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP, INFERENCE_CHIP)
         panels = [p for p in (*ref.PANELS, ref.UNLISTED) if any(r["panel"] == p for r in rows)]
-        for tab, panel in zip(st.tabs(panels), panels, strict=True):
-            with tab:
+        tabs = st.tabs(panels, key=f"{file.id}_labs_panels", on_change="rerun")
+        for tab, panel in zip(tabs, panels, strict=True):
+            with tab:  # a panel's charts run only while its tab is open
+                if not tab.open:
+                    continue
                 for key in dict.fromkeys(r["key"] for r in rows if r["panel"] == panel):
                     series = [r for r in rows if r["key"] == key]
                     st.altair_chart(trend(series, intervals, bands.get(key), kin.get(key, {})),
-                                    width="stretch")
+                                    width="stretch", alt=trend_alt(series))
                     a = ref.ANALYTES.get(key)
                     st.caption(f"{series[0]['marker']}: " + (
                         f"{a['why']} ({a['why_source']})." if a else
@@ -644,7 +656,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
 def look_items(file: PatientFile, version: int | None) -> list[dict]:
     """The workbench's look-here items (``muffle.workbench.labs.queue``), the ones the report's
     attention queue carries."""
-    return lab_queue(file, version)
+    return queue_items("labs", file, version, lambda: lab_queue(file, version))
 
 
 def _pick_table(df: pd.DataFrame, labels: list[str], key: str, spot_key: str) -> None:

@@ -42,7 +42,7 @@ from muffle.workspace import (  # noqa: E402
     finding_key,
     synthetic_file,
 )
-from workbenches._page import Page, land  # noqa: E402
+from workbenches._page import Page, land, queue_items  # noqa: E402
 
 COLORS = {"PIK3CA H1047R": "#2a78d6", "ESR1 D538G": "#eb6834", "DNMT3A R882H": "#8a8f98"}
 GRAY, RED = "#8a8f98", "#e34948"
@@ -250,7 +250,8 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
     lines.append(f"{len(queue)} items to look at, {len(mine)} review marks.")
     with page.overview():
         st.markdown(" ".join(lines))
-        page.look_here(wb.queue(pf, version), land=lambda focus: land(pf, page.version, focus),
+        page.look_here(queue_items("ctdna", pf, version, lambda: wb.queue(pf, version)),
+                       land=lambda focus: land(pf, page.version, focus),
                        more="Details › Every look-here item")
 
     # the picture: allele fractions over time, CA 15-3 on the same axis
@@ -262,10 +263,13 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
             "reports that read progression. CA 15-3 below shares the axis.")):
         chips(IMPLEMENTED, "placeholder threshold", "synthetic")
         st.altair_chart(chart(rows, intervals, events, series["detection_limit"], span),
-                        width="stretch")
+                        width="stretch", alt="Allele fractions over time, log scale: " + "; ".join(
+                            f"{v['variant']} latest {v['latest']} at month {v['latest_month']}"
+                            for v in vs) + f"; detection limit {series['detection_limit']:g}%")
         mc = marker_chart(lab_rows, span)
         if mc is not None:
-            st.altair_chart(mc, width="stretch")
+            st.altair_chart(mc, width="stretch",
+                            alt="CA 15-3 over the same months, in U/mL, with its pointers")
 
     # details: collapsed, each with its count
     with page.details("Calls per variant", len(vs)):

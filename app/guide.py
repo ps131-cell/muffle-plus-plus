@@ -78,10 +78,12 @@ def how_to_read(screen: str | None = None) -> None:
 
 
 def help_icon(screen: str | None = None) -> None:
-    """The help icon every screen carries, opening "How to read this"."""
-    with st.popover("?", type="tertiary", key=f"help-{screen or 'screen'}",
-                    help="How to read this screen: labels, trust, placeholders, keys"):
-        how_to_read(screen)
+    """The help icon every screen carries, opening "How to read this". Its content runs only
+    while it is open (about half a rerun's time on a shared CPU otherwise)."""
+    with st.popover("?", type="tertiary", key=f"help-{screen or 'screen'}", on_change="rerun",
+                    help="How to read this screen: labels, trust, placeholders, keys") as pop:
+        if pop.open:
+            how_to_read(screen)
 
 
 def walkthrough() -> None:

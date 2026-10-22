@@ -87,7 +87,10 @@ def lanes(pf, i: int) -> None:
     st.markdown(f"**The record over time** {tags(OBSERVED)} · click any point to open the file as "
                 "it was at the report version that point created")
     st.altair_chart(charts.event_lanes(data, i), key=key, on_select=partial(_picked, pf, key),
-                    selection_mode="node", width="stretch")
+                    selection_mode="node", width="stretch",
+                    alt="The record over time on a month axis: the report versions on the top "
+                        "lane, then one lane per kind of entry, SOS alerts marked in red on the "
+                        "lane of the test that raised them.")
     st.caption(
         "Top lane: the report versions; below, the record's entries by kind, each at its month "
         "(hover: its own words, its evidence label and the version it created). Red ▼: an SOS "
@@ -170,7 +173,10 @@ def risk(pf, i: int, tl: dict) -> None:
                     default=list(SHOWN), key=f"overlays-{pf.id}") or ()
     ctx = tv.context(pf, i)
     st.altair_chart(charts.risk_timeline(updates, tl["events"], pf.versions[i].month, ctx, show),
-                    width="stretch")
+                    width="stretch",
+                    alt="The predicted risk at each report version up to this one, with the "
+                        "range of the five models as a band and the diagnosis-only baseline"
+                        + (f"; shown with {', '.join(show)}." if show else "."))
     lines = [f"{chip(INFERENCE)} Risk: {tl['task']} of this synthetic patient, scored by the "
              "record-so-far models trained on MSK-CHORD (the band: the range of 5 models) and "
              "the diagnosis-only baseline, from the first tumor sequencing (month 0) on; "
