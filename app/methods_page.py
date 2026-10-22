@@ -73,7 +73,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     landmark_card(tl)
     slide_model_cards()
     radiology_page.methods_card()
-    omics.methods_section()
+    omics.methods_card()
     case_note_card(demo)
 
     st.header("Rules")
@@ -412,6 +412,13 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
      "validating the subtype call; receptor consistency", "TCGA open clinical data; cite TCGA "
      "and cBioPortal"),
     ("HM450 probe map (UCSC Xena GDC hub)", "the gene a methylation CpG lies near", "as TCGA"),
+    ("RPPA pathway members and signs (Akbani et al. 2014, Nat Commun, Supplementary Table 13)",
+     "the protein pathway scores", "CC BY-NC-SA 3.0 article; the member list cited"),
+    ("Illumina HumanMethylation450 v1.2 manifest", "promoter and CpG-island status of each 450K "
+     "probe", "Illumina's free product file; not redistributed, derived probe lists only"),
+    ("ESTIMATE stromal and immune gene lists (Yoshihara et al. 2013, Nat Commun, Supplementary "
+     "Data 1)", "the immune and stromal signatures (z-score averaging; the GPL-2 package is not "
+     "used)", "gene names used as facts, cited; the article carries no CC license"),
     ("TCGA-Reports (Kefeli and Tatonetti, Patterns 2024; Mendeley Data 10.17632/hyg5xkznpx.1)",
      "the TCGA cases' pathology reports; measuring the extraction", "CC BY 4.0, attribution"),
     ("TCGA-BRCA clinical matrix (UCSC Xena)", "the reference the extraction is measured "
@@ -468,6 +475,12 @@ def known_failures() -> None:
          "94.7%, chosen after seeing the first: not an independent test."),
         ("Receptor consistency", "HER2 by RNA or copy number is weak against the recorded "
          "status (sensitivity 0.56 and 0.57); cutoffs are calibrated in-sample."),
+        ("Protein pathways (RPPA)", "Most phospho-site antibodies and several total proteins "
+         "(p53, c-Myc, BAX, BAK, ATM, among others) agree weakly with their gene's RNA; a "
+         "pathway score is relative to this cohort and not validated as activity."),
+        ("Promoter methylation", "Calls rest on placeholder cutoffs; the manifest's CpG island "
+         "misses BRCA1's core promoter, so a gene's probes are chosen by position and by being "
+         "unmethylated in normal breast instead."),
         ("Document extraction", "Recall is bounded by what a report states (receptors are "
          "often in an earlier biopsy report)" + ("; weak fields: " + ", ".join(weak) if weak
                                                  else "") + "."),
@@ -517,6 +530,7 @@ def placeholders() -> None:
           if t["status"] == ctdna_rules.PLACEHOLDER),
         ("Omics", "borderline subtype call", f"centroid margin under {omics_rules.LOW_MARGIN}"),
         ("Omics", "ERBB2 amplification from copy number", "at least twice the tumor ploidy"),
+        *(("Omics", what, value) for what, value in omics_rules.PLACEHOLDERS),
         *(("Slides", k, f"{v} ({note})") for k, (v, tag, note) in
           {**slide_rules.CUTOFFS, **invasion.CUTOFFS}.items() if tag == slide_rules.PLACEHOLDER),
         ("Slides", "risk map points and levels", ", ".join(

@@ -476,6 +476,8 @@ FINDING_KINDS = {  # kind -> the parts that follow it in the key
     "ctdna": "the variant ('ESR1 D538G'), the ctDNA sample's month",
     "cn": "the gene of a copy-number call ('ERBB2')",
     "pathway": "the pathway's name on the genomics pathway map ('PI3K / AKT / mTOR')",
+    "pathway_protein": "the RPPA pathway score's name ('PI3K/AKT', Akbani et al. 2014)",
+    "methylation": "the gene whose promoter methylation is read ('BRCA1'), or 'index'",
 }
 
 
