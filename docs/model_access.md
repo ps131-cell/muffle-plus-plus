@@ -149,7 +149,8 @@ repository part: `embed` and `result` refuse any path inside the repository for 
 
 Open with no request: MedSAM (`wanglab/medsam-vit-base`), MedSAM2 (`wanglab/MedSAM2`, CC BY-SA 4.0),
 SAM 2.1, mammoscreen (`ianpan/mammoscreen`), Mirai (GitHub), OpenMed NER, StarDist, LazySlide,
-Midnight-12k, QuiltNet-B-32. Details per model: [`registry.md`](registry.md).
+Midnight-12k, QuiltNet-B-32, and GPFM (`majiabo/GPFM`, ungated but **local only**: its repository
+is CC BY-NC-ND 4.0 and it is distilled from UNI and CONCH). Details per model: [`registry.md`](registry.md).
 
 ## 4. The open legal question
 

@@ -1,82 +1,126 @@
 # Pretrained models per workbench: what is measured, what waits for access
 
-Written 2026-10-20. Part 1 compares the pathology tile encoders on the slide spike's tiles; part 2
-says which model each other workbench should use and what access it needs. Licenses and status
-also sit in [`registry.md`](registry.md); the click-throughs are in
+Written 2026-10-20, encoder runs 2026-10-21/22. Part 1 compares the pathology tile encoders on the
+slide spike's tiles; part 2 says which model each other workbench should use and what access it
+needs. Licenses and status also sit in [`registry.md`](registry.md); the click-throughs are in
 [`model_access.md`](model_access.md); a GPU run of everything is in [`gpu.md`](gpu.md).
 
 ## 1. Pathology tile encoders on the BCSS spike
 
 **Task.** The slide spike's tiles (`scripts/slide_spike.py tiles`): 2,214 tiles of 224 px at
-0.5 µm/px from BCSS-annotated regions of 11 TCGA-BRCA diagnostic slides (one per patient). Each
-encoder embeds every tile; a logistic-regression head (C = 0.1, class-balanced) learns five BCSS
-classes from the pure, quality-passed tiles of 8 slides (1,052 tiles) and is scored on 3
-patient-disjoint held-out slides (357 tiles: TCGA-C8-A26X, TCGA-C8-A26Y, TCGA-EW-A1OV). Per-class
-columns are recall on the held-out tiles. Same tiles, same split and same head for every encoder,
-so the rows compare encoders and nothing else.
+0.5 µm/px from BCSS-annotated regions of 11 TCGA-BRCA diagnostic slides (one per patient). A
+logistic-regression head (C = 0.1, class-balanced) learns five BCSS classes from the pure,
+quality-passed tiles of 8 slides (1,052 tiles) and is scored on 3 patient-disjoint held-out slides
+(357 tiles: TCGA-C8-A26X, TCGA-C8-A26Y, TCGA-EW-A1OV). Per-class columns are recall on the
+held-out tiles. Same tiles, same split, same head for every encoder, so the rows compare encoders
+and nothing else. QuiltNet-B-32 and GigaPath-Flash embedded all 2,214 tiles; the slower encoders
+embedded only the 1,409 tiles the head uses (`embed --labeled-only`), which changes nothing in the
+head or its score.
 
-**How far to trust it.** Three held-out slides and 11 necrosis tiles: differences of a few points
-are noise. Path Foundation and Midnight-12k were pretrained on TCGA slides (no labels), so these
-held-out slides are not unseen by them. A row is *experimentally validated on held-out BCSS
-regions only*; no pathologist has reviewed any map.
+**How far to trust it.** Three held-out slides, 357 tiles, 11 of them necrosis: a difference of a
+few points is within noise (the paired test below says how much). Encoders that saw TCGA slides
+in pretraining (column "TCGA in pretraining"; no labels involved) have seen these held-out slides
+or slides like them. A row is *experimentally validated on held-out BCSS regions only*; no
+pathologist has reviewed any map.
 
 **Speed.** Tiles per second on this PC's CPU (Intel Core Ultra 9 288V, WSL2, 8 cores shared with
-other sessions), under `nice -n 10`, with the thread count and the 1-minute load average at the
-start of the run. Minutes per slide extrapolate to a 15,000-tile whole slide at the measured rate.
+three other sessions building at the same time), under `nice -n 10`, with the thread count and
+the 1-minute load average at the start and end of the run. Minutes per slide extrapolate to a
+15,000-tile whole slide at that rate; on a quiet machine every rate is roughly 2–3× higher (the
+spike measured QuiltNet at ~10 tiles/s quiet against 5.1 here). GigaPath-Flash's rate is the
+median over the 5 slides embedded after a restart.
 
-| Encoder | License | Gate | Params (M) | Tiles/s measured (device, threads, 1-min load) | Min per 15k-tile slide | Held-out accuracy (balanced) | tumor | stroma | lymphocytes | necrosis | fat |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `kaiko-ai/midnight` | MIT | none | 1,137 | 0.194 (cpu, 8 threads, load quiet, 24-tile timing from the 2026-10-19 spike) | 1,289 | not run (CPU too slow) | – | – | – | – | – |
-| `wisdomik/QuiltNet-B-32` | MIT | none | 88 | 5.146 (cpu, 2 threads, load 0.91 → 13.83) | 49 | 0.877 (0.854) | 0.89 | 0.92 | 0.74 | 0.73 | 1.00 |
-| `google/path-foundation` | HAI-DEF terms | click-through (instant) | 22 | pending access | – | pending access | – | – | – | – | – |
-| `prov-gigapath/prov-gigapath-flash` | Apache-2.0 | contact info (instant) | 22 | pending access | – | pending access | – | – | – | – | – |
-| `histai/hibou-b` | Apache-2.0 | contact info (instant) | 86 | pending access | – | pending access | – | – | – | – | – |
-| `histai/hibou-L` | Apache-2.0 | contact info (instant) | 304 | pending access | – | pending access | – | – | – | – | – |
-| `bioptimus/H-optimus-0` | Apache-2.0 | contact info (instant) | 1,100 | pending access | – | pending access | – | – | – | – | – |
-| `paige-ai/Virchow` | Apache-2.0 (+ card terms) | institutional email (approval) | 632 | pending access | – | pending access | – | – | – | – | – |
-| `MahmoodLab/UNI2-h` | CC BY-NC-ND 4.0, **local only** | institutional email (approval) | 681 | pending access | – | pending access | – | – | – | – | – |
-| `MahmoodLab/CONCH` | CC BY-NC-ND 4.0, **local only** | institutional email (approval) | 90 | pending access | – | pending access | – | – | – | – | – |
+| Encoder | License | Gate | Params (M) | TCGA in pretraining | Tiles/s measured (device, threads, 1-min load) | Min per 15k-tile slide | Held-out accuracy (balanced), C = 0.1 | tumor | stroma | lymphocytes | necrosis | fat | Held-out accuracy (balanced), C chosen by CV on training slides |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `kaiko-ai/midnight` | MIT | none | 1,137 | yes (TCGA only) | 0.194 (cpu, 8 threads, load quiet, 24-tile timing from the 2026-10-19 spike) | 1,289 | not run | – | – | – | – | – | – |
+| `wisdomik/QuiltNet-B-32` | MIT | none | 88 | not listed (Quilt-1M: videos, papers, social media) | 5.146 (cpu, 2 threads, load 0.91 → 13.83) | 49 | 0.877 (0.854) | 0.89 | 0.92 | 0.74 | 0.73 | 1.00 | 0.866 (0.886), C = 0.003 |
+| `google/path-foundation` | HAI-DEF terms | click-through (instant) | 22 | yes (TCGA only) | not run | – | not run | – | – | – | – | – | – |
+| `prov-gigapath/prov-gigapath-flash` | Apache-2.0 | contact info (instant) | 22 | not stated (distilled from Prov-GigaPath: Providence slides) | 3.024 (cpu, 4 threads, load 12.16 → 11.18) | 83 | 0.919 (0.917) | 1.00 | 0.87 | 0.90 | 0.82 | 1.00 | 0.922 (0.923), C = 0.01 |
+| `histai/hibou-b` | Apache-2.0 | contact info (instant) | 86 | not listed (private HistAI set) | 0.521 (cpu, 4 threads, load 14.45 → 11.79) | 480 | 0.880 (0.849) | 0.94 | 0.80 | 0.96 | 0.55 | 1.00 | 0.871 (0.849), C = 0.003 |
+| `histai/hibou-L` | Apache-2.0 | contact info (instant) | 304 | not listed (private HistAI set) | 0.405 (cpu, 4 threads, load 11.15 → 7.69) | 617 | 0.810 (0.849) | 0.96 | 0.62 | 0.94 | 0.73 | 1.00 | 0.807 (0.807), C = 0.01 |
+| `bioptimus/H-optimus-0` | Apache-2.0 | contact info (instant) | 1,100 | not listed (proprietary 500k slides) | not run | – | not run | – | – | – | – | – | – |
+| `paige-ai/Virchow` | Apache-2.0 (+ card terms) | institutional email (approval) | 632 | no (MSKCC slides) | not run | – | not run | – | – | – | – | – | – |
+| `MahmoodLab/UNI2-h` | CC BY-NC-ND 4.0, **local only** | institutional email (approval) | 681 | no (Mass General Brigham) | 0.181 (cpu, 4 threads, load 7.09 → 4.28) | 1,381 | 0.838 (0.793) | 0.71 | 0.91 | 0.88 | 0.64 | 0.83 | 0.832 (0.788), C = 0.003 |
+| `MahmoodLab/CONCH` | CC BY-NC-ND 4.0, **local only** | institutional email (approval) | 90 | no (card: no large public slide sets such as TCGA) | 0.266 (cpu, 4 threads, load 5.96 → 14.45) | 940 | 0.896 (0.844) | 0.98 | 0.88 | 0.85 | 0.55 | 0.97 | 0.888 (0.912), C = 0.01 |
+| `majiabo/GPFM` | CC BY-NC-ND 4.0 (repository; HF tag says MIT), **local only** | none | 304 | not confirmed (72,000 public slides; source list not read) | 0.623 (cpu, 4 threads, load 4.61 → 7.38) | 401 | 0.863 (0.824) | 0.92 | 0.82 | 0.89 | 0.55 | 0.94 | 0.885 (0.872), C = 0.01 |
 
-To fill a pending row (in WSL, from the clone, `~/muffle-encoders/.venv` active; the token line is only needed if `HF_TOKEN` is not in `.env`):
+To fill a row that was not run (in WSL, from the clone, `~/muffle-encoders/.venv` active; `HF_TOKEN` read from `.env`; add `--labeled-only` for the slow models and `train --cv` for the CV column):
 
 - `kaiko-ai/midnight`:
   `python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/midnight --model kaiko-ai/midnight && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/midnight --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
 - `google/path-foundation`:
   `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/path-foundation --model google/path-foundation && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/path-foundation --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
-- `prov-gigapath/prov-gigapath-flash`:
-  `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/prov-gigapath-flash --model prov-gigapath/prov-gigapath-flash && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/prov-gigapath-flash --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
-- `histai/hibou-b`:
-  `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/hibou-b --model histai/hibou-b && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/hibou-b --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
-- `histai/hibou-L`:
-  `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/hibou-L --model histai/hibou-L && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/hibou-L --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
 - `bioptimus/H-optimus-0`:
   `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/H-optimus-0 --model bioptimus/H-optimus-0 && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/H-optimus-0 --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
 - `paige-ai/Virchow`:
   `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/Virchow --model paige-ai/Virchow && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/Virchow --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
-- `MahmoodLab/UNI2-h`:
-  `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/UNI2-h --model MahmoodLab/UNI2-h && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/UNI2-h --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
-- `MahmoodLab/CONCH`:
-  `HF_TOKEN=… python scripts/slide_spike.py embed --tiles ~/muffle-encoders/work --work ~/muffle-encoders/runs/CONCH --model MahmoodLab/CONCH && python scripts/slide_spike.py train --work ~/muffle-encoders/runs/CONCH --test TCGA-C8-A26X-DX1 TCGA-C8-A26Y-DX1 TCGA-EW-A1OV-DX1`
 
-**Reading the table.**
-- QuiltNet-B-32 (MIT, ungated) is what the slide workbench uses today. Measured here at 2 threads
-  while other sessions pushed the load from 0.9 to 13.8; the spike measured ~10 tiles/s on a quiet
-  machine at 6 threads (`decisions.md`, 2026-10-19), so ~25 min per 15k-tile slide is the
-  realistic CPU figure, ~49 min the loaded one.
-- Midnight-12k (MIT, ungated, ViT-g) was timed only (24 tiles, quiet machine, 8 threads): 0.19
-  tiles/s is ~21 h per 15k-tile slide, and ~3 h for the 2,214 spike tiles, more than the hour this
-  comparison allowed. Its accuracy waits for the GPU run.
-- The other eight wait for a Hugging Face click-through. Which one to try first: **Hibou-B**
-  (Apache-2.0, ViT-B: the strongest open encoder that still embeds a slide on this CPU in about an
-  hour, by the survey's arithmetic) and **GigaPath-Flash** (Apache-2.0, ViT-S: minutes per slide). Path Foundation is the
-  other ViT-S, under Google's HAI-DEF terms. The ViT-L/H/g models (Hibou-L, Virchow, UNI2-h,
-  H-optimus-0, Midnight) belong on the GPU. **UNI2-h and CONCH are local only**
-  (CC BY-NC-ND 4.0): their numbers may appear here as aggregates, nothing else they produce may
-  leave the machine, and `embed` / `result` refuse paths inside the repository for them.
-- **Swapping the encoder in the workbench** is one command once a row beats QuiltNet: train its
-  head as above, then `python scripts/slide_spike.py result --work <run> --slide TCGA-C8-A26X-DX1
-  --out app/workbenches/slides_example` (open-license encoders only). The result folder records
-  the encoder's name, license and gate, which the workbench shows in its provenance line.
+**Local only.** UNI2-h, CONCH and GPFM are CC BY-NC-ND 4.0 (GPFM: its official repository; its
+Hugging Face tag says MIT, but it is distilled from UNI, CONCH and Phikon, whose terms count models
+trained on their outputs as derivatives). Their embeddings, heads and maps stay in
+`~/muffle-encoders` on this machine; only the aggregate numbers above are reported, and
+`embed` / `result` refuse any path inside the repository for them. None of them can replace
+QuiltNet in the app.
+
+**Paired check against QuiltNet-B-32** (same 357 held-out tiles; `~/muffle-encoders/paired.py`).
+Difference in accuracy, tile bootstrap 95% interval, tiles right only with this encoder / only with
+QuiltNet, exact McNemar p. Tiles from one slide are correlated, so the interval and p are
+optimistic; read them as "is there a signal at all".
+
+| Encoder | Accuracy minus QuiltNet | 95% interval | Right only here / only QuiltNet | McNemar p |
+|---|---|---|---|---|
+| GigaPath-Flash | +0.042 | +0.003 to +0.081 | 33 / 18 | 0.049 |
+| CONCH (local only) | +0.020 | −0.017 to +0.056 | 25 / 18 | 0.36 |
+| Hibou-B | +0.003 | −0.039 to +0.042 | 27 / 26 | 1 |
+| GPFM (local only) | −0.014 | −0.056 to +0.028 | 26 / 31 | 0.6 |
+| UNI2-h (local only) | −0.039 | −0.081 to +0.003 | 22 / 36 | 0.087 |
+| Hibou-L | −0.067 | −0.115 to −0.020 | 27 / 51 | 0.009 |
+
+Per held-out slide (TCGA-C8-A26X / -A26Y / EW-A1OV): QuiltNet 0.839 / 0.926 / 0.880;
+GigaPath-Flash 0.931 / 0.926 / 0.912; Hibou-B 0.885 / 0.870 / 0.880; Hibou-L 0.805 / 0.870 / 0.796; CONCH 0.816 / 0.907 / 0.926; UNI2-h 0.874 / 0.852 / 0.819; GPFM 0.851 / 0.833 / 0.875. GigaPath-Flash is the only encoder at least as good as QuiltNet on all three slides.
+
+**Hibou.** Its repository's model code needs transformers 4 internals, so the pinned weights are
+loaded strictly into transformers 5's own `Dinov2WithRegistersModel` (embeddings, register
+placement, SwiGLU and pooler checked line by line against Hibou's code). Hibou-L scoring below
+Hibou-B is unexpected for the larger model (its stroma recall drops to 0.62); the card's
+preprocessing was used as stated, and the result is reported as measured.
+
+**Not run.** Path Foundation, H-optimus-0 and Virchow: access not granted yet
+([`model_access.md`](model_access.md)). Midnight-12k: ViT-g, ~2 h even for the 1,409 head tiles at
+the spike's quiet-machine rate and far longer under this load; it belongs in the GPU run.
+
+**Head setting.** Every row uses the head the spike used (C = 0.1, fixed before any of these
+encoders was run). Because one C can suit one embedding size better than another, the last column
+repeats the fit with C chosen per encoder by leave-one-training-slide-out balanced accuracy on the 8
+training slides only (`train --cv`; the held-out slides are untouched). The ranking at the top does
+not change: GigaPath-Flash stays first on both accuracy and balanced accuracy; QuiltNet's balanced
+accuracy rises to 0.886 with a smaller C, CONCH's to 0.912. UNI2-h stays low under either setting,
+which is at odds with its published benchmarks; on three slides and five coarse classes that may
+say more about this task than about the encoder, and it is reported as measured.
+
+**Recommendation.** Replace QuiltNet-B-32 with **GigaPath-Flash** (`prov-gigapath/prov-gigapath-flash`,
+Apache-2.0) for re-scoring the eight sections. On the held-out slides it raises accuracy from 0.877
+to 0.919 (+4.2 points) and balanced accuracy from 0.854 to 0.917 (+6.3), and with C chosen by
+cross-validation from 0.866 / 0.886 to 0.922 / 0.923; it is better or equal on each of the three
+held-out slides, and the paired test puts the gain just clear of zero (interval +0.3 to +8.1 points,
+optimistic because tiles are correlated). The gain is in tumor (0.89 → 1.00), lymphocytes
+(0.74 → 0.90) and necrosis (0.73 → 0.82, 11 tiles), with stroma slightly lower (0.92 → 0.87). It is
+the only open-license encoder that wins; CONCH, UNI2-h and GPFM are local only in any case. Its
+card, like QuiltNet's, puts any deployed use out of scope, so the hosted app keeps showing
+precomputed results and runs no encoder. Cost: ViT-S/16 is slower per tile than QuiltNet's
+ViT-B/32 on this CPU (3.0 tiles/s at 4 threads under load ~12, ~50 min for a 9,000-tile section
+budget), so re-scoring eight sections is an overnight CPU job or minutes on the GPU
+([`gpu.md`](gpu.md)). Status after the swap: *experimentally validated on held-out BCSS regions
+only*, as before.
+
+**Swapping the encoder in the workbench** is one command per section once the head is trained:
+`python scripts/slide_pipeline.py run --slide <svs> --work <new folder> --model <id> --out
+app/workbenches/slides_results/<slide>`, with `head.json` and `head_metrics.json` copied from
+`~/muffle-encoders/runs/<encoder>/` into the new work folder. Use a **new** work folder per
+encoder: `run` reuses a cached `embeddings.npy`, and one encoder's head cannot read another's
+embeddings. `python scripts/slide_spike.py result --work <run> ...` does the same for the
+spike's example region. Open-license encoders only; the result folders record the encoder's
+name, license and gate, which the workbench shows in its provenance line.
 
 ## 2. Models for the other workbenches
 

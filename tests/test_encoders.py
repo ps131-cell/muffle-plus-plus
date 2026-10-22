@@ -6,6 +6,7 @@ import json
 from argparse import Namespace
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +14,8 @@ _spec = importlib.util.spec_from_file_location("slide_spike", ROOT / "scripts" /
 spike = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(spike)
 
-LOADERS = {"hf_auto", "hf_clip", "timm", "timm_file", "tf_savedmodel", "conch"}
+LOADERS = {"hf_auto", "hf_clip", "timm", "timm_file", "tf_savedmodel", "conch",
+           "dinov2_registers"}
 POOLS = {"cls+mean", "clip_proj", "pooler", "pooled", "output_0", "conch_image"}
 
 
@@ -26,7 +28,8 @@ def test_every_encoder_is_complete(name):
     assert len(spec["mean"]) == 3 and len(spec["std"]) == 3 and min(spec["std"]) > 0
     assert spec["params_m"] > 0 and spec["dim"] > 0
     assert isinstance(spec["local_only"], bool)
-    if spec.get("remote_code"):  # repo code runs on load: pinned to a reviewed revision
+    assert spec["tcga_pretraining"].split(" ")[0] in ("yes", "no", "not")
+    if spec["loader"] == "dinov2_registers":  # weights pinned to the revision checked
         assert len(spec["revision"]) == 40
     if spec["loader"] == "timm_file":
         assert spec["arch"]
@@ -91,9 +94,24 @@ def test_compare_table_fills_measured_rows_and_lists_pending_commands(tmp_path):
     per = {c: {"recall": 0.9} for c in spike.HEAD_CLASSES}
     (run / "head_metrics.json").write_text(json.dumps(
         {"accuracy": 0.877, "balanced_accuracy": 0.854, "per_class": per}))
+    (run / "head_metrics_cv.json").write_text(json.dumps(
+        {"accuracy": 0.866, "balanced_accuracy": 0.886, "C": 0.003, "per_class": per}))
     table = spike.compare_table(tmp_path)
     quilt = next(line for line in table.splitlines() if "QuiltNet" in line)
     assert "0.877 (0.854)" in quilt and "| 50 |" in quilt  # 15,000 tiles at 5/s = 50 min
+    assert "0.866 (0.886), C = 0.003" in quilt
     assert "HF_TOKEN=… python scripts/slide_spike.py embed" in table
     assert "--model histai/hibou-L" in table
     assert "--model wisdomik/QuiltNet-B-32 &&" not in table
+
+
+def test_result_refuses_labeled_only_embeddings(tmp_path):
+    (tmp_path / "timing.json").write_text(json.dumps({"model": "wisdomik/QuiltNet-B-32"}))
+    for name in ("head.json", "head_metrics.json"):
+        (tmp_path / name).write_text("{}")
+    slide = tmp_path / "S"
+    slide.mkdir()
+    (slide / "tiles.csv").write_text("row,col\n0,0\n0,1\n")
+    np.save(slide / "embeddings.npy", np.array([[1.0, 2.0], [np.nan, np.nan]], np.float32))
+    with pytest.raises(SystemExit, match="labeled-only"):
+        spike.cmd_result(Namespace(work=tmp_path, slide="S", out=tmp_path / "out"))
