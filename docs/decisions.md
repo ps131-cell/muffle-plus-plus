@@ -2,6 +2,23 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-21 — The demo model's held-out C-index is the release bundle's 0.728; a local rebuild reads 0.730
+- **What:** the hosted app and the `demo-wsl` preview both load the release `demo-bundle-v2`,
+  so both show held-out C-index **0.728**. The preview passes `--bundle outputs/demo_bundle.pt`,
+  a copy byte-identical to the release asset (sha256 `3baccb8f258aea82…`). Without `--bundle` or
+  `MUFFLE_BUNDLE`, a clone that has `outputs/tcga_fedavg.pt` and `data/tcga_brca/cohort.npz`
+  rebuilds the demo from its own data (`load()` in `app/streamlit_app.py`). That rebuild uses the
+  same model weights on features rebuilt from current GDC and Xena files, and reads **0.730**:
+  site-2 0.670 instead of 0.665, the other two sites equal, cohort risks within 0.019.
+- **Why:** the shown number must be one anyone can reproduce from the release. Bundle v2 was
+  built with `--base` (PR #63) precisely so that it keeps v1's model, cases and numbers, adding
+  only the observed mutations; a rebuild from re-downloaded data drifts a little.
+- **Consequence:** quote 0.728 for the demo model. The README's results table is a different
+  quantity, the pooled site-stratified C-index of `make experiment-tcga` (mean ± sd over 5
+  seeds; FedAvg 0.693 ± 0.017); the Oct 27 numbers pass keeps both and names which is which. A
+  preview that shows 0.730 was started without `--bundle`. `.claude/launch.json` is local and
+  shared by sessions, so the flag lives there and in this entry, not in the repository.
+
 ## 2026-10-21 — Slide workbench: a second opinion on lymphocytes from the WSInfer TIL model
 - **What:** `scripts/slide_pipeline.py til` scores the front-band and peritumoral tiles of a
   scored section with WSInfer's TIL InceptionV4 (CC BY 4.0, TorchScript) and writes `til.json`;
