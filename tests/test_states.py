@@ -2,6 +2,7 @@
 report's cards (docs/ux.md §4): a part that fails says which part and where its method is
 described, never a traceback; the list sorts by last update, risk or open SOS alerts."""
 
+import ast
 import sys
 
 import pytest
@@ -77,6 +78,22 @@ def test_report_cards_are_short_with_their_full_text_one_click_away(app):
     assert cards and "**:red[SOS]** · 7 open" in shown(at) and not at.exception
     full = popovers(at)["more"]  # the full text, one click away
     assert cards[-1][:-2].split("*")[-1].strip()[:20] in full
+
+
+def test_metric_tiles_wrap_instead_of_cutting_their_values():
+    """Every metric tile takes its content's width in a row that wraps on a narrow screen
+    (st.container(horizontal=True)), never a fixed column that cuts "75th percentile" to "75th
+    perc…"; its unit goes in the label ("…, cohort percentile"), not the value (docs/ux.md §4)."""
+    calls = [(p.name, n) for p in sorted(APP.parent.rglob("*.py"))
+             for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
+             if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "metric"]
+    assert len(calls) > 30
+    for name, n in calls:
+        width = {k.arg: k.value for k in n.keywords}.get("width")
+        assert isinstance(width, ast.Constant) and width.value == "content", f"{name}:{n.lineno}"
+        words = [c.value for c in ast.walk(n.args[1]) if isinstance(c, ast.Constant)
+                 and isinstance(c.value, str)] if len(n.args) > 1 else []  # the value's text
+        assert not any("percentile" in w for w in words), f"{name}:{n.lineno}: unit in the label"
 
 
 def test_the_methods_page_lists_every_card_in_its_contents(app):

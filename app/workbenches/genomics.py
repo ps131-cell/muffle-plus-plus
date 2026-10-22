@@ -357,12 +357,15 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
     if r is None or r["copies"] is None:
         st.info(f"No copy number for {gene} in this file: unknown, not normal.")
     else:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Copies (observed)", f"{r['copies']:g}", help="ASCAT3, gene level")
-        c2.metric("Call (rule)", r["call_text"], help="relative to the ploidy estimate "
-                  f"{r['ploidy']:g}; cutoffs in the method card")
-        c3.metric("Cohort percentile", "—" if r["pct"] is None else gx._pct(r["pct"]),
-                  help="copies relative to ploidy, among this cohort's tumors (ties split)")
+        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+        row.metric("Copies (observed)", f"{r['copies']:g}", help="ASCAT3, gene level",
+                   width="content")
+        row.metric("Call (rule)", r["call_text"], width="content", help="relative to the "
+                   f"ploidy estimate {r['ploidy']:g}; cutoffs in the method card")
+        row.metric("Cohort percentile",
+                   "—" if r["pct"] is None else gx._pct(r["pct"]).split(" ")[0],
+                   width="content",
+                   help="copies relative to ploidy, among this cohort's tumors (ties split)")
         cut = {c["name"]: c for c in gx.CUTOFFS}.get(r["call_text"])
         if cut:
             st.markdown(f"Cutoff: {r['call_text']} = {cut['rule']} "
@@ -547,11 +550,14 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
     if not bur.get("measured"):
         st.info(bur["note"][0].upper() + bur["note"][1:] + ".")
     else:
-        c = st.columns(4)
-        c[0].metric("Somatic calls (observed)", bur["calls"])
-        c[1].metric("Protein-altering (observed)", bur["altering"])
-        c[2].metric(f"Per Mb (derived, ÷ {bur['exome_mb']:g})", f"{bur['rate']:.2f}")
-        c[3].metric("Cohort percentile", gx._pct(bur["pct"]).split(" ")[0])
+        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+        row.metric("Somatic calls (observed)", bur["calls"], width="content")
+        row.metric("Protein-altering (observed)", bur["altering"], width="content")
+        row.metric(f"Per Mb (derived, ÷ {bur['exome_mb']:g})", f"{bur['rate']:.2f}",
+                   width="content")
+        row.metric("Cohort percentile",  # _pct(None) reads "percentile unknown"
+                   "—" if bur["pct"] is None else gx._pct(bur["pct"]).split(" ")[0],
+                   width="content")
         q = (data or {}).get("burden", {}).get("rate_quantiles") or []
         if q:
             df = pd.DataFrame({"rate": q, "pct": [i * 100 / (len(q) - 1) for i in range(len(q))]})
