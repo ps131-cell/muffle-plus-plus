@@ -62,6 +62,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:
 import charts  # noqa: E402
 from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
+from workbenches._page import land  # noqa: E402
 
 from muffle import crosstest, evolution, overview, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
@@ -88,7 +89,6 @@ from muffle.report.nemotron import (  # noqa: E402
 from muffle.timeline import EVENTS  # noqa: E402
 from muffle.workbench.documents import case_documents  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
-from muffle.workbench.labs import file_rows as lab_rows  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
@@ -620,36 +620,6 @@ def open_evidence(pf: workspace.PatientFile, i: int, opens: tuple, focus: dict |
         st.session_state.view = opens[0]
 
 
-def land(pf: workspace.PatientFile, i: int, focus: dict):
-    """Set the opened workbench's own widget state so it opens on the pointer.
-    ponytail: these are the pages' widget keys; a page that renames one opens at its top
-    instead (a pure focus() per page would carry this if pages multiply)."""
-    ss = st.session_state
-    if "marker" in focus:  # labs: the Spot panel's value
-        row = next((r for r in lab_rows(pf, i)
-                    if (r["key"], r["month"]) == (focus["marker"], focus["month"])), None)
-        if row:
-            ss[f"{pf.id}_spot"] = labs._lab(row)
-    if "variant" in focus:  # genomics: the variant browser narrowed to it, its Spot panel below
-        ss[f"genomics-{pf.id}-{i}-search"] = focus["variant"]
-    if "gene" in focus:  # genomics: the copy-number landscape's Spot panel on the gene
-        ss[f"genomics-{pf.id}-{i}-gene"] = focus["gene"]
-    if "slide" in focus:  # slides: the section, then the pointer in its Spot panel and viewer
-        ss[f"{pf.id}-section"] = focus["slide"]
-        if "tile" in focus:
-            k = f"{pf.id}|{focus['slide']}"
-            ss[f"{k}-pick"], ss[f"{k}-spot"] = f"{focus['pointer']} · {focus['tile']}", ""
-            row, col = (int(v) for v in focus["tile"][1:].split("c"))
-            ss[f"{k}-goto"] = {"slide": focus["slide"], "row": row, "col": col,
-                               "nonce": datetime.now().timestamp()}
-    if "omics" in focus:  # omics: the finding in its Spot panel
-        ss[f"omics-spot-{pf.id}"] = focus["omics"]
-    if "doc" in focus:  # documents: the document at the sentence
-        ss[f"docs-jump-{pf.id}"] = (focus["doc"], tuple(focus["sentence"]))
-    if "site" in focus:  # radiology: the lesion table's Spot panel on the site
-        ss[f"rad-site-{pf.id}"] = focus["site"]
-
-
 def mark(key: str, what: str, value: str | None):
     """Store (or, with None, clear) a reviewer's mark on one finding."""
     if value is None:
@@ -920,15 +890,15 @@ def tests_view(pf: workspace.PatientFile, i: int):
                             if t.workbench == w), shown[0])
     st.divider()
     if t.workbench == "labs":  # the record's results and this session's imported ones
-        labs.render(pf, events=workspace.record_events(pf), version=i)
+        labs.render(pf, events=workspace.record_events(pf), version=i, test=t)
     elif t.workbench == "mutations":  # CIViC's table adds the resistance items when it loaded
         genomics.render(pf, version=i, lookup=EVIDENCE,
                         table=civic.load_table() if EVIDENCE else None, case=CASES.get(pf.id),
-                        demo=demo)
+                        demo=demo, test=t)
     elif t.workbench == "slides":  # the patient's own scored sections, or a public example
         from workbenches import slides  # here, so a missing scipy can't break the whole app
 
-        slides.render(pf, version=i)
+        slides.render(pf, version=i, test=t)
     elif t.workbench == "imaging":  # the image viewer, or the reports' words when no images
         from workbenches import radiology
 
@@ -940,7 +910,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
             imports.read_details(t.details)
         radiology.render(pf, version=i)
     elif t.workbench in ("omics", "record"):
-        omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo)
+        omics.render(pf, version=i, layer=t.details["layer"], case=CASES.get(pf.id), demo=demo,
+                     test=t)
     elif t.workbench == "documents":  # rule-based extraction; the case note is shown as inferred
         from workbenches import documents
 
@@ -954,7 +925,7 @@ def tests_view(pf: workspace.PatientFile, i: int):
     elif t.workbench == "ctdna":  # the synthetic patient's ctDNA series, labeled synthetic
         from workbenches import ctdna
 
-        ctdna.render(pf, version=i)
+        ctdna.render(pf, version=i, test=t)
     else:
         st.markdown(f"#### {t.name}, month {t.month} {badge(t.status)}")
         st.markdown(f"**Report text** {tags(OBSERVED)}: {esc(t.result)}")

@@ -5,16 +5,17 @@ streamlit run app/workbenches/labs.py        # the synthetic patient's workbench
 The workspace pages call ``render(file, events=None, version=None)`` with a
 ``muffle.workspace.PatientFile``; it draws inside the current container only. Any analyte in the
 record or imported this session: the reference table (``muffle.workbench.labs_reference``) gives
-the interval when the lab report did not. Overview first (with pointers L1..Ln shared by every
-view), then a trend per analyte by panel (hover for brief stats, the reference interval, the
-baseline band and kinetics for tumor markers, treatment spans and caution windows), the spot
-panel for one value, kinetics, the EGTM confirmation tracker, therapy windows, the baseline band,
-markers against imaging, the cross-analyte hypotheses, the cross-marker view, plain-word search,
-the results table with filters, one expander per flagged result with review marks, the "look
-here" queue, quality checks, the reference table, the rules card and the exports. Every number is
-plain arithmetic on observed values (``muffle.workbench.labs``) except the kinetics and the
-calculated values (eGFR, adjusted calcium), which are model inference; an out-of-range value is
-not evidence of progression by itself.
+the interval when the lab report did not. The page follows the shared skeleton
+(``workbenches._page``): the overview (with pointers L1..Ln shared by every view, the look-here
+queue and plain-word search), the trends by panel (hover for brief stats, the reference interval,
+the baseline band and kinetics for tumor markers, treatment spans and caution windows), the
+details (flagged results, the results table with filters, the EGTM confirmation tracker, therapy
+windows, kinetics, the baseline band, markers against imaging, the cross-analyte hypotheses, the
+cross-marker view, quality checks, planned panels), the Spot panel for one value with its review
+mark, the rules card with the reference table, what the test cannot see and the exports. Every
+number is plain arithmetic on observed values (``muffle.workbench.labs``) except the kinetics and
+the calculated values (eGFR, adjusted calcium), which are model inference; an out-of-range value
+is not evidence of progression by itself.
 """
 
 from __future__ import annotations
@@ -27,6 +28,8 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1]
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
+if str(APP) not in sys.path:  # standalone: streamlit run app/workbenches/labs.py
+    sys.path.insert(0, str(APP))
 
 import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -61,6 +64,7 @@ from muffle.workbench.labs import (  # noqa: E402
     therapy_windows,
     treatment_intervals,
 )
+from muffle.workbench.labs import queue as lab_queue  # noqa: E402
 from muffle.workspace import (  # noqa: E402
     IMPLEMENTED,
     PLANNED,
@@ -69,7 +73,8 @@ from muffle.workspace import (  # noqa: E402
     synthetic_file,
 )
 from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
-from muffle.workbench.grammar import CANNOT_SEE, CARD, chip  # noqa: E402
+from muffle.workbench.grammar import chip, count_label  # noqa: E402
+from workbenches._page import Page, land  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, BELOW: RED, RISING: ORANGE, FALLING: BLUE,
@@ -281,33 +286,54 @@ def _set_mark(file: PatientFile, r: dict) -> None:
 
 
 def render(file: PatientFile, events: list[dict] | None = None,
-           version: int | None = None) -> None:
+           version: int | None = None, test=None) -> None:
     """The workbench for one patient file, drawn inside the current container (no page config,
-    no sidebar). Synthetic files use ``muffle.timeline.EVENTS`` (or ``events``); with
-    ``version`` (an index into ``file.versions``) the workbench is shown as of that version's
-    month, with flags computed from the results up to it only. A TCGA file holds no lab
-    results unless some were imported in this session (``events``), and the page says so."""
-    st.subheader("Blood and lab workbench")
-    st.caption(f"{file.id} · {file.title}")
+    no sidebar) in the shared page skeleton (``workbenches._page``). Synthetic files use
+    ``muffle.timeline.EVENTS`` (or ``events``); with ``version`` (an index into
+    ``file.versions``) the workbench is shown as of that version's month, with flags computed
+    from the results up to it only. A TCGA file holds no lab results unless some were imported
+    in this session (``events``), and the page says so. ``test`` is the test it was opened
+    from, for the title."""
+    page = Page("labs", file, test, version)
     events = (EVENTS if file.kind == "synthetic" else []) if events is None else events
+    later = 0
     if version is not None:
         cutoff = file.versions[version].month  # None: a TCGA baseline, before any import
         kept = [e for e in events if cutoff is not None and e["month"] <= cutoff]
         later, events = len(events) - len(kept), kept
-        if events:
-            st.caption(f"As of month {cutoff} ({file.versions[version].label}): {later} later "
-                       "events hidden, flags computed from the results up to here.")
     if not any(k in ref.ANALYTES or k.startswith("lab:") for e in events for k in e):
-        chips(IMPLEMENTED)
-        st.info("This file holds no lab results: TCGA-BRCA has one tumor sample per patient and "
-                "no blood panels, so there is no series to trend. Lab results can be imported "
-                "(Import tests); see the synthetic patient's file for what the workbench shows.")
-        _planned()
-        _reference_table()
-        _cannot_see()
-        _card()
+        page.title(IMPLEMENTED)
+        st.caption(PROVENANCE)
+        with page.overview():
+            st.info("No lab results in this file: TCGA-BRCA holds one tumor sample per patient "
+                    "and no blood panels, so there is no series to trend. A lab results file "
+                    "(CSV) brought in through **Import tests** would open this workbench; the "
+                    "synthetic patient's file shows what it does with a series.", icon="🧪")
+        _planned(page)
+        _card(page)
+        with page.cannot_see(CANNOT_SEE_LABS):
+            pass
+        with page.export(empty="Nothing to export: this file holds no lab results."):
+            pass
         st.caption(CAVEAT)
         return
+    synthetic = file.kind == "synthetic"
+    imported = any("(imported" in e.get("text", "") for e in events)
+    page.title(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP,
+               *(["synthetic patient"] if synthetic else []),
+               *(["imported this session"] if imported else []))
+    if synthetic:
+        st.warning("Synthetic patient: this record was written by hand and is not a real "
+                   "person. Its values exist to show how the workbench reads a series"
+                   + (", next to the results imported in this session." if imported else "."))
+    else:
+        st.info("These lab results were imported in this browser session; TCGA-BRCA itself "
+                "holds none.")
+    st.caption(PROVENANCE)
+    if later:
+        st.caption(f"As of month {file.versions[version].month} "
+                   f"({file.versions[version].label}): {later} later events hidden, flags "
+                   "computed from the results up to here.")
     c1, c2 = st.columns(2)
     sex = c1.selectbox("Sex, for sex-specific intervals and eGFR", ["not recorded", "female",
                                                                      "male"],
@@ -334,21 +360,10 @@ def render(file: PatientFile, events: list[dict] | None = None,
     hyp = cross_analyte(rows, events)
     reviews = st.session_state.setdefault("reviews", {})  # the workspace's one store per file
     mine = {k: v for k, v in reviews.items() if k.startswith(f"{file.id}|lab|")}
-    synthetic = file.kind == "synthetic"
-    imported = any("(imported" in e.get("text", "") for e in events)
-    chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP,
-          *(["synthetic patient"] if synthetic else []),
-          *(["imported this session"] if imported else []))
-    if synthetic:
-        st.warning("Synthetic patient: this record was written by hand and is not a real "
-                   "person. Its values exist to show how the workbench reads a series"
-                   + (", next to the results imported in this session." if imported else "."))
-    else:
-        st.info("These lab results were imported in this browser session; TCGA-BRCA itself "
-                "holds none.")
-    st.caption(PROVENANCE)
+    labels = [_lab(r) for r in rows]
+    spot_key = f"{file.id}_spot"
 
-    # overview: one paragraph, with the pointers every view shares
+    # overview: one paragraph with the pointers every view shares, the look-here queue, search
     measured = list(dict.fromkeys(r["marker"] for r in rows))
     latest = {r["marker"]: r for r in rows}  # rows are in month order, so the last wins
     unmeasured = [ref.ANALYTES[k]["name"] for k in ("ca153", "cea") if k not in keys]
@@ -362,8 +377,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
             [m for m, r in latest.items() if not r["flags"]]] if ok and len(latest) > 3)
         + f". {len(flagged)} of {len(rows)} results flagged"
         + (f" ({flagged[0]['pointer']} to {flagged[-1]['pointer']})" if flagged else "")
-        + f", {n_of(len(queue), 'open item')} in the look-here queue, "
-        f"{n_of(sum(not c['ok'] for c in checks), 'quality check')} failing, "
+        + f", {n_of(sum(not c['ok'] for c in checks), 'quality check')} failing, "
         f"{n_of(len(mine), 'review mark')}."]
     for t in tracker:
         lines.append(f"{t['pointer']}: the rise at month {t['month']} is **{t['outcome']}** "
@@ -384,295 +398,296 @@ def render(file: PatientFile, events: list[dict] | None = None,
                      .replace("hypothesiss", "hypotheses") + " (for clinician review): "
                      + "; ".join(f"{h['site'].lower()} report of month {h['imaging_month']} with "
                                  + ", ".join(h["pointers"]) for h in hyp) + ".")
-    lines.append("All values observed; every flag is plain arithmetic against the value's "
-                 "reference interval (its source named with it), the EGTM 25% rise criterion for "
-                 "tumor markers (a rise is unconfirmed until a second specimen within a month) "
-                 "or a placeholder.")
-    st.markdown(" ".join(lines))
+    with page.overview():
+        st.markdown(" ".join(lines))
+        st.caption("All values observed; every flag is plain arithmetic against the value's "
+                   "reference interval (its source named with it), the EGTM 25% rise criterion "
+                   "for tumor markers (a rise is unconfirmed until a second specimen within a "
+                   "month) or a placeholder.")
+        page.look_here(look_items(file, version), land=lambda focus: land(file, page.version,
+                                                                         focus),
+                       more="Details › Flagged results")
+        query = st.text_input("Search the results in plain words", key=f"{file.id}_search",
+                              placeholder="above the limit · below · rising · after palbociclib "
+                                          "· month 11 · L4 · liver · neutrophils")
+        if query:
+            hit = search(query, rows, intervals)
+            (st.markdown if hit["understood"] else st.warning)(hit["answer"])
+            if hit["rows"]:
+                st.dataframe(_table(hit["rows"], reviews, file), hide_index=True,
+                             width="stretch")
 
-    # trends: one chart per analyte, by panel, hover for brief stats
-    st.markdown("#### Trends")
-    chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP, INFERENCE_CHIP)
-    st.caption("Hover a point for its pointer, value, reference, change from the previous value "
-               "and from the nadir, rate and source event. Gray spans are treatment intervals "
-               "(the record holds starts only: a span ends at the next treatment event or the "
-               "record's end); for tumor markers the orange strip after each start is the "
-               "caution window, the blue band the within-person baseline and the orange dashed "
-               "band after the last value the kinetics extrapolation (model inference, "
-               "placeholder method). Dashed red lines are the latest value's reference limits.")
-    panels = [p for p in (*ref.PANELS, ref.UNLISTED) if any(r["panel"] == p for r in rows)]
-    for tab, panel in zip(st.tabs(panels), panels, strict=True):
-        with tab:
-            for key in dict.fromkeys(r["key"] for r in rows if r["panel"] == panel):
-                series = [r for r in rows if r["key"] == key]
-                st.altair_chart(trend(series, intervals, bands.get(key), kin.get(key, {})),
-                                width="stretch")
-                a = ref.ANALYTES.get(key)
-                st.caption(f"{series[0]['marker']}: " + (
-                    f"{a['why']} ({a['why_source']})." if a else
-                    f"{ref.UNLISTED}: flagged only against the interval its lab report gave."))
+    # the picture: one trend per analyte, by panel, hover for brief stats
+    with page.picture("Trends", caption=(
+            "Hover a point for its pointer, value, reference, change from the previous value "
+            "and from the nadir, rate and source event. Gray spans: treatment intervals (the "
+            "record holds starts only, so a span ends at the next treatment or the record's "
+            "end). For tumor markers: the orange strip after each start is the caution window, "
+            "the blue band the within-person baseline, the orange dashed band after the last "
+            "value the kinetics extrapolation (model inference, placeholder method). Dashed red "
+            "lines: the latest value's reference limits.")):
+        chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP, INFERENCE_CHIP)
+        panels = [p for p in (*ref.PANELS, ref.UNLISTED) if any(r["panel"] == p for r in rows)]
+        for tab, panel in zip(st.tabs(panels), panels, strict=True):
+            with tab:
+                for key in dict.fromkeys(r["key"] for r in rows if r["panel"] == panel):
+                    series = [r for r in rows if r["key"] == key]
+                    st.altair_chart(trend(series, intervals, bands.get(key), kin.get(key, {})),
+                                    width="stretch")
+                    a = ref.ANALYTES.get(key)
+                    st.caption(f"{series[0]['marker']}: " + (
+                        f"{a['why']} ({a['why_source']})." if a else
+                        f"{ref.UNLISTED}: flagged only against the interval its lab report "
+                        "gave."))
 
-    # spot panel: one value in full
-    st.markdown("#### Spot panel")
-    chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    labels = [_lab(r) for r in rows]
-    default = labels.index(_lab(flagged[-1])) if flagged else len(labels) - 1
-    picked = st.selectbox("Value", labels, index=default, key=f"{file.id}_spot")
-    s = spot(rows[labels.index(picked)], rows, events)
-    r = s["row"]
-    st.markdown(
-        f"**{r['marker']} {r['value']:g} {r['unit']}** at month {r['month']} "
-        f"({r['pointer'] or 'no flag'}; evidence: {s['evidence']}). Reference {r['reference']} "
-        f"({r['reference_source']}). Change from previous {pct(r['change'])}, from nadir "
-        f"{pct(r['from_nadir'])}, rate "
-        + ("first value" if r["per_month"] is None else f"{r['per_month']:+.3g} {r['unit']} per "
-                                                        "month") + ".")
-    st.markdown(f"**Why it matters here:** {s['why'][0]}"
-                + (f" ({s['why'][1]})." if s["why"][1] else "."))
-    st.markdown("**Rules that fired:** " + ("; ".join(
-        f"{f['flag'] if f['flag'] != 'CTCAE grade' else 'CTCAE grade ' + str(r['grade'])} "
-        f"({f['rule']}; threshold: {f['threshold']}; {f['status']})"
-        for f in s["fired"]) or "none: within the interval, no rise or fall by the rules"))
-    st.markdown("**Events around it (±2 months):**\n" + "\n".join(
-        f"- month {e['month']}, {e.get('kind', 'Lab')}: {e['text']}" for e in s["events_around"]))
-    st.markdown("**Check by eye before reading anything into it:**\n"
-                + "\n".join(f"- {c}" for c in s["check_by_eye"]))
-
-    # kinetics
-    st.markdown("#### Marker kinetics")
-    chips(IMPLEMENTED, INFERENCE_CHIP, PLACEHOLDER_METHOD_CHIP)
-    if not kin:
-        st.caption("No tumor marker on file: kinetics are drawn for tumor markers only.")
-    for k in kin.values():
-        if "rate_per_month" not in k:
-            st.caption(f"{k['marker']}: {k.get('note', 'no values')}.")
-            continue
-        time = [(n.split("_")[0] + " time", k[n], k.get(f"{n}_range"))
-                for n in ("doubling_months", "halving_months") if n in k]
-        st.markdown(
-            f"**{k['marker']}**, from the values at months {k['months'][0]} to "
-            f"{k['months'][1]}: rate {k['rate_per_month']:+.3f} log-units per month "
-            f"(pairwise range {k['rate_range'][0]:+.3f} to {k['rate_range'][1]:+.3f}), "
-            f"{k['direction']}"
-            + "".join(f"; {n} about {v:.0f} months"
-                      + (f" (range {rng[0]:.0f} to {rng[1]:.0f})" if rng else "")
-                      for n, v, rng in time)
-            + (f". {cap(k['crossing']['text'])}"
-               + (f" (range {k['crossing']['range_months'][0]:.1f} to "
-                  f"{k['crossing']['range_months'][1]:.1f})"
-                  if k["crossing"]["range_months"] else "") if k["crossing"] else
-               ". Not heading towards the reference limit at the current rate") + ".")
-        st.caption(f"Method: {k['method']}. Evidence: {k['evidence']}. Status: {k['status']}. "
-                   f"{cap(k['caveat'])}.")
-
-    # EGTM confirmation tracker
-    st.markdown("#### Rise confirmation (EGTM)")
-    chips(IMPLEMENTED, LITERATURE_CHIP)
-    st.caption("A 25% rise of a tumor marker is unconfirmed until a second specimen within a "
-               "month confirms it. Each flagged rise, with the month its confirming specimen was "
-               "due by and what the next value did.")
-    if tracker:
-        st.dataframe(pd.DataFrame(tracker)[["pointer", "marker", "month", "value", "previous",
-                                            "due_by", "outcome", "detail", "evidence",
-                                            "status"]], hide_index=True, width="stretch")
-    else:
-        st.caption("No flagged rise in the results shown.")
-
-    # therapy windows
-    st.markdown("#### Early after a therapy change")
-    chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    source = windows[0]["source"] if windows else "see the rules card"
-    st.caption(f"Tumor-marker values within {FLARE_MONTHS} months of a new systemic therapy. A "
-               "transient marker surge in the first weeks of effective therapy is in the "
-               f"literature; the window length is a placeholder. Source: {source}.")
-    if windows:
-        st.dataframe(pd.DataFrame(windows)[["pointer", "marker", "month", "value", "therapy",
-                                            "started", "months_after", "note", "window"]],
-                     hide_index=True, width="stretch")
-    else:
-        st.caption("No value falls in a caution window.")
-
-    # baseline band
-    st.markdown("#### Within-person baseline")
-    chips(IMPLEMENTED, PLACEHOLDER_CHIP)
-    for key, band in bands.items():
-        if band:
-            st.markdown(f"**{band['marker']}**: median {band['median']:g}, range {band['lo']:g} "
-                        f"to {band['hi']:g} {ref.ANALYTES[key]['unit']}, built from {band['n']} "
-                        f"results in months {band['months'][0]} to {band['months'][1]}. Method: "
-                        f"{band['method']}. Evidence: {band['evidence']}.")
+    # details: collapsed, each with its count
+    with page.details("Flagged results", len(queue)):
+        chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
+        st.caption("Every flagged result, latest first, one row per rule that fired, with its "
+                   "pointer and review mark; the status names the source of each threshold. "
+                   "Click a row to open the value in the Spot panel.")
+        if queue:
+            q = pd.DataFrame(queue)
+            q.insert(1, "review", [reviews.get(_key(file, i), {}).get("mark", "") for i in queue])
+            picks = [_lab(next(r for r in rows if (r["key"], r["month"]) == (i["key"],
+                                                                          i["month"])))
+                     for i in queue]
+            _pick_table(q[["pointer", "review", "month", "marker", "value", "unit", "flag",
+                           "rule", "threshold", "evidence", "status", "event"]], picks,
+                        f"{file.id}_labs_flags", spot_key)
         else:
-            st.caption(f"{ref.ANALYTES[key]['name']}: no run of three consecutive results "
-                       "without a rise or fall, so no baseline band.")
-
-    # lead and lag against imaging
-    st.markdown("#### Markers against imaging")
-    chips(IMPLEMENTED)
-    st.caption("Each imaging report against the last tumor-marker result before it: the "
-               "observed order of events in this record, not a validated lead time.")
-    if lag:
-        st.markdown("\n".join(f"- {x['pointer'] + ': ' if x['pointer'] else ''}{x['what']}"
-                              for x in lag))
-    else:
-        st.caption("No imaging report after a tumor-marker result in the results shown.")
-
-    # cross-analyte hypotheses
-    st.markdown("#### Cross-analyte hypotheses")
-    chips(IMPLEMENTED, HYPOTHESIS_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    st.caption("Raised or rising bone or liver values next to an imaging report that names the "
-               "site: hypotheses for clinician review, each naming the report it refers to, its "
-               "literature and the other causes the rule cannot rule out.")
-    for h in hyp:
-        with st.container(border=True):
-            st.markdown(f"**{h['site']}** · {cap(h['hypothesis'])}. *{h['evidence']}*")
-            st.markdown("Values: " + "; ".join(h["values"]) + "."
-                        + "".join(f" {cap(g)}." for g in h["ggt"]))
-            st.caption(f"{cap(h['other_causes'])}. Source: {h['source']}. Window: "
-                       f"{h['window']}.")
-    if not hyp:
-        st.caption("None raised: they need raised or rising alkaline phosphatase or calcium "
-                   "(bone), or liver enzymes or bilirubin (liver), next to an imaging report "
-                   "naming that site.")
-
-    # cross-marker view
-    st.markdown("#### Cross-marker view")
-    chips(cross["status"])
+            st.caption("Nothing flagged.")
+    with page.details("Results", len(rows)):
+        chips(IMPLEMENTED)
+        c1, c2, c3 = st.columns([3, 1, 1])
+        pick = c1.multiselect("Analyte", measured, key=f"{file.id}_labs_marker",
+                              placeholder="all analytes") or measured  # new ones join "all"
+        only = c2.checkbox("Flagged only", key=f"{file.id}_labs_flagged")
+        reviewed = c3.selectbox("Reviewed", ["all", "reviewed", "not reviewed"],
+                                key=f"{file.id}_labs_reviewed")
+        shown = [r for r in rows if r["marker"] in pick and (r["flags"] or not only)
+                 and (reviewed == "all"
+                      or (reviewed == "reviewed") == bool(_marks_of(file, r, reviews)))]
+        if shown:
+            _pick_table(_table(shown, reviews, file), [_lab(r) for r in shown],
+                        f"{file.id}_labs_results", spot_key)
+            st.caption("Click a row to open the value in the Spot panel.")
+        else:
+            st.caption("No results match the filters.")
+    with page.details("Rise confirmation, EGTM", len(tracker)):
+        chips(IMPLEMENTED, LITERATURE_CHIP)
+        st.caption("A 25% rise of a tumor marker is unconfirmed until a second specimen within a "
+                   "month confirms it. Each flagged rise, with the month its confirming specimen "
+                   "was due by and what the next value did.")
+        if tracker:
+            st.dataframe(pd.DataFrame(tracker)[["pointer", "marker", "month", "value",
+                                                "previous", "due_by", "outcome", "detail",
+                                                "evidence", "status"]],
+                         hide_index=True, width="stretch")
+        else:
+            st.caption("No flagged rise in the results shown.")
+    with page.details("Early after a therapy change", len(windows)):
+        chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
+        source = windows[0]["source"] if windows else "see the Model and validation card"
+        st.caption(f"Tumor-marker values within {FLARE_MONTHS} months of a new systemic therapy. "
+                   "A transient marker surge in the first weeks of effective therapy is in the "
+                   f"literature; the window length is a placeholder. Source: {source}.")
+        if windows:
+            st.dataframe(pd.DataFrame(windows)[["pointer", "marker", "month", "value",
+                                                "therapy", "started", "months_after", "note",
+                                                "window"]],
+                         hide_index=True, width="stretch")
+        else:
+            st.caption("No value falls in a caution window.")
+    moving = [k for k in kin.values() if "rate_per_month" in k]
+    with page.details("Marker kinetics", len(moving)):
+        chips(IMPLEMENTED, INFERENCE_CHIP, PLACEHOLDER_METHOD_CHIP)
+        if not kin:
+            st.caption("No tumor marker on file: kinetics are drawn for tumor markers only.")
+        for k in kin.values():
+            if "rate_per_month" not in k:
+                st.caption(f"{k['marker']}: {k.get('note', 'no values')}.")
+                continue
+            time = [(n.split("_")[0] + " time", k[n], k.get(f"{n}_range"))
+                    for n in ("doubling_months", "halving_months") if n in k]
+            st.markdown(
+                f"**{k['marker']}**, from the values at months {k['months'][0]} to "
+                f"{k['months'][1]}: rate {k['rate_per_month']:+.3f} log-units per month "
+                f"(pairwise range {k['rate_range'][0]:+.3f} to {k['rate_range'][1]:+.3f}), "
+                f"{k['direction']}"
+                + "".join(f"; {n} about {v:.0f} months"
+                          + (f" (range {rng[0]:.0f} to {rng[1]:.0f})" if rng else "")
+                          for n, v, rng in time)
+                + (f". {cap(k['crossing']['text'])}"
+                   + (f" (range {k['crossing']['range_months'][0]:.1f} to "
+                      f"{k['crossing']['range_months'][1]:.1f})"
+                      if k["crossing"]["range_months"] else "") if k["crossing"] else
+                   ". Not heading towards the reference limit at the current rate") + ".")
+            st.caption(f"Method: {k['method']}. Evidence: {k['evidence']}. Status: "
+                       f"{k['status']}. {cap(k['caveat'])}.")
+    with page.details("Within-person baseline", sum(bool(b) for b in bands.values())):
+        chips(IMPLEMENTED, PLACEHOLDER_CHIP)
+        if not bands:
+            st.caption("No tumor marker on file: baseline bands are built for tumor markers "
+                       "only.")
+        for key, band in bands.items():
+            if band:
+                st.markdown(f"**{band['marker']}**: median {band['median']:g}, range "
+                            f"{band['lo']:g} to {band['hi']:g} {ref.ANALYTES[key]['unit']}, built "
+                            f"from {band['n']} results in months {band['months'][0]} to "
+                            f"{band['months'][1]}. Method: {band['method']}. Evidence: "
+                            f"{band['evidence']}.")
+            else:
+                st.caption(f"{ref.ANALYTES[key]['name']}: no run of three consecutive results "
+                           "without a rise or fall, so no baseline band.")
+    with page.details("Markers against imaging", len(lag)):
+        chips(IMPLEMENTED)
+        st.caption("Each imaging report against the last tumor-marker result before it: the "
+                   "observed order of events in this record, not a validated lead time.")
+        if lag:
+            st.markdown("\n".join(f"- {x['pointer'] + ': ' if x['pointer'] else ''}{x['what']}"
+                                  for x in lag))
+        else:
+            st.caption("No imaging report after a tumor-marker result in the results shown.")
+    with page.details("Cross-analyte hypotheses", len(hyp)):
+        chips(IMPLEMENTED, HYPOTHESIS_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
+        st.caption("Raised or rising bone or liver values next to an imaging report that names "
+                   "the site: hypotheses for clinician review, each naming the report it refers "
+                   "to, its literature and the other causes the rule cannot rule out.")
+        for h in hyp:
+            with st.container(border=True):
+                st.markdown(f"**{h['site']}** · {cap(h['hypothesis'])}. *{h['evidence']}*")
+                st.markdown("Values: " + "; ".join(h["values"]) + "."
+                            + "".join(f" {cap(g)}." for g in h["ggt"]))
+                st.caption(f"{cap(h['other_causes'])}. Source: {h['source']}. Window: "
+                           f"{h['window']}.")
+        if not hyp:
+            st.caption("None raised: they need raised or rising alkaline phosphatase or calcium "
+                       "(bone), or liver enzymes or bilirubin (liver), next to an imaging report "
+                       "naming that site.")
     a, b = cross["markers"]
-    st.caption(f"{a} and {b}, each against its own limit; at every month both were measured, "
-               f"a concordant rise, a discordant one, or neither. {cap(cross['caveat'])}.")
-    if cross["pairs"]:
-        st.dataframe(pd.DataFrame(cross["pairs"]), hide_index=True, width="stretch")
-    else:
-        st.caption(f"{cap(cross['note'])}.")
+    with page.details(f"Cross-marker view, {a} and {b}", len(cross["pairs"])):
+        chips(cross["status"])
+        st.caption(f"{a} and {b}, each against its own limit; at every month both were "
+                   f"measured, a concordant rise, a discordant one, or neither. "
+                   f"{cap(cross['caveat'])}.")
+        if cross["pairs"]:
+            st.dataframe(pd.DataFrame(cross["pairs"]), hide_index=True, width="stretch")
+        else:
+            st.caption(f"{cap(cross['note'])}.")
+    failing = sum(not c["ok"] for c in checks)
+    with page.details("Quality checks", f"{failing} failing of {len(checks)}"):
+        chips(IMPLEMENTED, PLACEHOLDER_CHIP)
+        qc = pd.DataFrame(checks)
+        qc.insert(0, "result", qc.pop("ok").map({True: "pass", False: "issue"}))
+        st.dataframe(qc, hide_index=True, width="stretch")
+    _planned(page)
 
-    # search
-    st.markdown("#### Search")
-    chips(IMPLEMENTED)
-    query = st.text_input("Search the results in plain words", key=f"{file.id}_search",
-                          placeholder="above the limit · below · rising · after palbociclib · "
-                                      "month 11 · L4 · liver · neutrophils")
-    if query:
-        hit = search(query, rows, intervals)
-        (st.markdown if hit["understood"] else st.warning)(hit["answer"])
-        if hit["rows"]:
-            st.dataframe(_table(hit["rows"], reviews, file), hide_index=True, width="stretch")
-
-    # results table with filters
-    st.markdown("#### Results")
-    chips(IMPLEMENTED)
-    c1, c2, c3 = st.columns([3, 1, 1])
-    pick = c1.multiselect("Analyte", measured, key=f"{file.id}_labs_marker",
-                          placeholder="all analytes") or measured  # new ones join "all"
-    only = c2.checkbox("Flagged only", key=f"{file.id}_labs_flagged")
-    reviewed = c3.selectbox("Reviewed", ["all", "reviewed", "not reviewed"],
-                            key=f"{file.id}_labs_reviewed")
-    shown = [r for r in rows if r["marker"] in pick and (r["flags"] or not only)
-             and (reviewed == "all"
-                  or (reviewed == "reviewed") == bool(_marks_of(file, r, reviews)))]
-    if shown:
-        st.dataframe(_table(shown, reviews, file), hide_index=True, width="stretch")
-    else:
-        st.caption("No results match the filters.")
-
-    # more info: one expander per flagged result, with review marks
-    st.markdown("#### Flagged results: why, and your review")
-    chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    for r in reversed(flagged):
-        with st.expander(f"{r['pointer']} · month {r['month']}: {r['marker']} {r['value']:g} "
-                         f"{r['unit']}, {r['flag']}"):
-            s = spot(r, rows, events)
-            for f in s["fired"]:
-                st.markdown(f"**{f['flag']}** · rule: {f['rule']} · threshold: "
-                            f"{f['threshold']} · evidence: {r['evidence']} · status: "
-                            f"{f['status']}")
+    # Spot panel: one value in full, with the review mark
+    with page.spot():
+        chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
+        if st.session_state.get(spot_key) not in labels:
+            st.session_state[spot_key] = _lab(flagged[-1]) if flagged else labels[-1]
+        picked = st.selectbox("Value", labels, key=spot_key)
+        r = rows[labels.index(picked)]
+        s = spot(r, rows, events)
+        st.markdown(
+            f"**{r['marker']} {r['value']:g} {r['unit']}** at month {r['month']} "
+            f"({r['pointer'] or 'no flag'}; evidence: {s['evidence']}). Reference "
+            f"{r['reference']} ({r['reference_source']}). Change from previous "
+            f"{pct(r['change'])}, from nadir {pct(r['from_nadir'])}, rate "
+            + ("first value" if r["per_month"] is None else
+               f"{r['per_month']:+.3g} {r['unit']} per month") + f". Source: {r['event']}.")
+        st.markdown(f"**Why it matters here:** {s['why'][0]}"
+                    + (f" ({s['why'][1]})." if s["why"][1] else "."))
+        st.markdown("**Rules that fired:** " + ("; ".join(
+            f"{f['flag'] if f['flag'] != 'CTCAE grade' else 'CTCAE grade ' + str(r['grade'])} "
+            f"({f['rule']}; threshold: {f['threshold']}; {f['status']})"
+            for f in s["fired"]) or "none: within the interval, no rise or fall by the rules"))
+        if r["flags"]:
             key = _key(file, r)  # the widget starts from the store: a mark made elsewhere shows
             st.session_state[f"mark_{key}"] = (reviews.get(key) or {}).get("mark", NO_MARK)
             st.selectbox("Your review mark for this result", MARKS, key=f"mark_{key}",
                          on_change=_set_mark, args=(file, r),
-                         help="Marks go into this file's report export")
-            st.markdown(f"Change from previous {pct(r['change'])}, from nadir "
-                        f"{pct(r['from_nadir'])}; source: {r['event']}.")
-            st.caption(f"Full {r['marker']} history (this result at month {r['month']}):")
-            st.dataframe(_table(s["history"], reviews, file), hide_index=True, width="stretch")
+                         help="Marks carry your initials from the sidebar and go into this "
+                              "file's report export")
+        else:
+            st.caption("No flag on this value, so nothing to mark.")
+        st.markdown("**Events around it (±2 months):**\n" + "\n".join(
+            f"- month {e['month']}, {e.get('kind', 'Lab')}: {e['text']}"
+            for e in s["events_around"]))
+        st.markdown("**Check by eye before reading anything into it:**\n"
+                    + "\n".join(f"- {c}" for c in s["check_by_eye"]))
+        st.caption(f"Full {r['marker']} history (this value at month {r['month']}):")
+        st.dataframe(_table(s["history"], reviews, file), hide_index=True, width="stretch")
 
-    # look here
-    st.markdown("#### Look here")
-    chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-    st.caption("Every flagged result, latest first, one row per rule that fired, with its "
-               "pointer and review mark. The status names the source of each threshold.")
-    if queue:
-        q = pd.DataFrame(queue)
-        q.insert(1, "review", [reviews.get(_key(file, i), {}).get("mark", "") for i in queue])
-        st.dataframe(q[["pointer", "review", "month", "marker", "value", "unit", "flag", "rule",
-                        "threshold", "evidence", "status", "event"]],
-                     hide_index=True, width="stretch")
-    else:
-        st.caption("Nothing flagged.")
+    card = _card(page)
+    with page.cannot_see(CANNOT_SEE_LABS):
+        pass
 
-    # quality checks
-    st.markdown("#### Quality checks")
-    chips(IMPLEMENTED, PLACEHOLDER_CHIP)
-    qc = pd.DataFrame(checks)
-    qc.insert(0, "result", qc.pop("ok").map({True: "pass", False: "issue"}))
-    st.dataframe(qc, hide_index=True, width="stretch")
-
-    _planned()
-    _reference_table()
-    _cannot_see()
-    card = _card()
-
-    # export
-    st.markdown("#### Export")
-    chips(IMPLEMENTED)
-    main_key = next((k for k in markers if "rate_per_month" in kin[k]),
-                    markers[0] if markers else None)
-    md = report_markdown(file.id, rows, queue, checks, card, kin.get(main_key), tracker, windows,
-                         bands.get(main_key), lag, mine, hyp)
-    e1, e2 = st.columns(2)
-    e1.download_button("Download the lab report (Markdown)", md, file_name=f"{file.id}_labs.md",
-                       mime="text/markdown", key=f"{file.id}_labs_md")
-    e2.download_button("Download the results (CSV)",
-                       _table(rows, reviews, file).to_csv(index=False),
-                       file_name=f"{file.id}_labs.csv", mime="text/csv",
-                       key=f"{file.id}_labs_csv")
+    with page.export():
+        main_key = next((k for k in markers if "rate_per_month" in kin[k]),
+                        markers[0] if markers else None)
+        md = report_markdown(file.id, rows, queue, checks, card, kin.get(main_key), tracker,
+                             windows, bands.get(main_key), lag, mine, hyp)
+        e1, e2 = st.columns(2)
+        e1.download_button("Download the lab report (Markdown)", md,
+                           file_name=f"{file.id}_labs.md", mime="text/markdown",
+                           key=f"{file.id}_labs_md")
+        e2.download_button("Download the results (CSV)",
+                           _table(rows, reviews, file).to_csv(index=False),
+                           file_name=f"{file.id}_labs.csv", mime="text/csv",
+                           key=f"{file.id}_labs_csv")
     st.caption(CAVEAT)
 
 
-def _planned() -> None:
-    st.markdown("#### Planned")
-    chips(PLANNED)
-    st.dataframe(pd.DataFrame(PLANNED_PANELS, columns=["panel", "why not yet", "status"]),
-                 hide_index=True, width="stretch")
+def look_items(file: PatientFile, version: int | None) -> list[dict]:
+    """The workbench's look-here items (``muffle.workbench.labs.queue``), the ones the report's
+    attention queue carries."""
+    return lab_queue(file, version)
 
 
-def _cannot_see() -> None:
-    st.markdown(f"#### {CANNOT_SEE}")
-    st.markdown("\n".join(f"- {c}" for c in CANNOT_SEE_LABS))
+def _pick_table(df: pd.DataFrame, labels: list[str], key: str, spot_key: str) -> None:
+    """A table whose row click opens that value in the Spot panel."""
+    def pick():
+        sel = st.session_state[key].selection.rows
+        if sel:
+            st.session_state[spot_key] = labels[sel[0]]
+
+    st.dataframe(df, hide_index=True, width="stretch", on_select=pick,
+                 selection_mode="single-row", key=key)
 
 
-def _reference_table() -> None:
-    st.markdown("#### Reference table")
-    chips(IMPLEMENTED, REFERENCE_LAB_CHIP)
-    st.caption("The analytes this workbench knows, with their adult intervals, units and "
-               "conversions, the interval's source and why each matters here. The intervals are "
-               "a reference laboratory's, for its own methods: the interval on the patient's own "
-               "lab report always wins. Any other analyte can be imported; it is flagged only "
-               "against the interval its lab report gives.")
-    st.dataframe(pd.DataFrame(reference_table()).drop(columns=["key"]), hide_index=True,
-                 width="stretch")
+def _planned(page: Page) -> None:
+    with page.details("Planned panels", len(PLANNED_PANELS)):
+        chips(PLANNED)
+        st.dataframe(pd.DataFrame(PLANNED_PANELS, columns=["panel", "why not yet", "status"]),
+                     hide_index=True, width="stretch")
 
 
-def _card() -> dict:
+def _card(page: Page) -> dict:
     card = rules_card()
-    st.markdown(f"#### {CARD}")
-    chips(card["status"])
-    st.markdown(f"**{card['name']}** · {card['kind']}  \n**Inputs:** {card['inputs']}  \n"
-                f"**Outputs:** {card['outputs']}  \n**Evidence:** {card['evidence']}  \n"
-                f"**Validation:** {card['validation']}")
-    st.dataframe(pd.DataFrame(card["thresholds"]), hide_index=True, width="stretch")
-    st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in card["known_failures"]))
+    with page.card():
+        chips(card["status"])
+        st.markdown(f"**{card['name']}** · {card['kind']}  \n**Inputs:** {card['inputs']}  \n"
+                    f"**Outputs:** {card['outputs']}  \n**Evidence:** {card['evidence']}  \n"
+                    f"**Validation:** {card['validation']}")
+        st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in card["known_failures"]))
+        with st.expander(count_label("Every threshold and its source",
+                                     len(card["thresholds"]))):
+            st.dataframe(pd.DataFrame(card["thresholds"]), hide_index=True, width="stretch")
+        table = reference_table()
+        with st.expander(count_label("Reference table", n_of(len(table), "analyte"))):
+            chips(IMPLEMENTED, REFERENCE_LAB_CHIP)
+            st.caption("The analytes this workbench knows, with their adult intervals, units "
+                       "and conversions, the interval's source and why each matters here. The "
+                       "intervals are a reference laboratory's, for its own methods: the "
+                       "interval on the patient's own lab report always wins. Any other analyte "
+                       "can be imported; it is flagged only against the interval its lab report "
+                       "gives.")
+            st.dataframe(pd.DataFrame(table).drop(columns=["key"]), hide_index=True,
+                         width="stretch")
     return card
-
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Blood and lab workbench", layout="wide")

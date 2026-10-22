@@ -11,9 +11,12 @@ current container only: no page config, no sidebar. Standalone page, with two ex
 
     streamlit run app/workbenches/genomics.py
 
-Behind the overview, the tumor's genome as a picture (``muffle.workbench.genome``): the
-copy-number landscape with a Spot panel per gene, mutation burden and allele fractions, the
-predicted effect of each variant, a curated pathway map and the variants over time. ``case`` (a
+The page follows the shared skeleton (``workbenches._page``): the overview (counts, the observed
+variants, the look-here queue, search over the genome), the picture (the variant browser and the
+tumor's genome, ``muffle.workbench.genome``: the copy-number landscape, mutation burden and
+allele fractions, the predicted effect of each variant, a curated pathway map), the details
+(resistance watchlist, panel coverage, review queue, variants over time), one Spot panel for a
+variant or a gene, the card, what the test cannot see and the exports. ``case`` (a
 ``muffle.demo.Case``) and ``demo`` (the loaded bundle) are optional: with them the precomputed
 numbers are matched to the case by its log-risk and the gene Spot panel shows the expression
 workbench's RNA and protein percentiles.
@@ -41,19 +44,22 @@ from types import SimpleNamespace
 APP = Path(__file__).resolve().parents[1]
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
+if str(APP) not in sys.path:  # standalone: streamlit run app/workbenches/genomics.py
+    sys.path.insert(0, str(APP))
 
 import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from muffle.report import vep  # noqa: E402
-from muffle.report.case_tools import HYPOTHESIS, INFERENCE  # noqa: E402
+from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.report.civic import LEVELS  # noqa: E402
 from muffle.workbench import genome as gx  # noqa: E402
 from muffle.workbench import genomics as wb  # noqa: E402
 from muffle.workbench import omics as om  # noqa: E402
-from muffle.workbench.grammar import CANNOT_SEE, CARD, chip, esc  # noqa: E402
+from muffle.workbench.grammar import chip, count_label, esc  # noqa: E402
 from muffle.workspace import finding_key  # noqa: E402
+from workbenches._page import Page, land  # noqa: E402
 
 # page-specific colors; statuses and evidence types take the shared grammar's
 COLORS = {wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray", "derived": "blue",
@@ -89,7 +95,7 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
     """The Spot panel of one variant: the three evidence types side by side (detected,
     interpreted, predicted), ladder, CIViC table, the panel's view of the gene, the sample, the
     review marks."""
-    st.markdown(f"### Spot: {esc(v['variant'])} · {v['sample']}"
+    st.markdown(f"**{esc(v['variant'])}** · {v['sample']}"
                 + (f" · month {v['month']}" if v["month"] is not None else ""))
     items = v["interpretation"]["items"]
     if ef is not None:
@@ -284,15 +290,18 @@ def _rna_protein(case, demo, omics_scores: dict | None, genes: list[str]) -> dic
     return out
 
 
-def _picked(ev, param: str, state: str) -> None:
-    """A gene clicked on a chart becomes ``st.session_state[state]``, once per click: a choice
-    made afterwards elsewhere (the gene box) is not overridden by the chart's standing
-    selection."""
+def _picked(ev, param: str, state: str, mode_key: str | None = None) -> None:
+    """A gene clicked on a chart becomes ``st.session_state[state]`` (and the Spot panel turns
+    to genes, ``mode_key``), once per click: a choice made afterwards elsewhere (the gene box,
+    the other chart) is not overridden by this chart's standing selection."""
     sel = ((ev or {}).get("selection") or {}).get(param) if ev else None
     gene = sel[0].get("gene") if isinstance(sel, list) and sel else None
-    if gene and st.session_state.get(f"{state}-clicked") != gene:
+    memo = f"{state}-clicked-{param}"
+    if gene and st.session_state.get(memo) != gene:
         st.session_state[state] = gene
-    st.session_state[f"{state}-clicked"] = gene
+        if mode_key:
+            st.session_state[mode_key] = "Gene"
+    st.session_state[memo] = gene
 
 
 def _cn_chart(rows: list[dict]) -> alt.LayerChart:
@@ -344,7 +353,7 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
     observed variants in it, review marks."""
     rows = g["rows"]
     r = next((x for x in rows if x["gene"] == gene), None)
-    st.markdown(f"### Spot: {gene}" + (f" · chr{r['chrom']} {r['start_mb']:.2f} Mb" if r else ""))
+    st.markdown(f"**{gene}**" + (f" · chr{r['chrom']} {r['start_mb']:.2f} Mb" if r else ""))
     if r is None or r["copies"] is None:
         st.info(f"No copy number for {gene} in this file: unknown, not normal.")
     else:
@@ -407,9 +416,10 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
                f"({r['copies']:g} copies at ploidy {r['ploidy']:g})", f"{key}-cn-{gene}")
 
 
-def _genome_sections(file, version, vs, g, effects, table, case, demo, reviews, key) -> dict:
-    """Copy number, burden and allele fractions, predicted effect, pathway map; returns what the
-    rest of the page reuses (the longitudinal table, exports)."""
+def _genome_data(file, version, vs, g, case, demo, key) -> dict:
+    """What the genome views and the rest of the page share: the copy-number rows (relative to
+    the ploidy the reader chose), burden, the pathway map's nodes, the variants over time, the
+    Evolution view's rows and the expression workbench's view of the altered genes."""
     from muffle import evolution, timeline
 
     block, afs = g["block"], g["afs"]
@@ -436,45 +446,35 @@ def _genome_sections(file, version, vs, g, effects, table, case, demo, reviews, 
     altered = [r["gene"] for r in rows if r["call"] in gx.ALTERED]
     omics_view = _rna_protein(case, demo, g["omics"], list(dict.fromkeys(
         altered + list(gx.INTEREST) + list(gx.PATHWAY_GENES))))
-    gene_key = f"{key}-gene"
-    out = {"rows": rows, "bur": bur, "nodes": nodes, "lon": lon, "hs": hs, "ctdna": bool(ctdna)}
-
-    st.markdown("#### The tumor's genome")
-    st.markdown(EVIDENCE_LEGEND)
-    if g["stale"]:
-        st.warning("The precomputed genome numbers were made for another build of the cases and "
-                   "are not shown for this file.")
-    q = st.text_input("Search the genome: \"amplified\", a gene, \"PI3K pathway\", \"high burden\"",
-                      key=f"{key}-gsearch")
-    hit = gx.search(q, rows, nodes, bur, names)
-    if q:
-        if hit["genes"]:
-            st.markdown("Genes: " + ", ".join(f"**{x}**" for x in hit["genes"]))
-            if st.session_state.get(gene_key) not in hit["genes"]:
-                st.session_state[gene_key] = hit["genes"][0]
-        if hit["pathways"]:
-            st.markdown("Pathways: " + ", ".join(f"**{p}**" for p in hit["pathways"]) + " · see "
-                        "the pathway map")
-            st.session_state[f"{key}-pathway"] = hit["pathways"][0]
-        if hit["burden"] and hit["burden"].get("measured"):
-            st.markdown(f"Burden: {hit['burden']['text']}.")
-        if hit["note"]:
-            st.info(hit["note"][0].upper() + hit["note"][1:] + ".")
-
-    t_cn, t_bur, t_eff, t_path = st.tabs(["Copy-number landscape", "Burden and allele fractions",
-                                          "Predicted effect", "Pathway map"])
-    with t_cn:
-        _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key)
-    with t_bur:
-        _burden_view(bur, afs, g["data"], sequenced, file)
-    with t_eff:
-        _effect_view(vs, effects, afs)
-    with t_path:
-        _pathway_view(file, nodes, g, vs, table, omics_view, reviews, key, gene_key, sequenced)
-    return out
+    return {"g": g, "rows": rows, "bur": bur, "nodes": nodes, "lon": lon, "hs": hs,
+            "ctdna": bool(ctdna), "names": names, "sequenced": sequenced,
+            "omics_view": omics_view}
 
 
-def _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key) -> None:
+def _genome_search(gv: dict, key: str) -> None:
+    """Plain-word search over the genome views; a gene it finds opens in the Spot panel."""
+    q = st.text_input("Search the genome: \"amplified\", a gene, \"PI3K pathway\", \"high "
+                      "burden\"", key=f"{key}-gsearch")
+    if not q:
+        return
+    hit = gx.search(q, gv["rows"], gv["nodes"], gv["bur"], gv["names"])
+    if hit["genes"]:
+        st.markdown("Genes: " + ", ".join(f"**{x}**" for x in hit["genes"])
+                    + " · the first is in the Spot panel below")
+        if st.session_state.get(f"{key}-gene") not in hit["genes"]:
+            st.session_state[f"{key}-gene"] = hit["genes"][0]
+            st.session_state[f"{key}-spotmode"] = "Gene"
+    if hit["pathways"]:
+        st.markdown("Pathways: " + ", ".join(f"**{p}**" for p in hit["pathways"]) + " · see "
+                    "the pathway map")
+        st.session_state[f"{key}-pathway"] = hit["pathways"][0]
+    if hit["burden"] and hit["burden"].get("measured"):
+        st.markdown(f"Burden: {hit['burden']['text']}.")
+    if hit["note"]:
+        st.info(hit["note"][0].upper() + hit["note"][1:] + ".")
+
+
+def _cn_view(file, g, omics_view, key) -> None:
     rows, block = g["rows"], g["block"]
     if not rows:
         st.info("No copy number for this file: "
@@ -512,19 +512,12 @@ def _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key) -> None:
     if shown:
         ev = st.altair_chart(_cn_chart(shown), on_select="rerun", selection_mode=["gene"],
                              key=f"{key}-cnchart-{show}", width="stretch")
-        _picked(ev, "gene", gene_key)
+        _picked(ev, "gene", f"{key}-gene", f"{key}-spotmode")
         st.caption("Genes in genome order, evenly spaced (not to scale); larger points: the breast "
-                   "drivers of interest. Hover for the numbers, click a gene for its Spot panel "
-                   "(double-click clears).")
+                   "drivers of interest. Hover for the numbers, click a gene to open it in the "
+                   "Spot panel below (double-click clears).")
     else:
         st.caption("No gene matches.")
-    genes = [r["gene"] for r in rows]
-    default = st.session_state.get(gene_key)
-    if default not in genes:
-        default = next((r["gene"] for r in rows if r["interest"] and r["call"] in (2, -2)), "ERBB2")
-        st.session_state[gene_key] = default if default in genes else genes[0]
-    gene = st.selectbox("Gene", genes, key=gene_key)
-    _gene_spot(file, gene, g, vs, table, omics_view, reviews, f"{key}-spot")
     st.markdown("**Consistency with the other workbenches**")
     cs = ((g["omics"] or {}).get("cases") or {}).get(str(gx.case_index(file)))
     if cs and abs(cs["log_risk"] - g["block"]["log_risk"]) > 1e-3:
@@ -540,9 +533,9 @@ def _cn_view(file, g, vs, table, omics_view, reviews, key, gene_key) -> None:
                     unsafe_allow_html=True)
     if not cons:
         st.caption("No line to draw: no recorded HER2 status or RNA for the altered genes here.")
-    st.markdown("**Look here**")
-    for item in gx.cn_queue(rows, block):
-        st.markdown(f"- {item}")
+    st.caption("Copy-number calls rest on placeholder cutoffs and an estimated ploidy; tumor "
+               "purity changes what a copy number means (Model and validation card). The "
+               "amplified and deleted genes worth a look are in the overview's look-here list.")
 
 
 def _burden_view(bur, afs, data, sequenced, file) -> None:
@@ -687,15 +680,14 @@ def _pathway_chart(nodes: list[dict]) -> alt.LayerChart:
     return (dots + text).properties(height=330)
 
 
-def _pathway_view(file, nodes, g, vs, table, omics_view, reviews, key, gene_key,
-                  sequenced) -> None:
+def _pathway_view(file, nodes, table, reviews, key) -> None:
     st.markdown(f"{badge('hypothesis')} {gx.PATHWAY_NOTE}")
     ev = st.altair_chart(_pathway_chart(nodes), on_select="rerun", selection_mode=["node"],
                          key=f"{key}-pathchart", width="stretch")
-    _picked(ev, "node", f"{key}-pgene")
+    _picked(ev, "node", f"{key}-gene", f"{key}-spotmode")
     st.caption("Purple: a sequenced mutation; red and blue: copy-number amplification and deep "
                "deletion, lighter for gain and loss; gray: measured, not altered; white: not "
-               "measured (unknown, not normal). Click a gene for its Spot panel.")
+               "measured (unknown, not normal). Click a gene to open it in the Spot panel below.")
     summary = gx.pathway_summary(nodes)
     st.dataframe(pd.DataFrame([{"Pathway": p["pathway"], "Genes": ", ".join(p["genes"]),
                                 "Altered here": "; ".join(p["altered"]) or "none observed",
@@ -707,40 +699,27 @@ def _pathway_view(file, nodes, g, vs, table, omics_view, reviews, key, gene_key,
     pkey = f"{key}-pathway"
     if st.session_state.get(pkey) not in names:
         st.session_state[pkey] = next((p["pathway"] for p in summary if p["altered"]), names[0])
-    left, right = st.columns([1, 1])
-    with left:
-        name = st.selectbox("Pathway", names, key=pkey)
-        p = next(x for x in summary if x["pathway"] == name)
-        st.markdown(f"**{name}** · altered here: {'; '.join(p['altered']) or 'none observed'}")
-        for s in p["sources"]:
-            st.markdown(f"- [{s['cite']}]({s['url']}), {s['where']} (doi:{s['doi']}): {s['says']}")
-        items = gx.pathway_items(name, table)
-        st.markdown(f"**Therapy evidence for its genes** {badge('hypothesis')} · CIViC, breast "
-                    "cancer, for clinician review, never a recommendation")
-        if items["items"]:
-            st.dataframe(pd.DataFrame(items["items"]).rename(columns={
-                "molecular_profile": "Profile", "therapies": "Therapies",
-                "evidence_level": "Level", "significance": "Significance",
-                "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
-                hide_index=True, width="stretch", column_config=LINK)
-            st.caption(f"{items['total']} items name a gene of this pathway; the strongest "
-                       "levels first. An item for a gene is not an item for this tumor's change.")
-        else:
-            st.caption("None in the loaded CIViC table." if table is not None else
-                       "CIViC table not loaded on this machine.")
-        _marks(reviews, finding_key(file, "pathway", name), f"pathway {name}: "
-               f"{'; '.join(p['altered']) or 'no observed alteration'}", f"{key}-pw-{name}")
-    with right:
-        genes = gx.PATHWAYS[name]["genes"]
-        pg = st.session_state.get(f"{key}-pgene")
-        if pg not in genes:
-            pg = next((n["gene"] for n in nodes if n["pathway"] == name and n["statuses"]),
-                      genes[0])
-        node = next(n for n in nodes if n["gene"] == pg and n["pathway"] == name)
-        st.markdown(f"**{pg}** · {', '.join(node['statuses']) or node['status']}")
-        if node["status"] == "not measured":
-            st.caption("Not measured in this file: unknown, never normal.")
-        _gene_spot(file, pg, g, vs, table, omics_view, reviews, f"{key}-pspot")
+    name = st.selectbox("Pathway", names, key=pkey)
+    p = next(x for x in summary if x["pathway"] == name)
+    st.markdown(f"**{name}** · altered here: {'; '.join(p['altered']) or 'none observed'}")
+    for s in p["sources"]:
+        st.markdown(f"- [{s['cite']}]({s['url']}), {s['where']} (doi:{s['doi']}): {s['says']}")
+    items = gx.pathway_items(name, table)
+    st.markdown(f"**Therapy evidence for its genes** {badge('hypothesis')} · CIViC, breast "
+                "cancer, for clinician review, never a recommendation")
+    if items["items"]:
+        st.dataframe(pd.DataFrame(items["items"]).rename(columns={
+            "molecular_profile": "Profile", "therapies": "Therapies",
+            "evidence_level": "Level", "significance": "Significance",
+            "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
+            hide_index=True, width="stretch", column_config=LINK)
+        st.caption(f"{items['total']} items name a gene of this pathway; the strongest "
+                   "levels first. An item for a gene is not an item for this tumor's change.")
+    else:
+        st.caption("None in the loaded CIViC table." if table is not None else
+                   "CIViC table not loaded on this machine.")
+    _marks(reviews, finding_key(file, "pathway", name), f"pathway {name}: "
+           f"{'; '.join(p['altered']) or 'no observed alteration'}", f"{key}-pw-{name}")
 
 
 def _over_time(lon: dict, hs: dict, key: str) -> None:
@@ -770,25 +749,78 @@ def _over_time(lon: dict, hs: dict, key: str) -> None:
 
 
 def _method_card(g: dict, effects: dict) -> None:
-    st.markdown("#### Genome views: predictors, rules and cutoffs")
     rows = gx.card(g["data"], effects, ((g["omics"] or {}).get("validation") or {}))
-    st.dataframe(pd.DataFrame(rows).rename(columns={
-        "what": "What", "rule": "Rule", "source": "Source", "tag": "Tag", "status": "Status"}),
-        hide_index=True, width="stretch")
-    st.caption(f"Scores: {(g['data'] or {}).get('version', 'not computed')} "
-               "(scripts/genomics_scores.py, offline); effects: snapshot "
-               f"{(effects or {}).get('snapshot', 'not taken')} (scripts/genomics_effect.py). "
-               f"Pathway references checked against PubMed on {gx.VERIFIED}. Known limits: a "
-               "gene-level copy number hides segment boundaries; the ploidy is estimated; purity "
-               "is one number for the whole sample; AlphaMissense is not approved for clinical "
-               "use.")
+    with st.expander(count_label("Genome views: predictors, rules and cutoffs", len(rows))):
+        st.dataframe(pd.DataFrame(rows).rename(columns={
+            "what": "What", "rule": "Rule", "source": "Source", "tag": "Tag",
+            "status": "Status"}), hide_index=True, width="stretch")
+        st.caption(f"Scores: {(g['data'] or {}).get('version', 'not computed')} "
+                   "(scripts/genomics_scores.py, offline); effects: snapshot "
+                   f"{(effects or {}).get('snapshot', 'not taken')} (scripts/genomics_effect.py). "
+                   f"Pathway references checked against PubMed on {gx.VERIFIED}. Known limits: "
+                   "a gene-level copy number hides segment boundaries; the ploidy is estimated; "
+                   "purity is one number for the whole sample; AlphaMissense is not approved for "
+                   "clinical use.")
+
+
+def _variant_browser(file, vs, levels, queue, ladders, coverage, reviews, key,
+                     mode_key) -> list[dict]:
+    """The variants as a table with search and filters; a row click opens it in the Spot
+    panel. Returns the variants shown, the selected one first."""
+    if not vs:
+        st.caption("No variant to browse: " + ("not sequenced." if not any(
+            t.workbench == "mutations" for t in file.tests) else "none of the panel's genes "
+            "mutated."))
+        return []
+    c1, c2, c3 = st.columns([2, 2, 2])
+    query = c1.text_input("Search: a gene, \"level A\", \"resistance\", a therapy",
+                          key=f"{key}-search")
+    options = [_level_text(lv) for lv in dict.fromkeys(levels)] + (
+        ["none"] if any(v["strongest_level"] is None for v in vs) else [])
+    chosen = c2.multiselect("Strongest evidence level", options, default=options,
+                            key=f"{key}-levels")
+    mark_options = [*wb.VERDICTS, "unmarked"]
+    marked = c3.multiselect("Review mark", mark_options, default=mark_options,
+                            key=f"{key}-marked")
+    if "reviewer" not in st.session_state:  # fallback: the shell's sidebar field is absent
+        c3.text_input("Reviewer initials", key="genomics-reviewer", max_chars=5)
+
+    def mark_of(v):
+        return (reviews.get(wb.variant_key(file, v)) or {}).get("mark", "unmarked")
+
+    hits = wb.search(vs, coverage, query)
+    if hits["note"]:
+        st.info(hits["note"][0].upper() + hits["note"][1:] + ": nothing is said about it, "
+                "not that it is wild type.")
+    shown = [v for v in hits["variants"] if _level_text(v["strongest_level"]) in chosen
+             and mark_of(v) in marked]
+    rows = [{"Gene": v["gene"], "Change": v["change"], "Sample": v["sample"],
+             "Month": "—" if v["month"] is None else v["month"],
+             "Strongest level": _level_text(v["strongest_level"]),
+             "CIViC items": len(v["interpretation"]["items"]),
+             "Resistance leads": sum(1 for r in ladders[v["variant"]][4]["items"])
+             + len(ladders[v["variant"]][4]["literature"]),
+             "Queue": next(q for q, names in queue.items() if v["variant"] in names),
+             "Mark": "" if mark_of(v) == "unmarked" else mark_of(v)} for v in shown]
+    if not rows:
+        st.caption("No variant matches.")
+        return []
+    picked = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
+                          on_select=lambda: st.session_state.update({mode_key: "Variant"}),
+                          selection_mode="single-row", key=f"{key}-table")
+    sel = picked.selection.rows
+    st.caption("Click a row to open the variant in the Spot panel below.")
+    first = shown[sel[0]] if sel and sel[0] < len(shown) else shown[0]
+    return [first] + [v for v in shown if v is not first]
 
 
 def render(file, events=None, evidence: dict | None = None, version: int | None = None,
-           lookup=None, table=None, case=None, demo=None) -> None:
+           lookup=None, table=None, case=None, demo=None, test=None) -> None:
     key = f"genomics-{file.id}-{'latest' if version is None else version}"  # widget keys
+    page = Page("genomics", file, test, version)
     month = None if version is None else file.versions[version].month
     events = wb.events_until(events, month)
+    full = file
     if version is not None:  # imported sequencing as of that version too
         file = replace(file, versions=file.versions[: version + 1])
     g = _genome(file, case)
@@ -803,175 +835,167 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     watch = wb.watchlist(file, version, table)
     reviews = st.session_state.setdefault("reviews", {})  # shared with the report page
     levels = sorted(v["strongest_level"] for v in vs if v["strongest_level"])
+    gv = _genome_data(file, version, vs, g, case, demo, key)
+    mode_key, gene_key = f"{key}-spotmode", f"{key}-gene"
 
-    st.subheader(f"Genomics workbench · {file.id}"
-                 + (f" · as of {file.versions[version].label}" if version is not None else ""))
+    page.title(wb.IMPLEMENTED, OBSERVED, INFERENCE, HYPOTHESIS,
+               f"{len(wb.PLANNED_ROWS)} parts planned")
     if file.kind == "synthetic":
         st.warning(f"{file.title}. Not taken from any dataset; its record follows the "
                    "structure of real breast cancer timelines.")
     else:
         st.caption(file.title)
-    st.markdown(" ".join([badge(wb.IMPLEMENTED), *(badge(f"{w}: planned", "gray")
-                                                   for w, _ in wb.PLANNED_ROWS)]))
-
-    # sample provenance strip
     for col, (k, val) in zip(st.columns([1, 1, 1, 2, 2, 3]), strip, strict=True):
-        col.markdown(f"**{k}**  \n{val}")
+        col.markdown(f"**{k}**  \n{val}")  # the sample's provenance strip
 
-    # overview
-    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-    row.metric("Variants observed", len(vs), width="content")
-    row.metric("Strongest CIViC level", levels[0] if levels else "none", width="content")
-    for name in queue:
-        row.metric(name.capitalize(), len(queue[name]), width="content")
-    if vs:
-        strongest = _level_text(levels[0] if levels else None)
-        st.markdown("Observed: " + ", ".join(f"**{esc(v['variant'])}**" for v in vs)
-                    + f". Strongest evidence level present: {strongest}."
-                    " CIViC items are evidence **for clinician review, never a recommendation**.")
-    elif not lon["timepoints"]:
-        st.info("Not sequenced: the mutation status of every panel gene is unknown, not wild type.")
-    else:
-        st.info("Sequenced: none of the panel's genes mutated (panel genes only; purity and depth "
-                "unknown, so this is not proof of absence).")
+    # overview: the counts, what was observed, the look-here queue, search
+    with page.overview():
+        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+        row.metric("Variants observed", len(vs), width="content")
+        row.metric("Strongest CIViC level", levels[0] if levels else "none", width="content")
+        for name in queue:
+            row.metric(name.capitalize(), len(queue[name]), width="content")
+        if vs:
+            strongest = _level_text(levels[0] if levels else None)
+            st.markdown("Observed: " + ", ".join(f"**{esc(v['variant'])}**" for v in vs)
+                        + f". Strongest evidence level present: {strongest}."
+                        " CIViC items are evidence **for clinician review, never a "
+                        "recommendation**.")
+        elif not lon["timepoints"]:
+            st.info("Not sequenced: the mutation status of every panel gene is unknown, not "
+                    "wild type. Tumor sequencing (a panel or an exome, or a VCF or MAF brought in "
+                    "through Import tests) would fill this workbench.", icon="🧬")
+        else:
+            st.info("Sequenced: none of the panel's genes mutated (panel genes only; purity and "
+                    "depth unknown, so this is not proof of absence).")
+        page.look_here(wb.queue(full, version, lookup=None if full.kind == "synthetic"
+                                else lookup),
+                       land=lambda focus: land(full, page.version, focus))
+        _genome_search(gv, key)
 
-    # variant browser with search, then the Spot panel of the selected row
-    st.markdown("#### Variant browser")
-    shown = []
-    if vs:
-        c1, c2, c3 = st.columns([2, 2, 2])
-        query = c1.text_input("Search: a gene, \"level A\", \"resistance\", a therapy",
-                              key=f"{key}-search")
-        options = [_level_text(lv) for lv in dict.fromkeys(levels)] + (
-            ["none"] if any(v["strongest_level"] is None for v in vs) else [])
-        chosen = c2.multiselect("Strongest evidence level", options, default=options,
-                                key=f"{key}-levels")
-        mark_options = [*wb.VERDICTS, "unmarked"]
-        marked = c3.multiselect("Review mark", mark_options, default=mark_options,
-                                key=f"{key}-marked")
-        if "reviewer" not in st.session_state:  # fallback: the shell's sidebar field is absent
-            c3.text_input("Reviewer initials", key="genomics-reviewer", max_chars=5)
+    # the picture: the variants and the tumor's genome
+    with page.picture("Variants and the tumor's genome", caption=EVIDENCE_LEGEND):
+        if g["stale"]:
+            st.warning("The precomputed genome numbers were made for another build of the cases "
+                       "and are not shown for this file.")
+        t_var, t_cn, t_bur, t_eff, t_path = st.tabs([
+            "Variants", "Copy-number landscape", "Burden and allele fractions",
+            "Predicted effect", "Pathway map"])
+        with t_var:
+            shown = _variant_browser(file, vs, levels, queue, ladders, coverage, reviews,
+                                     key, mode_key)
+        with t_cn:
+            _cn_view(file, {**g, "rows": gv["rows"]}, gv["omics_view"], key)
+        with t_bur:
+            _burden_view(gv["bur"], g["afs"], g["data"], gv["sequenced"], file)
+        with t_eff:
+            _effect_view(vs, effects, g["afs"])
+        with t_path:
+            _pathway_view(file, gv["nodes"], table, reviews, key)
 
-        def mark_of(v):
-            return (reviews.get(wb.variant_key(file, v)) or {}).get("mark", "unmarked")
+    # details: collapsed, each with its count
+    with page.details("Resistance watchlist", len(watch["rows"])):
+        st.markdown(f"{badge(watch['evidence'])} **{watch['use']}** · for the treatments recorded "
+                    f"in this file: {', '.join(watch['treatments']) or 'none'}")
+        if watch["rows"]:
+            st.dataframe(pd.DataFrame(watch["rows"]).rename(columns={
+                "under": "Under", "alteration": "What to watch", "finding": "Known from",
+                "source": "Source", "url": "Source link", "level": "Evidence level",
+                "detect": "Would be detected by"}), hide_index=True, width="stretch",
+                column_config=LINK)
+        if watch["note"]:
+            st.caption(watch["note"].capitalize() + ".")
+        st.caption("Sources: CIViC resistance items (civicdb.org, CC0) whose therapies include a "
+                   "recorded drug, and the trials cited in the platform's vision (PADA-1, "
+                   "SERENA-6). A watch item is never advice.")
+        st.button("Open the Evolution view: what to watch next, ranked, with sources and the "
+                  "test that would detect it", key=f"{key}-evolution",
+                  on_click=lambda: st.session_state.update(view="Evolution"))
+    with page.details("Panel coverage", f"{len(coverage)} genes"):
+        counts = pd.Series([c["status"] for c in coverage]).value_counts()
+        st.markdown(" · ".join(f"{badge(s)} {n}" for s, n in counts.items()))
+        st.dataframe(pd.DataFrame(coverage).rename(columns={"gene": "Gene", "status": "Status"}),
+                     hide_index=True, width="stretch", height=200)
+        st.caption("The 16 breast cancer driver genes of the TCGA panel (src/muffle/data/tcga.py)."
+                   " A gene that was not tested, or whose panel is not stated, is unknown: never "
+                   "read it as wild type.")
+    with page.details("Review queue", sum(len(n) for n in queue.values())):
+        for col, (name, names) in zip(st.columns(3), queue.items(), strict=True):
+            col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
+            for n in names:
+                v = next(x for x in vs if x["variant"] == n)
+                done = wb.mark_text(reviews.get(wb.variant_key(file, v)))
+                col.markdown(f"- {esc(n)} · {done or 'no mark yet'}")
+            if not names:
+                col.caption("none")
+    with page.details("Over time", len(gv["lon"]["rows"])):
+        statement = lon["statement"][0].upper() + lon["statement"][1:]
+        ctdna_state = "in the table below" if gv["ctdna"] else lon["ctdna"]
+        st.markdown(f"{statement}. {badge('ctDNA: ' + ctdna_state, 'gray')}")
+        _over_time(gv["lon"], gv["hs"], key)
 
-        hits = wb.search(vs, coverage, query)
-        if hits["note"]:
-            st.info(hits["note"][0].upper() + hits["note"][1:] + ": nothing is said about it, "
-                    "not that it is wild type.")
-        shown = [v for v in hits["variants"] if _level_text(v["strongest_level"]) in chosen
-                 and mark_of(v) in marked]
-        rows = [{"Gene": v["gene"], "Change": v["change"], "Sample": v["sample"],
-                 "Month": "—" if v["month"] is None else v["month"],
-                 "Strongest level": _level_text(v["strongest_level"]),
-                 "CIViC items": len(v["interpretation"]["items"]),
-                 "Resistance leads": sum(1 for r in ladders[v["variant"]][4]["items"])
-                 + len(ladders[v["variant"]][4]["literature"]),
-                 "Queue": next(q for q, names in queue.items() if v["variant"] in names),
-                 "Mark": "" if mark_of(v) == "unmarked" else mark_of(v)} for v in shown]
-        if rows:
-            picked = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
-                                  on_select="rerun", selection_mode="single-row",
-                                  key=f"{key}-table")
-            sel = picked.selection.rows
-            st.caption("Click a row to open its Spot panel below.")
-            v = shown[sel[0]] if sel else shown[0]
+    # Spot panel: one variant or one gene in full
+    with page.spot():
+        genes = list(dict.fromkeys([r["gene"] for r in gv["rows"]] + list(gx.PATHWAY_GENES)))
+        modes = (["Variant"] if shown else []) + (["Gene"] if genes else [])
+        if st.session_state.get(mode_key) not in modes:
+            st.session_state[mode_key] = modes[0] if modes else None
+        mode = (st.segmented_control("Open", modes, key=mode_key, required=True)
+                if len(modes) > 1 else (modes[0] if modes else None))
+        if mode == "Variant":
+            v = shown[0]
             _spot(file, v, ladders[v["variant"]], cov, strip, reviews, key,
                   gx.effect(v["variant"], effects), afs.get(v["variant"]))
+        elif mode == "Gene":
+            if st.session_state.get(gene_key) not in genes:
+                default = next((r["gene"] for r in gv["rows"] if r["interest"]
+                                and r["call"] in (2, -2)), "ERBB2")
+                st.session_state[gene_key] = default if default in genes else genes[0]
+            gene = st.selectbox("Gene", genes, key=gene_key)
+            _gene_spot(file, gene, {**g, "rows": gv["rows"]}, vs, table, gv["omics_view"],
+                       reviews, f"{key}-spot")
         else:
-            st.caption("No variant matches.")
-    else:
-        st.caption("No variant to browse.")
+            st.caption("Nothing to open: no variant and no copy number in this file.")
 
-    # the tumor's genome as a picture
-    gv = _genome_sections(file, version, vs, g, effects, table, case, demo, reviews, key)
-
-    # resistance watchlist
-    st.markdown("#### Resistance watchlist")
-    st.markdown(f"{badge(watch['evidence'])} **{watch['use']}** · for the treatments recorded in "
-                f"this file: {', '.join(watch['treatments']) or 'none'}")
-    if watch["rows"]:
-        st.dataframe(pd.DataFrame(watch["rows"]).rename(columns={
-            "under": "Under", "alteration": "What to watch", "finding": "Known from",
-            "source": "Source", "url": "Source link", "level": "Evidence level",
-            "detect": "Would be detected by"}), hide_index=True, width="stretch",
-            column_config=LINK)
-    if watch["note"]:
-        st.caption(watch["note"].capitalize() + ".")
-    st.caption("Sources: CIViC resistance items (civicdb.org, CC0) whose therapies include a "
-               "recorded drug, and the trials cited in the platform's vision (PADA-1, SERENA-6). "
-               "A watch item is never advice.")
-    st.button("Open the Evolution view: what to watch next, ranked, with sources and the test "
-              "that would detect it", key=f"{key}-evolution",
-              on_click=lambda: st.session_state.update(view="Evolution"))
-
-    # panel coverage
-    st.markdown("#### Panel coverage")
-    counts = pd.Series([c["status"] for c in coverage]).value_counts()
-    st.markdown(" · ".join(f"{badge(s)} {n}" for s, n in counts.items()))
-    st.dataframe(pd.DataFrame(coverage).rename(columns={"gene": "Gene", "status": "Status"}),
-                 hide_index=True, width="stretch", height=200)
-    st.caption("The 16 breast cancer driver genes of the TCGA panel (src/muffle/data/tcga.py). "
-               "A gene that was not tested, or whose panel is not stated, is unknown: never read "
-               "it as wild type.")
-
-    # review queue
-    st.markdown("#### Review queue")
-    for col, (name, names) in zip(st.columns(3), queue.items(), strict=True):
-        col.markdown(f"**{name.capitalize()}** ({len(names)})  \n{QUEUE_WHY[name]}")
-        for n in names:
-            v = next(x for x in vs if x["variant"] == n)
-            col.markdown(f"- {esc(n)} · "
-                         f"{wb.mark_text(reviews.get(wb.variant_key(file, v))) or 'no mark yet'}")
-        if not names:
-            col.caption("none")
-
-    # longitudinal
-    st.markdown("#### Over time")
-    statement = lon["statement"][0].upper() + lon["statement"][1:]
-    ctdna_state = "in the table below" if gv["ctdna"] else lon["ctdna"]
-    st.markdown(f"{statement}. {badge('ctDNA: ' + ctdna_state, 'gray')}")
-    _over_time(gv["lon"], gv["hs"], key)
-
-    # export
-    st.markdown("#### Export")
-    e1, e2, e3, e4 = st.columns(4)
-    stem = f"genomics_{file.id.replace(' ', '_')}"
-    e1.download_button("Download the genomics report (Markdown)",
-                       wb.report_markdown(file, vs, ladders, watch, reviews, strip) + "\n"
-                       + gx.report_markdown(file, gv["rows"], gv["bur"], g["afs"], gv["nodes"],
-                                            effects, gv["lon"], reviews),
-                       f"{stem}.md", "text/markdown", key=f"{key}-md")
-    e2.download_button("Download the variants and evidence items (CSV)",
-                       wb.report_csv(file, vs, reviews), f"{stem}.csv", "text/csv",
-                       key=f"{key}-csv")
-    e3.download_button("Download the copy-number table (CSV)",
-                       gx.landscape_csv(gv["rows"], reviews, file),
-                       f"{stem}_copy_number.csv", "text/csv", key=f"{key}-cn-csv",
-                       disabled=not gv["rows"])
-    e4.download_button("Download the genome findings (JSON)",
-                       gx.report_json(file, gx.findings(file, gv["rows"], gv["bur"], gv["nodes"],
-                                                        g["afs"], effects), reviews,
-                                      {"scores": (g["data"] or {}).get("version"),
-                                       "effects": (effects or {}).get("snapshot"),
-                                       "ensembl_release": (effects or {}).get("ensembl_release")}),
-                       f"{stem}_genome.json", "application/json", key=f"{key}-json")
-
-    # limits, data card, planned
-    st.markdown(f"#### {CANNOT_SEE}")
-    for limit in card["limits"]:
-        st.markdown(f"- {limit}")
-    st.markdown(f"#### {CARD}")
-    rows = [("Status", card["status"]), ("Model", card["model"]),
-            *((f"Data: {k}", v) for k, v in card["data"].items()),
-            *((f"Label: {k}", v) for k, v in card["labels"].items()),
-            ("Evidence levels", "; ".join(f"{k} {v}" for k, v in card["evidence_levels"].items()))]
-    st.table(pd.DataFrame(rows, columns=["", "value"]).set_index(""))
-    _method_card(g, effects)
-    st.markdown("#### Planned, not results")
-    st.dataframe(pd.DataFrame(card["planned"]).rename(
-        columns={"what": "What", "note": "Note", "status": "Status"}),
-        hide_index=True, width="stretch")
+    # card, limits, export
+    with page.card():
+        rows = [("Status", card["status"]), ("Model", card["model"]),
+                *((f"Data: {k}", v) for k, v in card["data"].items()),
+                *((f"Label: {k}", v) for k, v in card["labels"].items()),
+                ("Evidence levels", "; ".join(f"{k} {v}"
+                                              for k, v in card["evidence_levels"].items()))]
+        st.table(pd.DataFrame(rows, columns=["", "value"]).set_index(""))
+        _method_card(g, effects)
+        with st.expander(count_label("Planned, not results", len(card["planned"]))):
+            st.dataframe(pd.DataFrame(card["planned"]).rename(
+                columns={"what": "What", "note": "Note", "status": "Status"}),
+                hide_index=True, width="stretch")
+    with page.cannot_see(card["limits"]):
+        pass
+    with page.export():
+        e1, e2, e3, e4 = st.columns(4)
+        stem = f"genomics_{file.id.replace(' ', '_')}"
+        e1.download_button("Download the genomics report (Markdown)",
+                           wb.report_markdown(file, vs, ladders, watch, reviews, strip) + "\n"
+                           + gx.report_markdown(file, gv["rows"], gv["bur"], g["afs"],
+                                                gv["nodes"], effects, gv["lon"], reviews),
+                           f"{stem}.md", "text/markdown", key=f"{key}-md")
+        e2.download_button("Download the variants and evidence items (CSV)",
+                           wb.report_csv(file, vs, reviews), f"{stem}.csv", "text/csv",
+                           key=f"{key}-csv")
+        e3.download_button("Download the copy-number table (CSV)",
+                           gx.landscape_csv(gv["rows"], reviews, file),
+                           f"{stem}_copy_number.csv", "text/csv", key=f"{key}-cn-csv",
+                           disabled=not gv["rows"])
+        e4.download_button("Download the genome findings (JSON)",
+                           gx.report_json(file, gx.findings(file, gv["rows"], gv["bur"],
+                                                            gv["nodes"], g["afs"], effects),
+                                          reviews,
+                                          {"scores": (g["data"] or {}).get("version"),
+                                           "effects": (effects or {}).get("snapshot"),
+                                           "ensembl_release": (effects or {}).get(
+                                               "ensembl_release")}),
+                           f"{stem}_genome.json", "application/json", key=f"{key}-json")
 
 
 # ---------------------------------------------------------------- standalone page

@@ -662,10 +662,12 @@ def test_genome_sections_render_on_the_shipped_numbers():
     assert not at.exception
     text = " ".join(e.value for k in ("markdown", "caption", "info", "warning", "subheader")
                     for e in getattr(at, k))
-    assert "The tumor's genome" in text and "ABSOLUTE purity" in text
-    assert "Spot: " in text and "somatic calls" in text and "AlphaMissense" in text
+    assert "the tumor's genome" in text and "ABSOLUTE purity" in text
+    assert "Spot panel" in text and "somatic calls" in text and "AlphaMissense" in text
     assert "Rule: detected / not detected only where the sample looked" in text
-    assert len(at.tabs) == 4
+    assert [t.label for t in at.tabs] == ["Variants", "Copy-number landscape",
+                                          "Burden and allele fractions", "Predicted effect",
+                                          "Pathway map"]
     tl = str(ROOT / "app" / "timeline_synthetic.json")
     syn = AppTest.from_string(PAGE.format(workbenches=wbs, body=(
         f"tl = json.loads(open({tl!r}, encoding='utf-8').read())\n"

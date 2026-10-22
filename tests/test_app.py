@@ -17,6 +17,7 @@ from muffle.imports import imaging_test, lab_tests, parse_labs, sequencing_test
 from muffle.models import MuffleNet
 from muffle.report import civic, trials
 from muffle.workbench import radiology
+from tests.skeleton import assert_skeleton
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
@@ -122,19 +123,28 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.segmented_control(key="view").set_value("Tests").run()
     at.session_state["picked-SYNTHETIC-001"] = ("Lab", 11, "CA 15-3")
     at.run()  # the lab page as of month 12: the month-11 rise is a flagged result
-    assert "Blood and lab workbench" in shown(at) and not at.exception
-    assert any("month 11: CA 15-3 52" in e.label for e in at.expander)
+    assert "Blood and lab workbench · SYNTHETIC-001 · CA 15-3, month 11" in shown(at)
+    assert not at.exception
+    spot = at.selectbox(key="SYNTHETIC-001_spot")
+    assert any("month 11 · CA 15-3 52" in o for o in spot.options)
+    parts = assert_skeleton(at, "labs")  # the page skeleton, its counts in the details headers
+    assert ("spot", "Spot panel") in parts
+    assert any(h.startswith("Flagged results (") for _, h in parts)
     at.session_state["picked-SYNTHETIC-001"] = ("Pathology report", -40, "Diagnosis")
     at.run()  # the slide workbench, on a public example region, saying it isn't this patient
-    assert "Pathology slides" in shown(at) and "nothing below is this patient's tissue" in shown(at)
-    assert not at.exception
+    assert "Pathology slide workbench" in shown(at)
+    assert "nothing below is this patient's tissue" in shown(at) and not at.exception
+    assert_skeleton(at, "slides")
     at.segmented_control(key="view").set_value("Timeline").run()  # compare month 11 with 12
     assert "~ Metastatic sites" in shown(at) and "12-month risk" in shown(at)
     at.segmented_control(key="view").set_value("Report").run()
     button(at, "Open the Evolution view").click().run()  # the report's hook, as of month 12
     assert at.segmented_control(key="view").value == "Evolution"
     assert "Tumor evolution and treatment evidence" in shown(at) and not at.exception
-    assert "ESR1 ligand-binding-domain mutation" in shown(at) and "snapshot" in shown(at)
+    watch = next(d.value for d in at.dataframe if "What to watch" in d.value.columns)
+    assert any("ESR1 ligand-binding-domain mutation" in e for e in watch["What to watch"])
+    assert "snapshot" in shown(at)
+    assert_skeleton(at, "evolution")
     tl = json.loads((APP.parent / "timeline_synthetic.json").read_text(encoding="utf-8"))
     key = evolution.hypothesis_set(workspace.synthetic_file(tl), 11)["items"][0]["key"]
     mark = f"evo-mark-{hashlib.sha1(key.encode()).hexdigest()[:10]}"
@@ -159,6 +169,7 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.run()
     assert "ctDNA monitor (liquid biopsy)" in shown(at) and not at.exception
     assert any(w.value.startswith("Synthetic series") for w in at.warning)
+    assert_skeleton(at, "ctdna")
     button(at, "Open the Evolution view: what to watch next").click().run()
     assert at.segmented_control(key="view").value == "Evolution" and not at.exception
     at.segmented_control(key="view").set_value("Tests").run()
@@ -172,13 +183,15 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.session_state["picked-SYNTHETIC-001"] = ("Lab", 27, "CA 15-3")
     at.run()
     at.select_slider(key="version-SYNTHETIC-001").set_value(16).run()
-    assert any("month 27: CA 15-3 45" in e.label for e in at.expander) and not at.exception
+    spot = at.selectbox(key="SYNTHETIC-001_spot")
+    assert any("month 27 · CA 15-3 45" in o for o in spot.options) and not at.exception
     at.segmented_control(key="view").set_value("Report").run()
     assert "month 27 · imported by AB at 14:03" in shown(at)
     assert "CA 15-3 rose from 31 to 45 U/mL (+45%)" in shown(at) and not at.exception
     at.segmented_control(key="view").set_value("Import tests").run()
     assert "Imported in this session" in shown(at) and "kept for this browser session only" in \
         shown(at)
+    assert_skeleton(at, "imports")
     at.segmented_control(key="view").set_value("Timeline").run()
     assert not at.exception
     # imported sequencing joins the genomics workbench; an imported imaging report raises its
@@ -199,6 +212,7 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
     at.session_state["picked-SYNTHETIC-001"] = ("Sequencing", 27, seq.name)
     at.run()
     assert "Genomics workbench" in shown(at) and "ESR1 Y537S" in shown(at) and not at.exception
+    assert_skeleton(at, "genomics")
     at.session_state["picked-SYNTHETIC-001"] = ("Imaging", 27, "Imaging report")
     at.run()
     assert "New distant sites named:** Lung" in shown(at) and "Radiology workbench" in shown(at)
@@ -218,6 +232,7 @@ def test_patient_files_render_in_every_view(cohort, small_cfg, tmp_path, monkeyp
         at.run()  # the omics workbench; this test cohort has no precomputed scores
         assert "Expression, methylation and protein" in shown(at) and not at.exception, layer
         assert "No precomputed subtype" in " ".join(w.value for w in at.warning)
+        assert_skeleton(at, "omics")
     at.selectbox(key=f"omics-spot-{case}").select_index(0).run()
     next(s for s in at.segmented_control if s.label == "Your mark").set_value("agree").run()
     assert any(k.startswith(f"{case}|omics|") for k in at.session_state.reviews)

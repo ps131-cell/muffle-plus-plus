@@ -15,6 +15,13 @@ def _spend_ledger(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _strict_pages(monkeypatch):
+    """A workbench page that draws a part of the shared skeleton out of order fails its test
+    (``workbenches._page``); in front of a clinician it is drawn as asked."""
+    monkeypatch.setenv("MUFFLE_STRICT_PAGES", "1")
+
+
+@pytest.fixture(autouse=True)
 def _arrow_strict(monkeypatch):
     """A table Streamlit can't hand to Arrow as it is fails the page's test: Streamlit would
     otherwise re-type its columns silently, logging only at INFO level."""

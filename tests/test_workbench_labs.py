@@ -323,23 +323,21 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
                            default_timeout=60).run()
     assert not at.exception
     assert "Synthetic patient" in at.warning[0].value
-    assert len(at.expander) == 7 and len(results_of(at)) == 8
+    details = [e.label for e in at.expander]
+    assert {"Results (8)", "Rise confirmation, EGTM (1)", "Planned panels (4)"} <= set(details)
+    assert len(results_of(at)) == 8
     at.checkbox[0].check().run()
     assert len(results_of(at)) == 7  # the month-7 value within the limit drops out
     text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.warning, *at.info]
                     + [*at.subheader]).lower()
     assert "synthetic" in text and not any(w in text for w in ("demo", "hackathon"))
-    assert "L4: the rise at month 11 is **unconfirmed**" in at.markdown[0].value
-    assert "halving time about 21 months" in at.markdown[0].value
+    overview = next(m.value for m in at.markdown if "results** for" in m.value)
+    assert "L4: the rise at month 11 is **unconfirmed**" in overview
+    assert "halving time about 21 months" in overview
     headings = [m.value for m in at.markdown if m.value.startswith("#### ")]
-    assert headings == ["#### Trends", "#### Spot panel", "#### Marker kinetics",
-                        "#### Rise confirmation (EGTM)", "#### Early after a therapy change",
-                        "#### Within-person baseline", "#### Markers against imaging",
-                        "#### Cross-analyte hypotheses", "#### Cross-marker view", "#### Search",
-                        "#### Results", "#### Flagged results: why, and your review",
-                        "#### Look here", "#### Quality checks", "#### Planned",
-                        "#### Reference table", "#### What this test cannot see",
-                        "#### Model and validation card", "#### Export"]
+    assert headings == ["#### Overview", "#### Trends", "#### Details", "#### Spot panel",
+                        "#### Model and validation card", "#### What this test cannot see",
+                        "#### Export"]
     # the spot panel opens on the latest flagged value
     assert at.selectbox(key="SYNTHETIC-001_spot").value.startswith("L7 · month 24")
     # plain-word search
@@ -351,6 +349,8 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     key = finding_key(synthetic_file(timeline()), "lab", "ca153", 11)
     assert key == "SYNTHETIC-001|lab|ca153|11"
     at.text_input(key="reviewer").set_value("ab").run()
+    spot = at.selectbox(key="SYNTHETIC-001_spot")  # the mark is in the value's Spot panel
+    spot.select(next(o for o in spot.options if o.startswith("L4 ·"))).run()
     assert list(at.selectbox(key=f"mark_{key}").options) == ["no mark", *MARKS]
     at.selectbox(key=f"mark_{key}").select("agree").run()
     done = at.session_state["reviews"][key]
@@ -359,7 +359,7 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     at.selectbox(key="SYNTHETIC-001_labs_reviewed").select("reviewed").run()
     shown = results_of(at)
     assert list(shown["pointer"]) == ["L4"] and shown["review"].iloc[0] == "agree (ab)"
-    assert "1 review mark." in at.markdown[0].value
+    assert "1 review mark." in next(m.value for m in at.markdown if "results** for" in m.value)
     at.selectbox(key=f"mark_{key}").select("no mark").run()
     assert key not in at.session_state["reviews"]
 
@@ -372,8 +372,9 @@ tl = json.loads(open({str(root / "app" / "timeline_synthetic.json")!r}, encoding
 render(synthetic_file(tl), version=9)  # month 7: CA 15-3 30, within limit
 """, default_timeout=60).run()
     assert not as_of.exception
-    assert as_of.caption[1].value.startswith("As of month 7 (month 7 · Imaging): 6 later events")
-    assert len(results_of(as_of)) == 4 and len(as_of.expander) == 3
+    assert any(c.value.startswith("As of month 7 (month 7 · Imaging): 6 later events")
+               for c in as_of.caption)
+    assert len(results_of(as_of)) == 4 and "Results (4)" in [e.label for e in as_of.expander]
 
     tcga = AppTest.from_string(f"""
 import sys
@@ -386,7 +387,8 @@ render(case_file(SimpleNamespace(index=1, site="site-0", percentile=50.0, group=
                                  mutations=None)))
 """, default_timeout=60).run()
     assert not tcga.exception
-    assert "holds no lab results" in tcga.info[0].value and not tcga.dataframe[0].value.empty
+    assert "No lab results in this file" in tcga.info[0].value
+    assert not tcga.dataframe[0].value.empty  # the planned panels
 
 
 # -------------------------------------------------------------- any analyte: the reference table
@@ -523,7 +525,8 @@ render(pf, events=record_events(pf))
     assert not at.exception
     assert [t.label for t in at.tabs] == ["Tumor markers", "Liver", "Bone and mineral", "Kidney",
                                           "Blood count", "General chemistry", ref.UNLISTED]
-    assert "2 cross-analyte hypotheses (for clinician review)" in at.markdown[0].value
+    assert "2 cross-analyte hypotheses (for clinician review)" in next(
+        m.value for m in at.markdown if "results** for" in m.value)
     assert "next to the results imported in this session" in at.warning[0].value
     before = len(results_of(at))
     at.selectbox(key="SYNTHETIC-001_labs_sex").select("female").run()

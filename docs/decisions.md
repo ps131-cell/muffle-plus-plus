@@ -2,6 +2,24 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-22 — One page skeleton for every workbench, enforced by a shared helper
+- **What:** every workbench page draws the same parts in the same order through
+  `app/workbenches/_page.py`: the title (workbench · patient · test), the status chips, the
+  overview (one paragraph, the workbench's look-here queue, search), the picture, the details
+  (collapsed, each with its count), the Spot panel, the Model and validation card, what the
+  test cannot see, the export (`docs/ux.md` §1). Applied to labs, ctDNA, genomics, slides,
+  omics, evolution and imports; radiology and documents follow once their second rounds merge.
+  The lab page's one expander per flagged result became the Spot panel's review mark; the
+  genomics page's two gene Spot panels and its variant Spot panel became one Spot panel; the
+  Evolution view's hypotheses became a table whose row opens the Spot panel.
+- **Why:** each workbench grew its own order and headings in three rounds; a pathologist who
+  had learned one page had to learn the next. A shared helper keeps them the same, and a
+  collapsed section with its count keeps every piece of depth one click away.
+- **Consequence:** the look-here list on each page is the workbench's own `queue()`, the items
+  the report's attention queue carries, so a mark made on either is the same mark; a page's
+  older or standing items sit in a details section. A part out of order fails the tests
+  (`MUFFLE_STRICT_PAGES=1`), never the page in front of a clinician.
+
 ## 2026-10-21 — The demo model's held-out C-index is the release bundle's 0.728; a local rebuild reads 0.730
 - **What:** the hosted app and the `demo-wsl` preview both load the release `demo-bundle-v2`,
   so both show held-out C-index **0.728**. The preview passes `--bundle outputs/demo_bundle.pt`,

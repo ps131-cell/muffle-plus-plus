@@ -20,6 +20,8 @@ from pathlib import Path
 APP = Path(__file__).resolve().parents[1]
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
+if str(APP) not in sys.path:
+    sys.path.insert(0, str(APP))
 
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
@@ -32,6 +34,7 @@ from muffle.workbench.documents import FIELDS, extract  # noqa: E402
 from muffle.workbench import labs_reference as ref  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, PatientFile, Test  # noqa: E402
+from workbenches._page import Page  # noqa: E402
 
 LABS, REPORT, SEQUENCING, IMAGING = ("Lab results (CSV)", "Report (text or PDF)",
                                      "Sequencing (VCF or MAF)", "Imaging report (text or PDF)")
@@ -43,32 +46,121 @@ SESSION_ONLY = ("Imports are kept for this browser session only: nothing is save
 EXAMPLE = intake.LAB_EXAMPLE
 
 
+ADAPTERS = [  # what each adapter accepts, what it checks on intake and what the file gains
+    (LABS, "month or date, marker, value, unit and optionally the lab report's interval",
+     f"at most {intake.MAX_ROWS} rows; an unknown unit, a value before the latest report or a "
+     "value the record already holds is rejected with the reason; units converted to the "
+     "reference table's", "one Lab test per row, read by the blood and lab workbench"),
+    (REPORT, "a text file or a PDF with a text layer (no OCR)",
+     f"at most {intake.MAX_CHARS:,} characters", "a document, read by the documents rules"),
+    (SEQUENCING, "an annotated VCF (VEP CSQ or SnpEff ANN) or a MAF, plain or gzip",
+     f"at most {intake.MAX_RECORDS:,} records; PASS calls only; protein-altering variants in the "
+     "file's breast panel; other rows rejected with the reason",
+     "a Sequencing test, read by the genomics workbench"),
+    (IMAGING, "a text file or a PDF with a text layer",
+     "the read its clauses state; negated and hedged clauses set aside and listed",
+     "an Imaging test, read by the radiology workbench"),
+    (IMAGE, "a PNG or JPEG", f"at most {intake.MAX_IMAGE // 2**20} MB",
+     "a test queued for the local pipeline (the hosted app runs no models)"),
+    (DICOM, "a .dcm file", "header only; identifying fields are never read",
+     "a test queued for the local pipeline"),
+    (NOTE, "text typed here, signed with your initials", f"at most {intake.MAX_CHARS:,} "
+     "characters", "a document, read by the documents rules"),
+]
+CANNOT_IMPORT = [
+    "expression, methylation or protein data: no adapter yet (the TCGA cases carry theirs)",
+    "images and scans are registered, not analyzed: the hosted app runs no models",
+    "anything beyond this browser session: imports are not saved, and closing the tab discards "
+    "them",
+    "whether a file matches the source system: an import is checked for form, not verified "
+    "against the laboratory or the scanner",
+]
+
+
+def _alert_items(file: PatientFile) -> list[dict]:
+    """What this session's imports raised, as look-here items (the alerts the shell's rules
+    raised on arrival)."""
+    from muffle.overview import alert_key
+
+    return [{"pointer": None, "what": a.what, "why": f"{a.rule}; threshold: {a.threshold}",
+             "evidence": a.evidence, "trust": a.trust, "consequence": a.consequence,
+             "month": a.month, "key": alert_key(file, a), "focus": None}
+            for v in file.versions if v.imported for a in v.alerts]
+
+
 def render_view(file: PatientFile) -> None:
-    """The Import tests view: the button that opens the dialog, and this session's imports."""
-    st.markdown(f"#### Import tests {chip(IMPLEMENTED)}")
-    st.markdown("Lab results, a report (text or PDF), sequencing results (VCF or MAF), an "
-                "imaging report, a slide region image, a DICOM file or a clinician's note. Each "
-                "import is checked on intake, joins the file as tests and adds a report version; "
-                "earlier versions are never overwritten. The alert rules run on what arrives.")
+    """The Import tests view: the button that opens the dialog, and this session's imports, in
+    the shared page skeleton (``workbenches._page``)."""
+    page = Page("imports", file)
+    page.title(IMPLEMENTED, "kept for this browser session")
     st.caption(SESSION_ONLY)
-    if st.button("Import a test…", type="primary", key=f"import-open-{file.id}"):
-        dialog(file)
     records = st.session_state.get("imports", {}).get(file.id, [])
     versions = [v for v in file.versions if v.imported]
-    if not records:
-        st.caption("Nothing imported into this file in this session.")
-        return
-    st.markdown(f"**Imported in this session** · {len(records)}")
-    for v, r in zip(versions, records, strict=False):
-        with st.container(border=True):
-            st.markdown(f"**{v.label}** · {r['kind']} · {v.event}")
-            st.caption("Tests: " + "; ".join(
-                f"{t.kind} {t.name}: {t.result}" + ("" if t.result == t.status else
-                                                    f" ({t.status})") for t in v.tests)
-                + (f" · alerts raised: {len(v.alerts)}" if v.alerts else ""))
-            if r["rejected"]:
-                st.caption(f"Rejected on intake: {len(r['rejected'])} row(s): " + "; ".join(
-                    f"row {x['row']}: {x['reason']}" for x in r["rejected"]))
+    with page.overview():
+        st.markdown("Lab results, a report (text or PDF), sequencing results (VCF or MAF), an "
+                    "imaging report, a slide region image, a DICOM file or a clinician's note. "
+                    "Each import is checked on intake, joins the file as tests and adds a report "
+                    "version; earlier versions are never overwritten. The alert rules run on "
+                    f"what arrives. **{len(records)} imported** into this file in this session.")
+        if st.button("Import a test…", type="primary", key=f"import-open-{file.id}"):
+            dialog(file)
+        page.look_here(_alert_items(file), empty="Nothing raised by this session's imports.")
+    with page.picture("Imported in this session"):
+        if not records:
+            st.caption("Nothing imported into this file in this session. Use **Import a test…** "
+                       "above.")
+        for v, r in zip(versions, records, strict=False):
+            with st.container(border=True):
+                st.markdown(f"**{v.label}** · {r['kind']} · {v.event}")
+                st.caption("Tests: " + "; ".join(
+                    f"{t.kind} {t.name}: {t.result}" + ("" if t.result == t.status else
+                                                        f" ({t.status})") for t in v.tests)
+                    + (f" · alerts raised: {len(v.alerts)}" if v.alerts else ""))
+                if r["rejected"]:
+                    st.caption(f"Rejected on intake: {len(r['rejected'])} row(s): " + "; ".join(
+                        f"row {x['row']}: {x['reason']}" for x in r["rejected"]))
+    rejected = [{"import": v.label, "kind": r["kind"], "row": x["row"], "reason": x["reason"]}
+                for v, r in zip(versions, records, strict=False) for x in r["rejected"]]
+    with page.details("Rejected on intake", len(rejected)):
+        if rejected:
+            st.dataframe(pd.DataFrame(rejected), hide_index=True, width="stretch")
+        else:
+            st.caption("No row rejected in this session.")
+    with page.details("What each adapter accepts", len(ADAPTERS)):
+        st.dataframe(pd.DataFrame(ADAPTERS, columns=["Adapter", "Accepts", "Checked on intake",
+                                                     "Joins the file as"]),
+                     hide_index=True, width="stretch")
+    with page.card():
+        st.caption(chip(IMPLEMENTED))
+        st.markdown("**Intake rules** · rules, no model. Each adapter checks the file's form "
+                    "at the boundary (columns, units, sizes, annotations, a text layer), keeps "
+                    "what it can read and lists every rejected row with the reason; nothing is "
+                    "forced into a result the data can't support. **Validation:** tested on "
+                    "sample files (tests/test_imports.py), not validated on a set of real "
+                    "laboratory exports or reports. **Signed:** every import carries the "
+                    "initials and time of the person who added it.")
+        st.markdown("**Known failures:** a scanned PDF without a text layer has no text to read; "
+                    "a VCF stores allele fractions differently by caller, so they are not read "
+                    "from a VCF; the imaging rule reads clauses, not images, and was tested on "
+                    "sample sentences only.")
+    with page.cannot_see(CANNOT_IMPORT):
+        pass
+    with page.export(empty=None if records else "Nothing to export: nothing imported in this "
+                                                "session. The report export lists every import."):
+        if records:
+            st.download_button(
+                "Download this session's imports (CSV)",
+                pd.DataFrame([{"version": v.label, "kind": r["kind"], "month": v.month,
+                               "event": v.event, "imported": v.imported,
+                               "tests": "; ".join(f"{t.kind} {t.name}: {t.result}"
+                                                  for t in v.tests),
+                               "alerts": "; ".join(a.what for a in v.alerts),
+                               "rejected rows": len(r["rejected"])}
+                              for v, r in zip(versions, records, strict=False)]
+                             ).to_csv(index=False),
+                file_name=f"imports_{file.id.replace(' ', '_')}.csv", mime="text/csv",
+                key=f"import-csv-{file.id}")
+            st.caption("The report export (Report view) lists every import with its version.")
 
 
 def _add(file_id: str, record: dict) -> None:
@@ -311,7 +403,8 @@ def _details(t: Test) -> None:
     d = t.details
     if "preview" in d:
         st.image(d["preview"], caption=f"{d['width']}×{d['height']} px {d['format']}, "
-                                       f"{d['bytes'] / 1024:,.0f} KB as received (preview)")
+                                       f"{d['bytes'] / 1024:,.0f} KB as received (preview)",
+                 alt=f"Preview of the imported image {d.get('file', '')}".strip())
     if "header" in d:
         st.dataframe(pd.DataFrame(list(d["header"].items()), columns=["Header field", "Value"]),
                      hide_index=True, width="stretch")
@@ -322,13 +415,29 @@ def _details(t: Test) -> None:
 
 
 def render_test(file: PatientFile, t: Test) -> None:
-    """The page of an imported image or DICOM test, queued for the local pipeline."""
-    st.markdown(f"#### {t.kind}: {t.name}, month {t.month} :orange-badge[{intake.QUEUED}]")
-    st.info("Queued for the local pipeline: the hosted app runs no models, so this file is "
-            "registered, checked and kept for this session, not analyzed. "
-            + ("The slide workbench's tissue map runs on a local machine with its encoder."
-               if t.details.get("pipeline") == "slides" else
-               "The radiology workbench's image viewer and lesion measurements are planned.")
-            + " Nothing below is a result.", icon="⏳")
-    _details(t)
+    """The page of an imported image or DICOM test, queued for the local pipeline, in the shared
+    page skeleton."""
+    page = Page("intake", file, t)
+    page.title(intake.QUEUED, colors={intake.QUEUED: "orange"})
     st.caption(SESSION_ONLY)
+    with page.overview():
+        st.info("Queued for the local pipeline: the hosted app runs no models, so this file is "
+                "registered, checked and kept for this session, not analyzed. "
+                + ("The slide workbench's tissue map runs on a local machine with its encoder."
+                   if t.details.get("pipeline") == "slides" else
+                   "The radiology workbench's image viewer and lesion measurements run on a "
+                   "local machine.")
+                + " Nothing below is a result.", icon="⏳")
+        page.look_here([], empty="Nothing to look at: the file is registered, not analyzed.")
+    with page.picture("What arrived"):
+        _details(t)
+    with page.card():
+        st.markdown("**Intake rules** · rules, no model: the file's type and size are checked "
+                    f"(at most {intake.MAX_IMAGE // 2**20} MB); a DICOM file's header is read "
+                    "for its acquisition fields only, never its pixels or the patient's "
+                    "identifying fields. Tested on sample files, not validated.")
+    with page.cannot_see(["anything in the image: nothing was analyzed here",
+                          "the patient's identity: identifying header fields are never read"]):
+        pass
+    with page.export(empty="Nothing to export: nothing was analyzed."):
+        pass

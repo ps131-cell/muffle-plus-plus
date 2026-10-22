@@ -207,7 +207,9 @@ def test_page_shows_the_viewer_when_the_pyramid_is_there(tmp_path):
     for slide in slides:  # a served pyramid is a folder with its .dzi (the tiles aren't read)
         (tmp_path / slide).mkdir()
         (tmp_path / slide / f"{slide}.dzi").write_text("<Image/>")
-    at = AppTest.from_string(page(str(tmp_path), case, slides), default_timeout=180).run()
+    at = AppTest.from_string(page(str(tmp_path), case, slides), default_timeout=180)
+    at.session_state[f"Case {case}-side-open"] = True  # the side-by-side section, opened
+    at.run()
     assert not at.exception, at.exception
     text = " ".join(e.value for e in at.caption).lower()
     assert "µm per pixel" in text and "minimap" in text and "openseadragon" in text

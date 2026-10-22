@@ -1113,5 +1113,6 @@ def queue(pf: PatientFile, version: int | None = None, k: int = 3) -> list[dict]
             it["id"], f"Watch for {it['event']}", f"{'; '.join(it['why'])}; when it would "
             f"matter: {it['matters']}; detect with {it['detect']}", HYPOTHESIS, "weak", 1,
             ("Evolution",), source="the Evolution view's cited table", key=it["key"],
+            focus={"evolution": it["key"]},
             threshold=f"none: a hypothesis ({it['strength']}); frequency {it['frequency']}"))
     return out

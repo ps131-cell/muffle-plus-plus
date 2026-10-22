@@ -5,11 +5,13 @@ The patient file calls ``render(pf, version=None, lookup=None)`` with a
 ``muffle.workspace.PatientFile``: ``version`` is an index into ``pf.versions`` (the latest when
 None) and ``lookup(row)`` returns the CIViC items for a table row (``muffle.evolution.civic_items``
 on the loaded CIViC table), None when the table didn't load. It draws inside the current
-container only. Sections: the record's events over time (observed), what to watch next
-(hypotheses with their sources, search, review marks and pins), clonal order from allele
-fractions (model inference, as alternatives), trials that mention the observed genes (live
-registry, a dated snapshot when it can't be reached), the constraints with the method card, and
-the export. Treatment content is evidence for clinician review, never advice. Standalone:
+container only, in the shared page skeleton (``workbenches._page``): the overview with the
+look-here queue and search, the record's events over time (observed), the details (what to
+watch next: hypotheses with their sources and review marks; the rows not raised; clonal order
+from allele fractions, model inference, as alternatives; trials that mention the observed genes,
+live registry or a dated snapshot), one hypothesis in full in the Spot panel, the card with the
+constraints, what the view cannot see and the export. Treatment content is evidence for
+clinician review, never advice. Standalone:
 
     streamlit run app/workbenches/evolution.py
 """
@@ -26,6 +28,8 @@ from types import SimpleNamespace
 APP = Path(__file__).resolve().parents[1]
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
+if str(APP) not in sys.path:  # standalone: streamlit run app/workbenches/evolution.py
+    sys.path.insert(0, str(APP))
 
 import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -34,8 +38,9 @@ import streamlit as st  # noqa: E402
 from muffle import evolution  # noqa: E402
 from muffle.report import trials  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
-from muffle.workbench.grammar import CANNOT_SEE, CARD, EXPORT, chip  # noqa: E402
+from muffle.workbench.grammar import chip, count_label  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
+from workbenches._page import Page, land  # noqa: E402
 
 DOCS = "https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/evolution.md"
 KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78d6",
@@ -149,79 +154,80 @@ def _matches(item: dict, q: str) -> bool:
     return q.lower() in text.lower()
 
 
-def hypotheses(pf: PatientFile, hs: dict, key: str) -> None:
-    st.markdown("#### What to watch next")
+def watch_table(hs: dict, items: list[dict], spot: str) -> None:
+    """What to watch next, one row per hypothesis; a row click opens it in the Spot panel."""
     st.caption(" ".join([badge(HYPOTHESIS), badge(IMPLEMENTED),
                          badge("for clinician review, never advice", "gray")]))
-    st.caption(hs["rule"] + " Each item: why this file raises it, the frequency a cohort "
-               "reported, the test that would detect it, when it would matter, and the evidence "
-               "for and against, with PubMed links.")
+    st.caption(hs["rule"] + " Each row: why this file raises it, the frequency a cohort "
+               "reported, the test that would detect it and the strongest evidence; click a row "
+               "for the evidence for and against, with PubMed links, in the Spot panel.")
     for note in hs["notes"]:
         st.info(note)
-    query = st.text_input("Search: a gene, a drug class, a test or a source",
-                          key=f"{key}-search", placeholder="e.g. ESR1, ctDNA, CDK4/6, Razavi")
-    items = [it for it in hs["items"] if not query or _matches(it, query)]
-    if query and not items:
-        known = {g for row in evolution.TABLE for g in row["genes"]}
-        st.info(f"No row of this table mentions {query!r}"
-                + (": nothing is said about it here, which is not evidence that it doesn't "
-                   "happen." if query.upper() not in known else
-                   "; the table has rows for it, but none is raised for this file (see 'Not "
-                   "raised' below)."))
-    for n, it in enumerate(items, 1):
-        lead = it["support"][0]["source"]
-        with st.container(border=True):
-            head, box = st.columns([7, 1])
-            head.markdown(f"**{n}. {it['event']}** {badge(HYPOTHESIS)} "
-                          + (badge("already observed", "blue") if it["status"].startswith(
-                              "already") else ""))
-            with box:
-                review_box(it["key"], f"Evolution: {it['event']} ({lead['cite']})")
-            st.markdown(f"**Why this file raises it:** {esc('; '.join(it['why']))}.  \n"
-                        f"**Status:** {esc(it['status'])}.  \n"
-                        f"**Reported frequency:** {it['frequency']}.  \n"
-                        f"**Would be detected by:** {it['detect']}.  \n"
-                        f"**When it would matter:** {it['matters']}.")
-            with st.expander(f"Evidence: {len(it['support'])} for, {len(it['against'])} against "
-                             f"or limits · strongest: {it['strength']}"):
-                st.dataframe(pd.DataFrame([{
-                    "Source": f"{e['source']['cite']}, {e['source']['journal']}",
-                    "What the abstract reports": e["says"], "Cohort": e["cohort"],
-                    "Frequency": e["frequency"], "PubMed": e["source"]["url"]}
-                    for e in it["support"]]), hide_index=True, width="stretch",
-                    column_config={"PubMed": st.column_config.LinkColumn(
-                        display_text=r"PMID (\d+)")})
-                for e in it["against"]:
-                    st.markdown(f"- **Against or a limit** ({e['source']['cite']}, "
-                                f"[PMID {e['source']['pmid']}]({e['source']['url']})): "
-                                f"{e['says']}" + (" **Applies to this file.**"
-                                                  if e["applies_here"] else ""))
-                if not it["against"]:
-                    st.caption("No contrary or limiting finding in these abstracts; that is not "
-                               "proof that none exists.")
-                civ = it["civic"]
-                if civ is None:
-                    st.caption("CIViC items: the CIViC table is not loaded here.")
-                elif civ["items"]:
-                    st.markdown(f"**CIViC items for this event** ({civ['total']} in breast "
-                                "cancer; the strongest shown) · treatment evidence for clinician "
-                                "review")
-                    st.dataframe(pd.DataFrame(civ["items"]).rename(columns={
-                        "molecular_profile": "Profile", "therapies": "Therapies",
-                        "evidence_level": "Level", "significance": "Significance",
-                        "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
-                        hide_index=True, width="stretch", column_config={
-                            "CIViC": st.column_config.LinkColumn(display_text="item")})
-                else:
-                    st.caption("CIViC: no accepted item for this event in breast cancer.")
-    with st.expander(f"Not raised for this file ({len(hs['not_raised'])} rows), and why"):
-        st.dataframe(pd.DataFrame(hs["not_raised"]).rename(
-            columns={"id": "Row", "event": "Event", "reason": "Why not raised"}),
-            hide_index=True, width="stretch")
+    reviews = st.session_state.get("reviews", {})
+    key = f"{spot}-table"
+
+    def pick():
+        sel = st.session_state[key].selection.rows
+        if sel:
+            st.session_state[spot] = items[sel[0]]["key"]
+
+    st.dataframe(pd.DataFrame([{
+        "#": n, "What to watch": it["event"],
+        "Why this file raises it": "; ".join(it["why"]), "Status": it["status"],
+        "Reported frequency": it["frequency"], "Would be detected by": it["detect"],
+        "Strongest evidence": it["strength"],
+        "Mark": (reviews.get(it["key"]) or {}).get("mark", "")}
+        for n, it in enumerate(items, 1)]), hide_index=True, width="stretch", on_select=pick,
+        selection_mode="single-row", key=key)
+
+
+def item_spot(it: dict) -> None:
+    """One hypothesis in full: why, status, frequency, detection, timing, the evidence for and
+    against with PubMed links, its CIViC items and the review box."""
+    lead = it["support"][0]["source"]
+    head, box = st.columns([7, 1])
+    head.markdown(f"**{it['event']}** {badge(HYPOTHESIS)} "
+                  + (badge("already observed", "blue") if it["status"].startswith("already")
+                     else ""))
+    with box:
+        review_box(it["key"], f"Evolution: {it['event']} ({lead['cite']})")
+    st.markdown(f"**Why this file raises it:** {esc('; '.join(it['why']))}.  \n"
+                f"**Status:** {esc(it['status'])}.  \n"
+                f"**Reported frequency:** {it['frequency']}.  \n"
+                f"**Would be detected by:** {it['detect']}.  \n"
+                f"**When it would matter:** {it['matters']}.")
+    st.markdown(f"**Evidence:** {len(it['support'])} for, {len(it['against'])} against or "
+                f"limits · strongest: {it['strength']}")
+    st.dataframe(pd.DataFrame([{
+        "Source": f"{e['source']['cite']}, {e['source']['journal']}",
+        "What the abstract reports": e["says"], "Cohort": e["cohort"],
+        "Frequency": e["frequency"], "PubMed": e["source"]["url"]}
+        for e in it["support"]]), hide_index=True, width="stretch",
+        column_config={"PubMed": st.column_config.LinkColumn(display_text=r"PMID (\d+)")})
+    for e in it["against"]:
+        st.markdown(f"- **Against or a limit** ({e['source']['cite']}, "
+                    f"[PMID {e['source']['pmid']}]({e['source']['url']})): "
+                    f"{e['says']}" + (" **Applies to this file.**" if e["applies_here"] else ""))
+    if not it["against"]:
+        st.caption("No contrary or limiting finding in these abstracts; that is not proof that "
+                   "none exists.")
+    civ = it["civic"]
+    if civ is None:
+        st.caption("CIViC items: the CIViC table is not loaded here.")
+    elif civ["items"]:
+        st.markdown(f"**CIViC items for this event** ({civ['total']} in breast cancer; the "
+                    "strongest shown) · treatment evidence for clinician review")
+        st.dataframe(pd.DataFrame(civ["items"]).rename(columns={
+            "molecular_profile": "Profile", "therapies": "Therapies",
+            "evidence_level": "Level", "significance": "Significance",
+            "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
+            hide_index=True, width="stretch", column_config={
+                "CIViC": st.column_config.LinkColumn(display_text="item")})
+    else:
+        st.caption("CIViC: no accepted item for this event in breast cancer.")
 
 
 def clonal(panel: dict) -> None:
-    st.markdown("#### Clonal order from allele fractions")
     st.caption(" ".join([badge(INFERENCE), badge(IMPLEMENTED)]))
     if "variants" not in panel:
         st.info(f"{panel['status'][0].upper()}{panel['status'][1:]}. Clonal order needs allele "
@@ -263,13 +269,12 @@ def trial_rows(genes: list[str]) -> tuple[list[dict], list[dict]]:
 
 def trials_section(pf: PatientFile, genes: list[str], rows: list[dict], results: list[dict],
                    key: str) -> None:
-    st.markdown("#### Trials that mention this patient's observed markers")
     st.caption(" ".join([badge(HYPOTHESIS), badge(IMPLEMENTED),
                          badge("for clinician review; eligibility is not assessed here",
                                "gray")]))
     if not genes:
         st.info("No observed driver in this file: no trial query is made (queries use observed "
-                "gene names only).")
+                "gene names only). Tumor sequencing would give the genes to search.")
         return
     for r in results:
         found = ("count unknown" if r["total"] is None else
@@ -303,16 +308,13 @@ def trials_section(pf: PatientFile, genes: list[str], rows: list[dict], results:
                  "assessed here. The registry today, not as of the report version shown.")
 
 
-def method_card() -> None:
-    st.markdown(f"#### {CANNOT_SEE}")
-    st.markdown("Copy number beyond the gene level, purity, subclones in other places, anything "
-                "after the last sample; whether a treatment will work. Nothing here is a "
-                "recommendation or a regimen.")
-    with st.expander(f"{CARD}: the constraints this view applies and how the table was built"):
-        for c in evolution.CONSTRAINTS:
-            refs = ", ".join(f"[{evolution.source(s)['cite']}]({evolution.source(s)['url']})"
-                             for s in c["sources"])
-            st.markdown(f"- **{c['rule']}.** {c['text']}" + (f" ({refs})" if refs else ""))
+CANNOT = ["Copy number beyond the gene level, purity, subclones in other places, anything after "
+          "the last sample (repeat sequencing or ctDNA would show it)",
+          "whether a treatment will work; nothing here is a recommendation or a regimen"]
+
+
+def method_card(page) -> None:
+    with page.card():
         st.markdown(
             f"**The table** ({len(evolution.TABLE)} rows, {len(evolution.SOURCES)} papers): each "
             "row is a context (a recorded treatment class, a receptor status, an observed "
@@ -322,6 +324,12 @@ def method_card() -> None:
             "row whose source could not be verified was dropped. CIViC items (CC0) are matched "
             "to each event by its molecular profile. The full table with references: "
             f"[docs/evolution.md]({DOCS}).")
+        with st.expander(count_label("The constraints this view applies",
+                                     len(evolution.CONSTRAINTS))):
+            for c in evolution.CONSTRAINTS:
+                refs = ", ".join(f"[{evolution.source(s)['cite']}]({evolution.source(s)['url']})"
+                                 for s in c["sources"])
+                st.markdown(f"- **{c['rule']}.** {c['text']}" + (f" ({refs})" if refs else ""))
         st.markdown(
             "**Receptor status** (observed): the record's own, from its diagnosis; when it has "
             "none, the ER, PR and HER2 status the Clinical documents workbench reads in this "
@@ -337,60 +345,104 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
     last = len(pf.versions) - 1
     i = last if version is None else version
     v, key = pf.versions[i], f"evolution-{pf.id}-{i}"
+    page = Page("evolution", pf, None, i)
     hs = evolution.hypothesis_set(pf, i, lookup)
     panel, ev = evolution.clonal_panel(pf, i), evolution.events(pf, i)
     genes = list(hs["context"]["drivers"])
     rows, results = trial_rows(genes)
+    spot = f"evolution-spot-{pf.id}"
 
-    st.subheader(f"Tumor evolution and treatment evidence · {pf.id}"
-                 + ("" if i == last else f" · as of {v.label}"))
+    page.title(IMPLEMENTED, OBSERVED, INFERENCE, HYPOTHESIS)
     if pf.kind == "synthetic":
         st.warning(f"{pf.title}. Its record exists to show how this view reads a history.")
-    st.caption(" ".join([badge(IMPLEMENTED), badge(OBSERVED), badge(INFERENCE),
-                         badge(HYPOTHESIS)]) + "  \n" + PROVENANCE)
+    st.caption(PROVENANCE)
 
     ctx = hs["context"]
     treated = ", ".join(f"{t['agent']} (month {t['month']})" for t in ctx["treatments"])
-    st.markdown(
-        f"{badge(OBSERVED)} "
-        + (f"{len(ev)} dated events" if ev else "One timepoint, no dated events")
-        + "; drivers " + (esc(", ".join(d for d, _ in ctx["drivers"].values()))
-                          or "none observed")
-        + f"; {evolution.receptor_text(ctx['receptors'], ctx['receptor_from'])}; treatments: "
-        f"{treated or 'none recorded'}"
-        + f".  \n{badge(INFERENCE)} Clonal order: {panel['status']}."
-        + f"  \n{badge(HYPOTHESIS)} {len(hs['items'])} things to watch; "
-        f"{len(hs['not_raised'])} rows of the table not raised for this file."
-        + ("  \n**What would settle the first ones:** " + "; ".join(
-            f"{it['event']} → {it['detect'].split(';')[0]}" for it in hs["items"][:2])
-            if hs["items"] else ""))
+    with page.overview():
+        st.markdown(
+            f"{badge(OBSERVED)} "
+            + (f"{len(ev)} dated events" if ev else "One timepoint, no dated events")
+            + "; drivers " + (esc(", ".join(d for d, _ in ctx["drivers"].values()))
+                              or "none observed")
+            + f"; {evolution.receptor_text(ctx['receptors'], ctx['receptor_from'])}; treatments: "
+            f"{treated or 'none recorded'}"
+            + f".  \n{badge(INFERENCE)} Clonal order: {panel['status']}."
+            + f"  \n{badge(HYPOTHESIS)} {len(hs['items'])} things to watch; "
+            f"{len(hs['not_raised'])} rows of the table not raised for this file."
+            + ("  \n**What would settle the first ones:** " + "; ".join(
+                f"{it['event']} → {it['detect'].split(';')[0]}" for it in hs["items"][:2])
+                if hs["items"] else ""))
+        page.look_here(evolution.queue(pf, i), land=lambda focus: land(pf, i, focus),
+                       empty="Nothing raised by this file's own treatments or drivers.")
+        query = st.text_input("Search what to watch: a gene, a drug class, a test or a source",
+                              key=f"{key}-search", placeholder="e.g. ESR1, ctDNA, CDK4/6, Razavi")
+        items = [it for it in hs["items"] if not query or _matches(it, query)]
+        if query and not items:
+            known = {g for row in evolution.TABLE for g in row["genes"]}
+            st.info(f"No row of this table mentions {query!r}"
+                    + (": nothing is said about it here, which is not evidence that it doesn't "
+                       "happen." if query.upper() not in known else
+                       "; the table has rows for it, but none is raised for this file (see 'Not "
+                       "raised for this file' under Details)."))
+        elif query:
+            st.caption(f"{len(items)} of {len(hs['items'])} things to watch match; the table "
+                       "under Details and the Spot panel show them.")
 
-    st.markdown("#### The record over time")
-    st.caption(" ".join([badge(OBSERVED), badge(IMPLEMENTED)]))
-    if ev:
-        st.altair_chart(events_chart(ev, v.month), width="stretch")
-        st.caption("Every point is observed in the record; hover for the text. Red: an alert "
-                   "(progression, a new site, a marker rise). The dashed line is this report "
-                   "version. Treatment starts only: the record holds no stop dates.")
-    else:
-        st.info(pf.note + " Its driver calls, where sequenced, come from that one sample.")
+    with page.picture("The record over time", caption="Every point is observed in the record; "
+                      "hover for the text. Red: an alert (progression, a new site, a marker "
+                      "rise). The dashed line is this report version. Treatment starts only: "
+                      "the record holds no stop dates."):
+        st.caption(" ".join([badge(OBSERVED), badge(IMPLEMENTED)]))
+        if ev:
+            st.altair_chart(events_chart(ev, v.month), width="stretch")
+        else:
+            st.info(pf.note + " Its driver calls, where sequenced, come from that one sample.")
 
-    hypotheses(pf, hs, key)
-    clonal(panel)
-    trials_section(pf, genes, rows, results, key)
-    method_card()
+    with page.details("What to watch next", len(items)):
+        if items:
+            watch_table(hs, items, spot)
+        else:
+            st.caption("Nothing to watch matches." if query else "Nothing raised.")
+    with page.details("Not raised for this file, and why", len(hs["not_raised"])):
+        st.dataframe(pd.DataFrame(hs["not_raised"]).rename(
+            columns={"id": "Row", "event": "Event", "reason": "Why not raised"}),
+            hide_index=True, width="stretch")
+    with page.details("Clonal order from allele fractions",
+                      len(panel["variants"]) if "variants" in panel else "not computed"):
+        clonal(panel)
+    with page.details("Trials that mention this patient's observed markers", len(rows)):
+        trials_section(pf, genes, rows, results, key)
+
+    with page.spot("The full story of one thing to watch: why this file raises it, the evidence "
+                   "for and against with PubMed links, the test that would detect it and its "
+                   "CIViC items."):
+        if items:
+            by_key = {it["key"]: it for it in items}
+            if st.session_state.get(spot) not in by_key:
+                st.session_state[spot] = items[0]["key"]
+            picked = st.selectbox("Thing to watch", list(by_key), key=spot,
+                                  format_func=lambda k: by_key[k]["event"])
+            item_spot(by_key[picked])
+        else:
+            st.caption("Nothing to open: no row of the table is raised for this file"
+                       + (" or matches the search." if query else "."))
+
+    method_card(page)
+    with page.cannot_see(CANNOT):
+        pass
 
     when = "baseline" if v.month is None else f"month{v.month}"
-    st.markdown(f"#### {EXPORT}")
-    st.download_button(
-        "Download the evolution view (Markdown)",
-        evolution.report_markdown(pf, i, hs, panel, rows, "; ".join(
-            f"{r['term']}: {r['source']}, {r['note']}" for r in results) or "no query",
-            st.session_state.get("reviews")),
-        file_name=f"evolution_{pf.id.replace(' ', '_')}_{when}.md", mime="text/markdown",
-        key=f"{key}-md",
-        help="What to watch with sources, the clonal panel, trials with their date, the "
-             "constraints and your review marks.")
+    with page.export():
+        st.download_button(
+            "Download the evolution view (Markdown)",
+            evolution.report_markdown(pf, i, hs, panel, rows, "; ".join(
+                f"{r['term']}: {r['source']}, {r['note']}" for r in results) or "no query",
+                st.session_state.get("reviews")),
+            file_name=f"evolution_{pf.id.replace(' ', '_')}_{when}.md", mime="text/markdown",
+            key=f"{key}-md",
+            help="What to watch with sources, the clonal panel, trials with their date, the "
+                 "constraints and your review marks.")
 
 
 def methods_card() -> None:
