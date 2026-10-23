@@ -4,6 +4,11 @@
 # moderate") 3.2:1, the gray ones 3.5:1, the green ones 4.497:1. Darker text on the same tints.
 # Captions (the provenance lines) are the text color at 60% opacity: 3.7:1 with Streamlit's
 # #31333f, 5.1:1 with a near-black one; table headers likewise.
+# The app is light-only: these colours are for a light page, and an OS dark setting does not
+# switch it (a custom theme, and no theme menu with toolbarMode "minimal"). Offering dark
+# needs [theme.light] / [theme.dark] sections (which make the app follow the OS) and the
+# charts' fixed dark label colours fixed first (docs/qa.md, R2-14).
+base = "light"
 primaryColor = "#2468c0"
 textColor = "#0e1117"
 dataframeHeaderTextColor = "#5c5f6a"

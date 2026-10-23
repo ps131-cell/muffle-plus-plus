@@ -360,10 +360,10 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
             found = r["variant"] in seq[-1].details.get("variants", [])
             c1.button(f"Open the tumor sequencing (month {seq[-1].month}) in the genomics "
                       "workbench" + ("" if found else f": {r['variant']} is not in it"),
-                      key=f"{pf.id}_ctdna_genomics", on_click=_open,
+                      key=f"{pf.id}_ctdna_genomics", on_click=_open, wrap=True,
                       args=("Tests", (seq[-1].kind, seq[-1].month, seq[-1].name), pf.id))
         c2.button("Open the Evolution view: what to watch next", key=f"{pf.id}_ctdna_evolution",
-                  on_click=_open, args=("Evolution",))
+                  on_click=_open, args=("Evolution",), wrap=True)  # long labels wrap when narrow
 
     _card(page, card)
     _cannot_see(page)
