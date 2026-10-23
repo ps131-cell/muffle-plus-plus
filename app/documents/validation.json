@@ -502,7 +502,7 @@
    9.4,
    14.6
   ],
-  "note": "Scan reader: ibm-granite/granite-docling-258M on page images (pypdfium2, 144 dpi), DocTags converted to text by docling-core, in the local pipeline (scripts/documents_pipeline.py). Accuracy = 1 - edit distance / reference length, case and whitespace ignored. Synthetic scans: a bundled report's text typeset, rotated and speckled, so the reference is exact. Real scans: two bundled cases' original report PDFs from the NCI GDC (open access) with their text layer removed; the reference is TCGA-Reports' cleaned OCR of the same PDF, itself imperfect, so those numbers are a floor. \"Rules' facts kept\": facts the rules read in the reference that they also read in the scan's text. Four documents: a check, not a validation.",
+  "note": "Scan reader: ibm-granite/granite-docling-258M on page images (pypdfium2, 144 dpi), DocTags converted to text by docling-core, in the local pipeline of this platform. Accuracy = 1 - edit distance / reference length, case and whitespace ignored. Synthetic scans: a bundled report's text typeset, rotated and speckled, so the reference is exact. Real scans: two bundled cases' original report PDFs from the NCI GDC (open access) with their text layer removed; the reference is TCGA-Reports' cleaned OCR of the same PDF, itself imperfect, so those numbers are a floor. \"Rules' facts kept\": facts the rules read in the reference that they also read in the scan's text. Four documents: a check, not a validation.",
   "rows": [
    {
     "what": "synthetic scan of TCGA-E9-A1N9's report text",

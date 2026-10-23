@@ -183,9 +183,17 @@ def test_no_file_path_on_a_clinician_screen(app):
     at.selectbox(key="patient").select(SYN).run()
     assert not path.findall(shown(at))
     at.segmented_control(key="view").set_value("Tests").run()
-    at.session_state[f"picked-{SYN}"] = ("Sequencing", 0, "Tumor sequencing")
+    for test in (("Sequencing", 0, "Tumor sequencing"), ("Clinic note", 13, "Clinic visit")):
+        at.session_state[f"picked-{SYN}"] = test
+        at.run()
+        assert not path.findall(shown(at)) and not at.exception, test
+    at.selectbox(key="patient").select(app.case).run()  # its public MRI study
+    at.segmented_control(key="view").set_value("Tests").run()
+    tests = at.dataframe[0].value
+    mri = tests[tests["Type"] == "Imaging"]["Test"].iloc[0]
+    at.session_state[f"picked-{app.case}"] = ("Imaging", None, mri)
     at.run()
-    assert not path.findall(shown(at)) and not at.exception
+    assert "radiology pipeline (MRI)" in shown(at) and not path.findall(shown(at))
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
     at._page_hash = pages["feedback"]
     at.run()
