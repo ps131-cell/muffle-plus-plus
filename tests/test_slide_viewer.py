@@ -198,6 +198,12 @@ def test_page_falls_back_to_the_tile_map_without_a_pyramid(tmp_path):
     assert "slide viewer is not available here" in info and "switched off" in info
     assert any(r.label == "Layer" for r in at.radio)  # the tile map's layer control
     assert not list(tmp_path.iterdir())               # nothing downloaded
+    # the browser's own reason (a sentence) reads as part of the page's: no ".." (QA round 2)
+    at.session_state[f"Case {case}|{slides[0]}-viewer-failed"] = (
+        "The section's tiles are not reachable from here.")
+    at.run()
+    info = " ".join(e.value for e in at.info)
+    assert "not available here: the section's tiles are not reachable from here. The tile" in info
 
 
 def test_page_shows_the_viewer_when_the_pyramid_is_there(tmp_path):

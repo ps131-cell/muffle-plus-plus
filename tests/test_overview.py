@@ -443,6 +443,6 @@ def test_the_export_keeps_variant_names_out_of_italics():
     page = report_markdown(pf, 0, {"TP53 R196*": [], "RUNX1 D96Gfs*15": []},
                            summaries=overview.summaries(pf, 0),
                            queue=overview.attention(pf, 0, overview.queues(pf, 0), []))
-    assert "TP53 R196\*" in page and "RUNX1 D96Gfs\*15" in page
+    assert r"TP53 R196\*" in page and r"RUNX1 D96Gfs\*15" in page
     assert "R196*" not in page and "Gfs*15" not in page  # every occurrence escaped
     assert "**Key drivers**" in page  # meant emphasis stays

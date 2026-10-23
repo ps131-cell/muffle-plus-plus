@@ -388,8 +388,7 @@ def provenance(study: dict) -> str:
     return (f"Data: {src['collection']}, patient {study['barcode']}, study of {s['date']} "
             f"(de-identified date), {s['scanner']}; {src['license']}, doi:{src['doi']}; 8-bit "
             f"downsampled copies, not the diagnostic originals. Method: "
-            f"{study['pipeline']['script']} version {study['pipeline']['version']} "
-            f"({study['pipeline']['run_at']})" + (
+            f"{rad.pipeline_name(study['pipeline'])} ({study['pipeline']['run_at']})" + (
                 f"; contours by MedSAM ViT-B ({study['medsam']['model']}, revision "
                 f"{study['medsam']['revision'][:7]})" if "medsam" in study else "")
             + ". Status: implemented, not validated here.")
@@ -867,8 +866,7 @@ def model_card(page: Page, study: dict) -> None:
                  "larger than their box; volume shown as a one-pixel range"),
                 ("Known failures", " ".join(f for f in rad.KNOWN_FAILURES
                                             if "ammograph" not in f)),
-                ("Reproducibility", (f"{study['pipeline']['script']} v"
-                                     f"{study['pipeline']['version']}, run "
+                ("Reproducibility", (f"{rad.pipeline_name(study['pipeline'])}, run "
                                      f"{study['pipeline']['run_at']}; model revision "
                                      f"{m['revision'] if m else 'n/a'}")),
                 ("Change over time", f"{rad.REGISTRATION}; a local check by normalised "

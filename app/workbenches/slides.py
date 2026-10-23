@@ -615,9 +615,10 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                 "score for 112 µm of tissue; classes are model inferences smoothed over 3×3 "
                 "tiles. Arrows: one per arc, length by push; the dashed circle is the counting "
                 "field; squares are the pointers.")):
-            st.info(f"The slide viewer is not available here: {failed or src}. The tile map "
-                    "draws the same analysis on the scored grid, next to a picture of the "
-                    "scored region.", icon="🔬")
+            why = (failed or src).rstrip(".")  # the browser's reason is a sentence of its own
+            st.info(f"The slide viewer is not available here: {why[:1].lower() + why[1:]}. The "
+                    "tile map draws the same analysis on the scored grid, next to a picture of "
+                    "the scored region.", icon="🔬")
             l1, l2 = st.columns([1, 2])
             layer = l1.radio("Layer", LAYERS, horizontal=True, key=f"{k}-layer")
             overlays = l2.pills("Overlays", OVERLAYS, selection_mode="multi",

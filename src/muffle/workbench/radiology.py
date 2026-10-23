@@ -176,6 +176,14 @@ REPORT_CANNOT_SEE = [
 ]
 
 
+def pipeline_name(pipeline: dict) -> str:
+    """The offline pipeline that made a study, in words, with its version: "the offline
+    radiology pipeline (MRI) version 2", not the script's path (study.json's "script")."""
+    step = pipeline["script"].split()[-1]
+    step = {"mri": "MRI", "mammo": "mammography", "pair": "change pair"}.get(step, step)
+    return f"the offline radiology pipeline ({step}) version {pipeline['version']}"
+
+
 # --- imaging reports as text --------------------------------------------------------------
 def read_of(text: str) -> tuple[str, str]:
     """The overall read a report's words state, and the words it rests on, by the import's rule
@@ -1214,7 +1222,7 @@ def summary(pf, version: int | None = None) -> dict:
             "Imaging", t.result + (f"; the study's report: BI-RADS {rep['birads']}"
                                    if rep.get("birads") else ""),
             f"{OBSERVED} (the study's structured report), {INFERENCE} (contours, sizes, scores)",
-            t.name, f"{s['pipeline']['script']} version {s['pipeline']['version']}: "
+            t.name, f"{pipeline_name(s['pipeline'])}: "
             + ("MedSAM contours on the seed rule's candidates" if s["modality"] == "MR" else
                "a mammography screening model and a dense-pixel rule"),
             "the seed rule's and the density rule's cutoffs are placeholders; the kinetics "

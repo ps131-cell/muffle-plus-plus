@@ -73,7 +73,7 @@ def predicted(facts: list[dict]) -> dict:
 
 SCAN_NOTE = ("Scan reader: ibm-granite/granite-docling-258M on page images (pypdfium2, 144 dpi), "
              "DocTags converted to text by docling-core, in the local pipeline "
-             "(scripts/documents_pipeline.py). Accuracy = 1 - edit distance / reference length, "
+             "of this platform. Accuracy = 1 - edit distance / reference length, "
              "case and whitespace ignored. Synthetic scans: a bundled report's text typeset, "
              "rotated and speckled, so the reference is exact. Real scans: two bundled cases' "
              "original report PDFs from the NCI GDC (open access) with their text layer removed; "

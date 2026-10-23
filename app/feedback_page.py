@@ -211,9 +211,9 @@ def roadmap(records: list[dict]) -> None:
     tiles = sum(x["kind"] == "slide" for x in bad)
     with st.container(border=True):
         st.markdown(f"**What a training round would do with them** {chip(workspace.PLANNED)}")
-        st.caption(f"Roadmap, {feedback.ROADMAP}. Storing a mark, updating a research dataset "
+        st.caption(f"Status: {feedback.ROADMAP}. Storing a mark, updating a research dataset "
                    "and retraining a model are different steps, and a mark never becomes "
-                   "training data by itself (docs/VISION.md, part four).")
+                   "training data by itself.")
         st.markdown(
             "- **Re-calibrate placeholder cutoffs** against the findings clinicians disagreed "
             "with, then validate the new cutoffs on held-out patients before any is used"
