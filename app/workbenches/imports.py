@@ -240,10 +240,13 @@ def _labs(file: PatientFile, when: str) -> dict | None:
         return None
     if ok:
         st.markdown(f"**Accepted** · {len(ok)} row(s)")
-        st.dataframe(pd.DataFrame(ok)[["row", "month", "marker", "value", "unit", "low", "limit",
-                                       "reported"]].rename(columns={
-                         "low": "lower limit", "limit": "upper limit",
-                         "reported": "as reported (converted)"}),
+        shown = pd.DataFrame(ok)[["row", "month", "marker", "value", "unit", "low", "limit",
+                                  "reported"]]
+        shown[["low", "limit"]] = shown[["low", "limit"]].map(  # "—", not "None", where none
+            lambda v: "—" if pd.isna(v) else f"{v:g}")
+        shown["reported"] = shown["reported"].fillna("—")
+        st.dataframe(shown.rename(columns={"low": "lower limit", "limit": "upper limit",
+                                           "reported": "as reported (converted)"}),
                      hide_index=True, width="stretch")
     if bad:
         st.markdown(f"**Rejected** · {len(bad)} row(s), with the reason")

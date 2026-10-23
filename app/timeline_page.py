@@ -62,15 +62,22 @@ def render(pf, i: int, tl: dict | None, sums, open_evidence) -> None:
     new_in(pf, i, sums, open_evidence)
     if pf.kind == "synthetic" and tl:
         risk(pf, i, tl)
-    st.markdown(f"**Every version so far** {tags(OBSERVED)}")
-    st.dataframe(pd.DataFrame([{
+    shown = pf.versions[: i + 1]
+    scored = any(v.risk and "value" in v.risk for v in shown)
+    st.markdown(f"**Every version so far** {tags(OBSERVED)}" + (
+        f" · the 12-month risk: {chip(INFERENCE)}" if scored else ""))
+    table = pd.DataFrame([{
         "Month": v.month, "Version": v.label, "What arrived": v.event,
-        "12-month risk": v.risk.get("value") if v.risk else None, "SOS": len(v.alerts),
+        "12-month risk": f"{v.risk['value']:.0%}" if v.risk and "value" in v.risk else
+        "not scored", "SOS": len(v.alerts),
         "Tests added": ", ".join(t.name for t in v.tests),
         "Treatment started": ", ".join(v.treatments),
-        "Source": v.imported or "the record"} for v in pf.versions[: i + 1]]),
-        hide_index=True, width="stretch",
-        column_config={"12-month risk": st.column_config.NumberColumn(format="percent")})
+        "Source": v.imported or "the record"} for v in shown])
+    # columns with nothing in them (a TCGA file: no dates, no 12-month model) say so above,
+    # instead of a column of "None"
+    table = table.drop(columns=[c for c, empty in (("Month", table["Month"].isna().all()),
+                                                     ("12-month risk", not scored)) if empty])
+    st.dataframe(table, hide_index=True, width="stretch")
     if i:
         compare(pf, i)
 

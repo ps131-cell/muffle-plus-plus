@@ -66,7 +66,7 @@ import charts  # noqa: E402
 import timeline_page  # noqa: E402
 from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
-from workbenches._page import land, line_and_action, strict  # noqa: E402
+from workbenches._page import dated_focus, land, line_and_action, strict  # noqa: E402
 
 import guide  # noqa: E402
 import navigation as nav  # noqa: E402
@@ -535,12 +535,15 @@ def apply_link(pf: workspace.PatientFile, link: dict, last: int) -> tuple | None
     elif link.get("version") is None and last:
         ss[f"version-{pf.id}"] = last
     t = nav.parse_test_id(link.get("test"))
-    if t and any((x.kind, x.month, x.name) == t for x in pf.tests):
-        ss[f"picked-{pf.id}"] = t
-        ss[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
-        ss.tests_n += 1
-        return t
-    return None
+    test = next((x for x in pf.tests if (x.kind, x.month, x.name) == t), None)
+    if test is None:
+        return None
+    ss[f"picked-{pf.id}"] = t
+    ss[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
+    ss.tests_n += 1
+    if not link.get("pointer") and (focus := dated_focus(test)):  # its own value, not the latest
+        land(pf, ss.get(f"version-{pf.id}", last), focus)
+    return t
 
 
 def land_pointer(pf: workspace.PatientFile, i: int, pointer: str, test: tuple | None):
@@ -872,6 +875,8 @@ def open_evidence(pf: workspace.PatientFile, i: int, opens: tuple, focus: dict |
         ss[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
         ss.tests_n += 1  # a fresh tests table, so no old row selection wins
         test = nav.test_key(*opens[1:])
+        t = next((t for t in pf.tests if (t.kind, t.month, t.name) == tuple(opens[1:])), None)
+        focus = focus or (dated_focus(t) if t else None)
     if focus:
         land(pf, i, focus)
     ss.view = opens[0]
@@ -1056,8 +1061,9 @@ def case_note(case):
     can_live = LIVE and st.session_state.live_used < CAP
     b1 = b2 = st.container(horizontal=True, gap="small")
     write = b1.button("Write the note with Nemotron", type="primary", disabled=not can_live,
-                      help=None if can_live else ("Set NEBIUS_API_KEY for live notes." if not LIVE
-                                                  else "This session's live notes are used up."))
+                      help=None if can_live else (
+                          "Live notes are not set up on this server." if not LIVE
+                          else "This session's live notes are used up."))
     show_saved = b2.button("Show the saved note", disabled=saved is None)
     if not can_live:
         st.caption("Live notes are off here; ★ patients have a saved case note."
@@ -1148,6 +1154,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
                            "Workbench": t.workbench, "Status": t.status + (
                                f": {t.details['scope']}" if "scope" in t.details else "")}
                           for t in shown])
+    if table["Month"].isna().all():  # a TCGA file: undated tests (the caption says why)
+        table = table.drop(columns="Month")
     rows = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
                         key=f"tests-{pf.id}-{i}-{'.'.join(kinds)}-{st.session_state.tests_n}",
                         width="stretch").selection.rows
@@ -1166,6 +1174,8 @@ def tests_view(pf: workspace.PatientFile, i: int):
         new = (shown[rows[0]].kind, shown[rows[0]].month, shown[rows[0]].name)
         if st.session_state.get(picked) != new:  # another test: the address drops the pointer
             st.session_state.pop("_pointer", None)
+            if focus := dated_focus(shown[rows[0]]):  # and it opens on its own value
+                land(pf, i, focus)
         st.session_state[picked] = new
     t = next((t for t in shown if (t.kind, t.month, t.name) == st.session_state.get(picked)),
              None) or next((t for w in ("labs", "mutations", "omics", "record") for t in shown
