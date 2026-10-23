@@ -1,5 +1,15 @@
 [theme]
-primaryColor = "#2a78d6"
+# WCAG AA (4.5:1) for small text, measured in the QA walk (docs/qa.md, round 2): white on the
+# primary blue was 4.4:1 (#2a78d6), the orange badges ("placeholder", "hypothesis", "trust:
+# moderate") 3.2:1, the gray ones 3.5:1, the green ones 4.497:1. Darker text on the same tints.
+# Captions (the provenance lines) are the text color at 60% opacity: 3.7:1 with Streamlit's
+# #31333f, 5.1:1 with a near-black one; table headers likewise.
+primaryColor = "#2468c0"
+textColor = "#0e1117"
+dataframeHeaderTextColor = "#5c5f6a"
+orangeTextColor = "#b45309"
+grayTextColor = "#5c5f6a"
+greenTextColor = "#137a33"
 
 [client]
 toolbarMode = "minimal"

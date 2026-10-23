@@ -145,6 +145,33 @@ def test_buttons_keep_their_labels_whole(app):
     assert not in_columns(at), in_columns(at)
 
 
+def test_the_theme_passes_wcag_aa_contrast():
+    """Badge text on Streamlit 1.66's light badge tints (measured in headless Chrome by the QA
+    walk, docs/qa.md round 2), white on the primary color and captions (the text color at 60%
+    opacity, as Streamlit draws them) all reach 4.5:1."""
+    import tomllib
+
+    theme = tomllib.loads((APP.parents[1] / ".streamlit" / "config.toml").read_text())["theme"]
+
+    def rgb(h: str) -> tuple:
+        return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+    def lum(c) -> float:
+        c = [v / 255 for v in c]
+        c = [v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4 for v in c]
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+
+    def ratio(a, b) -> float:
+        return (max(lum(a), lum(b)) + 0.05) / (min(lum(a), lum(b)) + 0.05)
+
+    tints = {"orange": (255, 246, 233), "gray": (234, 235, 236), "green": (233, 249, 238)}
+    for color, tint in tints.items():
+        assert ratio(rgb(theme[f"{color}TextColor"]), tint) >= 4.5, color
+    assert ratio((255, 255, 255), rgb(theme["primaryColor"])) >= 4.5  # primary buttons, chips
+    caption = tuple(255 - 0.6 * (255 - v) for v in rgb(theme["textColor"]))
+    assert ratio(caption, (255, 255, 255)) >= 4.5
+
+
 def test_the_methods_page_lists_every_card_in_its_contents(app):
     at = app.new().run()
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}

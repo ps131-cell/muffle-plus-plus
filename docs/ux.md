@@ -233,7 +233,10 @@ What changed:
 - **Color is never the only signal**: every chip and badge carries its word (observed, trust:
   weak, placeholder threshold), the open SOS count is "🔴 3 open" or "none", the maps have
   legends, and the look-here rows name the evidence and the trust in text.
-- **Contrast**: badges use Streamlit's own palette (dark text on a light tint); the sticky
+- **Contrast**: badges use Streamlit's palette (dark text on a light tint), with the orange,
+  gray and green text, the primary blue and the body text darkened in `.streamlit/config.toml`
+  so that badges, primary buttons and captions reach 4.5:1 (WCAG AA; a test reads the
+  config); the sticky
   header is opaque with the page's own background and text colour in either theme, worked out
   in CSS (it inherits the background Streamlit's app root paints, `Canvas` where a browser
   lacks `:has()`), so changing the theme in the settings menu needs no rerun; a colour picked in
