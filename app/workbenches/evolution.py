@@ -40,7 +40,7 @@ from muffle.report import trials  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
-from workbenches._page import Page, land, queue_items  # noqa: E402
+from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
 
 DOCS = "https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/evolution.md"
 KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78d6",
@@ -185,7 +185,7 @@ def item_spot(it: dict) -> None:
     """One hypothesis in full: why, status, frequency, detection, timing, the evidence for and
     against with PubMed links, its CIViC items and the review box."""
     lead = it["support"][0]["source"]
-    head, box = st.columns([7, 1])
+    head, box = line_and_action()
     head.markdown(f"**{it['event']}** {badge(HYPOTHESIS)} "
                   + (badge("already observed", "blue") if it["status"].startswith("already")
                      else ""))

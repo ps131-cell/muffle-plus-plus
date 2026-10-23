@@ -97,7 +97,7 @@ def review(key: str, what: str) -> None:
     """Agree / disagree / second look (and reviewed) plus a pin, for one finding."""
     h = hashlib.sha1(key.encode()).hexdigest()[:10]
     done = st.session_state.get("reviews", {}).get(key)
-    c1, c2 = st.columns([3, 1])
+    c1 = c2 = st.container(horizontal=True, gap="medium", vertical_alignment="bottom")
     widget = f"rad-mark-{h}"
     if widget not in st.session_state:
         st.session_state[widget] = done["mark"] if done else NO_MARK
@@ -448,7 +448,10 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
         if f"{key0}-slice" not in st.session_state:
             st.session_state[f"{key0}-slice"] = _ld_index(study, picked) + 1 if picked else \
                 d["slices"] // 2 + 1
-        left, right = st.columns([3, 2])
+        # the image keeps its drawn size; the controls sit beside it where they fit, else under
+        # it (fixed columns let a 512 px image cover the controls at 1280 px with the sidebar)
+        row = st.container(horizontal=True, gap="small")
+        left, right = row.container(width="content"), row.container(width=260)
         with right:
             i = st.slider("Slice", 1, d["slices"], key=f"{key0}-slice") - 1
             st.caption(f"Slice {i + 1} of {d['slices']} (every {d['slice_step']} of "
@@ -463,7 +466,7 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
                           else ""))
             level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
             width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
-            t1, t2, t3, t4 = st.columns(4)
+            t1 = t2 = t3 = t4 = st.container(horizontal=True, gap="small")  # labels whole
             show_mask = t1.toggle("Mask", True, key=f"{key0}-mask")
             show_box = t2.toggle("Box", True, key=f"{key0}-box")
             show_ld = t3.toggle("Measure", True, key=f"{key0}-ld")
@@ -1087,7 +1090,9 @@ def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
         level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
         width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
         for row in (views[:2], views[2:]):
-            for col, v in zip(st.columns(2), row, strict=False):
+            line = st.container(horizontal=True, gap="medium")  # left and right; wraps when narrow
+            for v in row:
+                col = line.container(width="content")
                 img = np.asarray(Image.open(Path(study["folder"]) / v["image"]).convert("L"))
                 h, w = img.shape
                 dense = v["dense"]
@@ -1190,20 +1195,20 @@ def _export(page: Page, pf: PatientFile, study: dict | None, table: list[dict],
             body["study"] = {k: v for k, v in study.items() if k != "folder"}
         name = (f"{pf.id}_{study['barcode']}_{study['study']['date']}" if study else
                 f"{pf.id}_imaging_reports").replace(" ", "_")
-        e1, e2, e3 = st.columns(3)
-        e1.download_button("Download the study (JSON)" if study else "Download the reads (JSON)",
-                           json.dumps(body, indent=1, default=str),
-                           file_name=f"{name}.json", mime="application/json",
-                           key=f"rad-json-{name}")
-        e2.download_button("Download the lesion table (CSV)",
-                           pd.DataFrame(table).to_csv(index=False),
-                           file_name=f"{name}_lesions.csv", mime="text/csv",
-                           key=f"rad-csv-{name}")
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
+        e.download_button("Download the study (JSON)" if study else "Download the reads (JSON)",
+                          json.dumps(body, indent=1, default=str),
+                          file_name=f"{name}.json", mime="application/json",
+                          key=f"rad-json-{name}")
+        e.download_button("Download the lesion table (CSV)",
+                          pd.DataFrame(table).to_csv(index=False),
+                          file_name=f"{name}_lesions.csv", mime="text/csv",
+                          key=f"rad-csv-{name}")
         if change:
-            e3.download_button("Download the change table (CSV)",
-                               pd.DataFrame(change).to_csv(index=False),
-                               file_name=f"{name}_change.csv", mime="text/csv",
-                               key=f"rad-chg-{name}")
+            e.download_button("Download the change table (CSV)",
+                              pd.DataFrame(change).to_csv(index=False),
+                              file_name=f"{name}_change.csv", mime="text/csv",
+                              key=f"rad-chg-{name}")
 
 
 # --- the report-driven page -----------------------------------------------------------------------

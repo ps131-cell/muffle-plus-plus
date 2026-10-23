@@ -175,8 +175,10 @@ def event_lanes(data: dict, viewing: int) -> alt.LayerChart:
     now = pts.loc[(pts["mark"] == "version") & (pts["version"] == viewing), "x"].min()
     layers.append(alt.Chart(pd.DataFrame({"x": [now]})).mark_rule(
         strokeDash=[4, 3], opacity=0.6).encode(x="x:Q"))
+    # Streamlit fits the whole chart, month axis and legend included (about 100 px), into this
+    # height: with +50 a two- or three-lane TCGA file got lanes 8 px apart, labels overprinted
     return alt.layer(*layers, points).properties(
-        height=34 * len(data["lanes"]) + 50).configure_axis(**GRID)
+        height=34 * len(data["lanes"]) + 110).configure_axis(**GRID)
 
 
 OVERLAYS = ("CA 15-3", "ctDNA", "Treatments", "Imaging reads")

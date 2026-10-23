@@ -96,6 +96,55 @@ def test_metric_tiles_wrap_instead_of_cutting_their_values():
         assert not any("percentile" in w for w in words), f"{name}:{n.lineno}: unit in the label"
 
 
+def in_columns(at) -> list[str]:
+    """The labels of the buttons, downloads and popovers whose nearest row is a set of fixed
+    columns (st.columns) giving them under 40% of the width (a third, a sixth, [10, 1]), not a
+    row that wraps (st.container(horizontal=True))."""
+    out: list[str] = []
+
+    def walk(node, inside: bool) -> None:
+        kind = getattr(node, "type", None)
+        if inside and kind in ("button", "download_button"):
+            out.append(node.label)
+        if inside and kind == "popover":
+            out.append(node.proto.popover.label)
+        children = [node.children[k] for k in sorted(getattr(node, "children", {}) or {})]
+        cols = [c for c in children if getattr(c, "type", None) == "column"]
+        if kind == "flex_container" and node.proto.flex_container.direction == 2:
+            if not cols:
+                inside = False  # a horizontal container: its items take their own width, wrap
+            total = sum(c.weight for c in cols)
+            for c in cols:
+                walk(c, c.weight / total < 0.4)
+            children = [c for c in children if c not in cols]
+        for child in children:
+            walk(child, inside)
+
+    walk(at._tree, False)
+    return out
+
+
+def test_buttons_keep_their_labels_whole(app):
+    """Buttons sit in rows that wrap (st.container(horizontal=True)), never in fixed columns,
+    which cut "Mark reviewed" to "M…", "Open" to "(" and the export's downloads at 800 px (QA
+    round 2, docs/qa.md): the report, its attention queue and the workbenches' look-here lists,
+    review marks and exports."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    assert not in_columns(at), in_columns(at)
+    at.segmented_control(key="view").set_value("Tests").run()
+    for test in (("Lab", 24, "CA 15-3"), ("Sequencing", 0, "Tumor sequencing"),
+                 ("Imaging", 12, "Imaging report"), ("ctDNA (liquid biopsy)", 24,
+                                                     "ctDNA panel (synthetic series)")):
+        at.session_state[f"picked-{SYN}"] = test
+        at.run()
+        assert not at.exception and not in_columns(at), (test, in_columns(at))
+    at.segmented_control(key="view").set_value("Timeline").run()
+    assert not in_columns(at), in_columns(at)
+    at.selectbox(key="patient").select(app.case).run()
+    assert not in_columns(at), in_columns(at)
+
+
 def test_the_methods_page_lists_every_card_in_its_contents(app):
     at = app.new().run()
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}

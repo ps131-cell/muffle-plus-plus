@@ -354,7 +354,7 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
         st.dataframe(pd.DataFrame([{"month": h["month"], "VAF": _vaf(h), "call": h["call"],
                                     "pointer": h["pointer"]} for h in s["history"]]),
                      hide_index=True, width="stretch")
-        c1, c2 = st.columns(2)
+        c1 = c2 = st.container(horizontal=True, gap="small")  # labels whole; wraps when narrow
         seq = [t for v in pf.versions for t in v.tests if t.workbench == "mutations"]
         if seq:
             found = r["variant"] in seq[-1].details.get("variants", [])
@@ -370,16 +370,16 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
 
     with page.export():
         md = wb.report_markdown(pf.id, rows, vs, rule, lag, shed, card, mine)
-        e1, e2 = st.columns(2)
-        e1.download_button("Download the ctDNA report (Markdown)", md,
-                           file_name=f"{pf.id}_ctdna.md", mime="text/markdown",
-                           key=f"{pf.id}_ctdna_md")
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
+        e.download_button("Download the ctDNA report (Markdown)", md,
+                          file_name=f"{pf.id}_ctdna.md", mime="text/markdown",
+                          key=f"{pf.id}_ctdna_md")
         csv = pd.DataFrame([{**{k: r[k] for k in ("pointer", "month", "variant", "vaf",
                                                   "detected", "lod", "call", "rule", "origin")},
                              "therapy": " + ".join(r["therapy"]), "synthetic": r["synthetic"]}
                             for r in rows]).to_csv(index=False)
-        e2.download_button("Download the series (CSV)", csv, file_name=f"{pf.id}_ctdna.csv",
-                           mime="text/csv", key=f"{pf.id}_ctdna_csv")
+        e.download_button("Download the series (CSV)", csv, file_name=f"{pf.id}_ctdna.csv",
+                          mime="text/csv", key=f"{pf.id}_ctdna_csv")
     st.caption(CAVEAT)
 
 

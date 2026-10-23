@@ -134,12 +134,12 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
     vkey = wb.variant_key(file, v)
     by = st.session_state.get("reviewer") or st.session_state.get("genomics-reviewer", "")
     st.markdown(f"**Review marks** · {wb.mark_text(reviews.get(vkey)) or 'no mark yet'}")
-    cols = st.columns(len(wb.VERDICTS) + 2)
-    for col, verdict in zip(cols, wb.VERDICTS, strict=False):
-        if col.button(verdict.capitalize(), key=f"{key}-{v['variant']}-{verdict}"):
+    cols = st.container(horizontal=True, gap="small")  # labels whole; wraps when narrow
+    for verdict in wb.VERDICTS:
+        if cols.button(verdict.capitalize(), key=f"{key}-{v['variant']}-{verdict}"):
             wb.add_mark(reviews, vkey, f"{v['variant']} ({v['sample']})", verdict, by)
             st.rerun()
-    if reviews.get(vkey) and cols[-1].button("Clear mark", key=f"{key}-{v['variant']}-clear"):
+    if reviews.get(vkey) and cols.button("Clear mark", key=f"{key}-{v['variant']}-clear"):
         wb.add_mark(reviews, vkey, "", None)
         st.rerun()
     if items:
@@ -259,12 +259,12 @@ def _three_kinds(v: dict, ef: dict, af: dict | None) -> None:
 def _marks(reviews: dict, fkey: str, what: str, key: str) -> None:
     by = st.session_state.get("reviewer") or st.session_state.get("genomics-reviewer", "")
     st.markdown(f"**Review marks** · {wb.mark_text(reviews.get(fkey)) or 'no mark yet'}")
-    cols = st.columns(len(wb.VERDICTS) + 1)
-    for col, verdict in zip(cols, wb.VERDICTS, strict=False):
-        if col.button(verdict.capitalize(), key=f"{key}-{verdict}"):
+    cols = st.container(horizontal=True, gap="small")  # labels whole; wraps when narrow
+    for verdict in wb.VERDICTS:
+        if cols.button(verdict.capitalize(), key=f"{key}-{verdict}"):
             wb.add_mark(reviews, fkey, what, verdict, by)
             st.rerun()
-    if reviews.get(fkey) and cols[-1].button("Clear mark", key=f"{key}-clear"):
+    if reviews.get(fkey) and cols.button("Clear mark", key=f"{key}-clear"):
         wb.add_mark(reviews, fkey, "", None)
         st.rerun()
 
@@ -991,29 +991,29 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     with page.cannot_see(card["limits"]):
         pass
     with page.export():
-        e1, e2, e3, e4 = st.columns(4)
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
         stem = f"genomics_{file.id.replace(' ', '_')}"
-        e1.download_button("Download the genomics report (Markdown)",
-                           wb.report_markdown(file, vs, ladders, watch, reviews, strip) + "\n"
-                           + gx.report_markdown(file, gv["rows"], gv["bur"], g["afs"],
-                                                gv["nodes"], effects, gv["lon"], reviews),
-                           f"{stem}.md", "text/markdown", key=f"{key}-md")
-        e2.download_button("Download the variants and evidence items (CSV)",
-                           wb.report_csv(file, vs, reviews), f"{stem}.csv", "text/csv",
-                           key=f"{key}-csv")
-        e3.download_button("Download the copy-number table (CSV)",
-                           gx.landscape_csv(gv["rows"], reviews, file),
-                           f"{stem}_copy_number.csv", "text/csv", key=f"{key}-cn-csv",
-                           disabled=not gv["rows"])
-        e4.download_button("Download the genome findings (JSON)",
-                           gx.report_json(file, gx.findings(file, gv["rows"], gv["bur"],
-                                                            gv["nodes"], g["afs"], effects),
-                                          reviews,
-                                          {"scores": (g["data"] or {}).get("version"),
-                                           "effects": (effects or {}).get("snapshot"),
-                                           "ensembl_release": (effects or {}).get(
-                                               "ensembl_release")}),
-                           f"{stem}_genome.json", "application/json", key=f"{key}-json")
+        e.download_button("Download the genomics report (Markdown)",
+                          wb.report_markdown(file, vs, ladders, watch, reviews, strip) + "\n"
+                          + gx.report_markdown(file, gv["rows"], gv["bur"], g["afs"],
+                                               gv["nodes"], effects, gv["lon"], reviews),
+                          f"{stem}.md", "text/markdown", key=f"{key}-md")
+        e.download_button("Download the variants and evidence items (CSV)",
+                          wb.report_csv(file, vs, reviews), f"{stem}.csv", "text/csv",
+                          key=f"{key}-csv")
+        e.download_button("Download the copy-number table (CSV)",
+                          gx.landscape_csv(gv["rows"], reviews, file),
+                          f"{stem}_copy_number.csv", "text/csv", key=f"{key}-cn-csv",
+                          disabled=not gv["rows"])
+        e.download_button("Download the genome findings (JSON)",
+                          gx.report_json(file, gx.findings(file, gv["rows"], gv["bur"],
+                                                           gv["nodes"], g["afs"], effects),
+                                         reviews,
+                                         {"scores": (g["data"] or {}).get("version"),
+                                          "effects": (effects or {}).get("snapshot"),
+                                          "ensembl_release": (effects or {}).get(
+                                              "ensembl_release")}),
+                          f"{stem}_genome.json", "application/json", key=f"{key}-json")
 
 
 # ---------------------------------------------------------------- standalone page

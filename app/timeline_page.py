@@ -20,6 +20,7 @@ from muffle import crosstest
 from muffle import timeline_view as tv
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench.grammar import chip, esc
+from workbenches._page import line_and_action
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
 SHOWN = ("CA 15-3", "Treatments")  # the overlays the risk chart opens with
@@ -43,11 +44,11 @@ def banner(pf, i: int) -> None:
     v = pf.versions[i]
     when = "the baseline" if v.month is None else f"month {v.month}"
     with st.container(border=True):
-        text, back = st.columns([5, 1], vertical_alignment="center")
+        text, back = line_and_action()
         text.markdown(f"You are viewing **{when}** ({esc(v.label)}): the report, tests, queue and "
                       "timeline as they were then. Later entries are not in it.")
         back.button("Back to latest", key=f"latest-{pf.id}", on_click=travel, args=(pf, last),
-                    type="primary", width="stretch")
+                    type="primary")
 
 
 def render(pf, i: int, tl: dict | None, sums, open_evidence) -> None:
@@ -102,7 +103,7 @@ def lanes(pf, i: int) -> None:
 
 def _row(label: str, opens: tuple, key: str, open_evidence, pf, i: int,
          focus: dict | None = None) -> None:
-    line, act = st.columns([10, 1], vertical_alignment="center")
+    line, act = line_and_action()
     line.markdown(label)
     if opens:
         act.button("Open", key=key, on_click=open_evidence, args=(pf, i, opens, focus))
@@ -115,10 +116,10 @@ def new_in(pf, i: int, sums, open_evidence) -> None:
     c = tv.changes(pf, i, sums(i), sums(i - 1) if i else None)
     k = f"new-{pf.id}-{i}"
     with st.container(border=True):
-        head, go = st.columns([4, 1], vertical_alignment="center")
+        head, go = line_and_action()
         head.markdown(f"**New in this version** · {esc(c['label'])}"
                       + ("" if i else " (the first version: everything in it is new)"))
-        go.button("Open its report", key=f"{k}-report", width="stretch", on_click=open_evidence,
+        go.button("Open its report", key=f"{k}-report", on_click=open_evidence,
                   args=(pf, i, ("Report",)))
         st.caption(f"What arrived, in the record's words: {esc(c['event'])} · "
                    + (c["imported"] or "from the record"))

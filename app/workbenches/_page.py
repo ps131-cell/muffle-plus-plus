@@ -70,6 +70,14 @@ def test_label(test) -> str | None:
     return test.name + ("" if test.month is None else f", month {test.month}")
 
 
+def line_and_action():
+    """A line of text with its button or popover at the right end, as ``(line, action)``, a
+    drop-in for ``st.columns([10, 1])``: the text wraps and the button keeps its label whole
+    (a fixed column cut "Open" to "O…" at 800 px)."""
+    row = st.container(horizontal=True, vertical_alignment="center", gap="small")
+    return row.container(), row
+
+
 def chips(*labels: str, colors: dict | None = None) -> None:
     """One row of status chips in the shared grammar's colors (placeholders orange)."""
     st.caption(" ".join(chip(label, (colors or {}).get(label)) for label in labels if label))
@@ -141,7 +149,7 @@ class Page:
                     + f" :{TRUST_COLORS[x['trust']]}-badge[trust: {x['trust']}]"
                     + (f" · ✓ {done['mark']}" if done else ""))
             if land is not None and x.get("focus"):
-                line, act = st.columns([9, 1], vertical_alignment="center")
+                line, act = line_and_action()
                 line.markdown(text, help=x["why"] or None)
                 h = hashlib.sha1(x["key"].encode()).hexdigest()[:10]
                 act.button("Spot", key=f"look-{self.workbench}-{h}-{n}", on_click=self._spot,
