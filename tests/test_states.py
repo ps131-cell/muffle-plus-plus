@@ -172,6 +172,26 @@ def test_the_theme_passes_wcag_aa_contrast():
     assert ratio(caption, (255, 255, 255)) >= 4.5
 
 
+def test_no_file_path_on_a_clinician_screen(app):
+    """The report, a workbench and the Feedback page name no repository file (QA round 2 found
+    "docs/VISION.md" on the Feedback page and "src/muffle/data/tcga.py" on the genomics card).
+    The Methods page may cite the project's docs; provenance names data sources, not files."""
+    import re
+
+    path = re.compile(r"\b(?:docs|src|app|tests|scripts)/[\w/.-]+\.(?:py|md|json)\b")
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    assert not path.findall(shown(at))
+    at.segmented_control(key="view").set_value("Tests").run()
+    at.session_state[f"picked-{SYN}"] = ("Sequencing", 0, "Tumor sequencing")
+    at.run()
+    assert not path.findall(shown(at)) and not at.exception
+    pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
+    at._page_hash = pages["feedback"]
+    at.run()
+    assert "Feedback" in shown(at) and not path.findall(shown(at)) and not at.exception
+
+
 def test_the_methods_page_lists_every_card_in_its_contents(app):
     at = app.new().run()
     pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
