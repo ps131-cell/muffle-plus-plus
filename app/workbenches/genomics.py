@@ -103,7 +103,8 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
     st.markdown("**Evidence ladder** · each rung carries its own evidence type and what would "
                 "strengthen it")
     for r in rungs:
-        st.markdown(f"**{r['rung']}. {r['label']}** {badge(r['evidence'])} {badge(r['status'])}")
+        st.markdown(f"**{r['rung']}. {r['label']}** {badge(r['evidence'])}"  # one chip, not two
+                    + ("" if r["status"] == r["evidence"] else f" {badge(r['status'])}"))
         for line in r["lines"]:
             st.markdown(f"- {line}")
         st.caption(f"What would strengthen it: {r['strengthen']}")
@@ -982,7 +983,7 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
                 *((f"Label: {k}", v) for k, v in card["labels"].items()),
                 ("Evidence levels", "; ".join(f"{k} {v}"
                                               for k, v in card["evidence_levels"].items()))]
-        st.table(pd.DataFrame(rows, columns=["", "value"]).set_index(""))
+        st.table(pd.DataFrame(rows, columns=["", "Detail"]).set_index(""))
         _method_card(g, effects)
         with st.expander(count_label("Planned, not results", len(card["planned"]))):
             st.dataframe(pd.DataFrame(card["planned"]).rename(

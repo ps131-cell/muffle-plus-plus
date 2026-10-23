@@ -228,6 +228,17 @@ def queue_items(name: str, pf, version: int | None, compute) -> list[dict]:
 
 # --- landing on a finding ------------------------------------------------------------------
 
+def dated_focus(t) -> dict | None:
+    """Where a dated lab or ctDNA test opens when nothing else is asked (a row of the tests
+    table, a link without ?pointer, the Timeline's "Open"): on its own value, not the latest
+    one (QA round 2: "CA 15-3, month 11" opened with month 24 in the Spot panel)."""
+    if t.workbench == "labs" and "marker" in t.details:
+        return {"marker": t.details["marker"], "month": t.month}
+    if t.workbench == "ctdna" and t.month is not None:
+        return {"ctdna": None, "month": t.month}
+    return None
+
+
 def land(pf, i: int, focus: dict) -> None:
     """Set the opened workbench's own widget state so it opens on the finding ``focus`` names
     (``workspace.look``'s focus): the lab value's Spot panel, the variant, the gene, the slide
@@ -271,7 +282,7 @@ def land(pf, i: int, focus: dict) -> None:
         from muffle.workbench.ctdna import file_series
         from workbenches import ctdna
 
-        row = next((r for r in file_series(pf, i)[0]
-                    if (r["variant"], r["month"]) == (focus["ctdna"], focus["month"])), None)
+        row = next((r for r in file_series(pf, i)[0] if r["month"] == focus["month"]
+                    and focus["ctdna"] in (None, r["variant"])), None)  # None: the sample's first
         if row:
             ss[f"{pf.id}_ctdna_spot"] = ctdna._label(row)

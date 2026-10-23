@@ -109,6 +109,35 @@ def test_a_deep_link_reopens_the_screen_with_the_pointer(app):
     assert not odd.exception and "Blood and lab workbench" in shown(odd)
 
 
+def test_a_dated_test_opens_on_its_own_value(app):
+    """A lab or ctDNA test opened without a pointer (a link, the Timeline's Open, a row of the
+    tests table) shows its own value in the Spot panel, not the latest (QA round 2)."""
+    at = app.new()
+    at.query_params.update({"patient": SYN, "view": "Tests", "test": "Lab|11|CA 15-3"})
+    at.run()
+    assert not at.exception and at.selectbox(key=f"{SYN}_spot").value.startswith("L4 · month 11")
+    ct = app.new()
+    ct.query_params.update({"patient": SYN, "view": "Tests",
+                            "test": "ctDNA (liquid biopsy)|11|ctDNA panel (synthetic series)"})
+    ct.run()
+    assert not ct.exception and "month 11 ·" in ct.selectbox(key=f"{SYN}_ctdna_spot").value
+    tl = app.new().run()
+    tl.selectbox(key="patient").select(SYN).run()
+    slider = tl.select_slider(key=f"version-{SYN}")
+    i = next(k for k, o in enumerate(slider.options) if o.startswith("month 11 "))
+    slider.set_value(i).run()
+    keys = []
+    for n in range(4):  # the Timeline's tests added in this version: open each until the lab's
+        tl.segmented_control(key="view").set_value("Timeline").run()
+        keys = [b.key for b in tl.button if (b.key or "").startswith(f"new-{SYN}-{i}-t")]
+        if n >= len(keys):
+            break
+        tl.button(key=keys[n]).click().run()
+        if "Blood and lab workbench" in shown(tl):
+            break
+    assert not tl.exception and tl.selectbox(key=f"{SYN}_spot").value.startswith("L4 · month 11")
+
+
 def test_a_look_here_spot_lands_and_switching_files_drops_the_old_address(app):
     at = app.new().run()
     at.selectbox(key="patient").select(SYN).run()

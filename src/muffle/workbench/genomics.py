@@ -240,14 +240,14 @@ def data_card() -> dict:
         "status": IMPLEMENTED,
         "model": "no model runs here: observed calls, curated evidence, and AlphaMissense's "
                  "precomputed predictions shown as model inference",
-        "data": {"TCGA-BRCA": "GDC open-access masked somatic calls (exome), the 16-gene breast "
-                              "cancer driver panel of src/muffle/data/tcga.py; allele fractions "
+        "data": {"TCGA-BRCA": "GDC open-access masked somatic calls (exome), the platform's "
+                              "16-gene breast cancer driver panel; allele fractions "
                               "from the per-case files' read counts; ASCAT3 gene-level copy "
                               "number",
                  "SYNTHETIC-001": "a hand-written record (synthetic, not a real person)",
                  "evidence": CIVIC + downloaded,
                  "literature": "resistance under endocrine therapy: PADA-1 (Bidard et al. 2022), "
-                               "SERENA-6 (Bidard et al. 2025), as cited in docs/VISION.md"},
+                               "SERENA-6 (Bidard et al. 2025)"},
         "evidence_levels": LEVELS,
         "labels": {"detected": OBSERVED, "interpreted": HYPOTHESIS, "predicted effect": INFERENCE,
                    "therapy evidence": HYPOTHESIS, "resistance mechanisms": HYPOTHESIS,
