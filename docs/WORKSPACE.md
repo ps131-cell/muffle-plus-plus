@@ -235,7 +235,10 @@ model and per rule with its status, numbers, sources and known failures; federat
 data sources and licenses; every known failure in one table and every placeholder in another,
 read from the modules' constants). A QA walk over every file, view, test, import kind and button
 raised no exception or Streamlit warning; what it did find (slow views, a table Arrow re-typed,
-labels drawn differently per page) and its status: [`qa.md`](qa.md).
+labels drawn differently per page) and its status: [`qa.md`](qa.md). A second walk (2026-10-22)
+read every screen of seven files in headless Chrome at 1280 and 800 px and fixed what it found
+(cut button labels, an MRI image over its controls, a dated test opening on the latest value,
+"None" columns, file paths on screens, badge contrast under WCAG AA): the same file, round 2.
 
 | Spec | Today |
 |---|---|

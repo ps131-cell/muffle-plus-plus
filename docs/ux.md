@@ -133,8 +133,9 @@ badges; their meanings are one click away in the guide.
   names ("finding_key", "pf", "FINDING_KINDS"), no "version index". Provenance stays: data
   source, method, model and version, in words ("precomputed offline from the open-access
   files", "Ensembl VEP, offline").
-- **The report's cards** are one width (240 px) and wrap: three a row at 800 px, more on a wide
-  screen. A card shows at most about 150 characters and ends in " …"; "more" opens the full
+- **The report's cards** are one width (240 px) and wrap: three a row at 800 px with the
+  sidebar collapsed, one with it open (Streamlit keeps the sidebar open at 800 px, which leaves
+  the page about 470 px), more on a wide screen. A card shows at most about 150 characters and ends in " …"; "more" opens the full
   text.
 - **Numbers carry their unit**, and a hover says how they were measured (the slide's tumor
   area, front length, arcs, unsure share; the risk's percentile and model).
