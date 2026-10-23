@@ -66,7 +66,7 @@ import charts  # noqa: E402
 import timeline_page  # noqa: E402
 from workbenches import evolution as evolution_page  # noqa: E402
 from workbenches import genomics, labs, omics  # noqa: E402
-from workbenches._page import land, strict  # noqa: E402
+from workbenches._page import land, line_and_action, strict  # noqa: E402
 
 import guide  # noqa: E402
 import navigation as nav  # noqa: E402
@@ -376,13 +376,13 @@ def patient_list():
                      "imported": bool(pf.versions[-1].imported)})
     st.markdown("**Your patient files.** Open one to see its latest report, its tests in their "
                 "workbenches and how the report changed over time.")
-    q, sos = st.columns([3, 1], vertical_alignment="center")
+    q, sos = line_and_action()
     query = q.text_input("Search", key="list-search", label_visibility="collapsed",
                          placeholder="Search a patient, a gene (PIK3CA), a subtype (luminal), a "
                                      "stage (stage III) or a workbench (slides)")
     open_sos = sos.toggle("Open SOS alerts only", key="list-sos",
                           help="Files with an alert no reviewer has marked yet.")
-    f = st.columns([2, 2, 1, 2])
+    f = st.columns([2, 2, 1])
     subtypes = f[0].multiselect("PAM50 subtype", sorted({r["subtype"] for r in rows}),
                                 key="list-subtype", placeholder="Any subtype")
     genes = f[1].multiselect("Mutated gene", sorted({g for r in rows for g in r["genes"]}),
@@ -390,14 +390,16 @@ def patient_list():
     stages = f[2].multiselect("Stage", [s for s in ("I", "II", "III", "IV", "not recorded")
                                         if any(r["stage"] == s for r in rows)],
                               key="list-stage", placeholder="Any")
-    holds = f[3].pills("Has", ["Slides", "Imaging", "Documents"], selection_mode="multi",
-                       key="list-holds")
-    by = st.segmented_control("Sort by", overview.SORTS, default=overview.SORTS[0],
-                              required=True, key="list-sort",
-                              help="Last update: an import of this session, then the record's "
-                                   "latest month. Risk: the cohort percentile of the TCGA files "
-                                   "(the synthetic patient's 12-month risk is another measure, "
-                                   "listed after them). Open SOS: alerts no reviewer has marked.")
+    with st.container(horizontal=True, gap="large"):  # wraps on a narrow screen, never cuts
+        holds = st.pills("Has", ["Slides", "Imaging", "Documents"], selection_mode="multi",
+                         key="list-holds")
+        by = st.segmented_control("Sort by", overview.SORTS, default=overview.SORTS[0],
+                                  required=True, key="list-sort",
+                                  help="Last update: an import of this session, then the "
+                                       "record's latest month. Risk: the cohort percentile of the "
+                                       "TCGA files (the synthetic patient's 12-month risk is "
+                                       "another measure, listed after them). Open SOS: alerts no "
+                                       "reviewer has marked.")
     shown = overview.sort_rows(overview.filter_rows(rows, query, subtypes, genes, stages,
                                                     open_sos, holds or (), reviews), by, reviews)
     table = pd.DataFrame([{
@@ -600,7 +602,7 @@ def report_view(pf: workspace.PatientFile, i: int):
         st.markdown(f"**Characterization and record** {tags(OBSERVED)}")
         st.markdown("\n".join(f"- **{k}:** {esc(val)}" for k, val in v.observed))
     with right:
-        head, box = st.columns([4, 1])
+        head, box = line_and_action()
         head.markdown(f"**Risk** {tags(INFERENCE)} {badge(pf.model['status'])}")
         with box:
             review_box(workspace.finding_key(pf, "risk", v.month), f"Risk estimate, {v.label}")
@@ -780,32 +782,32 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
             return
         k = ss.get(pos, 0) % len(shown)
         cur = shown[k]
-        c = st.columns(6)
-        # in tab order: previous, next, pin, mark reviewed, unsure list, open (docs/ux.md §7)
-        c[0].button("Previous", key=f"prev-{pos}", shortcut="K", width="stretch",
-                    help="The previous item (key k)", on_click=lambda: ss.update({pos: k - 1}))
-        c[1].button("Next", key=f"next-{pos}", shortcut="J", width="stretch",
-                    help="The next item (key j)", on_click=lambda: ss.update({pos: k + 1}))
-        c[2].button("Unpin" if cur["key"] in pins else "Pin", key=f"pin-{pos}", shortcut="P",
-                    width="stretch", help="Pin it to the top of the report (key p)",
-                    on_click=toggle_pin, args=(cur["key"], cur["what"]))
-        c[3].button("Mark reviewed", key=f"reviewed-{pos}", shortcut="M", width="stretch",
-                    disabled=cur["key"] in reviews, help="Mark it reviewed, with your "
-                                                         "initials (key m)",
-                    on_click=mark, args=(cur["key"], cur["what"], "reviewed"))
-        c[4].button("Whole queue" if ss.get(only) else "Unsure list", key=f"unsure-{pos}",
-                    shortcut="U", width="stretch",
-                    help="Items marked second look, or of weak trust (key u)",
-                    on_click=lambda: ss.update({only: not ss.get(only), pos: 0}))
-        c[5].button("Open", key=f"open-{pos}", shortcut="O", type="primary", width="stretch",
-                    help="Open its evidence in its workbench (key o)",
-                    disabled=not cur["opens"], on_click=open_evidence,
-                    args=(pf, i, cur["opens"], cur["focus"], cur["pointer"],
-                          {"pos": pos, "n": k, "total": len(shown), "what": cur["what"]}))
+        # in tab order: previous, next, pin, mark reviewed, unsure list, open (docs/ux.md §7);
+        # a row that wraps on a narrow screen, never fixed columns that cut "Mark reviewed"
+        c = st.container(horizontal=True, gap="small")
+        c.button("Previous", key=f"prev-{pos}", shortcut="K",
+                 help="The previous item (key k)", on_click=lambda: ss.update({pos: k - 1}))
+        c.button("Next", key=f"next-{pos}", shortcut="J",
+                 help="The next item (key j)", on_click=lambda: ss.update({pos: k + 1}))
+        c.button("Unpin" if cur["key"] in pins else "Pin", key=f"pin-{pos}", shortcut="P",
+                 help="Pin it to the top of the report (key p)",
+                 on_click=toggle_pin, args=(cur["key"], cur["what"]))
+        c.button("Mark reviewed", key=f"reviewed-{pos}", shortcut="M",
+                 disabled=cur["key"] in reviews, help="Mark it reviewed, with your initials "
+                                                      "(key m)",
+                 on_click=mark, args=(cur["key"], cur["what"], "reviewed"))
+        c.button("Whole queue" if ss.get(only) else "Unsure list", key=f"unsure-{pos}",
+                 shortcut="U", help="Items marked second look, or of weak trust (key u)",
+                 on_click=lambda: ss.update({only: not ss.get(only), pos: 0}))
+        c.button("Open", key=f"open-{pos}", shortcut="O", type="primary",
+                 help="Open its evidence in its workbench (key o)",
+                 disabled=not cur["opens"], on_click=open_evidence,
+                 args=(pf, i, cur["opens"], cur["focus"], cur["pointer"],
+                       {"pos": pos, "n": k, "total": len(shown), "what": cur["what"]}))
         queue_item(cur, k, len(shown), reviews)
         with st.container(height=320 if len(shown) > 8 else "content"):
             for n, x in enumerate(shown):
-                line, act = st.columns([10, 1], vertical_alignment="center")
+                line, act = line_and_action()
                 done = reviews.get(x["key"])
                 text = (f"{x['n']} · " + (f"`{x['pointer']}` " if x["pointer"] else "")
                         + esc(x["what"]) + f" · {kind_badge(x)}"
@@ -1023,7 +1025,7 @@ def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
         elif not items:
             st.caption("No CIViC breast cancer evidence for this variant.")
         for e in (items or [])[:k]:
-            text, box = st.columns([6, 1])
+            text, box = line_and_action()
             text.markdown(f"- Level **{e['evidence_level']}** ({e['level_meaning']}) · "
                           f"{e['therapies'].replace(',', ', ')} · "
                           f"{str(e['significance']).lower()} · matches "
@@ -1052,7 +1054,7 @@ def case_note(case):
     st.subheader("Tumor-board note")
     saved = demo.notes.get(case.index)
     can_live = LIVE and st.session_state.live_used < CAP
-    b1, b2, _ = st.columns([2, 2, 3])
+    b1 = b2 = st.container(horizontal=True, gap="small")
     write = b1.button("Write the note with Nemotron", type="primary", disabled=not can_live,
                       help=None if can_live else ("Set NEBIUS_API_KEY for live notes." if not LIVE
                                                   else "This session's live notes are used up."))

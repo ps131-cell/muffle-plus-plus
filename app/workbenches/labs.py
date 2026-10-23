@@ -642,14 +642,14 @@ def render(file: PatientFile, events: list[dict] | None = None,
                         markers[0] if markers else None)
         md = report_markdown(file.id, rows, queue, checks, card, kin.get(main_key), tracker,
                              windows, bands.get(main_key), lag, mine, hyp)
-        e1, e2 = st.columns(2)
-        e1.download_button("Download the lab report (Markdown)", md,
-                           file_name=f"{file.id}_labs.md", mime="text/markdown",
-                           key=f"{file.id}_labs_md")
-        e2.download_button("Download the results (CSV)",
-                           _table(rows, reviews, file).to_csv(index=False),
-                           file_name=f"{file.id}_labs.csv", mime="text/csv",
-                           key=f"{file.id}_labs_csv")
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
+        e.download_button("Download the lab report (Markdown)", md,
+                          file_name=f"{file.id}_labs.md", mime="text/markdown",
+                          key=f"{file.id}_labs_md")
+        e.download_button("Download the results (CSV)",
+                          _table(rows, reviews, file).to_csv(index=False),
+                          file_name=f"{file.id}_labs.csv", mime="text/csv",
+                          key=f"{file.id}_labs_csv")
     st.caption(CAVEAT)
 
 

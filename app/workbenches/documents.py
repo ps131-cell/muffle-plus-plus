@@ -238,8 +238,9 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
             st.caption(f"Source: {doc['source']}")
             st.caption("When: " + (f"month {doc['month']}" if doc["month"] is not None else
                                    "undated (the de-identified report's dates were removed)"))
-            show = st.toggle("Show the model's spans", value=True, key=f"docs-layer-{file.id}",
-                             disabled=doc["id"] not in read)
+            show = st.toggle("Model spans", value=True, key=f"docs-layer-{file.id}",
+                             disabled=doc["id"] not in read,
+                             help="Show the named-entity model's spans beside the rules' facts")
         with right:
             own = [f for f in facts if f["doc"] == doc["id"]]
             mine = [f for f in model if f["doc"] == doc["id"]]
@@ -406,10 +407,10 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
         pass
 
     with page.export():
-        e1, e2 = st.columns(2)
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
         every = facts + model
         marks = {k: reviews[k] for k in map(lambda f: _key(file, f), every) if k in reviews}
-        e1.download_button(
+        e.download_button(
             "Download the documents, facts and model spans (JSON)", json.dumps({
                 "file": file.id, "version": file.versions[i].label, "method": wb.RULES_VERSION,
                 "model": wb.NER_METHOD, "documents": docs, "facts": facts, "model_spans": model,
@@ -419,7 +420,7 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                 "changes": [{k: c[k] for k in c if not k.endswith("_fact")} for c in changed],
                 "marks": marks}, indent=1, default=str),
             file_name=f"{file.id.replace(' ', '_')}_documents.json", mime="application/json")
-        e2.download_button(
+        e.download_button(
             "Download the facts and model spans (CSV)", pd.DataFrame([
                 {"layer": f["status"], **{k: f.get(k) for k in ("doc", "label", "value", "start",
                                                                  "end", "quote", "rule")},
@@ -510,7 +511,7 @@ def spot(file: PatientFile, i: int, docs: list[dict], facts: list[dict], model: 
         if other:
             st.markdown(f"**The two readings** ({other['kind']}): {esc(other['line'])}.")
         done = st.session_state.setdefault("reviews", {}).get(k)
-        c1, c2 = st.columns([3, 2])
+        c1 = c2 = st.container(horizontal=True, gap="medium", vertical_alignment="bottom")
         c1.segmented_control("Mark", [NO_MARK, *MARKS[1:]], key=f"docs-mark-{k}",
                              default=done["mark"] if done else NO_MARK,
                              on_change=lambda: _mark(k, _what(f, titles),

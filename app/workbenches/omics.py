@@ -435,13 +435,13 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                 "placeholders": [f"PAM50 borderline margin < {wb.LOW_MARGIN}",
                                  "ERBB2 amplified at >= 2x ploidy (ASCAT calls)",
                                  *(f"{what}: {value}" for what, value in wb.PLACEHOLDERS)]}
-        e1, e2 = st.columns(2)
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
         name = pf.id.replace(" ", "_")
-        e1.download_button("Download the findings and marks (JSON)",
-                           wb.report_json(pf.id, rows, reviews, prov), f"omics_{name}.json",
-                           "application/json", key=f"omics-json-{pf.id}")
-        e2.download_button("Download the findings and marks (CSV)", wb.report_csv(rows, reviews),
-                           f"omics_{name}.csv", "text/csv", key=f"omics-csv-{pf.id}")
+        e.download_button("Download the findings and marks (JSON)",
+                          wb.report_json(pf.id, rows, reviews, prov), f"omics_{name}.json",
+                          "application/json", key=f"omics-json-{pf.id}")
+        e.download_button("Download the findings and marks (CSV)", wb.report_csv(rows, reviews),
+                          f"omics_{name}.csv", "text/csv", key=f"omics-csv-{pf.id}")
 
 
 def _table(df: pd.DataFrame, keys: list[str], key: str, spot: str) -> None:
@@ -877,7 +877,7 @@ def review(f: dict, reviews: dict, pins: dict) -> None:
         if pins.pop(key, None) is None:
             pins[key] = what
 
-    a, b = st.columns([3, 2])
+    a = b = st.container(horizontal=True, gap="medium", vertical_alignment="bottom")
     a.segmented_control("Your mark", workspace.MARKS[1:], key=h, on_change=on_mark,
                         default=done["mark"] if done and done["mark"] in workspace.MARKS[1:]
                         else None)

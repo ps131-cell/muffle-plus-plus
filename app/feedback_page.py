@@ -19,6 +19,7 @@ import streamlit as st
 from muffle import feedback, workspace
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench.grammar import chip, esc
+from workbenches._page import line_and_action
 
 GOTO = "feedback-goto"  # set by "Open": switch to the Patients page on the next run
 KIND = {"synthetic": "synthetic (written by hand)", "TCGA-BRCA": "TCGA-BRCA public case"}
@@ -138,7 +139,7 @@ def queue(bad: list[dict], files: dict, open_finding) -> None:
     for n, x in enumerate(bad):
         pf = files.get(x["patient"])
         where = feedback.target(pf, x["key"]) if pf else None
-        line, act = st.columns([10, 1], vertical_alignment="center")
+        line, act = line_and_action()
         line.markdown(f"**{esc(x['finding'])}** {tags(x['evidence'])}  \n"
                       f"{x['patient']} · {x['kind']} · {x['method']} · "
                       f"{x['reviewer'] or 'no initials'}, {x['at']}")

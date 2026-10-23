@@ -864,19 +864,19 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                   "review_marks": mine, "pins": {kk: v for kk, v in
                                                  st.session_state.get("pins", {}).items()
                                                  if kk.startswith(f"{pf.id}|slide|{slide}|")}}
-        e1, e2, e3 = st.columns(3)
-        e1.download_button("Download the findings (JSON)", json.dumps(export, indent=1,
-                                                                       default=str),
-                           file_name=f"{slide}_slide.json", mime="application/json",
-                           key=f"{k}-json")
+        e = st.container(horizontal=True, gap="small")  # labels whole, wraps
+        e.download_button("Download the findings (JSON)", json.dumps(export, indent=1,
+                                                                      default=str),
+                          file_name=f"{slide}_slide.json", mime="application/json",
+                          key=f"{k}-json")
         cols = ["tile", "row", "col", "class", "top", "certainty", "qc", "zone", "dist", "front",
                 "finger", "risk_points", "risk_level", "nuclei"]
-        e2.download_button("Download the tiles (CSV)", df[cols].to_csv(index=False),
-                           file_name=f"{slide}_tiles.csv", mime="text/csv", key=f"{k}-csv")
-        e3.download_button("Download the map (PNG)",
-                           inv.map_png(res["tiles"], inv.grid(res["tiles"], "front", False, bool),
-                                       queue=res["queue"]),
-                           file_name=f"{slide}_map.png", mime="image/png", key=f"{k}-png")
+        e.download_button("Download the tiles (CSV)", df[cols].to_csv(index=False),
+                          file_name=f"{slide}_tiles.csv", mime="text/csv", key=f"{k}-csv")
+        e.download_button("Download the map (PNG)",
+                          inv.map_png(res["tiles"], inv.grid(res["tiles"], "front", False, bool),
+                                      queue=res["queue"]),
+                          file_name=f"{slide}_map.png", mime="image/png", key=f"{k}-png")
 
 
 CUTOFFS_INV = inv.CUTOFFS
