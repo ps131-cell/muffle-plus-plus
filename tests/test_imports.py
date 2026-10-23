@@ -171,6 +171,9 @@ def test_a_maf_keeps_one_samples_panel_variants_with_their_allele_fractions():
     ("Stable disease but new brain metastases.", "stable", ["Brain"]),
     ("There is no interval change.", "stable", []),
     ("New liver and lung lesions are not seen.", "not stated", []),
+    ("New lytic lesion in the T8 vertebra.", "not stated", ["Bone"]),  # QA round 2
+    ("New hypodense lesion in segment 6 of the liver.", "not stated", ["Liver"]),
+    ("No new lytic lesions.", "not stated", []),
 ])
 def test_the_imaging_rule_reads_only_what_a_clause_states(text, read, sites):
     r = imaging_read(text)

@@ -570,15 +570,17 @@ READS = [  # the first read stated in a kept clause wins, in this order (a new l
 # Distant metastatic sites only: breast, skin, chest wall and nodes are local or regional, and a
 # report naming them new raises no "new metastatic site" alert
 SITE_WORDS = {"bone": "Bone", "osseous": "Bone", "skeletal": "Bone", "bony": "Bone",
+              "vertebra": "Bone", "vertebrae": "Bone", "vertebral": "Bone", "lytic": "Bone",
+              "osteolytic": "Bone", "blastic": "Bone", "osteoblastic": "Bone",
               "liver": "Liver", "hepatic": "Liver", "lung": "Lung", "pulmonary": "Lung",
               "brain": "Brain", "cerebral": "Brain", "intracranial": "Brain",
               "pleura": "Pleura", "pleural": "Pleura", "adrenal": "Adrenal",
               "peritoneum": "Peritoneum", "peritoneal": "Peritoneum"}
 LESION = r"(?:lesions?|metasta(?:ses|sis|tic deposits?)|deposits?|nodules?|masses|mass|foci|focus)"
-NEW_SITE = [  # "new 1.2 cm hepatic lesions"; "new lesions in the right lobe of the liver"
+NEW_SITE = [  # "new 1.2 cm hepatic lesions"; "new (lytic) lesions in the right lobe of the liver"
     re.compile(rf"\bnew\s+((?:[\w.-]+\s+){{1,4}}?){LESION}\b"),
-    re.compile(rf"\bnew\s+{LESION}\s+(?:in|within|involving)\s+((?:(?!and\b|with\b)[\w-]+\s*)"
-               r"{1,6})")]
+    re.compile(rf"\bnew\s+(?:[\w.-]+\s+){{0,3}}?{LESION}\s+(?:in|within|involving)\s+"
+               r"((?:(?!and\b|with\b)[\w-]+\s*){1,6})")]
 NEGATION = re.compile(r"\b(?:no|not|without|negative for|free of|absence of|resolved|"
                       r"rule[ds]? out)\b")
 NEGATED_AFTER = re.compile(r"\b(?:not (?:seen|identified|present|demonstrated|evident)|absent|"
