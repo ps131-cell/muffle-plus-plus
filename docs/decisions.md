@@ -2,6 +2,21 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-27 — Final numbers pass: each figure named by what it measures; the video re-walked
+- **What:** every figure in `docs/submission.md`, the README, `docs/HACKATHON.md` and the Methods
+  page traced to its source (the appendix lists each). The demo model's 0.728 is described as
+  what the bundle stores: the mean of the three simulated hospitals' held-out C-indexes over 213
+  held-out patients (26 deaths), not "its 40 held-out cases" (the 40 files are drawn from those
+  patients); 0.693 ± 0.017 stays the five-seed pooled federated result; no fusion variant is
+  said to match or beat clinical-only (0.702 ± 0.004). The video script was re-walked in
+  headless Chromium at 1280 px (`docs/video.md`): the second lymphocyte model is shown in the
+  slide workbench's Details › Cells (it is not a viewer layer), the documents shot moved from
+  Case 299 (two rule facts) to Case 563, and time travel and the Feedback page joined the shot
+  list within 2:58.
+- **Why:** a judge or reader should be able to reproduce each number from what it names.
+- **Consequence:** the pathology figures (87.7%, QuiltNet-B-32) change only with the slide
+  re-score's merged PR, or stay if its Oct 27 gate closes.
+
 ## 2026-10-22 — Learning from clinicians starts as a ledger of review marks; nothing trains on it
 - **What:** a Feedback page (`app/feedback_page.py`, `src/muffle/feedback.py`,
   [`feedback.md`](feedback.md)) turns the session's review marks into a ledger: each mark with

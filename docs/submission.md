@@ -1,30 +1,20 @@
 # MuFFLe++: Devpost submission
 
-Text for the Devpost form, one section per field. Rewritten 2026-10-22 against `main` at b164264
-(eight workbenches, the patient overview, the case agent, federated training). Every figure is
-listed with its source in the **Numbers** appendix at the end, so the Oct 27 pass is a check.
-
-**Before pasting into Devpost (Oct 27):**
-- [ ] Fill the video link.
-- [ ] Walk the **Numbers** appendix: each figure against its source; change the text only where a
-      source changed.
-- [ ] Re-read "What it does" after the sessions still running on Oct 22 land (navigation and
-      clarity, documents round 2, timeline round 2, clinician feedback ledger, encoder
-      comparison): each has a marked sentence below. Delete a sentence if its feature did not
-      land; judges score what is demonstrated.
-- [ ] Check the hosted app once more after the final reboot (sidebar: held-out C-index 0.728,
-      case agent live).
+The final text for the Devpost form, in the form's order: the project's fields, the story
+(Inspiration → What's next), Built with, the links, then the hackathon's own questions (how
+NVIDIA and Nebius are used, feedback, testing, data and licenses, prior work). Final numbers pass
+2026-10-27 against `main` after #134: every figure is listed with its source in the **Numbers**
+appendix, and the **Submission checklist** at the end is what is left to fill on Oct 29.
 
 | Field | Value |
 |---|---|
 | Project name | MuFFLe++ |
-| Tagline | A breast cancer patient file that keeps every test's evidence, labeled observed, inferred or hypothesis, and updates as the record grows; written up by an NVIDIA Nemotron agent on Nebius Token Factory, from a model trained across simulated hospitals with NVIDIA FLARE. |
-| Track | Best Apps and Agents |
-| Demo | https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; no login) |
-| Video | TODO: YouTube URL (≤ 3 min) |
-| Code | https://github.com/ps131-cell/muffle-plus-plus (MIT) |
-| Built with | Python, PyTorch, NVIDIA FLARE, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token Factory, Tavily, Streamlit, Altair, OpenSeadragon, scikit-learn, SciPy; models: QuiltNet-B-32, StarDist, WSInfer TIL, MedSAM, mammoscreen, MONAI breast density; data: TCGA-BRCA (GDC open access), BCSS, TCGA-Reports, TCIA, CIViC, ClinicalTrials.gov, Ensembl VEP, AlphaMissense, MSK-CHORD (local only) |
-| New or existing? | New: the repository was created on Oct 17, 2026, after the Submission Period opened (Aug 26). The slide workbench follows the design of the team's earlier colon project; see the prior-work disclosure under **Data**. |
+| Elevator pitch | A breast cancer patient file that keeps every test's evidence, labeled observed, inferred or hypothesis, and updates as the record grows; written up by an NVIDIA Nemotron agent on Nebius Token Factory, from a model trained across simulated hospitals with NVIDIA FLARE. |
+| Track | Best Apps and Agents (and the Best Use of Tavily bonus) |
+| Team | a team of two (names in the checklist at the end) |
+| Try it out | https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; no login) · https://github.com/ps131-cell/muffle-plus-plus (MIT) |
+| Video | the YouTube URL from the checklist (≤ 3 min) |
+| New or existing? | New: the repository was created on Oct 17, 2026, after the Submission Period opened (Aug 26). The slide workbench follows the design of the team's earlier colon project; see the prior-work disclosure under **Data, licenses and prior work**. |
 
 ---
 
@@ -61,7 +51,10 @@ assigned to one of three **simulated** hospitals.
 
 **Patients.** Search by patient, gene (PIK3CA), subtype, stage or workbench; filter by PAM50
 subtype, mutated gene, stage, open alerts and what the file holds (slides, imaging, documents).
-*(Re-check after the navigation session lands.)*
+A four-step walk-through on the first visit and a "?" guide on every screen say how to read it;
+breadcrumbs and a sticky patient header say where you are, and the address
+(`?patient&view&test&pointer&version`) reopens the same screen on the same finding, so a link
+lands on the evidence.
 
 **The patient file.** It opens on finding cards from every workbench (receptors recorded and
 documented side by side, PAM50 subtype, drivers with their best CIViC level, the slide picture,
@@ -79,8 +72,9 @@ report exports as one page.
   open encoder (QuiltNet-B-32); the invasive front, its zones and the direction of invasion per
   arc (a hypothesis about the section); StarDist nuclei, breakaway (budding) candidates in the
   ITBCC counting field and lymphocytes by TILs zone; a second opinion on lymphocytes from the
-  WSInfer TIL model, whose disagreements with the head go to the queue. *(Re-check the encoder
-  after the encoder comparison lands.)*
+  WSInfer TIL model, whose disagreements with the head go to the queue. Seven tile encoders were
+  compared with the same head on the same held-out slides (accuracy: GigaPath-Flash 0.919,
+  QuiltNet-B-32 0.877).
 - **Expression, methylation and protein** (TCGA cases): PAM50 subtype with its margin, Hallmark
   pathway scores, ten RPPA protein pathways, promoter methylation of six genes, an immune and
   stromal picture read against the slide's lymphocytes, and receptor consistency (IHC against
@@ -96,11 +90,14 @@ report exports as one page.
   has two study dates).
 - **Clinical documents:** pathology reports (TCGA-Reports) and imported documents; breast
   pathology facts read by rules and shown at their source sentence, documented kept apart from
-  inferred, conflicts side by side. *(Re-check after documents round 2: an open oncology
-  named-entity model next to the rules.)*
-- **Labs:** any analyte, with adult reference intervals cited from a reference laboratory, the
-  lab report's own interval winning, CTCAE grades, marker kinetics and the EGTM confirmation
-  rule for tumor-marker rises.
+  inferred, conflicts side by side; an open oncology named-entity model's reading drawn as a
+  second layer (model inference) and set beside the rules field by field, measured on the same
+  held-out reports. It mostly marks where a field is named ("ESTROGEN", "MARGINS") rather than
+  its result, so the rules stay the documented reading and the model is a second opinion.
+  Scanned PDFs are read to text by a page model in the local pipeline.
+- **Labs:** any analyte, with adult reference intervals cited from the Mayo Clinic Laboratories
+  test catalog, the lab report's own interval winning, CTCAE grades, marker kinetics and the
+  EGTM confirmation rule for tumor-marker rises.
 - **ctDNA monitor:** allele fractions over time, the ESR1 rule (PADA-1, SERENA-6) as evidence
   for review and a clonal hematopoiesis flag, on a **synthetic** series for SYNTHETIC-001 only
   (no open serial breast ctDNA data exists).
@@ -114,9 +111,18 @@ reports, slide images and DICOM files (header only), clinician notes. Each impor
 by row, adds a report version and re-runs the alert rules. Only public or synthetic data is
 imported.
 
-**Timeline:** every report version of SYNTHETIC-001; any two compared side by side (added,
-removed, changed) with why the risk moved. *(Re-check after timeline round 2: a horizontal
-timeline with time travel.)*
+**Timeline:** the record on one month axis, a lane per kind (report versions, treatments,
+imaging, labs, ctDNA, sequencing, pathology, clinic visits, imports), SOS alerts marked where they
+were raised. **Time travel:** click any point and the whole file opens as it stood at the report
+version that point created; a "new in this version" card says what arrived; any two versions
+compared side by side (added, removed, changed) with why the risk moved.
+
+**Feedback:** every review mark (agree, disagree, second look, reviewed) becomes a ledger
+record naming the model or rule behind its finding, with its version and evidence label; the
+page shows disagreement rates per model or rule with a 95% interval, the disagreed findings as a
+queue, and exports and imports the ledger. Marks stay in the browser session and nothing is
+trained on them: learning from clinicians needs consent, ethics approval and data agreements
+first, so retraining is a labeled roadmap card.
 
 **The case note (Nemotron on Nebius Token Factory).** For a TCGA file, a case agent writes a
 tumor-board note: **Nemotron 3 Super** plans and calls our tools (what was recorded, the risk and
@@ -162,7 +168,8 @@ nor the output of a model trained on it, which includes SYNTHETIC-001's risk sco
   downloads, a seed rule, MedSAM box prompts, kinetics, a rigid alignment by mutual information
   written with SciPy. Omics: PAM50 centroids (genefu), MSigDB Hallmark, RPPA pathways (Akbani et
   al. 2014), ESTIMATE gene lists. Genomics: ASCAT3, ABSOLUTE, Ensembl VEP, AlphaMissense.
-  Documents: regular expressions measured against TCGA's clinical fields. Evolution: a
+  Documents: regular expressions and an open zero-shot oncology named-entity model, both
+  measured against TCGA's clinical fields; a page model reads scans to text. Evolution: a
   hand-curated table with PubMed-checked citations and ClinicalTrials.gov API v2.
 - **App:** Streamlit and Altair on Streamlit Community Cloud, from a small release bundle (model
   weights and 40 held-out cases' processed inputs) plus the slide tiles on a second release.
@@ -170,10 +177,13 @@ nor the output of a model trained on it, which includes SYNTHETIC-001's risk sco
 **Models and their licenses.** Used in the app (open licenses, results precomputed offline):
 QuiltNet-B-32 (MIT), StarDist 2D_versatile_he (BSD-3-Clause), WSInfer TIL InceptionV4 (CC BY
 4.0), MedSAM ViT-B (Apache-2.0), mammoscreen (Apache-2.0), MONAI breast density (Apache-2.0),
-AlphaMissense predictions (CC BY 4.0), our own breast tissue head (trained on BCSS, CC0) and
+AlphaMissense predictions (CC BY 4.0), OpenMed ZeroShot NER Oncology 220M (Apache-2.0; its
+spans ship for the bundled reports), Granite-Docling 258M (Apache-2.0; scans, local pipeline
+only), our own breast tissue head (trained on BCSS, CC0) and
 risk model (MIT, TCGA open data), and NVIDIA Nemotron 3 Super and Ultra (NVIDIA open model
 license) on Token Factory. **Local only:** models with non-commercial or no-derivatives terms
-(UNI2-h and CONCH, CC BY-NC-ND 4.0; SPIDER-breast, CC BY-NC 4.0; PanNuke-trained cell models)
+(UNI2-h and CONCH, CC BY-NC-ND 4.0; GPFM, whose official repository is CC BY-NC-ND 4.0;
+SPIDER-breast, CC BY-NC 4.0; PanNuke-trained cell models)
 and the MSK-CHORD timeline models may be measured on our machine, but nothing from them enters
 the repository, the hosted app, a release or an LLM call (enforced in code for UNI2-h and CONCH).
 Every dataset, model and service, with its license and what leaves the machine:
@@ -183,8 +193,8 @@ Every dataset, model and service, with its license and what leaves the machine:
 
 - **Omics underperformed clinical data.** Copy number alone ranked patients worse than chance
   across hospitals (0.485), a sign of site and batch effects. The clinical-anchored residual,
-  with its weight chosen on held-out hospitals, closed the gap to clinical-only; it does not
-  beat it.
+  with its weight chosen on held-out hospitals, closed most of the gap to clinical-only (pooled
+  0.700, federated 0.693, against 0.702); no fusion variant beats clinical data alone.
 - **Agent reliability.** Notes dropped the clinical layer, Ultra's reasoning ran past the token
   limit, the planner stopped before the literature step. Fixes: the grounding check with one
   rewrite, Super writing the note when Ultra is cut off, one reminder turn.
@@ -211,14 +221,19 @@ Every dataset, model and service, with its license and what leaves the machine:
   and eight workbenches each at the depth of a specialist's tool, not a summary widget.
 - Honest labels everywhere: observed, model inference, hypothesis, synthetic, simulated,
   placeholder; a Methods page that lists every known failure and every placeholder.
-- Measured where we could: PAM50 agrees with TCGA's published calls on 94.7% of 950 tumors; the
-  tissue head reaches 87.7% held-out accuracy on three patient-disjoint slides; the second-opinion
-  lymphocyte model reaches AUROC 0.955 on those slides; document extraction is right 91–98% of
-  the time for most fields on 481 held-out reports. The numbers appendix lists each with its
-  caveat.
+- Measured where we could: PAM50 agrees with TCGA's published calls on 94.7% of 950 tumors (κ
+  0.92; the centering was chosen after a first run, so not an independent test); the tissue head
+  reaches 87.7% held-out accuracy on three patient-disjoint slides; the second-opinion lymphocyte
+  model reaches AUROC 0.955 on those slides (an upper bound: it was trained on TCGA); when a
+  report states a fact, the document rules read it right 91–98% of the time for seven of ten
+  fields on 481 held-out reports. The numbers appendix lists each with its caveat.
 - Federated training across simulated hospitals comes within 0.01 of pooling the data (0.693 ±
-  0.017 against 0.700 ± 0.012) and beats one hospital alone (0.649 ± 0.032), with the
-  clinical-only baseline (0.702 ± 0.004) reported even though it wins.
+  0.017 against 0.700 ± 0.012, pooled site-stratified C-index over five seeds) and beats one
+  hospital alone (0.649 ± 0.032), with the clinical-only baseline (0.702 ± 0.004) reported even
+  though it wins. The app's demo model scores a held-out C-index of 0.728 (a different
+  quantity: one trained model, the mean over the three hospitals' held-out patients).
+- A QA walk of 334 screens in a headless browser at two widths, with 29 findings fixed or
+  listed before the freeze.
 - Every claim in a case note traces to a tool call, and the app shows the chain.
 
 ## What we learned
@@ -240,101 +255,41 @@ Every dataset, model and service, with its license and what leaves the machine:
   StarDist and MedSAM on breast.
 - Inferred mutation status with calibrated uncertainty, and evolutionary hypotheses from
   repeated sequencing and real serial ctDNA.
+- Learning from clinicians' review marks, the Feedback page's roadmap: re-calibrating
+  placeholder cutoffs against disagreed findings and retraining the slide head on tiles a
+  pathologist confirms, validated on held-out patients before use.
 - Real contributing institutions with consent, ethics approval and data agreements first, and
   secure aggregation or differential privacy in the federation.
+
+## Built with
+
+Python, PyTorch, NVIDIA FLARE, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token
+Factory, Tavily, Streamlit, Altair, OpenSeadragon, OpenSlide, scikit-learn, SciPy, Playwright
+(QA); models: QuiltNet-B-32, StarDist, WSInfer TIL, MedSAM, mammoscreen, MONAI breast density,
+OpenMed ZeroShot NER Oncology, Granite-Docling; data: TCGA-BRCA (GDC open access), BCSS,
+TCGA-Reports, TCIA, CIViC, ClinicalTrials.gov, Ensembl VEP, AlphaMissense, MSK-CHORD (local
+only).
+
+## Try it out
+
+- App: https://cancer-intelligence-platform.streamlit.app (no login)
+- Code: https://github.com/ps131-cell/muffle-plus-plus (MIT)
+- Video: the YouTube URL (submission checklist)
 
 ## How we used NVIDIA and Nebius
 
 - **NVIDIA Nemotron on Nebius Token Factory:** every case note is one tool-calling conversation
   with Nemotron 3 Super and one or two Nemotron 3 Ultra calls (the note, and a rewrite if the
   grounding check finds something), following the track's advice to use Ultra for reasoning and
-  Super for fast calls. The app names the model and Token Factory on every note.
+  Super for fast calls. The app names the models and Token Factory on every note and in the
+  sidebar's **About this system**; nine notes are saved in the release, and a few live notes run
+  per session on the hosted app, within a hard $25.50 cap.
 - **NVIDIA FLARE:** federated training with the Recipe API (`FedAvgRecipe`, `SimEnv`) across
-  three simulated hospitals; the sidebar and the Methods page show it.
+  three simulated hospitals; the sidebar and the Methods page show it, and the README's results
+  table compares it with pooling and with one hospital alone.
 - **Tavily:** literature and clinical-trial search on the genes behind a patient's risk; only
   gene names and the cancer type are sent.
 - **Nebius AI Cloud:** not used (see feedback).
-
-## Testing instructions
-
-- Open the demo URL; no login. If Streamlit has put the app to sleep, click to wake it (about a
-  minute).
-- **Patients** is the home page. Search **PIK3CA**, or switch on **Open SOS alerts only**; click a
-  row to open a file. Each file has its own address: `?patient=<id>`.
-- **Case 299** (`?patient=Case%20299`): the overview cards (click **Why?**), the attention queue
-  (J / K to move, O to open), and the saved case note (**Show the saved note**). In **Tests**,
-  select the pathology slide to open the slide viewer (the first open of a section downloads its
-  tiles), or the sequencing test for the genomics workbench.
-- **Case 937** (`?patient=Case%20937&view=Tests`): the expression row for PAM50, pathways and
-  methylation; the imaging row for the MRI viewer and the public example pair.
-- **SYNTHETIC-001** (`?patient=SYNTHETIC-001`): synthetic. Move **Report version** to month 11
-  and month 12; in **Tests**, the CA 15-3 lab and the synthetic ctDNA monitor; **Evolution** for
-  what to watch next and trials; **Timeline** to compare two versions.
-- **Methods and validation** (sidebar, or `/methods`) needs no input.
-- Locally: `make setup`, then `.venv/bin/streamlit run app/streamlit_app.py`; it downloads the
-  release bundle. Add `NEBIUS_API_KEY` and `TAVILY_API_KEY` to `.env` for live notes.
-
-## Data
-
-**Prior work disclosure.** The slide workbench follows the design of the team's own Colon Tumor
-Front Analyzer, built for the Ashby Prize Hackathon (Oct 17–18, 2026), and that analyzer sets
-the depth we aimed for in every workbench. What carries over is the design grammar: 224 px tiles
-at 0.5 µm/px, a small head on frozen embeddings, smoothing, tumor mask → front → core, front band
-and peritumoral zones, an "unsure here" cutoff, quality rules, and cutoffs tagged by source. The
-breast implementation is new code in this repository: no file, model weight or colon-trained head
-is reused; the breast tissue head was trained during this hackathon on BCSS (CC0) tiles from
-public TCGA-BRCA slides; every cutoff carried over from colon slides is marked placeholder. We
-checked both hackathons' rules before reusing the design.
-
-- TCGA-BRCA open-access data (GDC, UCSC Xena GDC hub): multi-omic data, masked somatic mutations,
-  ASCAT3 copy number, diagnostic slides. The results here are in whole or part based upon data
-  generated by the TCGA Research Network: https://www.cancer.gov/tcga. TCGA PanCanAtlas ABSOLUTE
-  purity and ploidy (Carter et al. 2012; Taylor et al. 2018).
-- BCSS (Amgad et al., *Bioinformatics* 2019; CC0): tissue labels for the slide head.
-- TCGA-Reports (Kefeli and Tatonetti, *Patterns* 2024; CC BY 4.0): pathology report text.
-- TCGA-BRCA radiology on The Cancer Imaging Archive (Lingle et al. 2016; CC BY 3.0).
-- CIViC (CC0), ClinicalTrials.gov (U.S. National Library of Medicine), Ensembl VEP and ClinVar,
-  AlphaMissense (Cheng et al., *Science* 2023; CC BY 4.0), PAM50 centroids (Parker et al. 2009, via
-  genefu), MSigDB Hallmark (CC BY 4.0), RPPA pathways (Akbani et al. 2014), ESTIMATE gene lists
-  (Yoshihara et al. 2013); lab intervals cited from Mayo Clinic Laboratories' catalog.
-- MSK-CHORD (Jee et al., *Nature* 2024; CC BY-NC-ND 4.0): used locally for the timeline models.
-  We publish code and aggregate results with attribution, and nothing else from it.
-- SYNTHETIC-001, its ctDNA series and the simulated hospitals are labeled as such everywhere.
-  Research and decision support for clinicians, not a diagnosis and not a treatment
-  recommendation.
-
----
-
-## Numbers (appendix for the Oct 27 check)
-
-Every figure quoted in this text, the README or the video, with where it was measured. If a
-source changes, change the figure everywhere it is quoted.
-
-| Figure | Value | Measured on | Source |
-|---|---|---|---|
-| Demo model, held-out C-index | **0.728** | the 40 held-out TCGA-BRCA cases of release `demo-bundle-v2` (a local rebuild from re-downloaded data reads 0.730) | `docs/decisions.md` 2026-10-21; the app's sidebar |
-| FedAvg, clinical-anchored residual | **0.693 ± 0.017** | pooled site-stratified C-index, leave one simulated hospital out, mean ± sd over seeds 0–4 (`make experiment-tcga`); a different quantity from 0.728 | README results table; `app/results_tcga_brca.json` |
-| Pooled data, residual · FedAvg plain fusion · pooled plain fusion | 0.700 ± 0.012 · 0.680 ± 0.008 · 0.692 ± 0.026 | as above | README results table |
-| One hospital alone | 0.649 ± 0.032 | as above | README results table |
-| Clinical data only (stage, age, T/N/M) | 0.702 ± 0.004 | as above | README results table |
-| Copy number alone, across hospitals | 0.485 ± 0.016 | as above | `docs/omics.md` |
-| Calibration, 3-year death risk per quintile | mean absolute error 0.019–0.027 | leave one hospital out, seed 0 | `docs/calibration.md` |
-| Cohort | 1,064 patients, 148 deaths; hospitals of 355, 355, 354 | TCGA-BRCA, overall survival | README; `docs/calibration.md` |
-| MSK-CHORD timeline AUROC, record so far vs diagnosis only | 0.880 ± 0.003 vs 0.663 ± 0.010 at sequencing; 0.931 ± 0.014 vs 0.706 ± 0.031 at 24 months | 5,368 patients, held-out 20%, seeds 0–4; aggregate only | `docs/longitudinal.md` |
-| SYNTHETIC-001's 12-month risk | 38% at month 0, 88% (81–93%) at month 12, 60% (54–66%) at month 24 | scored by the MSK-CHORD models; an illustration, not a validation | `app/timeline_synthetic.json` |
-| PAM50 agreement with TCGA's published calls | **94.7%** (Cohen's κ 0.92); 72.5% with whole-cohort centering | 950 tumors; the ER-balanced reference was chosen after seeing the first result, so not an independent test; 38 of 39 bundled cases agree | `docs/omics.md` |
-| Breast tissue head, held-out accuracy | **87.7%** (balanced 85.4%); lymphocyte recall 0.74 | 357 tiles on 3 patient-disjoint BCSS slides, QuiltNet-B-32 embeddings | `docs/pathology.md`; `docs/encoders.md` |
-| WSInfer TIL second opinion, lymphocytes vs rest | **AUROC 0.955**; at cutoff 0.667 (calibrated on the 8 training slides) recall 97%, specificity 79% | the head's 3 held-out BCSS slides; the model was trained on TCGA, so possibly optimistic | `docs/pathology.md` §8; decisions 2026-10-21 |
-| WSInfer screening check | tumor vs rest AUROC 0.921, lymphocytes vs rest 0.980 | 516 BCSS-labelled tiles from 11 TCGA-BRCA slides | `docs/model_access.md` |
-| Document extraction precision (held-out, rules v2) | ER 95%, PR 93%, HER2 81%, pT 96%, pN 96%, stage group 96%, histologic type 98%, margins 91%, nodes examined 63%, nodes positive 81% | 481 held-out TCGA-BRCA reports against TCGA's clinical fields; recall 6–82% (bounded by what reports state) | `docs/documents.md` |
-| Copy-number calls equal to the model's input | 7,993 of 7,999 genes | the bundled cases | `docs/genomics.md` |
-| AlphaMissense | 21 observed missense changes scored; Ensembl agrees for 20 of 20 | the bundled cases | `docs/genomics.md` |
-| Ploidy estimates 1.5-fold apart | 7 of 40 cases | median rule vs ABSOLUTE | decisions 2026-10-21 |
-| Evolution table | 18 rows, 37 papers, PMIDs checked | — | `docs/evolution.md` |
-| Radiology, Case 937 candidate C1 | 26.2 mm, 7.43 mL, medium initial enhancement (72%), plateau (+2%) | MedSAM contour, placeholder kinetic cutoffs; not validated on breast MRI | `docs/radiology.md` §2 |
-| mammoscreen card AUROC | 0.945 (the authors', on RSNA 2023 held-out data; not measured here) | — | `docs/registry.md` |
-| Case agent | about $0.01 a note (8k–16k tokens); $0.46 used as of Oct 19 (update on Oct 27); hard cap $25.50 | Token Factory | the budget ledger (local), as in the Oct 19 text; cap in `src/muffle/report/budget.py` |
-| Saved notes | 9, all by Nemotron 3 Ultra, 0 grounding issues | release `demo-bundle-v2` | `docs/registry.md`; decisions 2026-10-18 |
 
 ## Feedback on Nebius Token Factory, AI Cloud and NVIDIA tools
 
@@ -401,3 +356,167 @@ Each item: what happened, why it mattered, and a suggestion.
     matched unrelated text; clinical-trial results were protocol PDFs rather than study pages.
     `include_domains` made the biggest difference. *Suggestion:* a scholarly / biomedical
     search mode.
+
+## Testing instructions
+
+- Open the demo URL; no login. If Streamlit has put the app to sleep, click to wake it (about a
+  minute). A four-step walk-through opens on the first visit (**Skip the tour** closes it); the
+  "?" on every screen explains it.
+- **Patients** is the home page. Search **PIK3CA**, or switch on **Open SOS alerts only**; click a
+  row to open a file. The address reopens what is on screen: `?patient=<id>&view=<view>`, plus
+  `&test=`, `&pointer=` and `&version=` inside a file.
+- **Case 299** (`?patient=Case%20299`): the overview cards (click **Why?**), the attention queue
+  (J / K to move, M to mark reviewed, O to open), and the saved case note (**Show the saved
+  note**). In **Tests**, select the pathology slide to open the slide viewer (the first open of a
+  section downloads its tiles), or the mutation panel for the genomics workbench.
+- **Case 937** (`?patient=Case%20937&view=Tests`): the expression row for PAM50, pathways and
+  methylation; the imaging row for the MRI viewer and the public example pair.
+- **Case 563** (`?patient=Case%20563&view=Tests`): the pathology report row for the rules' facts
+  and the named-entity model beside them.
+- **SYNTHETIC-001** (`?patient=SYNTHETIC-001`): synthetic. In **Tests**, the CA 15-3 lab and the
+  synthetic ctDNA monitor; **Evolution** for what to watch next and trials; **Timeline**: click
+  any point to open the file as it was then, and compare two versions.
+- **Methods and validation** (`/methods`) and **Feedback** (`/feedback`, after marking a finding)
+  need no input.
+- Locally: `make setup`, then `.venv/bin/streamlit run app/streamlit_app.py`; it downloads the
+  release bundle. Add `NEBIUS_API_KEY` and `TAVILY_API_KEY` to `.env` for live notes.
+
+## Data, licenses and prior work
+
+**Prior work disclosure.** The slide workbench follows the design of the team's own Colon Tumor
+Front Analyzer, built for the Ashby Prize Hackathon (Oct 17–18, 2026), and that analyzer sets
+the depth we aimed for in every workbench. What carries over is the design grammar: 224 px tiles
+at 0.5 µm/px, a small head on frozen embeddings, smoothing, tumor mask → front → core, front band
+and peritumoral zones, an "unsure here" cutoff, quality rules, and cutoffs tagged by source. The
+breast implementation is new code in this repository: no file, model weight or colon-trained head
+is reused; the breast tissue head was trained during this hackathon on BCSS (CC0) tiles from
+public TCGA-BRCA slides; every cutoff carried over from colon slides is marked placeholder. We
+checked both hackathons' rules before reusing the design.
+
+- TCGA-BRCA open-access data (GDC, UCSC Xena GDC hub): multi-omic data, masked somatic mutations,
+  ASCAT3 copy number, diagnostic slides. The results here are in whole or part based upon data
+  generated by the TCGA Research Network: https://www.cancer.gov/tcga. TCGA PanCanAtlas ABSOLUTE
+  purity and ploidy (Carter et al. 2012; Taylor et al. 2018).
+- BCSS (Amgad et al., *Bioinformatics* 2019; CC0): tissue labels for the slide head.
+- TCGA-Reports (Kefeli and Tatonetti, *Patterns* 2024; CC BY 4.0): pathology report text.
+- TCGA-BRCA radiology on The Cancer Imaging Archive (Lingle et al. 2016; CC BY 3.0).
+- CIViC (CC0), ClinicalTrials.gov (U.S. National Library of Medicine), Ensembl VEP and ClinVar,
+  AlphaMissense (Cheng et al., *Science* 2023; CC BY 4.0), PAM50 centroids (Parker et al. 2009, via
+  genefu), MSigDB Hallmark (CC BY 4.0), RPPA pathways (Akbani et al. 2014), ESTIMATE gene lists
+  (Yoshihara et al. 2013); lab intervals cited from Mayo Clinic Laboratories' catalog.
+- MSK-CHORD (Jee et al., *Nature* 2024; CC BY-NC-ND 4.0): used locally for the timeline models.
+  We publish code and aggregate results with attribution, and nothing else from it.
+- **What is synthetic or simulated:** SYNTHETIC-001 (written by hand; not a real person, not taken
+  from any dataset), its ctDNA series, its 12-month risks (scored by the local MSK-CHORD models),
+  and the three hospitals (TCGA tissue source sites grouped into NVFlare simulator clients; no
+  real site took part). Each is labeled as such on screen, in the video and in this text. The 40
+  TCGA files are real, public, de-identified TCGA-BRCA patients. No data from clinicians enters
+  the project.
+- Research and decision support for clinicians, not a diagnosis and not a treatment
+  recommendation; treatment content is evidence with its source, for clinician review.
+
+---
+
+## Numbers (appendix, checked 2026-10-27)
+
+Every figure quoted in this text, the README, `docs/HACKATHON.md`, the video or the Methods and
+validation page, with what it was measured on and where. Two documents that quote different
+quantities name each. If a source changes, change the figure everywhere it is quoted.
+
+**Risk model and federated training (TCGA-BRCA, overall survival)**
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| Demo model, held-out C-index | **0.728** | the model in release `demo-bundle-v2`: the mean of the three simulated hospitals' C-indexes on their held-out patients (site-1 0.705, site-2 0.665, site-3 0.815; 213 patients, 26 deaths); the app's 40 TCGA files are drawn from these patients. A local rebuild from re-downloaded GDC and Xena files reads 0.730 | `docs/decisions.md` 2026-10-21; the bundle's stored `c_index` (read 2026-10-27); Methods and validation; sidebar › About this system |
+| FedAvg, clinical-anchored residual | **0.693 ± 0.017** | a different quantity from 0.728: leave one simulated hospital out, train on two, test on every patient of the third; pooled site-stratified C-index, mean ± sd over seeds 0–4 (`make experiment-tcga`) | README results table; `app/results_tcga_brca.json` |
+| Pooled data, residual · FedAvg plain fusion · pooled plain fusion | 0.700 ± 0.012 · 0.680 ± 0.008 · 0.692 ± 0.026 | as above | `app/results_tcga_brca.json` |
+| One hospital alone | 0.649 ± 0.032 | as above | `app/results_tcga_brca.json` |
+| Clinical data only (stage, age, T/N/M) | **0.702 ± 0.004** | as above; no fusion variant beats it, so we never claim the omics beat clinical data | `app/results_tcga_brca.json`; decisions 2026-10-18 |
+| One omic layer alone | RNA 0.610 ± 0.033, methylation 0.599 ± 0.012, protein 0.574 ± 0.020, copy number **0.485 ± 0.016** (worse than chance: site and batch effects) | as above | `app/results_tcga_brca.json`; `docs/omics.md` |
+| Calibration, 3-year death risk per risk quintile | mean absolute error 0.019–0.027 across the three models (FedAvg residual 0.021); integrated Brier 0.095–0.098 against 0.101 for no model | every patient scored by a model trained without their hospital, seed 0 | `docs/calibration.md`; Methods and validation |
+| Cohort | 1,064 patients, 148 deaths; hospitals of 355, 355, 354 | TCGA-BRCA | `docs/calibration.md`; the bundle |
+| Copy-number calls equal to the model's input | 7,993 of 7,999 genes | the bundled cases | `docs/genomics.md` |
+
+**Patient timeline (MSK-CHORD; aggregate results only)**
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| Landmark AUROC, record so far vs diagnosis only | 0.880 ± 0.003 vs 0.663 ± 0.010 at sequencing; 0.931 ± 0.014 vs 0.706 ± 0.031 at 24 months | 5,368 patients, patient-level 80/20 splits, seeds 0–4 | `docs/longitudinal.md`; `app/timeline_synthetic.json` |
+| SYNTHETIC-001's 12-month risk | 38% at month 0; 37% → 88% (81–93%) at month 12; 60% (54–66%) at month 24 | scored by the MSK-CHORD models; an illustration, not a validation | `app/timeline_synthetic.json` |
+
+**Expression, methylation and protein**
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| PAM50 agreement with TCGA's published calls | **94.7%** (Cohen's κ 0.92); other ER-positive draws 94.1–94.7%; 72.5% (κ 0.63) with plain whole-cohort centering | 950 tumors; the ER-balanced centering was chosen after seeing the first result, on the same tumors, so not an independent test; 38 of the 39 bundled cases with a published call agree | `docs/omics.md`; `app/omics_scores.json` |
+| Receptor levels against recorded status (AUC) | ER: RNA 0.958, RPPA 0.958 · PR: RNA 0.926, RPPA 0.843 · HER2: RNA 0.811 (sensitivity 0.56, specificity 0.97), RPPA 0.772, ERBB2 copy number ≥ 2× ploidy sensitivity 0.57, specificity 0.98 | 694–1,011 tumors per measure; cutoffs maximise sensitivity + specificity in-sample (calibrated here, not validated elsewhere) | `docs/omics.md`; `app/omics_scores.json` |
+
+**Pathology slides**
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| Breast tissue head, held-out accuracy | **87.7%** (balanced 85.4%); lymphocyte recall 0.74 | 357 tiles on 3 patient-disjoint BCSS slides, QuiltNet-B-32 embeddings | `docs/pathology.md`; `app/workbenches/slides_example/summary.json` |
+| Encoder comparison (same head, same held-out slides) | GigaPath-Flash **0.919** (balanced 0.917) against QuiltNet-B-32 **0.877** (0.854): +4.2 points, 95% interval +0.3 to +8.1; Hibou-B 0.880, Hibou-L 0.810; local only: CONCH 0.896, UNI2-h 0.838, GPFM 0.863 | 357 held-out tiles (correlated) | `docs/encoders.md`; decisions 2026-10-22 |
+| WSInfer TIL second opinion, lymphocytes vs rest | **AUROC 0.955**; cutoff **0.667**, calibrated on the 8 training slides (Youden's J; training AUROC 0.971) and applied unchanged: recall 97%, specificity 79%, accuracy 83% | the head's 3 held-out BCSS slides (357 tiles); the model was trained on TCGA, so an upper bound, not an independent validation | `docs/pathology.md` §8; decisions 2026-10-21 |
+| Second opinion on Case 299's section | disagrees with the head on 43 of 1,500 scored tiles (3%) | front-band and peritumoral tiles | the slide workbench (video shot 5) |
+| WSInfer screening check | tumor vs rest AUROC 0.921, lymphocytes vs rest 0.980 | 516 BCSS-labelled tiles from 11 TCGA-BRCA slides | `docs/model_access.md` |
+
+**Clinical documents** (481 held-out TCGA-BRCA reports against TCGA's clinical fields; precision
+= right / extracted, recall = right / patients with a TCGA value; `docs/documents.md`,
+`app/documents/validation.json`)
+
+| Field | Rules: precision | Rules: recall | Named-entity model: extracted | Model: precision | Model: recall |
+|---|---|---|---|---|---|
+| ER status | 95% | 42% | 2 | 50% | 0% |
+| PR status | 93% | 41% | 0 | – | 0% |
+| HER2 status | 81% | 46% | 12 | 67% | 2% |
+| pT category | 96% | 53% | 54 | 96% | 11% |
+| pN category | 96% | 51% | 0 | – | 0% |
+| Stage group | 96% | 6% | 0 | – | 0% |
+| Histologic type | 98% | 82% | 14 | 100% | 3% |
+| Margins | 91% | 44% | 3 | 67% | 0% |
+| Lymph nodes examined | 63% | 30% | 6 | 0% | 0% |
+| Lymph nodes positive | 81% | 35% | 6 | 0% | 0% |
+
+The model mostly marks where a field is named, not what it says: of its 12,693 spans on the
+held-out reports, 12,458 name a field without a result ("ESTROGEN", "MARGINS"). So the rules are
+the documented reading and the model is a second opinion of weak trust. Recall is bounded by what
+a report states (receptors are often in an earlier biopsy report not in the dataset).
+
+**Labs, genomics, evolution, radiology**
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| Lab reference intervals | adult reference values from the Mayo Clinic Laboratories test catalog, each with its test ID; the lab report's own interval wins when imported with the value | — (rules, not validated on a cohort) | `docs/labs.md` |
+| AlphaMissense | 21 observed missense changes scored; Ensembl's own annotation agrees for 20 of 20 | the bundled cases | `docs/genomics.md` |
+| Ploidy estimates 1.5-fold apart | 7 of 40 cases | median rule vs ABSOLUTE | `docs/genomics.md`; decisions 2026-10-21 |
+| Evolution table | 18 rows, 37 papers, every PMID checked against PubMed | — | `docs/evolution.md` |
+| Radiology, Case 937 candidate C1 | 26.2 mm, 7.43 mL (6.26–8.67), medium initial enhancement (72%), plateau (+2%) | MedSAM contour; placeholder kinetic cutoffs; not validated on breast MRI | `docs/radiology.md` §2 |
+| Rigid alignment (change over time) | a known 3° rotation and 4, −3, 5 mm shift recovered within 1.5 mm (synthetic test); on the public pair NMI 1.124 → 1.156, six starts converged within 0.7° and 1 mm, tissue masks' Dice 0.69 → 0.76; 99 of 112 blocks "unreliable here" (the breasts deform) | TCGA-AR-A1AQ, 2001 and 2003 (not in the bundle) | `docs/radiology.md` §3 |
+| mammoscreen card AUROC | 0.945 (the authors', on RSNA 2023 held-out splits; not measured here) | — | `docs/registry.md` |
+| MONAI breast density | accuracy 0.96 as the bundle's metadata states, test set not described; not measured here | — | `docs/radiology.md`; Methods and validation |
+
+**Case agent and quality**
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| Saved notes | 9, all written by Nemotron 3 Ultra after Super's tool calls, 0 grounding issues; 9,401–23,474 tokens each | release `demo-bundle-v2` | `app/saved_notes.json`; decisions 2026-10-18 |
+| Spend | about $0.01 a note at 8k–16k tokens (decisions 2026-10-18); the local ledger reads $0.82 of the $25.50 cap (125 calls, its last entry 2026-10-19; $0.48 of it recorded by hand for calls made outside this code). The hosted app's live notes count on its own ledger | Token Factory | the local ledger `~/.muffle/token_factory_spend.json`; the cap in `src/muffle/report/budget.py` |
+| QA round 2 | 334 screens (330 before the fixes) of seven files at 1280 and 800 px, light and dark, in headless Chromium; 29 findings; open and minor: R2-15, R2-16, R2-18 and a 28 px overflow of the MRI at 800 px | 2026-10-22 | `docs/qa.md` |
+
+## Submission checklist (fill on Oct 29)
+
+- [ ] **Video URL** (YouTube, public, ≤ 3:00): `______________________`; also in README.md
+- [ ] **Repository URL:** https://github.com/ps131-cell/muffle-plus-plus (public, MIT in About)
+- [ ] **Hosted app URL:** https://cancer-intelligence-platform.streamlit.app (rebooted after the
+      freeze; About this system: Held-out C-index 0.728, Case agent live)
+- [ ] **Team members** (Devpost accounts, each invited and accepted): `______________________`
+- [ ] **Track:** Best Apps and Agents; tick the Best Use of Tavily bonus if the form asks
+- [ ] **Tags / Built with:** Python, PyTorch, NVIDIA FLARE, NVIDIA Nemotron, Nebius Token Factory,
+      Tavily, Streamlit, Altair, OpenSeadragon, scikit-learn, SciPy
+- [ ] **Story fields** pasted from this file (Inspiration … What's next), then How we used NVIDIA
+      and Nebius, Feedback, Testing instructions, and Data, licenses and prior work
+- [ ] **Prior-work disclosure** kept word for word
+- [ ] **Images:** two or three screenshots (Patients, a patient overview, the slide viewer) from
+      the hosted app; no MSK-CHORD patient; the synthetic and simulated labels visible
+- [ ] Re-read the Devpost rules page; submit before **Oct 30, 10:00 am PT** (12:00 pm Central)
