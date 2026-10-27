@@ -1,0 +1,78 @@
+# Keeps the hosted app on Streamlit Community Cloud awake: Community Cloud puts an app to
+# sleep after 12 hours without traffic, and a sleeping app makes the visitor click and wait.
+# A real browser visit (a viewer session) is what surely counts, so this opens the app in
+# headless Chromium, clicks the wake button if the sleep page shows, and waits for the
+# Patients page. No secrets. Runs every 4 hours and by hand (Actions > keep-awake > Run).
+name: keep-awake
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths: [.github/workflows/keep-awake.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  visit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: Visit the app
+        env:
+          APP_URL: https://cancer-intelligence-platform.streamlit.app
+        run: |
+          cat > visit.py <<'EOF'
+          import os, re, sys, time
+          from playwright.sync_api import sync_playwright
+
+          base = os.environ["APP_URL"]
+          wake = re.compile(r"get this app back up", re.I)
+          start = time.monotonic()
+          woken = False
+          status = "failed"
+          with sync_playwright() as p:
+              page = p.chromium.launch().new_page()
+              page.goto(f"{base}/~/+/?embed=true", timeout=120_000)
+              tried_wrapper = False
+              while time.monotonic() - start < 180:
+                  text = page.inner_text("body")
+                  if "MuFFLe++" in text and "Patients" in text:
+                      status = "woken" if woken else "awake"
+                      break
+                  for frame in page.frames:
+                      button = frame.get_by_role("button", name=wake)
+                      if button.count() and button.first.is_visible():
+                          button.first.click()
+                          woken = True
+                          break
+                  else:
+                      # The sleep page may only offer its button on the wrapper page.
+                      if "gone to sleep" in text.lower() and not tried_wrapper:
+                          tried_wrapper = True
+                          page.goto(base, timeout=120_000)
+                          continue
+                  if woken and page.url.rstrip("/") == base.rstrip("/"):
+                      page.wait_for_timeout(15_000)
+                      page.goto(f"{base}/~/+/?embed=true", timeout=120_000)
+                  page.wait_for_timeout(5_000)
+          seconds = time.monotonic() - start
+          line = f"**{status}** in {seconds:.0f} s at {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}"
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"## Hosted app: {line}\n\n{base}\n\n")
+              f.write("Visited in headless Chromium (a real viewer session). Community Cloud's docs "
+                      "say apps sleep after 12 hours without traffic and do not say whether a plain "
+                      "HTTP request counts, so a browser visit is used.\n")
+          sys.exit(status == "failed")
+          EOF
+          python visit.py
