@@ -36,6 +36,7 @@ if str(APP) not in sys.path:  # a page run on its own still finds the app's modu
     sys.path.insert(0, str(APP))
 
 from guide import chip_row  # noqa: E402
+from navigation import PAGES  # noqa: E402
 from muffle.workbench.grammar import (  # noqa: E402
     DETAILS,
     HEADINGS,
@@ -197,6 +198,10 @@ class Page:
     @contextmanager
     def card(self):
         self._heading("card")
+        if "methods" in PAGES:  # a page drawn on its own (its tests) has no app around it
+            st.page_link(PAGES["methods"], label="Methods and validation",
+                         icon=":material/fact_check:", help="How every model and rule of the app "
+                         "was validated: its numbers, sources and known failures")
         yield
 
     @contextmanager

@@ -118,6 +118,48 @@ def test_metric_tiles_wrap_instead_of_cutting_their_values():
         assert not any("percentile" in w for w in words), f"{name}:{n.lineno}: unit in the label"
 
 
+CONTROLS = {"button", "download_button", "popover", "selectbox", "multiselect", "pills",
+            "segmented_control", "toggle", "checkbox", "text_input", "select_slider", "radio",
+            "number_input", "text_area", "file_uploader", "slider", "page_link"}
+
+
+def test_every_control_of_the_shell_says_what_it_does():
+    """Every button, popover, picker and toggle of the shell (the patient list, the file, the
+    report, the guide, the timeline, the page helper) has a tooltip (docs/ux.md §2); every
+    download in the app names its format, "(Markdown)", "(CSV)" (docs/ux.md §1)."""
+    missing, downloads = [], []
+    for path in sorted(APP.parent.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        shell = path.name in ("streamlit_app.py", "guide.py", "navigation.py",
+                              "timeline_page.py", "_page.py")
+        for n in ast.walk(tree):
+            if not (isinstance(n, ast.Call) and getattr(n.func, "attr", None) in CONTROLS):
+                continue
+            help_ = {k.arg: k.value for k in n.keywords}.get("help")
+            if shell and (help_ is None or (isinstance(help_, ast.Constant)
+                                            and help_.value is None)):
+                missing.append(f"{path.name}:{n.lineno}")
+            if n.func.attr == "download_button" and n.args:
+                label = n.args[0]
+                tail = label.values[-1] if isinstance(label, ast.JoinedStr) else label
+                if not (isinstance(tail, ast.Constant) and str(tail.value).endswith(")")):
+                    downloads.append(f"{path.name}:{n.lineno}")
+    assert not missing, missing
+    assert not downloads, downloads
+
+
+def test_the_shells_expanders_say_what_they_hold(app):
+    """The report's expanders start with a verb and carry a count; the Methods and validation
+    page is a link in the file's action row and in the open workbench's model card."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    labels = [e.label for e in at.expander]
+    assert any(e.startswith("Show the caveats, data sources and model versions (") for e in labels)
+    at.segmented_control(key="view").set_value("Tests").run()
+    links = [p.proto.page for p in at.get("page_link") if p.label == "Methods and validation"]
+    assert links == ["methods", "methods"] and not at.exception  # the file's row, the card
+
+
 def in_columns(at) -> list[str]:
     """The labels of the buttons, downloads and popovers whose nearest row is a set of fixed
     columns (st.columns) giving them under 40% of the width (a third, a sixth, [10, 1]), not a

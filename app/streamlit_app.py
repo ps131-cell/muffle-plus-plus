@@ -427,15 +427,19 @@ def patient_list():
                           help="Files with an alert no reviewer has marked yet.")
     f = st.columns([2, 2, 1])
     subtypes = f[0].multiselect("PAM50 subtype", sorted({r["subtype"] for r in rows}),
-                                key="list-subtype", placeholder="Any subtype")
+                                key="list-subtype", placeholder="Any subtype",
+                                help="Model inference from bulk RNA; 'not called' without RNA")
     genes = f[1].multiselect("Mutated gene", sorted({g for r in rows for g in r["genes"]}),
-                             key="list-gene", placeholder="Any gene")
+                             key="list-gene", placeholder="Any gene",
+                             help="Files with an observed driver mutation in any of these genes")
     stages = f[2].multiselect("Stage", [s for s in ("I", "II", "III", "IV", "not recorded")
                                         if any(r["stage"] == s for r in rows)],
-                              key="list-stage", placeholder="Any")
+                              key="list-stage", placeholder="Any",
+                              help="The recorded stage; 'not recorded' when the record has none")
     with st.container(horizontal=True, gap="large"):  # wraps on a narrow screen, never cuts
         holds = st.pills("Has", ["Slides", "Imaging", "Documents"], selection_mode="multi",
-                         key="list-holds")
+                         key="list-holds",
+                         help="Files that hold their own data for each one chosen")
         by = st.segmented_control("Sort by", overview.SORTS, default=overview.SORTS[0],
                                   required=True, key="list-sort",
                                   help="Last update: an import of this session, then the "
@@ -651,6 +655,9 @@ def cohort_sections(pf: workspace.PatientFile):
 
 # --- Patients: one patient file ----------------------------------------------------------------
 VIEWS = ("Report", "Tests", "Timeline", "Evolution", "Import tests")
+VIEW_ICONS = {"Report": ":material/description:", "Tests": ":material/science:",  # one per
+              "Timeline": ":material/timeline:", "Evolution": ":material/account_tree:",  # view,
+              "Import tests": ":material/upload_file:"}  # wherever it is opened from
 
 
 def safely(what: str, draw, *args, spin: str | None = None, **kwargs):
@@ -670,7 +677,8 @@ def safely(what: str, draw, *args, spin: str | None = None, **kwargs):
         st.error(f"{what} could not be drawn. The rest of the file works: the other views and "
                  "tests open as usual. How this part is built, and its known failures, are on "
                  "the Methods and validation page.", icon="⚠️")
-        st.page_link(METHODS, label="Methods and validation", icon="📖")
+        st.page_link(METHODS, label="Methods and validation", icon="📖",
+                     help="Every model and rule, with its numbers and known failures")
         st.caption(f"Logged for the team: {type(e).__name__}.")
         return None
 SCREENS = {"labs": "labs", "mutations": "genomics", "slides": "slides", "omics": "omics",
@@ -694,7 +702,10 @@ def patient_file(pf: workspace.PatientFile, header, tail):
         if "view" not in ss and "view" not in st.query_params:
             ss.view = "Report"  # no default=: "open the test" sets the view in code
         view = st.segmented_control("View", VIEWS, required=True, key="view",
-                                    bind="query-params", label_visibility="collapsed")
+                                    bind="query-params", label_visibility="collapsed",
+                                    format_func=lambda v: f"{VIEW_ICONS[v]} {v}",
+                                    help="This file's views: its report, its tests in their "
+                                         "workbenches, the timeline, evolution, imports")
     # right under the sticky header, filled once the view is drawn: it scrolls away with the
     # page (two lines of buttons would make the header a third of a laptop screen)
     actions = st.container(horizontal=True, gap="small", vertical_alignment="center",
@@ -759,11 +770,11 @@ def action_row(pf: workspace.PatientFile, i: int, screen: str):
               help=f"{len(queue)} item{'' if len(queue) == 1 else 's'} in this version's queue, "
                    f"{left} not marked yet: the report's queue at the first of them (there, j "
                    "and k walk it, o opens one)")
-    st.button("Import a test", key="act-import", icon=":material/upload_file:",
+    st.button("Import a test", key="act-import", icon=VIEW_ICONS["Import tests"],
               on_click=lambda: ss.update(view="Import tests"),
               help="Lab results, a report, sequencing (VCF or MAF), an imaging report, a slide "
                    "image or a DICOM file: each is checked on intake and adds a report version")
-    st.button("Compare versions", key="act-compare", icon=":material/compare_arrows:",
+    st.button("Compare versions", key="act-compare", icon=VIEW_ICONS["Timeline"],
               disabled=i == 0, on_click=lambda: ss.update(view="Timeline"),
               help="The Timeline compares any two report versions: what changed and why" if i
               else "One report version so far: each import adds the next")
@@ -786,6 +797,9 @@ def action_row(pf: workspace.PatientFile, i: int, screen: str):
     st.button("Unpin this file" if pinned else "Pin this file", key="act-pin",
               icon=":material/push_pin:", on_click=toggle_file_pin, args=(pf.id,),
               help="Pinned files sit at the top of the Patients page, for this browser session")
+    st.page_link(METHODS, label="Methods and validation", icon=":material/fact_check:",
+                 help="Every model and rule behind this file, with its numbers, sources and "
+                      "known failures")
     guide.help_icon(screen, label="How to read this")
 
 
@@ -926,7 +940,9 @@ def report_view(pf: workspace.PatientFile, i: int):
                 + ("; ".join(it["event"] for it in watch[:3]) if watch else "none raised")
                 + " (Evolution view)")
     st.button("Open the Evolution view", key=f"evolution-{pf.id}-{i}",
-              on_click=lambda: st.session_state.update(view="Evolution"))
+              icon=VIEW_ICONS["Evolution"],
+              on_click=lambda: st.session_state.update(view="Evolution"),
+              help="What to watch next, ranked, with the evidence for and against")
     st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
     st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
     disagree = ov["disagree"]
@@ -947,7 +963,8 @@ def report_view(pf: workspace.PatientFile, i: int):
         st.markdown("\n".join(
             f"- **{r['open_question']}** → {r['test']}: {r['expectation']} "
             f"{tags(r['evidence'])}  \n  Source: {r['source']}" for r in reducers))
-    with st.expander("Caveats, data sources and model versions"):
+    with st.expander(f"Show the caveats, data sources and model versions "
+                     f"({1 + len(sources(pf))})"):
         st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
                     f"{pf.model['endpoint']}.\n" + "\n".join(f"- {s}" for s in sources(pf)))
     page = report_page(pf, i, ov, st.session_state.reviews)
@@ -1038,7 +1055,7 @@ def empty_card(pf: workspace.PatientFile, name: str, note: str):
         st.caption(esc(note[0].upper() + note[1:]) + ".")
         st.markdown(f"What would fill it: {esc(what)}.")
         if importable:
-            st.button("Import a test", key=f"fill-{pf.id}-{name}", icon=":material/upload_file:",
+            st.button("Import a test", key=f"fill-{pf.id}-{name}", icon=VIEW_ICONS["Import tests"],
                       width="stretch", on_click=lambda: st.session_state.update(
                           view="Import tests"), help="Bring the test in; it adds a report version")
 
@@ -1102,7 +1119,8 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
                        "Nothing needs attention in this version.")
             if ss.get(only):
                 st.button("Whole queue", key=f"unsure-off-{pos}", shortcut="U",
-                          on_click=lambda: ss.update({only: False, pos: 0}))
+                          on_click=lambda: ss.update({only: False, pos: 0}),
+                          help="Back to every item of the queue (key u)")
             return
         k = ss.get(pos, 0) % len(shown)
         cur = shown[k]
@@ -1147,10 +1165,11 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
                 line.markdown(f"**{text}**" if n == k else text)
                 if x["opens"]:
                     act.button("Open", key=f"open-{pos}-{n}", on_click=open_item,
-                               args=(pf, i, pos, n, x, len(shown)))
-        st.caption("Keys: j next · k previous · p pin · m mark reviewed (Streamlit keeps r for "
-                   "rerun) · u unsure list · o open. A mark here is the same mark the "
-                   "workbench shows.")
+                               args=(pf, i, pos, n, x, len(shown)),
+                               help="Open its evidence in its workbench")
+        st.caption(":material/keyboard: `j` next · `k` previous · `p` pin · `m` mark reviewed · "
+                   "`u` unsure list · `o` open (Streamlit keeps `r` for its rerun). A mark here "
+                   "is the same mark the workbench shows.")
 
 
 def kind_badge(x: dict) -> str:
@@ -1234,9 +1253,12 @@ def review_box(key: str, what: str):
         st.segmented_control(
             "Your mark", MARKS, key=f"mark-{h}",
             default=done["mark"] if done and done["mark"] in MARKS else None,
+            help="Agree, disagree or a second look, saved with your initials and the time",
             on_change=lambda: mark(key, what, st.session_state[f"mark-{h}"]))
         st.checkbox("Pin to the top of the report", key=f"pin-{h}",
-                    value=key in st.session_state.pins, on_change=toggle_pin, args=(key, what))
+                    value=key in st.session_state.pins, on_change=toggle_pin, args=(key, what),
+                    help="Pinned findings head the report's list of what you pinned and "
+                         "reviewed")
         if done:
             st.caption(f"{done['mark']} · {done['by'] or 'no initials'} · {done['at']}")
 
@@ -1247,10 +1269,12 @@ def review_panel(pf: workspace.PatientFile):
     pins = {k: w for k, w in st.session_state.pins.items() if k.startswith(pf.id + "|")}
     if not marks and not pins:
         return
-    with st.expander(f"Pinned and reviewed: {len(pins)} pinned, {len(marks)} marked",
+    with st.expander(f"Show what you pinned and reviewed: {len(pins)} pinned, "
+                     f"{len(marks)} marked",
                      expanded=bool(pins)):
         show = st.pills("Show", ["pinned", "reviewed", *MARKS], selection_mode="multi",
-                        key=f"review-filter-{pf.id}")
+                        key=f"review-filter-{pf.id}",
+                        help="Show only the findings with these marks")
         rows = [("pinned", w, "", "") for w in pins.values()] + [
             (r["mark"], r["what"], r["by"], r["at"]) for r in marks.values()]
         st.dataframe(pd.DataFrame([r for r in rows if not show or r[0] in show],
@@ -1329,11 +1353,14 @@ def case_why(case):
         st.caption("Each layer's effect on this patient's predicted log-risk, compared with its "
                    "effect on a typical patient in the cohort.")
 
-    with st.expander("What if a data layer were missing?"):
+    with st.expander(f"Try hiding a data layer ({len(case.layers)} here): what if one were "
+                     "missing?"):
         st.caption("Hospitals collect different data. MuFFLe++ masks a missing layer instead of "
                    "dropping the patient, so the same model scores everyone.")
         hide = st.pills("Hide layers", case.layers, selection_mode="multi",
-                        format_func=lambda m: LAYER_NAMES.get(m, m), key=f"hide-{case.index}")
+                        format_func=lambda m: LAYER_NAMES.get(m, m), key=f"hide-{case.index}",
+                        help="The risk recomputed with these layers masked, as a hospital "
+                             "without them would score this patient")
         if hide and len(hide) == len(case.layers):
             st.warning("Keep at least one layer.")
         elif hide:
@@ -1387,10 +1414,13 @@ def case_note(case):
     can_live = LIVE and st.session_state.live_used < CAP
     b1 = b2 = st.container(horizontal=True, gap="small")
     write = b1.button("Write the note with Nemotron", disabled=not can_live,
-                      help=None if can_live else (
+                      help="Nemotron plans the tool calls and writes the note from this case's "
+                           "derived numbers; a grounding check verifies it" if can_live else (
                           "Live notes are not set up on this server." if not LIVE
                           else "This session's live notes are used up."))
-    show_saved = b2.button("Show the saved note", disabled=saved is None)
+    show_saved = b2.button("Show the saved note", disabled=saved is None,
+                           help="No saved note for this case" if saved is None else
+                           "The tumor-board note saved for this case (★ in the patient list)")
     if not can_live:
         st.caption("Live notes are off here; ★ patients have a saved case note."
                    if saved is None or not LIVE else
@@ -1425,7 +1455,9 @@ def case_note(case):
                       f"_{case.label} · {source} · written by {model_name(report.writer)} on "
                       f"Nebius Token Factory. {DISCLAIMER}_\n\n")
             st.download_button("Download the note (Markdown)", header + report.text,
-                               file_name=f"muffle_case_{case.index}.md", mime="text/markdown")
+                               file_name=f"muffle_case_{case.index}.md", mime="text/markdown",
+                               help="The note with its header: the case, its source and the "
+                                    "model that wrote it")
         with trace:
             st.markdown("**How the agent got there**")
             st.caption({
@@ -1442,7 +1474,7 @@ def case_note(case):
             for n, call in enumerate(report.trace, 1):
                 shown = ", ".join(f"{k}={json.dumps(v)}" for k, v in call.arguments.items())
                 flag = " ⚠️" if "error" in call.result else ""
-                with st.expander(f"{n}. {call.name}({shown}){flag}"):
+                with st.expander(f"Show tool call {n}: {call.name}({shown}){flag}"):
                     st.json(call.result)
             st.caption("Only these derived numbers and gene names were sent to Token Factory; "
                        "the patient's omics never leave the hospital.")
@@ -1458,8 +1490,9 @@ def evidence_chain(case, report: CaseReport):
             for n, c in enumerate(chain, 1) for link in c["links"]]
     loose = [(n, c) for n, c in enumerate(chain, 1) if not c["links"] and c["evidence_type"]]
     unsupported = [(n, u) for n, c in enumerate(chain, 1) for u in c["unsupported"]]
-    with st.expander(f"Evidence chain: {len(rows)} links from {len(chain)} sentences to the "
-                     "tool outputs" + (f", {len(unsupported)} unsupported" if unsupported else "")):
+    with st.expander(f"Show the evidence chain: {len(rows)} links from {len(chain)} sentences "
+                     "to the tool outputs"
+                     + (f", {len(unsupported)} unsupported" if unsupported else "")):
         if unsupported:
             st.warning("Not in the tool outputs: " + "; ".join(
                 f"sentence {n}: {u}" for n, u in unsupported))
@@ -1724,6 +1757,7 @@ def feedback_view():
 PATIENTS = st.Page(patients_page, title="Patients", icon="🗂️", default=True)
 METHODS = st.Page(methods, title="Methods and validation", icon="📖", url_path="methods")
 FEEDBACK = st.Page(feedback_view, title="Feedback", icon="🗳️", url_path="feedback")
+nav.PAGES.update(methods=METHODS, feedback=FEEDBACK)  # the workbench cards link Methods
 st.navigation([PATIENTS, METHODS, FEEDBACK]).run()
 
 if LIVE:

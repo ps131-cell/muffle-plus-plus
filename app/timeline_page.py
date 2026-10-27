@@ -113,7 +113,8 @@ def _row(label: str, opens: tuple, key: str, open_evidence, pf, i: int,
     line, act = line_and_action()
     line.markdown(label)
     if opens:
-        act.button("Open", key=key, on_click=open_evidence, args=(pf, i, opens, focus))
+        act.button("Open", key=key, on_click=open_evidence, args=(pf, i, opens, focus),
+                   help="Open its evidence, as of this version")
 
 
 def new_in(pf, i: int, sums, open_evidence) -> None:
@@ -127,7 +128,7 @@ def new_in(pf, i: int, sums, open_evidence) -> None:
         head.markdown(f"**New in this version** · {esc(c['label'])}"
                       + ("" if i else " (the first version: everything in it is new)"))
         go.button("Open its report", key=f"{k}-report", on_click=open_evidence,
-                  args=(pf, i, ("Report",)))
+                  args=(pf, i, ("Report",)), help="The report as it was at this version")
         st.caption(f"What arrived, in the record's words: {esc(c['event'])} · "
                    + (c["imported"] or "from the record"))
         if c["tests"]:
@@ -178,7 +179,8 @@ def risk(pf, i: int, tl: dict) -> None:
                    "sequencing (month 0).")
         return
     show = st.pills("Show with the risk", charts.OVERLAYS, selection_mode="multi",
-                    default=list(SHOWN), key=f"overlays-{pf.id}") or ()
+                    default=list(SHOWN), key=f"overlays-{pf.id}",
+                    help="The record drawn beside the risk, on the same month axis") or ()
     ctx = tv.context(pf, i)
     st.altair_chart(charts.risk_timeline(updates, tl["events"], pf.versions[i].month, ctx, show),
                     width="stretch",
@@ -212,9 +214,11 @@ def compare(pf, i: int) -> None:
     st.markdown("**Compare two versions** · what changed and why")
     a, b = st.columns(2)
     ia = a.selectbox("From", range(i + 1), index=i - 1, key=f"from-{pf.id}-{i}",
-                     format_func=lambda k: pf.versions[k].label)
+                     format_func=lambda k: pf.versions[k].label,
+                     help="The earlier version of the two")
     ib = b.selectbox("To", range(i + 1), index=i, key=f"to-{pf.id}-{i}",
-                     format_func=lambda k: pf.versions[k].label)
+                     format_func=lambda k: pf.versions[k].label,
+                     help="The later version of the two")
     for col, k, side in ((a, ia, "from"), (b, ib, "to")):
         col.button("Jump to this version", key=f"jump-{side}-{pf.id}-{i}", disabled=k == i,
                    on_click=travel, args=(pf, k), type="primary",  # the Timeline's one primary

@@ -201,6 +201,7 @@ def test_the_files_action_row(app):
         "Attention queue", "Import a test", "Compare versions", "Pin this file"]
     assert all(b.help for b in acts) and "How to read this" in popovers(at)
     marks = {p.label: p for p in at.get("page_link")}
+    assert marks["Methods and validation"].proto.page == "methods"
     assert marks["Your marks (0)"].proto.page == "feedback" and marks["Your marks (0)"].proto.help
     assert "Export this report (Markdown)" in [b.label for b in at.get("download_button")]
     queue = f"queue-{SYN}-{len(at.select_slider(key=f'version-{SYN}').options) - 1}"
