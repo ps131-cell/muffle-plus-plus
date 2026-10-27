@@ -281,10 +281,11 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float, ctx: di
 
 def cohort_strip(values: dict[str, float], patient: str, axis: str, fmt: str = ".2f") -> alt.Chart:
     """One score across the files as a strip of ticks (``muffle.cohort.cohort_position``), this
-    patient a larger blue dot; hover names each file and its value."""
+    patient a larger blue dot; hover names each file and its value. The axis is named beside the
+    chart (``axis``, in the tooltip too): a title under a chart this low is cut."""
     df = pd.DataFrame({"file": list(values), "value": [float(v) for v in values.values()]})
     df["who"] = np.where(df["file"] == patient, "this patient", "another file")
-    x = alt.X("value:Q", title=axis, scale=alt.Scale(zero=False, nice=True),
+    x = alt.X("value:Q", title=None, scale=alt.Scale(zero=False, nice=True),
               axis=alt.Axis(tickCount=4, labelFontSize=11, titleFontSize=11))
     tip = ["file:N", alt.Tooltip("value:Q", format=fmt, title=axis)]
     others = alt.Chart(df[df["who"] == "another file"]).mark_tick(

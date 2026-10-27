@@ -288,6 +288,11 @@ PLACEHOLDERS = [  # listed on Methods and validation with every other placeholde
 ]
 
 
+SAY = {"pam50": "{} (PAM50)", "stage": "{}", "receptors": "{}", "drivers": "mutated: {}",
+       "cn": "copy number: {}", "risk_band": "{} risk group", "immune": "RNA immune band {}",
+       "tests": "data in {}"}  # a shared field in words
+
+
 def _show(field: str, v) -> str:
     if v is None:
         return "not on file"
@@ -321,12 +326,27 @@ def _agree(field: str, a, b) -> float | None:
     return float(a == b)
 
 
+def _sides(field: str, a, b) -> tuple[str, str, str]:
+    """What differs, as (here, there, in both): the receptors that differ; a set's items on one
+    side only and those in common; a value on each side."""
+    if field == "receptors":
+        if ("HR" in a) != ("HR" in b):
+            a, b = _hr(a), _hr(b)
+        off = [k for k in a if k in b and a[k] != b[k]]
+        return ", ".join(f"{k} {a[k]}" for k in off), ", ".join(f"{k} {b[k]}" for k in off), ""
+    if isinstance(a, list):
+        return (", ".join(x for x in a if x not in b), ", ".join(x for x in b if x not in a),
+                ", ".join(x for x in a if x in b))
+    return _show(field, a), _show(field, b), ""
+
+
 def similar_patients(p: dict, profiles: dict[str, dict], k: int = 5) -> dict:
     """The ``k`` TCGA files nearest to profile ``p`` (``profile``) on ``FIELDS``: a score from 0
     to 1, the weighted share of the fields on which the two agree (``_agree``; a field either
     lacks agrees 0). Each with the fields shared, those that differ (both values) and those not
-    compared. The synthetic patient is never a candidate (a hand-written record), and the risk
-    group is compared between TCGA files only."""
+    compared (shared: "said", the field in words; differing: "here", "there" and "both", what
+    differs on each side). The synthetic patient is never a candidate (a hand-written record),
+    and the risk group is compared between TCGA files only."""
     total, out = sum(WEIGHTS.values()), []
     for pid, q in profiles.items():
         if pid == p["id"] or q["kind"] != "TCGA-BRCA":
@@ -339,8 +359,10 @@ def similar_patients(p: dict, profiles: dict[str, dict], k: int = 5) -> dict:
                 missing.append(name)
                 continue
             score += WEIGHTS[f] * s
+            here, there, both = _sides(f, a, b)
             row = {"field": name, "label": lab, "this": _show(f, a), "other": _show(f, b),
-                   "agree": s}
+                   "agree": s, "said": SAY[f].format(_show(f, a)), "here": here,
+                   "there": there, "both": both}
             (shared if s == 1 else differ).append(row)
         out.append({"patient": pid, "score": score / total, "shared": shared, "differ": differ,
                     "missing": missing})

@@ -547,7 +547,7 @@ def strip_specs(pid: str, source: str, code: str) -> list[dict]:
             for m in pos["metrics"]]
 
 
-SIMILAR_WIDTH = STRIP_WIDTH = 260  # px: cards of one width wrap, two or three a row
+STRIP_WIDTH = 190  # px: cards of one width wrap, two a row at 800 px, four at 1280
 
 
 def cohort_sections(pf: workspace.PatientFile):
@@ -568,12 +568,15 @@ def cohort_sections(pf: workspace.PatientFile):
             for m in cohort.cohort_position(p, profs)["metrics"]]
         with st.container(horizontal=True, gap="small"):
             for m in metrics:
-                with st.container(border=True, width=STRIP_WIDTH):
-                    st.markdown(f"**{m['name']}** · {m['text']}  \n{tags(m['label'])}",
-                                help=f"{m['source']}; this patient {m['value']:.2f}")
+                with st.container(border=True, width=STRIP_WIDTH, gap="xsmall"):
+                    st.markdown(f"**{m['name']}**  \n{ordinal(m['percentile'])} percentile of "
+                                f"{m['n']}  \n{tags(m['label'])}",
+                                help=f"{m['source']}; this patient {m['value']:.2f} "
+                                     f"({m['axis']})")
                     st.vega_lite_chart(spec=m["spec"], width="stretch",
                                        alt=f"{m['name']} of {m['n']} TCGA files, this patient "
                                            f"at the {m['text']}")
+                    st.caption(m["axis"])
         st.caption("Each tick is a TCGA file, the blue dot this patient; the percentile is the "
                    "share of the other files with a lower value. These percentiles are among "
                    f"these {n_tcga} files: the workbenches' percentiles are against the whole TCGA "
@@ -583,24 +586,22 @@ def cohort_sections(pf: workspace.PatientFile):
     st.markdown(f"**Similar patients** · the {len(sim['nearest'])} nearest of "
                 f"{sim['candidates']} TCGA files {chip(cohort.LOOKUP)} "
                 f"{chip('placeholder weights')}")
-    with st.container(horizontal=True, gap="small"):
+    fields = len(cohort.FIELDS)
+    with st.container(border=True):
         for n, r in enumerate(sim["nearest"]):
-            with st.container(border=True, width=SIMILAR_WIDTH):
-                line, act = line_and_action()
-                fields = len(cohort.FIELDS)
-                line.markdown(f"**{r['patient']}** · agrees on {r['score'] * fields:.1f} of "
-                              f"{fields} fields")
-                act.button("Open", key=f"similar-{pf.id}-{n}", on_click=open_file,
-                           args=(r["patient"],), help=f"Open {r['patient']} on its latest report")
-                if r["shared"]:
-                    st.markdown("**Shares** " + "; ".join(
-                        f"{x['field']}: {esc(shorten(x['this'], 60))}" for x in r["shared"]))
-                if r["differ"]:
-                    st.markdown("**Differs** " + "; ".join(
-                        f"{x['field']}: {esc(shorten(x['this'], 40))} here, "
-                        f"{esc(shorten(x['other'], 40))} there" for x in r["differ"]))
-                if r["missing"]:
-                    st.caption("Not compared (a file lacks it): " + ", ".join(r["missing"]))
+            line, act = line_and_action()
+            line.markdown(f"**{r['patient']}** · agrees on {r['score'] * fields:.1f} of {fields}"
+                          " · shares " + (esc(" · ".join(shorten(x["said"], 70)
+                                                         for x in r["shared"])) or "no field"))
+            differ = [f"{x['field']}: {shorten(x['here'] or 'none', 50)} here, "
+                      f"{shorten(x['there'] or 'none', 50)} there"
+                      + (f" (both: {shorten(x['both'], 40)})" if x["both"] else "")
+                      for x in r["differ"]]
+            line.caption(esc("Differs · " + "; ".join(differ) if differ else "Differs on no "
+                             "field compared") + (" · not compared: " + ", ".join(r["missing"])
+                                                  if r["missing"] else ""))
+            act.button("Open", key=f"similar-{pf.id}-{n}", on_click=open_file,
+                       args=(r["patient"],), help=f"Open {r['patient']} on its latest report")
     st.caption("A lookup on recorded and derived fields, not a model and not a prognosis: the "
                "share of " + ", ".join(name for name, _ in cohort.FIELDS.values()) + " on which "
                "the two files agree (sets by the share of items in common), every field weighing "

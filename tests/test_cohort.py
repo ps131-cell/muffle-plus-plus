@@ -140,6 +140,10 @@ def test_similar_patients_share_and_differ_field_by_field():
     assert {x["field"]: (x["this"], x["other"]) for x in three["differ"]} == {
         "PAM50 subtype": ("Luminal A", "Basal-like"),
         "mutated driver genes": ("PIK3CA", "PIK3CA, TP53")}
+    drivers = next(x for x in three["differ"] if x["field"] == "mutated driver genes")
+    assert (drivers["here"], drivers["there"], drivers["both"]) == ("", "TP53", "PIK3CA")
+    assert [x["said"] for x in three["shared"]][:2] == ["stage II",
+                                                        "ER positive, PR positive, HER2 negative"]
     assert near["Case 4"]["missing"] == ["stage", "copy-number calls"]
     assert near["Case 4"]["score"] == pytest.approx(6 / 8)
     assert cohort.similar_patients(me, others, k=1)["nearest"][0]["patient"] == "Case 2"
@@ -156,6 +160,7 @@ def test_a_record_stating_only_the_hormone_receptors_compares_as_hr():
     assert "receptor status" in [x["field"] for x in near["Case 2"]["shared"]]  # ER+ is HR+
     rec = next(x for x in near["Case 3"]["differ"] if x["field"] == "receptor status")
     assert rec["agree"] == 0.5  # HR differs, HER2 agrees
+    assert (rec["here"], rec["there"]) == ("HR positive", "HR negative")
     assert set(near["Case 2"]["missing"]) == {"PAM50 subtype", "copy-number calls",
                                               "risk group", "RNA immune band"}
 
@@ -218,7 +223,8 @@ def test_search_every_file_and_the_report_sections_in_the_app(app):
     text = shown(at)
     assert not at.exception
     assert "**Where this patient sits** among the 4 TCGA files" in text
-    assert "**Risk** ·" in text and "Percentiles, not a prognosis" in text
+    assert "**Risk**  \n" in text and "predicted log-risk" in text
+    assert "Percentiles, not a prognosis" in text and "Differs" in text
     assert "**Similar patients** · the 3 nearest of 3 TCGA files" in text
     assert cohort.LOOKUP in text and "the synthetic patient is never one" in text
     at.button(key=f"similar-{app.case}-0").click().run()  # opens that file's report
