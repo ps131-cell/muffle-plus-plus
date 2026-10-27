@@ -61,9 +61,14 @@ The radiology page joined on 2026-10-22 after its second round, the clinical doc
 
 **Breadcrumbs on every screen** (`app/navigation.py`): "Patients › Case 299 › Tests ›
 Pathology slide". "Patients" goes back to the list; the file's crumb is the file picker itself
-(type or pick another patient to switch files); then the view, and in Tests the test opened
-(its kind, or its name where the kind says little: "CA 15-3, month 11"). The Methods and
-validation page carries "Patients › Methods and validation".
+(type or pick another patient to switch files); then the view, and in Tests the workbench open
+(in the attention queue's short names) and the test opened (its kind, or its name where the
+kind says little): "Tests › Labs › CA 15-3, month 11", "Tests › Expression › RNA-seq (STAR
+TPM)", "Tests › Slides › Pathology report, month -40" (the synthetic diagnosis opens the slide
+workbench on a public example region); the workbench is left out where the test already names
+it ("Tests › Imaging, month 12"). The crumbs sit in the sticky header, so where the reader is
+stays on screen while a workbench scrolls (2026-10-27). The Methods and validation page carries
+"Patients › Methods and validation".
 
 **The patient header stays on screen** while the page scrolls: the breadcrumbs, the patient's
 identity and diagnosis, the open SOS alerts ("SOS: 2 open", alerts no reviewer has marked yet,

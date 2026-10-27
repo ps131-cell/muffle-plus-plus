@@ -32,7 +32,7 @@ def test_breadcrumbs_and_the_patient_header(app):
     at.segmented_control(key="view").set_value("Tests").run()
     at.session_state[f"picked-{SYN}"] = ("Lab", 24, "CA 15-3")
     at.run()
-    assert "Tests › **CA 15-3, month 24**" in texts(at) and not at.exception
+    assert "Tests › Labs › **CA 15-3, month 24**" in texts(at) and not at.exception
     at.segmented_control(key="view").set_value("Timeline").run()
     assert "Timeline" in texts(at)
     at.button(key="crumb-patients").click().run()  # back to the list
@@ -173,8 +173,8 @@ def test_the_tests_launcher_opens_every_test(app):
                if (p.key or "").startswith(f"months-{series('Lab', 'CA 15-3')}-"))
     lab.set_value(11).run()  # a month opens that test, on its own value
     assert at.selectbox(key=f"{SYN}_spot").value.startswith("L4 · month 11")
-    assert "Tests › **CA 15-3, month 11**" in texts(at) and at.query_params["test"] == \
-        "Lab|11|CA 15-3"
+    assert "Tests › Labs › **CA 15-3, month 11**" in texts(at)
+    assert at.query_params["test"] == "Lab|11|CA 15-3"
     assert ":blue-badge[:material/arrow_downward: month 11 open below]" in shown(at)
     ctdna = series("ctDNA (liquid biopsy)", "ctDNA panel (synthetic series)")
     next(b for b in at.button if (b.key or "").startswith(f"launch-{ctdna}-")).click().run()

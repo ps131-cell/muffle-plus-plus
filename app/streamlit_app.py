@@ -754,10 +754,16 @@ def patient_file(pf: workspace.PatientFile, header, tail):
                    spin={"Report": "Gathering the report: every workbench's findings and the "
                                    "attention queue…",
                          "Evolution": "Reading the evolution table and the trials…"}.get(view))
-    with tail:
+    with tail:  # where am I: the view, the workbench open (unless the test names it), the test
         st.markdown(nav.SEP, width="content")
-        st.markdown(view if shown is None else f"{view} {nav.SEP} **{nav.crumb(shown)}**",
-                    width="content")
+        if shown is None:
+            st.markdown(view, width="content")
+        else:
+            wb = overview.NAMES.get(SCREENS.get(shown.workbench, ""), "")  # the queue's names
+            crumb = nav.crumb(shown)
+            st.markdown(f" {nav.SEP} ".join([view, *([wb] if wb and not crumb.startswith(wb)
+                                                     else []), f"**{crumb}**"]),
+                        width="content")
     test = nav.test_id(shown) if shown is not None else None
     p = ss.get("_pointer") or {}
     here = (p.get("pid"), p.get("view"), p.get("test")) == (pf.id, view, test)
