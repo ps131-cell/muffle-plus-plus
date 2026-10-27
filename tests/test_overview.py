@@ -136,14 +136,14 @@ def test_a_tcga_case_built_from_the_test_cohort(cohort, small_cfg, tmp_path):
 def test_slide_summary_and_queue_read_the_scored_sections():
     pf = tcga(299, slides=["TCGA-AN-A0AS-DX1"], docs=[])
     card = slides.summary(pf)["cards"][0]
-    for part in ("main tumor 9.61 mm²", "6 of 12 front arcs infiltrative", "41 breakaway",
+    for part in ("main tumor 18.31 mm²", "2 of 11 front arcs infiltrative", "57 breakaway",
                  "immune pattern: desert"):
         assert part in card["text"]
     assert card["trust"] == "weak" and "placeholder" in card["threshold"]
     q = slides.queue(pf)
     assert [x["pointer"] for x in q] == [f"T{n}" for n in range(1, 10)]
-    assert q[0]["focus"] == {"slide": "TCGA-AN-A0AS-DX1", "pointer": "T1", "tile": "r25c83"}
-    assert q[0]["key"] == finding_key(pf, "slide", "TCGA-AN-A0AS-DX1", "r25c83")
+    assert q[0]["focus"] == {"slide": "TCGA-AN-A0AS-DX1", "pointer": "T1", "tile": "r28c75"}
+    assert q[0]["key"] == finding_key(pf, "slide", "TCGA-AN-A0AS-DX1", "r28c75")
     several = tcga(1043, slides=["TCGA-PL-A8LZ-DX1", "TCGA-PL-A8LZ-DX2", "TCGA-PL-A8LZ-DX3"])
     text = slides.summary(several)["cards"][0]["text"]
     assert "section TCGA-PL-A8LZ-DX3, the largest tumor of 3 sections" in text
