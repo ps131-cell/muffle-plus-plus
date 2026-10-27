@@ -73,7 +73,9 @@ def test_every_section_and_the_example_read_one_open_encoder():
 
 def test_stored_numbers_are_what_the_page_computes():
     """The summary's headline numbers (the comparison of sections reads them) agree with the
-    analysis the page runs on the shipped tiles and nuclei counts."""
+    analysis the page runs on the shipped tiles and nuclei counts, up to the rounding of the
+    shipped probabilities (3 decimals; the pipeline analyses 4): 1% on areas and lengths, one
+    on counts."""
     for name in shipped_sections():
         folder = RESULTS / name
         meta = json.loads((folder / "summary.json").read_text())
@@ -83,9 +85,12 @@ def test_stored_numbers_are_what_the_page_computes():
             summ = pd.DataFrame(nuc["tiles"]["data"], columns=nuc["tiles"]["columns"])
             tiles = tiles.merge(summ, on=["row", "col"], how="left")
         got = inv.analyze_slide(tiles, meta["head"]["classes"])["numbers"]
-        for key in ("tumor_mm2", "front_length_mm", "arcs", "islands", "immune_pattern",
-                    "counted_tiles"):
-            assert got[key] == meta["numbers"][key], (name, key)
+        want = meta["numbers"]
+        for key in ("tumor_mm2", "front_length_mm"):
+            assert abs(got[key] - want[key]) <= 0.01 * max(want[key], 1), (name, key)
+        for key in ("arcs", "islands", "counted_tiles"):
+            assert abs(got[key] - want[key]) <= 1, (name, key)
+        assert got["immune_pattern"] == want["immune_pattern"], name
 
 
 def test_slides_page_renders_the_patients_own_section():

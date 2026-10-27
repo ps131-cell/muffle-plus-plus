@@ -29,7 +29,9 @@ Newest at the top. One entry per decision: date, what, why.
   cautery-crushed, muscle-like margin tissue (a class neither head has; QuiltNet called it
   necrosis) as carcinoma, and the main tumor, front, arcs and risk regions sat on it. The rule
   moves case 926's main tumor back onto carcinoma; it misses about a third of that tissue, so
-  small fragments remain, which the section's page and the known failures say.
+  small fragments remain, which the section's page and the known failures say. On case 1043
+  the new head finds DX3's high-grade carcinoma, which QuiltNet called necrosis, but on DX1
+  (collagen, fat and clot, little carcinoma) reads collagen as carcinoma; that page says so too.
 - **Consequence:** status unchanged (*experimentally validated on held-out BCSS regions only*;
   not reviewed by a pathologist). README, the Devpost numbers appendix and the Methods card
   quote 91.9%. If the swap had missed its gate, QuiltNet would have stayed only with the

@@ -130,6 +130,9 @@ KNOWN_FAILURES = [
     "are not scored (a calibrated rule), but the rule misses some: on TCGA-EW-A1J2-DX1 small "
     "fragments on crushed margin tissue still read as carcinoma. Check small tumor pieces by "
     "eye.",
+    "On a section with little carcinoma, collagen and loose stroma can be read as invasive "
+    "carcinoma: on TCGA-PL-A8LZ-DX1 several hundred such tiles form small false tumor pieces, "
+    "flagged by a high unsure share.",
 ]
 
 MODEL_CARD = {

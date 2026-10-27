@@ -25,7 +25,7 @@ access, no token. Scored on 2026-10-20 (cohort index → sections):
 | 926 | TCGA-EW-A1J2 | DX1 | in the video; saved case note | shipped |
 | 1043 | TCGA-PL-A8LZ | DX1, DX2, DX3 | saved case note; three small sections, compared on the page | shipped |
 | 730 | TCGA-D8-A1XF | DX1, DX2 | saved case note; two large sections to compare | shipped |
-| 563 | TCGA-BH-A0H5 | DX1 | saved case note | shipped (no tumor found: the page says no front) |
+| 563 | TCGA-BH-A0H5 | DX1 | saved case note | shipped (until 2026-10-27 mapped from the wrong place and read "no tumor"; §9) |
 
 The other saved-note cases (47, 545, 564, 601) have one DX1 slide each on the GDC and can be
 added with the same command. `cases.json` names only folders that are complete. TCGA slides are open-access public data, so 224 px tile crops of
@@ -104,8 +104,8 @@ the queue tiles may be shipped; embeddings never are.
     (everything above plus the head card, timings and the uptime they were measured under),
     `thumbnail.jpg` (the scored region) and `crops/` (≤ 60 JPEG crops of 224 px: the queue,
     the field, the cards, the roughest front tiles, breakaway and unsure tiles). No embeddings,
-    no nucleus masks, no tile stack; under 3 MB per section (the largest, TCGA-D8-A1XF-DX1,
-    1.8 MB).
+    no nucleus masks, no tile stack; under 3 MB per section (the largest, TCGA-AN-A0AS-DX1,
+    1.9 MB).
 
 ## 3. Every cutoff and its source
 
@@ -144,7 +144,9 @@ validated on the page.
 
 ## 5. Timings (this PC's CPU, WSL, shared by six sessions)
 
-Measured under the load average quoted (`uptime`), 4 threads, `nice -n 10`:
+The QuiltNet-B-32 runs of 2026-10-20, superseded by §9 (the three window sections' maps and
+nuclei in this table came from the wrong place on the slide). Measured under the load average
+quoted (`uptime`), 4 threads, `nice -n 10`:
 
 | Slide | Tissue tiles | Scored | Mode | Embedding | Nuclei | Tumor mm² | Front mm | Infiltrative arcs | Breakaway in field | Islands | Unsure | Folder MB |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -171,10 +173,11 @@ The page lists them (`invasion.KNOWN_FAILURES`): normal breast and DCIS are not 
 tile borders cut nests into false buds; StarDist over-segments dense lymphocyte sheets and
 misses pale nuclei; the lymphocyte-like rule is size and shape only; a scored window omits
 tumor outside it; placeholder quality rules leave holes in the mask; normals are unstable on a
-front thinner than two tiles. Seen on the scored slides: TCGA-PL-A8LZ-DX1 (a 17 mm² section)
-reads 81% necrosis-or-debris with almost no invasive carcinoma, and its "breakaway candidates"
-sit on tissue the head could not place: a case where the map should not be trusted and says so
-through its unsure share and queue.
+front thinner than two tiles. Seen on the scored slides (2026-10-27, GigaPath-Flash, §9):
+TCGA-PL-A8LZ-DX1 (a 17 mm² section of collagen, fat and blood clot with little carcinoma) reads
+several hundred collagen and loose-stroma tiles as carcinoma in small pieces, with most of the
+map unsure; under QuiltNet-B-32 it read 81% necrosis. TCGA-EW-A1J2-DX1 keeps small fragments on
+cautery-crushed margin tissue. Both pages carry the note in plain words.
 
 ## 7. The slide viewer
 
@@ -342,7 +345,8 @@ the section's page says (a reviewer's note in its `summary.json`, `known_failure
 **Nuclei and the second lymphocyte model, topped up.** The new maps move the front, so cached
 StarDist counts and TIL scores were kept where they still lie on a usable tile of the new front
 band or peritumoral zone, and the tiles a fresh run would pick on the new map (up to 400 for
-StarDist, 1,500 for the TIL model) were scored where they had no result (`slide_pipeline.py
+StarDist; for the TIL model 1,500 on the first three sections, 600 nearest the front on the
+other five, to make the day's deadline) were scored where they had no result (`slide_pipeline.py
 nuclei-topup`, `til`); `run` then wrote each folder from the union. The page's coverage line
 under "Stromal lymphocytes by zone" gives the counted share per zone.
 
@@ -350,12 +354,30 @@ under "Stromal lymphocytes by zone" gives the counted share per zone.
 and the top-ups; numbers as the page computes them, the TIL comparison at the calibrated cutoff
 0.667):
 
-{TABLE1}
+| Section | Tumor mm² | Main piece mm² | Pieces | Front mm | Infiltrative arcs | Breakaway in field | Islands | Immune pattern | Unsure | TIL disagree | Not scored: unlike training |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| TCGA-AN-A0AS-DX1 | 15.69 → 23.39 | 9.61 → 18.31 | 20 → 26 | 24.08 → 39.87 | 6/12 → 2/11 | 41 → 57 | 19 → 25 | desert → desert | 27% → 28% | 43/1500 (3%) → 52/1980 (3%) | 54 |
+| TCGA-EW-A1J2-DX1 | 2.83 → 12.44 | 0.78 → 2.58 | 27 → 166 | 2.58 → 6.83 | 5/12 → 7/12 | 33 → 88 | 26 → 168 | desert (no core: front band only) → desert (no core: front band only) | 30% → 43% | 8/771 (1%) → 84/1100 (8%) | 717 |
+| TCGA-D8-A1XF-DX1 | 22.08 → 45.11 | 12.63 → 21.11 | 31 → 64 | 23.07 → 47.04 | 3/12 → 2/12 | 28 → — | 30 → 65 | desert → desert | 20% → 15% | 114/1500 (8%) → 72/2432 (3%) | 202 |
+| TCGA-D8-A1XF-DX2 | 13.94 → 33.12 | 2.95 → 14.95 | 41 → 39 | 6.72 → 31.36 | 1/12 → 6/12 | 64 → 31 | 40 → 38 | desert (no core: front band only) → desert | 23% → 15% | 60/1500 (4%) → 68/1786 (4%) | 265 |
+| TCGA-PL-A8LZ-DX1 | 0.08 → 5.23 | 0.03 → 0.88 | 4 → 139 | 0.22 → 4.48 | 0/2 → 0/11 | 32 → 23 | 3 → 139 | desert (no core: front band only) → desert (no core: front band only) | 30% → 60% | 0/368 (0%) → 0/242 (0%) | 762 |
+| TCGA-PL-A8LZ-DX2 | 0.0 → 3.89 | 0.0 → 0.15 | 0 → 172 | 0.0 → 1.01 | 0/0 → 0/6 | — → 47 | 0 → 171 | no front: not assessed → desert (no core: front band only) | 17% → 71% | 0/0 → 1/373 (0%) | 1979 |
+| TCGA-PL-A8LZ-DX3 | 0.75 → 19.03 | 0.19 → 8.97 | 15 → 38 | 1.23 → 22.51 | 0/10 → 6/11 | 147 → 82 | 14 → 37 | desert (no core: front band only) → desert | 54% → 65% | 68/899 (8%) → 103/1070 (10%) | 295 |
+| TCGA-BH-A0H5-DX1 | 0.0 → 3.05 | 0.0 → 0.55 | 0 → 27 | 0.0 → 3.36 | 0/0 → 6/10 | — → 77 | 0 → 26 | no front: not assessed → desert (no core: front band only) | 10% → 25% | 0/0 → 145/600 (24%) | 15 |
 
 **Coverage after the top-ups** (usable tiles of each zone with nuclei counted or a second-model
 score; before → after):
 
-{TABLE2}
+| Section | Front tiles | Nuclei counted: front band | Nuclei counted: peritumoral | Second model scored: front band | Second model scored: peritumoral |
+|---|---|---|---|---|---|
+| TCGA-AN-A0AS-DX1 | 215 → 356 | 400/1507 (27%) → 686/2387 (29%) | 0/1735 (0%) → 0/1754 (0%) | 1500/1507 (100%) → 1962/2387 (82%) | 0/1735 (0%) → 18/1754 (1%) |
+| TCGA-EW-A1J2-DX1 | 23 → 61 | 189/189 (100%) → 400/429 (93%) | 211/582 (36%) → 51/671 (8%) | 189/189 (100%) → 429/429 (100%) | 582/582 (100%) → 671/671 (100%) |
+| TCGA-D8-A1XF-DX1 | 206 → 420 | 400/1631 (25%) → 400/3056 (13%) | 0/2104 (0%) → 0/3305 (0%) | 1500/1631 (92%) → 1744/3056 (57%) | 0/2104 (0%) → 688/3305 (21%) |
+| TCGA-D8-A1XF-DX2 | 60 → 280 | 400/572 (70%) → 400/1916 (21%) | 0/1671 (0%) → 0/1294 (0%) | 572/572 (100%) → 1271/1916 (66%) | 928/1671 (56%) → 515/1294 (40%) |
+| TCGA-PL-A8LZ-DX1 | 2 → 40 | 44/44 (100%) → 105/105 (100%) | 324/324 (100%) → 137/137 (100%) | 44/44 (100%) → 105/105 (100%) | 324/324 (100%) → 137/137 (100%) |
+| TCGA-PL-A8LZ-DX2 | 0 → 9 | — → 77/77 (100%) | — → 296/296 (100%) | — → 77/77 (100%) | — → 296/296 (100%) |
+| TCGA-PL-A8LZ-DX3 | 11 → 201 | 125/125 (100%) → 652/1168 (56%) | 275/774 (36%) → 2/707 (0%) | 125/125 (100%) → 962/1168 (82%) | 774/774 (100%) → 108/707 (15%) |
+| TCGA-BH-A0H5-DX1 | 0 → 30 | — → 235/235 (100%) | — → 165/1249 (13%) | — → 235/235 (100%) | — → 365/1249 (29%) |
 
 **Checked by eye** (maps rendered with `invasion.map_png` and contact sheets of eight random
 224 px tiles per disagreement between the two heads; not a pathologist's review):
@@ -371,9 +393,33 @@ score; before → after):
   glass blank on the left, the tumor nests where the H&E shows purple lobules). The second
   lymphocyte model was always scored at the right place, so its agreement with the head is a
   check of the fix: Cohen's kappa rose from −0.03 (map from the wrong tissue) to 0.55.
-{EYE2}
+- *TCGA-D8-A1XF-DX2 (case 730):* at the right place now; main tumor 2.95 → 14.95 mm² with a
+  front of 31 mm; TIL agreement unchanged (4% of scored tiles disagree).
+- *TCGA-BH-A0H5-DX1 (case 563):* the old map came mostly from glass ("no tumor found"); at the
+  right place the head finds carcinoma nests (276 tiles), lymphocyte-rich stroma and stroma, and
+  a front of 3.4 mm. The window is still the one the QuiltNet coarse pass centred on the tissue,
+  so tumor outside it is not in the map (the page says how much was skipped).
+- *TCGA-PL-A8LZ-DX3 (case 1043):* the 1,594 tiles that went from necrosis to carcinoma are
+  sheets of high-grade, discohesive carcinoma that QuiltNet called necrosis; a main tumor of
+  9.0 mm² and a 22.5 mm front. Better.
+- *TCGA-PL-A8LZ-DX1 and -DX2 (case 1043):* mostly collagen, fat and blood clot with little
+  carcinoma. The rule sets aside 762 and 1,979 tiles (clot and debris), but several hundred
+  collagen and clot tiles still read as carcinoma in small pieces (139 and 172), with 60% and
+  71% of the map unsure. QuiltNet read them as necrosis (DX1) or found no front (DX2). Worse as
+  maps; both pages say in plain words not to rely on their tumor pieces, and point to DX3.
 
-{TIMES}
+**Timings** (this PC's CPU in WSL, `nice -n 10`, 4 threads for the encoder and 2 for StarDist
+and the TIL model; up to four of our processes ran at once beside other sessions; the 1-minute
+load average at the end of each embedding in brackets): GigaPath-Flash embedded 7.44 tiles/s on
+TCGA-AN-A0AS-DX1 (7.9), 7.88 on -EW-A1J2-DX1 (8.7), 3.37 on -D8-A1XF-DX1 (11.1, timed before
+the PC slept), 1.86 on -D8-A1XF-DX2 (9.6), 3.94 on -PL-A8LZ-DX1 (11.3), 5.95 on -DX2 (7.6),
+2.65 on -DX3 (12.1) and 1.93 on -BH-A0H5-DX1 (10.2): 47,406 tiles in all. The PC slept from about
+01:02 to 11:35 and again from 13:34 to 13:48 on Oct 27 (WSL's clock jumped on waking), and the
+host CPU sat at 100% most of the afternoon with WSL getting about 2.7 of 8 cores; two embedding
+timings and one StarDist timing were taken from the log's awake stretches (their
+`summary.json` says so). StarDist top-ups ran at 0.34–2.84 s per tile, the TIL model at 0.2–1.33
+s per tile. The TIL top-up scored up to 1,500 tiles per section on the first three sections and
+600 on the other five, to make the day's deadline; the coverage table shows what that left.
 
 ## 10. What is left
 

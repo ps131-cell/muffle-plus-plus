@@ -19,12 +19,12 @@
   13
  ],
  "encoder": {
-  "name": "wisdomik/QuiltNet-B-32",
-  "license": "MIT",
-  "access": "open, ungated",
-  "kind": "clip",
-  "tiles_per_s_cpu": 10.129,
-  "peak_rss_gb": 1.17
+  "name": "prov-gigapath/prov-gigapath-flash",
+  "license": "Apache-2.0",
+  "access": "Hugging Face, gated: contact info (instant)",
+  "kind": "timm_file",
+  "tiles_per_s_cpu": 3.024,
+  "peak_rss_gb": 0.93
  },
  "head": {
   "kind": "logistic regression on frozen embeddings",
@@ -37,27 +37,27 @@
   ],
   "training_data": "BCSS tiles from 8 TCGA-BRCA slides (1052 tiles)",
   "held_out": "3 slides, 357 tiles, patient-disjoint",
-  "accuracy": 0.877,
-  "balanced_accuracy": 0.854,
+  "accuracy": 0.919,
+  "balanced_accuracy": 0.917,
   "per_class": {
    "tumor": {
     "n_test": 90,
-    "recall": 0.889,
+    "recall": 1.0,
     "n_train": 548
    },
    "stroma": {
     "n_test": 149,
-    "recall": 0.919,
+    "recall": 0.866,
     "n_train": 346
    },
    "lymphocytes": {
     "n_test": 72,
-    "recall": 0.736,
+    "recall": 0.903,
     "n_train": 27
    },
    "necrosis": {
     "n_test": 11,
-    "recall": 0.727,
+    "recall": 0.818,
     "n_train": 77
    },
    "fat": {
@@ -76,31 +76,31 @@
    ],
    "rows_true_cols_pred": [
     [
-     80,
+     90,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
      10,
+     129,
+     7,
      0,
+     3
+    ],
+    [
+     0,
+     7,
+     65,
      0,
      0
     ],
     [
-     3,
-     137,
-     3,
-     0,
-     6
-    ],
-    [
-     3,
-     14,
-     53,
      2,
-     0
-    ],
-    [
-     3,
      0,
      0,
-     8,
+     9,
      0
     ],
     [
@@ -112,9 +112,9 @@
     ]
    ]
   },
-  "accuracy_below_cutoff": 0.607,
-  "accuracy_at_or_above_cutoff": 0.927,
-  "share_below_cutoff": 0.157,
+  "accuracy_below_cutoff": 0.673,
+  "accuracy_at_or_above_cutoff": 0.961,
+  "share_below_cutoff": 0.146,
   "not_learned": {
    "normal_breast": "too few labeled tiles in BCSS at this tile size",
    "dcis": "one BCSS slide only; cannot be held out"
@@ -122,30 +122,52 @@
  },
  "analysis": {
   "tiles": 234,
-  "usable_tiles": 234,
-  "excluded": {},
+  "usable_tiles": 233,
+  "excluded": {
+   "unlike training tissue": 1
+  },
   "tissue_fractions": {
    "fat": 0.0,
-   "lymphocytes": 0.154,
-   "necrosis": 0.009,
-   "stroma": 0.107,
-   "tumor": 0.731
+   "lymphocytes": 0.245,
+   "necrosis": 0.013,
+   "stroma": 0.077,
+   "tumor": 0.665
   },
-  "unsure_share": 0.235,
-  "tumor_mm2": 2.06,
-  "main_tumor_mm2": 2.06,
+  "unsure_share": 0.176,
+  "tumor_mm2": 1.91,
+  "main_tumor_mm2": 1.91,
   "satellite_pieces": 0,
-  "front_length_mm": 2.35,
+  "front_length_mm": 2.58,
   "zone_tiles": {
-   "core": 22,
-   "front band": 195,
-   "peritumoral": 17,
+   "core": 18,
+   "front band": 196,
+   "peritumoral": 20,
    "outside": 0
   },
   "facing": {
-   "lymphocytes": 0.778,
-   "necrosis": 0.222
+   "lymphocytes": 0.882,
+   "necrosis": 0.059,
+   "stroma": 0.059
   }
+ },
+ "novelty": {
+  "encoder": "prov-gigapath/prov-gigapath-flash",
+  "k": 5,
+  "metric": "mean cosine distance to the k nearest training tiles",
+  "cutoff": 0.507,
+  "percentile": 99,
+  "cutoff_source": "calibrated leave-one-slide-out on the 8 training slides (1052 tiles), 99th percentile",
+  "reference_tiles": 1052,
+  "held_out_tiles": 357,
+  "held_out_flagged": 0.0028,
+  "held_out_flagged_by_class": {
+   "tumor": 0,
+   "stroma": 0,
+   "lymphocytes": 0,
+   "necrosis": 1,
+   "fat": 0
+  },
+  "excluded_tiles": 1
  },
  "status": "implemented, experimentally validated on held-out BCSS slides only; not reviewed by a pathologist"
 }
