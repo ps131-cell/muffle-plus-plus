@@ -503,3 +503,33 @@ def test_shipped_round_two_studies_open_every_phase_in_the_cine():
         assert len(between) == len(study["phases"]) - 3
         assert all((Path(study["folder"]) / f"{k}.jpg").exists() for k in between)
         assert study["display"]["acquisition"]["plane"] in ("axial", "sagittal", "coronal")
+
+
+def test_the_mri_viewer_fits_an_800px_page_and_its_outlines_sit_on_the_slice():
+    """QA round 2: the slice is drawn at most ``VIEW_PX`` wide (the page column is 468 px at
+    800 px with the sidebar open), and the chart's plot is exactly the image (autosize pad, no
+    padding), so the boxes and the measure line share the image's scale."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "app"))
+    from workbenches import radiology as page
+
+    index = load_index(RESULTS)
+    mri = [s for v in index.values() for s in v if s["modality"] == "MR"]
+    if not mri:
+        pytest.skip("no processed studies in this checkout")
+    for s in mri:
+        study = load_study(RESULTS / s["folder"])
+        d, cands = study["display"], study.get("candidates", [])
+        w, h = d["cols"], d["rows"]
+        assert page.VIEW_PX <= 468
+        for c in [None] + cands[:1]:
+            i = int(next(iter(c["per_slice"]))) if c else 0
+            view = page.view_of(study, c, i, zoom=c is not None)
+            x0, y0, vw, vh, k = view
+            assert vw * k <= page.VIEW_PX + 1e-9 and vw * k == pytest.approx(w * min(2, 460 / w))
+            img = page.overlay(np.zeros((h, w), np.uint8), cands, i, True, view)
+            assert img.size == (int(vw * k), int(vh * k))
+            spec = page.viewer_chart(img, cands, i, True, True, view).to_dict()
+            assert spec["autosize"] == {"type": "pad"} and spec["padding"] == 0
+            assert (spec["width"], spec["height"]) == (vw * k, vh * k)

@@ -227,3 +227,57 @@ def test_page_shows_the_viewer_when_the_pyramid_is_there(tmp_path):
         assert len(written) == 1, slide
         ov = json.loads(written[0].read_text())
         assert {"tiles", "front", "arcs", "queue", "cells", "classes"} <= set(ov)
+
+
+def test_the_viewer_starts_its_n_and_p_at_the_spot_panels_pointer(tmp_path):
+    """QA round 2 (R2-15): the viewer is told which tile the Spot panel shows, so with T1 shown
+    the first n opens T2; typing another pointer's tile moves that start with it."""
+    from streamlit.testing.v1 import AppTest
+
+    case, slides = next((k, v) for k, v in CASES.items() if len(v) == 1)
+    slide = slides[0]
+    (tmp_path / slide).mkdir()
+    (tmp_path / slide / f"{slide}.dzi").write_text("<Image/>")
+    record = """
+import streamlit as st
+_real = slide_viewer._component
+def _record(**kw):
+    st.session_state.setdefault("_spots", []).append(kw.get("spot"))
+    return _real(**kw)
+slide_viewer._component = _record
+"""
+    script = page(str(tmp_path), case, slides).replace(
+        "from workbenches.slides import render", record + "from workbenches.slides import render")
+    at = AppTest.from_string(script, default_timeout=180)
+    at.run()
+    assert not at.exception, at.exception
+    k = f"Case {case}|{slide}"
+    pick = at.selectbox(key=f"{k}-pick")
+    tiles = [o.split("· ")[-1] for o in pick.options]
+    assert pick.value == pick.options[0] and pick.options[0].startswith("T1 ")
+    assert at.session_state["_spots"][-1] == {"slide": slide, "tile": tiles[0]}  # T1, as shown
+    at.text_input(key=f"{k}-spot").set_value(tiles[1]).run()  # T2 typed (or clicked)
+    assert at.session_state["_spots"][-1] == {"slide": slide, "tile": tiles[1]}
+    js = (ROOT / "app" / "workbenches" / "slide_viewer_frontend" / "viewer.js").read_text()
+    assert "args.spot" in js and "function atSpot" in js
+
+
+def test_a_failed_download_says_what_happened_in_words(tmp_path, monkeypatch, caplog):
+    """QA round 2 (R2-16): the page's reason names no exception class; the log keeps it."""
+    import sys
+    import urllib.error
+
+    sys.path.insert(0, str(ROOT / "app"))
+    from workbenches import slide_viewer as sv
+
+    def offline(*a, **k):
+        raise urllib.error.URLError("no route to host")
+
+    monkeypatch.setattr(sv.urllib.request, "urlopen", offline)
+    with caplog.at_level("WARNING", logger="muffle.app.slide_viewer"):
+        why = sv._download("S1", f"{sv.RELEASES}/v1", "0" * 64, str(tmp_path))
+    assert why == "the section's tiles could not be downloaded from the release"
+    assert "URLError" not in why and "URLError" in caplog.text
+    assert sv._download("S1", "file:///nowhere", "0" * 64, str(tmp_path)) == (
+        "the section's tiles could not be downloaded from this server's tile source")
+    assert not list(tmp_path.iterdir())  # nothing half-written left behind

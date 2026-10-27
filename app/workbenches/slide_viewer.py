@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import threading
@@ -41,6 +42,7 @@ FALLBACK = FRONTEND / "static" / "slides"   # served with the component
 RESULTS = APP / "workbenches" / "slides_results"
 RELEASES = "https://github.com/ps131-cell/muffle-plus-plus/releases/download"
 OFF = {"off", "0", "no", "false"}
+LOG = logging.getLogger("muffle.app.slide_viewer")  # the exception goes here, not on the page
 _component = components.declare_component("slide_viewer", path=str(FRONTEND))
 _lock = threading.Lock()
 
@@ -127,7 +129,10 @@ def _download(slide: str, base: str, sha256: str, root: str, progress=None) -> s
             tmp.replace(root / slide)
             return ""
         except Exception as e:  # offline, release missing, disk full: the page falls back
-            return f"the section's tiles could not be fetched ({type(e).__name__})"
+            LOG.warning("slide %s: tiles not downloaded from %s: %s: %s", slide, base,
+                        type(e).__name__, e)
+            where = "the release" if base.startswith(RELEASES) else "this server's tile source"
+            return f"the section's tiles could not be downloaded from {where}"
         finally:
             zpath.unlink(missing_ok=True)
             shutil.rmtree(tmp, ignore_errors=True)
@@ -172,9 +177,11 @@ def source(slide: str, label: str | None = None) -> dict | str:
 
 
 def show(sources: list[dict], key: str, goto: dict | None = None, height: int = 620,
-         on_change=None) -> dict | None:
+         on_change=None, spot: dict | None = None) -> dict | None:
     """The viewer for one section, or several side by side with pan and zoom linked in µm.
+    ``spot`` ``{slide, tile}`` is the tile the page's Spot panel shows: when it is a pointer, n
+    and p step on from it (the first n goes to the next pointer, not the one already shown).
     Returns its last event: a click ``{slide, tile, nonce}`` (also n / p and "jump to"), or
     ``{slide, failed, nonce}`` when the browser could not load the tiles; None before any."""
-    return _component(sources=sources, goto=goto, height=height, key=key, default=None,
-                      on_change=on_change)
+    return _component(sources=sources, goto=goto, spot=spot, height=height, key=key,
+                      default=None, on_change=on_change)

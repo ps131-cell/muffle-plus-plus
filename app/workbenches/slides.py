@@ -137,6 +137,21 @@ def go_to(k: str, slide: str, tile: str) -> None:
     st.session_state[f"{k}-goto"] = {"slide": slide, "row": rr, "col": cc, "nonce": time.time()}
 
 
+def spot_options(res: dict, meta: dict) -> list[str]:
+    """The Spot panel's choices: every pointer, then the stored crops that are not one."""
+    return [f"{p['pointer']} · r{p['row']}c{p['col']}" for p in res["queue"]] + [
+        f"{c['why']} · r{c['row']}c{c['col']}" for c in meta.get("crops", [])
+        if not any((c["row"], c["col"]) == (p["row"], p["col"]) for p in res["queue"])]
+
+
+def spot_tile(k: str, res: dict, meta: dict) -> str:
+    """The tile the Spot panel shows ("r12c34"): the one typed or clicked, else the one picked,
+    else the first choice (pointer T1). The viewer starts its n / p from it."""
+    ss = st.session_state
+    pick = ss.get(f"{k}-pick") or next(iter(spot_options(res, meta)), "")
+    return (ss.get(f"{k}-spot") or "").strip() or pick.split("· ")[-1]
+
+
 def viewer_event(pid: str, key: str) -> None:
     """A click, n / p or "jump to" in a viewer opens its tile in that section's Spot panel; a
     browser that cannot load the tiles switches the page to its tile map."""
@@ -600,7 +615,8 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                 + (" Only the tumor-centred window (dashed) was scored: the rest of the section "
                    "is shown, not analysed." if src["window"] else ""))):
             slide_viewer.show([src], key=f"{k}-viewer", goto=st.session_state.get(f"{k}-goto"),
-                              on_change=lambda: viewer_event(pf.id, f"{k}-viewer"))
+                              on_change=lambda: viewer_event(pf.id, f"{k}-viewer"),
+                              spot={"slide": slide, "tile": spot_tile(k, res, meta)})
             rc, pc = st.columns([1, 3])
             if has_rose:
                 rc.altair_chart(rose_chart(res["rose"]), width="content")
@@ -817,9 +833,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     # --- Spot panel -------------------------------------------------------------------------
     with page.spot("The full story of one tile: pick a pointer or a stored crop, type a tile, or "
                    "click one in the viewer."):
-        options = [f"{p['pointer']} · r{p['row']}c{p['col']}" for p in res["queue"]] + [
-            f"{c['why']} · r{c['row']}c{c['col']}" for c in meta.get("crops", [])
-            if not any((c["row"], c["col"]) == (p["row"], p["col"]) for p in res["queue"])]
+        options = spot_options(res, meta)
         s1, s2 = st.columns([2, 1])
         pick = s1.selectbox("A pointer or a stored crop", options, key=f"{k}-pick",
                             on_change=lambda: go_to(k, slide, (st.session_state[f"{k}-pick"]

@@ -100,7 +100,17 @@ function render(args, theme) {
     const p = S.panes.find(q => q.src.slide === g.slide) || S.panes[0];
     if (p) fly(p, g.row, g.col, g.span || 12);
   }
+  const s = args.spot;  // the tile the page's Spot panel shows: n and p step on from it
+  S.panes.forEach(p => { p.spot = s && s.slide === p.src.slide ? s.tile : null; atSpot(p); });
   legend();
+}
+
+function atSpot(p) {
+  // When the Spot panel shows a pointer, that pointer is the current one, so the first n goes
+  // to the next pointer (T1 shown: n opens T2) instead of re-opening the one already shown.
+  if (!p.ov || !p.spot) return;
+  const i = p.ov.queue.findIndex(q => `r${Math.round(q.row)}c${Math.round(q.col)}` === p.spot);
+  if (i >= 0) p.cur = i;
 }
 
 function build(sources, height) {
@@ -121,7 +131,7 @@ function makePane(src) {
   const el = div("pane"), osd = div("osd"), head = div("head"), msg = div("msg");
   el.append(osd, head, msg);
   $("wrap").append(el);
-  const p = {src: src, el: el, msg: msg, ov: null, opened: false, ready: false, cur: -1,
+  const p = {src: src, el: el, msg: msg, ov: null, opened: false, ready: false, cur: -1, spot: null,
              pending: null, last: null, hits: [], view: null, groups: [], loaded: 0, failed: 0};
   head.innerHTML = `<b>${esc(src.label)}</b><span style="white-space:nowrap">` +
                    `${src.mpp.toFixed(2)} µm/px</span>`;
@@ -173,7 +183,7 @@ function makePane(src) {
   });
   fetch(new URL(src.overlay, HERE))
     .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(ov => { p.ov = prepare(ov); jumpList(p); group(p); ready(p); legend(); })
+    .then(ov => { p.ov = prepare(ov); jumpList(p); group(p); atSpot(p); ready(p); legend(); })
     .catch(e => fail(p, "The analysis layers could not be loaded (" + e.message + ")."));
   return p;
 }
