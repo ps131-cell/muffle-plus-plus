@@ -294,3 +294,20 @@ two arenas saves about 45 MB, an environment variable set when the process start
   memory to the system (`malloc_trim`) gives back 5–7 MB, not worth it; two allocator arenas
   (`MALLOC_ARENA_MAX=2`) gives back about 45 MB but only when set before the process starts,
   which is the host's setting, not the app's.
+
+## Keeping the hosted app awake (2026-10-27)
+
+- **Sleep rule.** "All apps without traffic for 12 hours go to sleep. … To keep your app awake,
+  simply visit your app." (https://docs.streamlit.io/deploy/streamlit-community-cloud/manage-your-app,
+  read 2026-10-27). The docs do not say whether a plain HTTP request counts as traffic, so the
+  job below uses a real browser visit.
+- **What runs.** `.github/workflows/keep-awake.yml`, every 4 hours (GitHub may start a scheduled
+  run some minutes late): headless Chromium opens the app's own path
+  `https://cancer-intelligence-platform.streamlit.app/~/+/?embed=true`, clicks "Yes, get this app
+  back up!" if the sleep page shows, and waits up to 3 minutes for the Patients page. The job
+  summary says awake, woken or failed and how long it took; a failed visit fails the job. No
+  secrets. It also runs on a PR that changes the workflow.
+- **By hand.** `gh workflow run keep-awake.yml`, then `gh run list --workflow keep-awake.yml`
+  (or Actions > keep-awake > Run workflow).
+- Still open the app yourself shortly before each judging window (Oct 29, and Oct 30 before
+  10:00 am PT): a scheduled run can be late, and a reboot after a merge can leave it starting.
