@@ -1065,7 +1065,7 @@ def destination(pf: workspace.PatientFile, opens: tuple) -> str:
     slide") or the view ("Timeline", "Evolution")."""
     if opens[0] != "Tests":
         return opens[0]
-    t = next((t for t in pf.tests if (t.kind, t.month, t.name) == tuple(opens[1:])), None)
+    t = next((t for t in pf.tests if tid(t) == tuple(opens[1:])), None)
     return nav.crumb(t) if t else opens[1]
 
 
@@ -1220,7 +1220,7 @@ def open_evidence(pf: workspace.PatientFile, i: int, opens: tuple, focus: dict |
         ss[f"kinds-{pf.id}"] = []  # a type filter must not hide the test
         ss.tests_n += 1  # a fresh tests table, so no old row selection wins
         test = nav.test_key(*opens[1:])
-        t = next((t for t in pf.tests if (t.kind, t.month, t.name) == tuple(opens[1:])), None)
+        t = next((t for t in pf.tests if tid(t) == tuple(opens[1:])), None)
         focus = focus or (dated_focus(t) if t else None)
     if focus:
         land(pf, i, focus)
@@ -1622,7 +1622,7 @@ def all_tests(pf: workspace.PatientFile, i: int, shown: list, kinds: list):
     if table["Month"].isna().all():  # a TCGA file: undated tests (the launcher says why)
         table = table.drop(columns="Month")
     key = f"tests-{pf.id}-{i}-{'.'.join(kinds)}-{st.session_state.tests_n}"
-    with st.expander(f"All tests ({len(shown)})"):
+    with st.expander(f"Show all {len(shown)} test{'' if len(shown) == 1 else 's'} as a table"):
         st.dataframe(table, hide_index=True, on_select=partial(pick_row, pf, i, key, shown),
                      selection_mode="single-row", key=key, width="stretch")
         st.caption("Select a row to open that test's workbench below.")

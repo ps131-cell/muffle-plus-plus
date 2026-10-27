@@ -83,7 +83,7 @@ it ("4 items to look at (month 4, 11, 16, 24)", or "nothing flagged") and "Open"
 series of one test (CA 15-3 at eight months, the twelve ctDNA samples) is one tile with a pill
 per month, so 29 tests fit in six tiles: a pill opens that month's test, "Open month 24" the
 latest. The open test's tile says "open below" (or "month 11 open below"), and the breadcrumb
-names it. Every test is also a row of **All tests (n)**, collapsed under the launcher, where
+names it. Every test is also a row of **Show all n tests as a table**, collapsed under it, where
 selecting a row opens it too. Deep links, the attention queue's "Open" and the overview cards'
 "Open" land as before.
 

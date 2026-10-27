@@ -161,12 +161,12 @@ def series(kind: str, name: str) -> str:
 def test_the_tests_launcher_opens_every_test(app):
     """Tests opens on a launcher: a tile per test, grouped by kind, a dated series (CA 15-3 at
     eight months) one tile with a pill per month, each with its look-here count and "Open"; the
-    open test's tile says so, and every test is a row of "All tests (n)" too."""
+    open test's tile says so, and every test is a row of the table under it too."""
     at = app.new().run()
     at.selectbox(key="patient").select(SYN).run()
     at.segmented_control(key="view").set_value("Tests").run()
     assert "**Open a test** · 29 tests in 6 kinds" in shown(at) and not at.exception
-    assert "All tests (29)" in [e.label for e in at.expander]
+    assert "Show all 29 tests as a table" in [e.label for e in at.expander]
     assert "**CA 15-3** · 8 tests, months -2 to 24" in shown(at)
     assert "**4 items to look at** (month 4, 11, 16, 24)" in shown(at)  # the labs queue()
     lab = next(p for p in at.pills
