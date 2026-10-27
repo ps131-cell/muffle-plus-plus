@@ -483,8 +483,10 @@ def patient_file(pf: workspace.PatientFile, header, tail):
             ss.view = "Report"  # no default=: "open the test" sets the view in code
         view = st.segmented_control("View", VIEWS, required=True, key="view",
                                     bind="query-params", label_visibility="collapsed")
-        actions = st.container(horizontal=True, gap="small", vertical_alignment="center",
-                               key="file-actions")  # filled once the view is drawn
+    # right under the sticky header, filled once the view is drawn: it scrolls away with the
+    # page (two lines of buttons would make the header a third of a laptop screen)
+    actions = st.container(horizontal=True, gap="small", vertical_alignment="center",
+                           key="file-actions")
     st.caption(f"{pf.title} · {pf.diagnosis}  \n{DISCLAIMER}")
     if pf.kind == "synthetic":
         st.warning(pf.note, icon="🧪")

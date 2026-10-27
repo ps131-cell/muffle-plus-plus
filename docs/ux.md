@@ -87,8 +87,9 @@ names it. Every test is also a row of **All tests (n)**, collapsed under the lau
 selecting a row opens it too. Deep links, the attention queue's "Open" and the overview cards'
 "Open" land as before.
 
-**The file's action row** (2026-10-27), under the view control on every view, in the sticky
-header, each with a one-sentence tooltip: **Attention queue (n)** (n items not marked yet; it
+**The file's action row** (2026-10-27), right under the sticky header on every view (it
+scrolls away with the page: two lines of buttons in the header would cover a third of a 900 px
+window), each with a one-sentence tooltip: **Attention queue (n)** (n items not marked yet; it
 opens the report's queue on the first of them), **Import a test**, **Compare versions** (the
 Timeline's comparison; disabled, saying why, while the file has one version), **Export this
 report (Markdown)** (the version shown, built when clicked), **Your marks (n)** (this file's
