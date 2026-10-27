@@ -193,3 +193,27 @@ render(case_file(SimpleNamespace(index=1, site="site-0", percentile=50.0, group=
                                  mutations=None)))
 """, default_timeout=60).run()
     assert not tcga.exception and tcga.info[0].value.startswith("No ctDNA in this file")
+
+
+def test_the_page_overlays_ca153_marks_and_pins_from_the_spot_panel():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(ROOT / "app" / "workbenches" / "ctdna.py"),
+                           default_timeout=60).run()
+    assert not at.exception
+    assert any(m.value.startswith(":material/lightbulb: **How to use") for m in at.markdown)
+    charts = len(at.get("vega_lite_chart"))
+    at.toggle(key="SYNTHETIC-001_ctdna_overlay").set_value(True).run()
+    assert not at.exception and len(at.get("vega_lite_chart")) == charts - 1  # on one chart
+    assert {b.label for b in at.button} >= {"Open the tumor sequencing (month 0)",
+                                            "Open the Evolution view: what to watch next"}
+    spot = at.selectbox(key="SYNTHETIC-001_ctdna_spot")
+    spot.select(next(o for o in spot.options if "month 9 · ESR1" in o)).run()
+    assert "##### ESR1 D538G at month 9" in " ".join(m.value for m in at.markdown)
+    key = "SYNTHETIC-001|ctdna|ESR1 D538G|9"
+    at.text_input(key="reviewer").set_value("ab").run()
+    at.selectbox(key=f"spot_mark_{key}").select("second look").run()
+    assert at.session_state["reviews"][key]["mark"] == "second look"
+    assert at.selectbox(key=f"mark_{key}").value == "second look"  # the details agree
+    at.checkbox(key=f"pin-{key}").check().run()
+    assert at.session_state["pins"][key].startswith("ctDNA ESR1 D538G")

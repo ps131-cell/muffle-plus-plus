@@ -34,6 +34,7 @@ from muffle.workbench.documents import FIELDS, extract  # noqa: E402
 from muffle.workbench import labs_reference as ref  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, PatientFile, Test  # noqa: E402
+from workbenches._howto import how_to, instruct  # noqa: E402
 from workbenches._page import Page  # noqa: E402
 
 LABS, REPORT, SEQUENCING, IMAGING = ("Lab results (CSV)", "Report (text or PDF)",
@@ -44,6 +45,23 @@ SESSION_ONLY = ("Imports are kept for this browser session only: nothing is save
                 "the patient data or the repository, and closing the tab discards them. Only "
                 "public or synthetic data may be imported.")
 EXAMPLE = intake.LAB_EXAMPLE
+HOW_TO = ("**Import a test…** opens one form per test type; each file is checked on intake. "
+          "**Imported in this session** lists what arrived, as new report versions. **Look "
+          "here**: what the alert rules raised on arrival. The example files below show each "
+          "format.")
+AFTER = ("**What happens after an import:** the file gains a new report version signed with "
+         "your initials (earlier versions stay as they were); the tests open in their "
+         "workbenches (lab values in Blood and lab, a report or a note in Clinical documents, "
+         "sequencing in Genomics, an imaging report in Radiology); the alert rules run on what "
+         "arrived, and anything they raise joins the report's attention queue. Kept for this "
+         "browser session only.")
+EXAMPLES = [  # one click away on the Import tests view; all written by hand, not a person's
+    ("Example lab results (CSV)", intake.LAB_EXAMPLE, "lab_results_example.csv", "text/csv"),
+    ("Example sequencing (MAF)", intake.MAF_EXAMPLE, "sequencing_example.maf",
+     "text/tab-separated-values"),
+    ("Example pathology report (text)", intake.REPORT_EXAMPLE, "pathology_report_example.txt",
+     "text/plain"),
+]
 
 
 ADAPTERS = [  # what each adapter accepts, what it checks on intake and what the file gains
@@ -94,6 +112,7 @@ def render_view(file: PatientFile) -> None:
     the shared page skeleton (``workbenches._page``)."""
     page = Page("imports", file)
     page.title(IMPLEMENTED, "kept for this browser session")
+    how_to("imports", HOW_TO, spot=False)
     st.caption(SESSION_ONLY)
     records = st.session_state.get("imports", {}).get(file.id, [])
     versions = [v for v in file.versions if v.imported]
@@ -103,9 +122,18 @@ def render_view(file: PatientFile) -> None:
                     "Each import is checked on intake, joins the file as tests and adds a report "
                     "version; earlier versions are never overwritten. The alert rules run on "
                     f"what arrives. **{len(records)} imported** into this file in this session.")
-        if st.button("Import a test…", type="primary", key=f"import-open-{file.id}"):
+        st.markdown(AFTER)
+        with st.container(horizontal=True, gap="small", vertical_alignment="center"):
+            opened = st.button("Import a test…", type="primary", key=f"import-open-{file.id}")
+            for label, data, name, mime in EXAMPLES:
+                st.download_button(label, data, file_name=name, mime=mime,
+                                   key=f"import-example-{name}",
+                                   help="A synthetic example of the format, written by hand; "
+                                        "import it to see what the file gains")
+        if opened:
             dialog(file)
-        page.look_here(_alert_items(file), empty="Nothing raised by this session's imports.")
+        page.look_here(instruct(_alert_items(file)),
+                       empty="Nothing raised by this session's imports.")
     with page.picture("Imported in this session"):
         if not records:
             st.caption("Nothing imported into this file in this session. Use **Import a test…** "
@@ -171,8 +199,16 @@ def _add(file_id: str, record: dict) -> None:
     st.session_state["import-added"] = True
 
 
+def open_dialog(file: PatientFile, prefill: dict | None = None) -> None:
+    """Open the import dialog; ``prefill`` ({"marker", "unit"}, from the lab workbench's "Add
+    values") opens it on lab results with that analyte typed in."""
+    if prefill:
+        st.session_state["import-kind"] = LABS
+    dialog(file, prefill)
+
+
 @st.dialog("Import a test", width="large")
-def dialog(file: PatientFile) -> None:
+def dialog(file: PatientFile, prefill: dict | None = None) -> None:
     st.caption(SESSION_ONLY)
     by = st.text_input("Your initials (every import is signed)", max_chars=5, key="import-by",
                        value=st.session_state.get("reviewer") or "").strip()
@@ -185,7 +221,7 @@ def dialog(file: PatientFile) -> None:
     n = len(st.session_state.get("imports", {}).get(file.id, [])) + 1
     record = None
     if kind == LABS:
-        record = _labs(file, when)
+        record = _labs(file, when, prefill)
     else:
         month = int(st.number_input(f"Month of the test ({when[0].lower()}{when[1:]}; the "
                                     f"latest report is month {lo})", min_value=lo, value=lo,
@@ -215,7 +251,28 @@ def dialog(file: PatientFile) -> None:
         st.rerun()
 
 
-def _labs(file: PatientFile, when: str) -> dict | None:
+def typed_csv(rows: pd.DataFrame) -> bytes | None:
+    """The values typed into the dialog's table as the lab CSV the intake reads; None while no
+    row has a value."""
+    rows = rows.dropna(subset=["value"])
+    rows = rows[rows["value"].astype(str).str.strip() != ""]
+    return None if rows.empty else rows.to_csv(index=False).encode()
+
+
+def _labs(file: PatientFile, when: str, prefill: dict | None = None) -> dict | None:
+    lo = file.latest.month if file.latest.month is not None else 0
+    st.markdown("**Type the values** (one row per result), or upload a CSV below")
+    pre = prefill or {}
+    typed = st.data_editor(
+        pd.DataFrame([{"month": lo, "marker": pre.get("marker", ""), "value": float("nan"),
+                       "unit": pre.get("unit", ""), "reference interval": ""}]),
+        num_rows="dynamic", hide_index=True, width="stretch",
+        key=f"import-typed-{pre.get('marker', '')}",
+        column_config={"month": st.column_config.NumberColumn(min_value=lo, step=1),
+                       "value": st.column_config.NumberColumn(),
+                       "reference interval": st.column_config.TextColumn(
+                           help="Optional: the lab report's own interval, as 3.5-5.0, <30 or "
+                                ">60; it wins over the reference table's")})
     up = st.file_uploader("Lab results (CSV): month or date, marker, value, unit, and optionally "
                           "the lab report's reference interval", type=["csv"], key="import-csv")
     known = [a["name"] for a in ref.ANALYTES.values() if not a.get("derived")]
@@ -229,12 +286,13 @@ def _labs(file: PatientFile, when: str) -> dict | None:
                        mime="text/csv", key="import-example")
     anchor = st.date_input("Date of month 0 (only for a CSV with dates)", value=None,
                            key="import-anchor", min_value=date(1990, 1, 1))
-    if up is None:
+    data = up.getvalue() if up is not None else typed_csv(typed)
+    if data is None:
         return None
     existing = {(t.details["marker"], t.month) for t in file.tests
                 if t.kind == "Lab" and "marker" in t.details}
     try:
-        ok, bad = intake.parse_labs(up.getvalue(), file.latest.month, anchor, existing)
+        ok, bad = intake.parse_labs(data, file.latest.month, anchor, existing)
     except intake.IntakeError as e:
         st.error(str(e))
         return None

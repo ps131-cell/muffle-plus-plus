@@ -532,3 +532,34 @@ render(pf, events=record_events(pf))
     at.selectbox(key="SYNTHETIC-001_labs_sex").select("female").run()
     at.number_input(key="SYNTHETIC-001_labs_age").set_value(62).run()
     assert not at.exception and len(results_of(at)) == before + 2  # two eGFR values
+
+
+def test_the_page_guides_a_first_reader_and_reaches_the_spot_panel_and_import():
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    root = Path(__file__).resolve().parents[1]
+    at = AppTest.from_file(str(root / "app" / "workbenches" / "labs.py"),
+                           default_timeout=60).run()
+    assert not at.exception
+    md = [m.value for m in at.markdown]
+    assert any(m.startswith(":material/lightbulb: **How to use this page:** **Trends**")
+               for m in md)
+    # the look-here items are instructions with their reason, consequence and target
+    assert any(m.startswith("`L4` Look at CA 15-3 52 U/mL at month 11: above limit, rising. "
+                            "*Why:* above limit") and "*Consequence:* may change care. Opens L4 "
+               "in the Spot panel." in m for m in md)
+    # the Spot panel names its value, its evidence, method and threshold source, and pins it
+    assert "##### CA 15-3 at month 24 · L7" in md
+    assert any("Method: rules, version 2" in c.value and "Reference interval:" in c.value
+               for c in at.caption)
+    key = "SYNTHETIC-001|lab|ca153|24"
+    at.checkbox(key=f"pin-{key}").check().run()
+    assert at.session_state["pins"][key].startswith("CA 15-3 31 U/mL at month 24")
+    at.checkbox(key=f"pin-{key}").uncheck().run()
+    assert key not in at.session_state["pins"]
+    # "Add CA 15-3 values…" opens the import dialog on lab results with the analyte typed in
+    add = next(b for b in at.button if b.label == "Add CA 15-3 values…")
+    add.click().run()
+    assert not at.exception and at.session_state["import-kind"] == "Lab results (CSV)"

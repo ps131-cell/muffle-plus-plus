@@ -42,6 +42,7 @@ from muffle.workspace import (  # noqa: E402
     finding_key,
     synthetic_file,
 )
+from workbenches._howto import how_to, instruct, pin_toggle  # noqa: E402
 from workbenches._page import Page, land, queue_items  # noqa: E402
 
 COLORS = {"PIK3CA H1047R": "#2a78d6", "ESR1 D538G": "#eb6834", "DNMT3A R882H": "#8a8f98"}
@@ -54,6 +55,10 @@ PROVENANCE = ("Data: a synthetic ctDNA series written by hand for this synthetic
               "are placeholders; the clonal-hematopoiesis flag follows Razavi 2019 and Jaiswal "
               "2014, the ESR1 rule PADA-1 and SERENA-6 (literature). Status: implemented, not "
               "validated.")
+HOW_TO = ("**Allele fractions over time**: each plasma variant across the samples (click a "
+          "point to open it; **Overlay CA 15-3** puts the marker on it). **Look here**: what to "
+          "check first, and why. **Spot panel**, below: one sample with its call, your mark and "
+          "a pin.")
 CAVEAT = ("A ctDNA variant is not proven tumor-derived without matched white-cell sequencing, and "
           "\"not detected\" is not \"absent\". Trial evidence is for clinician review; nothing "
           "here is a recommendation.")
@@ -75,10 +80,14 @@ def _label(r: dict) -> str:
 
 
 def chart(rows: list[dict], intervals: list[dict], events: list[dict], lod: float,
-          span: tuple[int, int]) -> alt.Chart:
+          span: tuple[int, int], picked: dict | None = None,
+          marker: list[dict] | None = None) -> alt.Chart:
     """Allele fractions over months on a log axis: one line per variant, points with their
-    pointers (hover for the call and its rule), not-detected samples as hollow points under the
-    detection limit, the limit itself (placeholder), treatment spans and imaging progressions."""
+    pointers (hover for the call and its rule; a click selects the sample and variant:
+    selection "pick"), not-detected samples as hollow points under the detection limit, the
+    limit itself (placeholder), treatment spans and imaging progressions. ``picked``: the row in
+    the Spot panel, ringed; ``marker``: CA 15-3 results, overlaid on their own right-hand
+    axis."""
     df = pd.DataFrame(rows)
     df["y"] = [r["vaf"] if r["detected"] else lod / 2 for r in rows]
     df["vaf_text"] = [_vaf(r) for r in rows]
@@ -113,15 +122,34 @@ def chart(rows: list[dict], intervals: list[dict], events: list[dict], lod: floa
     layers.append(alt.Chart(lim).mark_rule(strokeDash=[5, 4], color=GRAY).encode(
         y=alt.Y("y:Q", scale=y_scale), tooltip=alt.Tooltip("label:N", title="limit")))
     vscale = alt.Scale(domain=list(COLORS), range=list(COLORS.values()))
-    color = alt.Color("variant:N", scale=vscale, legend=alt.Legend(orient="bottom", title=None))
+    color = alt.Color("variant:N", scale=vscale,
+                      legend=alt.Legend(orient="bottom", title="variant (synthetic series)"))
     base = alt.Chart(df).encode(x=x, y=y, color=color)
     layers.append(base.transform_filter("datum.detected").mark_line(strokeWidth=1.5))
+    if picked is not None:
+        ring = df[(df["month"] == picked["month"]) & (df["variant"] == picked["variant"])]
+        layers.append(alt.Chart(ring).mark_point(size=420, filled=False, strokeWidth=2.5,
+                                                 color="#1f2329").encode(
+            x=x, y=y, tooltip=alt.value("this sample is open in the Spot panel")))
     layers.append(base.mark_point(size=90, filled=True, strokeWidth=2).encode(
         fill=alt.condition("datum.detected", color, alt.value("white")),
-        stroke=alt.Stroke("variant:N", scale=vscale, legend=None), tooltip=tip))
+        stroke=alt.Stroke("variant:N", scale=vscale, legend=None), tooltip=tip).add_params(
+        alt.selection_point(name="pick", fields=["month", "variant"], on="click")))
     layers.append(base.mark_text(dy=-12, fontSize=10, fontWeight="bold").encode(
         text="pointer:N"))
-    return alt.layer(*layers).properties(height=340).configure_axis(**GRID)
+    out = alt.layer(*layers)
+    if marker:  # CA 15-3 on its own axis, right; the allele fractions keep the left one
+        m = pd.DataFrame(marker)[["month", "value", "flag", "pointer"]]
+        m["what"] = "CA 15-3, observed (U/mL)"
+        mbase = alt.Chart(m).encode(
+            x=x, y=alt.Y("value:Q", title="CA 15-3 (U/mL), dashed",
+                         axis=alt.Axis(orient="right")),
+            tooltip=[alt.Tooltip("what:N", title="marker"),
+                     alt.Tooltip("pointer:N", title="pointer"), "month:Q",
+                     alt.Tooltip("value:Q", title="value"), "flag:N"])
+        out = alt.layer(out, mbase.mark_line(color=GRAY, strokeDash=[6, 3])
+                        + mbase.mark_square(size=50, color=GRAY)).resolve_scale(y="independent")
+    return out.properties(height=340).configure_axis(**GRID)
 
 
 def marker_chart(lab_rows: list[dict], span: tuple[int, int]) -> alt.Chart | None:
@@ -130,7 +158,8 @@ def marker_chart(lab_rows: list[dict], span: tuple[int, int]) -> alt.Chart | Non
         return None
     df = pd.DataFrame(rows)[["month", "value", "flag", "pointer"]]
     base = alt.Chart(df).encode(
-        x=alt.X("month:Q", title=None, scale=alt.Scale(domain=[span[0] - 1, span[1] + 1])),
+        x=alt.X("month:Q", title="months since the first tumor sequencing",
+                scale=alt.Scale(domain=[span[0] - 1, span[1] + 1])),
         y=alt.Y("value:Q", title="CA 15-3 (U/mL)"),
         tooltip=["pointer:N", "month:Q", "value:Q", "flag:N"])
     return alt.layer(base.mark_line(color=GRAY), base.mark_circle(size=60, color=GRAY),
@@ -155,9 +184,11 @@ def _sync_reviews(pf: PatientFile, items: list[dict], reviews: dict) -> None:
 
 
 def _open(view: str, picked: tuple | None = None, pf_id: str = "") -> None:
-    st.session_state["view"] = view
-    if picked:
-        st.session_state[f"picked-{pf_id}"] = picked
+    ss = st.session_state
+    ss["view"] = view
+    if picked:  # as the shell's "Open": a fresh tests table, no type filter hiding the test
+        ss[f"picked-{pf_id}"], ss[f"kinds-{pf_id}"] = picked, []
+        ss["tests_n"] = ss.get("tests_n", 0) + 1
 
 
 def render(pf: PatientFile, version: int | None = None, test=None) -> None:
@@ -183,6 +214,7 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
     cutoff = None if version is None else pf.versions[version].month
     page.title(IMPLEMENTED, "placeholder threshold", "literature rule", "synthetic",
                colors={"synthetic": "red"})
+    how_to("ctdna", HOW_TO)
     st.warning(wb.SYNTHETIC_NOTE + " Every allele fraction on this page is part of that "
                "synthetic series.")
     st.caption(PROVENANCE)
@@ -248,26 +280,49 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
             + (f"; CA 15-3 flagged at month {min(ca)}" if ca else "")
             + " (observed order in this record, not a lead time).")
     lines.append(f"{len(queue)} items to look at, {len(mine)} review marks.")
+    labels = [_label(r) for r in rows]
+    spot_key = f"{pf.id}_ctdna_spot"
+    if st.session_state.get(spot_key) not in labels:  # the latest pointer, else the last sample
+        flagged = [r for r in rows if r["pointer"]]
+        st.session_state[spot_key] = _label(flagged[-1]) if flagged else labels[-1]
+    open_row = rows[labels.index(st.session_state[spot_key])]  # ringed in the chart
+    seq = [t for v in pf.versions for t in v.tests if t.workbench == "mutations"]
     with page.overview():
         st.markdown(" ".join(lines))
-        page.look_here(queue_items("ctdna", pf, version, lambda: wb.queue(pf, version)),
+        page.look_here(instruct(queue_items("ctdna", pf, version, lambda: wb.queue(pf, version))),
                        land=lambda focus: land(pf, page.version, focus),
                        more="Details › Every look-here item")
 
-    # the picture: allele fractions over time, CA 15-3 on the same axis
+    # the picture: allele fractions over time, CA 15-3 on the same axis or overlaid
     with page.picture("Allele fractions over time", caption=(
             "Hover a point for its call, the rule behind it, its origin and the therapy at the "
-            "time. Hollow points under the dashed line were not detected (below the "
+            "time; **click a point** to open it in the Spot panel (the ringed point is the one "
+            "open there). Hollow points under the dashed line were not detected (below the "
             f"{series['detection_limit']:g}% detection limit, a placeholder); gray spans are "
             "treatment intervals (starts only in the record); red dotted lines are imaging "
-            "reports that read progression. CA 15-3 below shares the axis.")):
+            "reports that read progression. CA 15-3 sits below on the same months, or on the "
+            "chart with **Overlay CA 15-3**. The chart cannot show whether a variant comes from "
+            "the tumor (no matched white-cell sequencing), and a point below the limit is not "
+            "an absence.")):
         chips(IMPLEMENTED, "placeholder threshold", "synthetic")
-        st.altair_chart(chart(rows, intervals, events, series["detection_limit"], span),
-                        width="stretch", alt="Allele fractions over time, log scale: " + "; ".join(
-                            f"{v['variant']} latest {v['latest']} at month {v['latest_month']}"
-                            for v in vs) + f"; detection limit {series['detection_limit']:g}%")
         mc = marker_chart(lab_rows, span)
-        if mc is not None:
+        with st.container(horizontal=True, gap="small", vertical_alignment="center"):
+            overlay = mc is not None and st.toggle(
+                "Overlay CA 15-3", key=f"{pf.id}_ctdna_overlay",
+                help="CA 15-3 (observed, U/mL) on the allele-fraction chart, on its own "
+                     "right-hand axis; off, it sits in its own chart below")
+            _quick_links(pf, seq, "picture")
+        chart_key = f"{pf.id}_ctdna_chart"
+        st.altair_chart(chart(rows, intervals, events, series["detection_limit"], span,
+                              open_row, [r for r in lab_rows if r["key"] == "ca153"]
+                              if overlay else None),
+                        width="stretch", key=chart_key, selection_mode="pick",
+                        on_select=_point_to_spot(chart_key, rows, spot_key),
+                        alt="Allele fractions over time, log scale: " + "; ".join(
+                            f"{v['variant']} latest {v['latest']} at month {v['latest_month']}"
+                            for v in vs) + f"; detection limit {series['detection_limit']:g}%"
+                        + ("; CA 15-3 overlaid on the right axis" if overlay else ""))
+        if mc is not None and not overlay:
             st.altair_chart(mc, width="stretch",
                             alt="CA 15-3 over the same months, in U/mL, with its pointers")
 
@@ -332,14 +387,14 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
 
     # Spot panel: one sample and variant in full
     with page.spot():
-        chips(IMPLEMENTED, "placeholder threshold", "synthetic")
-        labels = [_label(r) for r in rows]
-        flagged = [r for r in rows if r["pointer"]]
-        spot_key = f"{pf.id}_ctdna_spot"
-        if st.session_state.get(spot_key) not in labels:
-            st.session_state[spot_key] = _label(flagged[-1]) if flagged else labels[-1]
-        r = rows[labels.index(st.selectbox("Sample and variant", labels, key=spot_key))]
+        r = rows[labels.index(st.selectbox(
+            "Sample and variant", labels, key=spot_key,
+            help="Or click a point in the chart, or a look-here item's Spot"))]
         s = wb.spot(r, rows, events, lab_rows)
+        st.markdown(f"##### {r['variant']} at month {r['month']}"
+                    + (f" · {r['pointer']}" if r["pointer"] else ""))
+        st.caption(f"{chip(s['evidence'])} {chip('synthetic', 'red')} {chip(r['call'])} · Method: "
+                   f"rules, version 1, no model · Threshold: {r['rule']} ({r['status']})")
         st.markdown(f"**{r['variant']} {_vaf(r)}** at month {r['month']} "
                     f"({r['pointer'] or 'no pointer'}; evidence: {s['evidence']}, synthetic). "
                     f"Call: **{r['call']}** "
@@ -354,16 +409,24 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
         st.dataframe(pd.DataFrame([{"month": h["month"], "VAF": _vaf(h), "call": h["call"],
                                     "pointer": h["pointer"]} for h in s["history"]]),
                      hide_index=True, width="stretch")
-        c1 = c2 = st.container(horizontal=True, gap="small")  # labels whole; wraps when narrow
-        seq = [t for v in pf.versions for t in v.tests if t.workbench == "mutations"]
-        if seq:
-            found = r["variant"] in seq[-1].details.get("variants", [])
-            c1.button(f"Open the tumor sequencing (month {seq[-1].month}) in the genomics "
-                      "workbench" + ("" if found else f": {r['variant']} is not in it"),
-                      key=f"{pf.id}_ctdna_genomics", on_click=_open, wrap=True,
-                      args=("Tests", (seq[-1].kind, seq[-1].month, seq[-1].name), pf.id))
-        c2.button("Open the Evolution view: what to watch next", key=f"{pf.id}_ctdna_evolution",
-                  on_click=_open, args=("Evolution",), wrap=True)  # long labels wrap when narrow
+        key = next((_key(pf, f["variant"], f["month"]) for f in findings
+                    if f["variant"] == r["variant"] and f["month"] == r["month"]), None)
+        with st.container(horizontal=True, vertical_alignment="bottom", gap="medium"):
+            if key:  # mirrors the details' review widget, which holds the mark
+                st.session_state[f"spot_mark_{key}"] = st.session_state.get(f"mark_{key}",
+                                                                            NO_MARK)
+                st.selectbox("Your review mark for this call", (NO_MARK, *MARKS),
+                             key=f"spot_mark_{key}", on_change=_mirror, args=(key,), width=320,
+                             help="Marks carry your initials from the sidebar and go into this "
+                                  "file's report export")
+            else:
+                st.caption("No new, rising or clonal-hematopoiesis call on this sample, so "
+                           "nothing to mark; it can still be pinned.")
+            pin_toggle(key or _key(pf, r["variant"], r["month"]),
+                       f"ctDNA {r['variant']} {_vaf(r)} at month {r['month']}: {r['call']}"
+                       + (f" ({r['pointer']})" if r["pointer"] else "") + ", synthetic series")
+        with st.container(horizontal=True, gap="small"):  # labels whole; wraps when narrow
+            _quick_links(pf, seq, "spot", r["variant"])
 
     _card(page, card)
     _cannot_see(page)
@@ -385,6 +448,38 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
 
 def wb_cap(s: str) -> str:
     return s[:1].upper() + s[1:]
+
+
+def _mirror(key: str) -> None:
+    """The Spot panel's mark: the details' review widget holds it, so it is set there."""
+    st.session_state[f"mark_{key}"] = st.session_state[f"spot_mark_{key}"]
+
+
+def _point_to_spot(chart_key: str, rows: list[dict], spot_key: str):
+    """The chart's click: the clicked sample and variant open in the Spot panel."""
+    def pick():
+        sel = (st.session_state[chart_key].selection.get("pick") or [{}])[0]
+        row = next((r for r in rows if (r["month"], r["variant"])
+                    == (sel.get("month"), sel.get("variant"))), None)
+        if row:
+            st.session_state[spot_key] = _label(row)
+    return pick
+
+
+def _quick_links(pf: PatientFile, seq: list, where: str, variant: str | None = None) -> None:
+    """The ctDNA monitor's way out: the tumor sequencing in the genomics workbench and the
+    Evolution view, as buttons (labels whole; they wrap when narrow)."""
+    if seq:
+        found = variant is None or variant in seq[-1].details.get("variants", [])
+        st.button(f"Open the tumor sequencing (month {seq[-1].month})"
+                  + ("" if found else f": {variant} is not in it"),
+                  key=f"{pf.id}_ctdna_genomics_{where}", on_click=_open, wrap=True,
+                  args=("Tests", (seq[-1].kind, seq[-1].month, seq[-1].name), pf.id),
+                  help="The genomics workbench on the tumor's own sequencing: each variant's "
+                       "evidence ladder and the CIViC items")
+    st.button("Open the Evolution view: what to watch next",
+              key=f"{pf.id}_ctdna_evolution_{where}", on_click=_open, args=("Evolution",),
+              wrap=True)
 
 
 def _cannot_see(page: Page) -> None:

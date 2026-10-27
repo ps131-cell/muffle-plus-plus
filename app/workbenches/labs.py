@@ -74,7 +74,9 @@ from muffle.workspace import (  # noqa: E402
 )
 from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
-from workbenches._page import Page, land, queue_items  # noqa: E402
+from workbenches import imports  # noqa: E402
+from workbenches._howto import how_to, instruct, pin_toggle  # noqa: E402
+from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, BELOW: RED, RISING: ORANGE, FALLING: BLUE,
@@ -105,6 +107,9 @@ CANNOT_SEE_LABS = [
     "hypotheses name both, and a liver biopsy or imaging would tell",
     "an analyte that was never measured: the search names the panel that would show it",
 ]
+HOW_TO = ("**Trends**: each analyte against its limits (click a point to open it). **Look "
+          "here**: what to check first, and why. **Spot panel**, below: one value with its "
+          "rules, your mark and a pin. **Add … values** brings in new results.")
 CAVEAT = ("An out-of-range or rising value is not evidence of progression by itself: it is an "
           "observed value to look at next to imaging and the clinic. Nothing here is a "
           "recommendation.")
@@ -134,11 +139,14 @@ def _lab(r: dict) -> str:
             f"{r['unit']}, {r['flag']}")
 
 
-def trend(rows: list[dict], intervals: list[dict], band: dict | None, kin: dict) -> alt.Chart:
+def trend(rows: list[dict], intervals: list[dict], band: dict | None, kin: dict,
+          picked: int | None = None) -> alt.Chart:
     """One analyte over months: points colored by their first flag with their pointers (hover
-    for brief stats), the reference limits of the latest value with their source, the
-    within-person baseline band and the kinetics extrapolation (tumor markers), treatment spans
-    with their agents and, for tumor markers, the caution windows after each start."""
+    for brief stats, a click selects the month: selection "pick"), the reference limits of the
+    latest value with their source, the within-person baseline band and the kinetics
+    extrapolation (tumor markers), treatment spans with their agents and, for tumor markers, the
+    caution windows after each start. ``picked``: the month of the value in the Spot panel,
+    ringed."""
     unit, last = rows[0]["unit"], rows[-1]
     span = (min(r["month"] for r in rows), max(r["month"] for r in rows))  # this analyte's own
     df = pd.DataFrame(rows)
@@ -231,12 +239,17 @@ def trend(rows: list[dict], intervals: list[dict], band: dict | None, kin: dict)
     base = alt.Chart(df).encode(x=x, y=alt.Y("value:Q", title=f"{rows[0]['marker']} ({unit})",
                                               scale=y_scale))
     layers.append(base.mark_line(color=GRAY, strokeWidth=1.5))
+    if picked is not None and (df["month"] == picked).any():
+        layers.append(alt.Chart(df[df["month"] == picked]).mark_point(
+            size=420, filled=False, strokeWidth=2.5, color="#1f2329").encode(
+            x=x, y=alt.Y("value:Q", scale=y_scale),
+            tooltip=alt.value("this value is open in the Spot panel")))
     layers.append(base.mark_circle(size=110, opacity=1).encode(
         color=alt.Color("first_flag:N", scale=alt.Scale(
             domain=[f for f in COLORS if f in set(df["first_flag"])],
             range=[c for f, c in COLORS.items() if f in set(df["first_flag"])]),
-            legend=alt.Legend(orient="bottom", title=None)),
-        tooltip=tip))
+            legend=alt.Legend(orient="bottom", title="flag (observed value)")),
+        tooltip=tip).add_params(alt.selection_point(name="pick", fields=["month"], on="click")))
     layers.append(base.mark_text(dy=-13, fontSize=10, fontWeight="bold").encode(
         text="pointer:N"))
     return alt.layer(*layers).properties(height=300).configure_axis(**GRID)
@@ -331,6 +344,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
     page.title(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP,
                *(["synthetic patient"] if synthetic else []),
                *(["imported this session"] if imported else []))
+    how_to("labs", HOW_TO)
     if synthetic:
         st.warning("Synthetic patient: this record was written by hand and is not a real "
                    "person. Its values exist to show how the workbench reads a series"
@@ -371,6 +385,9 @@ def render(file: PatientFile, events: list[dict] | None = None,
     mine = {k: v for k, v in reviews.items() if k.startswith(f"{file.id}|lab|")}
     labels = [_lab(r) for r in rows]
     spot_key = f"{file.id}_spot"
+    if st.session_state.get(spot_key) not in labels:  # the latest flagged value, else the last
+        st.session_state[spot_key] = _lab(flagged[-1]) if flagged else labels[-1]
+    open_row = rows[labels.index(st.session_state[spot_key])]  # ringed in its trend
 
     # overview: one paragraph with the pointers every view shares, the look-here queue, search
     measured = list(dict.fromkeys(r["marker"] for r in rows))
@@ -413,8 +430,8 @@ def render(file: PatientFile, events: list[dict] | None = None,
                    "reference interval (its source named with it), the EGTM 25% rise criterion "
                    "for tumor markers (a rise is unconfirmed until a second specimen within a "
                    "month) or a placeholder.")
-        page.look_here(look_items(file, version), land=lambda focus: land(file, page.version,
-                                                                         focus),
+        page.look_here(instruct(look_items(file, version)),
+                       land=lambda focus: land(file, page.version, focus),
                        more="Details › Flagged results")
         query = st.text_input("Search the results in plain words", key=f"{file.id}_search",
                               placeholder="above the limit · below · rising · after palbociclib "
@@ -434,9 +451,16 @@ def render(file: PatientFile, events: list[dict] | None = None,
             "end). For tumor markers: the orange strip after each start is the caution window, "
             "the blue band the within-person baseline, the orange dashed band after the last "
             "value the kinetics extrapolation (model inference, placeholder method). Dashed red "
-            "lines: the latest value's reference limits.")):
+            "lines: the latest value's reference limits. **Click a point** to open it in the "
+            "Spot panel; the ringed point is the one open there. The chart cannot show lesions "
+            "or their size (imaging does), an assay change the record does not state, or "
+            "analytical variation (no reference change value).")):
         chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP, INFERENCE_CHIP)
         panels = [p for p in (*ref.PANELS, ref.UNLISTED) if any(r["panel"] == p for r in rows)]
+        synced = f"{file.id}_labs_panel_of"  # the tabs follow the Spot value to its panel
+        if st.session_state.get(synced) != st.session_state[spot_key]:
+            st.session_state[synced] = st.session_state[spot_key]
+            st.session_state[f"{file.id}_labs_panels"] = open_row["panel"]
         tabs = st.tabs(panels, key=f"{file.id}_labs_panels", on_change="rerun")
         for tab, panel in zip(tabs, panels, strict=True):
             with tab:  # a panel's charts run only while its tab is open
@@ -444,13 +468,24 @@ def render(file: PatientFile, events: list[dict] | None = None,
                     continue
                 for key in dict.fromkeys(r["key"] for r in rows if r["panel"] == panel):
                     series = [r for r in rows if r["key"] == key]
-                    st.altair_chart(trend(series, intervals, bands.get(key), kin.get(key, {})),
-                                    width="stretch", alt=trend_alt(series))
+                    picked = open_row["month"] if open_row["key"] == key else None
+                    chart_key = f"{file.id}_trend_{key}"
+                    st.altair_chart(trend(series, intervals, bands.get(key), kin.get(key, {}),
+                                          picked), width="stretch", alt=trend_alt(series),
+                                    key=chart_key, on_select=_point_to_spot(chart_key, series,
+                                                                           spot_key),
+                                    selection_mode="pick")
                     a = ref.ANALYTES.get(key)
-                    st.caption(f"{series[0]['marker']}: " + (
+                    note, add = line_and_action()
+                    note.caption(f"{series[0]['marker']}: " + (
                         f"{a['why']} ({a['why_source']})." if a else
                         f"{ref.UNLISTED}: flagged only against the interval its lab report "
                         "gave."))
+                    if add.button(f"Add {series[0]['marker']} values…", key=f"{chart_key}_add",
+                                  help="Opens Import tests with this analyte and its unit filled "
+                                       "in; the values join the file as a new report version"):
+                        imports.open_dialog(file, {"marker": series[0]["marker"],
+                                                   "unit": series[0]["unit"]})
 
     # details: collapsed, each with its count
     with page.details("Flagged results", len(queue)):
@@ -597,12 +632,16 @@ def render(file: PatientFile, events: list[dict] | None = None,
 
     # Spot panel: one value in full, with the review mark
     with page.spot():
-        chips(IMPLEMENTED, REFERENCE_LAB_CHIP, LITERATURE_CHIP, PLACEHOLDER_CHIP)
-        if st.session_state.get(spot_key) not in labels:
-            st.session_state[spot_key] = _lab(flagged[-1]) if flagged else labels[-1]
-        picked = st.selectbox("Value", labels, key=spot_key)
+        picked = st.selectbox("Value", labels, key=spot_key,
+                              help="Or click a point in Trends, a row of Flagged results or "
+                                   "Results, or a look-here item's Spot")
         r = rows[labels.index(picked)]
         s = spot(r, rows, events)
+        st.markdown(f"##### {r['marker']} at month {r['month']}"
+                    + (f" · {r['pointer']}" if r["pointer"] else ""))
+        st.caption(" ".join(chip(x) for x in (s["evidence"], r["flag"] if r["flags"] else "")
+                            if x) + f" · Method: rules, version 2, plain arithmetic, no model · "
+                   f"Reference interval: {r['reference_source']}")
         st.markdown(
             f"**{r['marker']} {r['value']:g} {r['unit']}** at month {r['month']} "
             f"({r['pointer'] or 'no flag'}; evidence: {s['evidence']}). Reference "
@@ -619,10 +658,13 @@ def render(file: PatientFile, events: list[dict] | None = None,
         if r["flags"]:
             key = _key(file, r)  # the widget starts from the store: a mark made elsewhere shows
             st.session_state[f"mark_{key}"] = (reviews.get(key) or {}).get("mark", NO_MARK)
-            st.selectbox("Your review mark for this result", MARKS, key=f"mark_{key}",
-                         on_change=_set_mark, args=(file, r),
-                         help="Marks carry your initials from the sidebar and go into this "
-                              "file's report export")
+            with st.container(horizontal=True, vertical_alignment="bottom", gap="medium"):
+                st.selectbox("Your review mark for this result", MARKS, key=f"mark_{key}",
+                             on_change=_set_mark, args=(file, r), width=320,
+                             help="Marks carry your initials from the sidebar and go into this "
+                                  "file's report export")
+                pin_toggle(key, f"{r['marker']} {r['value']:g} {r['unit']} at month "
+                                f"{r['month']}: {r['flag']} ({r['pointer']}), blood and lab")
         else:
             st.caption("No flag on this value, so nothing to mark.")
         st.markdown("**Events around it (±2 months):**\n" + "\n".join(
@@ -657,6 +699,16 @@ def look_items(file: PatientFile, version: int | None) -> list[dict]:
     """The workbench's look-here items (``muffle.workbench.labs.queue``), the ones the report's
     attention queue carries."""
     return queue_items("labs", file, version, lambda: lab_queue(file, version))
+
+
+def _point_to_spot(chart_key: str, series: list[dict], spot_key: str):
+    """A trend's click: the clicked month's value of that analyte opens in the Spot panel."""
+    def pick():
+        sel = st.session_state[chart_key].selection.get("pick") or []
+        row = next((r for r in series if sel and r["month"] == sel[0].get("month")), None)
+        if row:
+            st.session_state[spot_key] = _lab(row)
+    return pick
 
 
 def _pick_table(df: pd.DataFrame, labels: list[str], key: str, spot_key: str) -> None:

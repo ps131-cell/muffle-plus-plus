@@ -42,6 +42,22 @@ QUEUED = "queued for the local pipeline"
 # An example lab CSV (synthetic values, months after SYNTHETIC-001's latest report): tumor
 # markers, liver and bone chemistry, kidney, a CBC and one analyte the reference table does not
 # list, in mixed units, some with the lab report's own interval.
+MAF_EXAMPLE = (  # a synthetic MAF, written by hand: one ESR1 call on a later sample
+    "Hugo_Symbol\tVariant_Classification\tHGVSp_Short\tTumor_Sample_Barcode\tt_alt_count"
+    "\tt_depth\n"
+    "ESR1\tMissense_Mutation\tp.Y537S\tSYNTHETIC-EXAMPLE-T1\t18\t160\n"
+    "PIK3CA\tMissense_Mutation\tp.H1047R\tSYNTHETIC-EXAMPLE-T1\t41\t150\n")
+REPORT_EXAMPLE = """Synthetic example, written by hand; not a real patient's report.
+
+SURGICAL PATHOLOGY REPORT
+Specimen: left breast, core needle biopsy.
+Diagnosis: invasive ductal carcinoma, Nottingham grade 2 (tubules 3, nuclei 2, mitoses 1).
+Tumor size: 1.8 cm.
+Lymphovascular invasion: not identified.
+Estrogen receptor: positive (90%, Allred 8). Progesterone receptor: positive (40%).
+HER2: negative (IHC 1+).
+Ki-67: 15%.
+"""
 LAB_EXAMPLE = """month,marker,value,unit,reference interval
 25,CA 15-3,44,U/mL,<30
 25,CEA,3.6,ng/mL,<5
