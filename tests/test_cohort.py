@@ -35,13 +35,17 @@ def test_the_index_holds_every_kind_of_finding_with_its_label_and_link():
     queue = next(e for e in index if e["patient"] == case.id and e["kind"] == "attention item"
                  and e["pointer"])
     assert urlencode({"pointer": queue["pointer"]}) in queue["link"]
-    profile = next(e for e in index if e["patient"] == case.id and e["kind"] == "profile")
-    assert "stage III" in profile["text"] and "PAM50 Luminal A" in profile["text"]
-    assert "MAP3K1, TP53" in profile["text"] and profile["opens"] == ()
+    recorded, derived = [e for e in index if e["patient"] == case.id and e["kind"] == "profile"]
+    assert recorded["label"] == OBSERVED and derived["label"] == INFERENCE  # never mixed
+    assert "stage III" in recorded["text"] and "MAP3K1, TP53" in recorded["text"]
+    assert "PAM50" not in recorded["text"] and "PAM50 Luminal A" in derived["text"]
+    assert recorded["opens"] == () and index.index(recorded) > index.index(slide)  # last
     # the synthetic patient's 12-month risk (MSK-CHORD models) is a card, never a profile field
-    synthetic_profile = next(e for e in index if e["patient"] == "SYNTHETIC-001"
-                             and e["kind"] == "profile")
-    assert "risk group" not in synthetic_profile["text"]
+    assert not any("risk group" in e["text"] for e in index
+                   if e["patient"] == "SYNTHETIC-001" and e["kind"] == "profile")
+    # a PAM50 match shows the PAM50 card (model inference) before the derived profile
+    best = next(p for p in cohort.search(index, "luminal")["patients"] if p["patient"] == case.id)
+    assert best["findings"][0]["what"] == "PAM50 subtype"
     # the search finds each kind: a variant, a slide number, a fact, a hypothesis
     fact = next(e for e in index if e["patient"] == case.id and e["kind"] == "documented fact")
     for query, pid in (("MAP3K1", case.id), ("breakaway", case.id), ("level A", "SYNTHETIC-001"),

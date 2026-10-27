@@ -114,20 +114,24 @@ def profile(pf, row: dict | None = None) -> dict:
             "scores": scores}
 
 
-def profile_text(p: dict) -> str:
-    """The profile in words, for the search index."""
-    rec = p["receptors"] or {}
-    bits = [f"stage {p['stage']}" if p["stage"] else "stage not recorded",
-            ", ".join(f"{k} {v}" for k, v in rec.items()) or "receptors not recorded",
-            f"PAM50 {p['pam50']}" if p["pam50"] else "PAM50 not called",
-            ("mutated: " + ", ".join(p["drivers"]) if p["drivers"] else
-             "sequenced: no panel driver mutated") if p["drivers"] is not None else
-            "not sequenced",
-            "copy number: " + (", ".join(p["cn"]) or "no amplification or deep deletion")
-            if p["cn"] is not None else "",
-            f"{p['risk_band']} risk group" if p["risk_band"] else "",
-            f"RNA immune signature {p['immune']}" if p["immune"] else "",
-            "data in: " + ", ".join(p["tests"])]
+def profile_text(p: dict, derived: bool = False) -> str:
+    """The profile in words, for the search index: its recorded fields (stage, receptors,
+    mutations, copy number, tests; observed), or with ``derived`` the model's (PAM50, risk
+    group, immune band), kept apart so a derived field never reads as observed."""
+    if derived:
+        bits = [f"PAM50 {p['pam50']}" if p["pam50"] else "PAM50 not called",
+                f"{p['risk_band']} risk group" if p["risk_band"] else "",
+                f"RNA immune signature {p['immune']}" if p["immune"] else ""]
+    else:
+        rec = p["receptors"] or {}
+        bits = [f"stage {p['stage']}" if p["stage"] else "stage not recorded",
+                ", ".join(f"{k} {v}" for k, v in rec.items()) or "receptors not recorded",
+                ("mutated: " + ", ".join(p["drivers"]) if p["drivers"] else
+                 "sequenced: no panel driver mutated") if p["drivers"] is not None else
+                "not sequenced",
+                "copy number: " + (", ".join(p["cn"]) or "no amplification or deep deletion")
+                if p["cn"] is not None else "",
+                "data in: " + ", ".join(p["tests"])]
     return " · ".join(b for b in bits if b)
 
 
@@ -141,10 +145,7 @@ def entries(pf, lookup=None) -> list[dict]:
     sums = overview.summaries(pf, i, lookup)
     queue = overview.attention(pf, i, overview.queues(pf, i, lookup),
                                crosstest.discrepancies(pf, i))
-    p = profile(pf)
-    out = [_entry(pf, "Report", "profile", "File profile", profile_text(p),
-                  f"{OBSERVED} (stage, receptors, mutations, copy number), {INFERENCE} (PAM50, "
-                  "risk group, immune band)")]
+    out = []
 
     def pointer(c):  # a card's pointer: the queue item landing on the same evidence
         return next((x["pointer"] for x in queue if c["focus"] and x["focus"] == c["focus"]),
@@ -194,7 +195,12 @@ def entries(pf, lookup=None) -> list[dict]:
         out.append(_entry(pf, "Evolution", "hypothesis", h["event"],
                           f"{h['event']}; {h['status']}", HYPOTHESIS, ("Evolution",),
                           {"evolution": h["key"]}))
-    return out
+    p = profile(pf)  # last: on a tie the specific finding is the one shown
+    return out + [
+        _entry(pf, "Report", "profile", "Recorded profile", profile_text(p),
+               f"{OBSERVED} (stage, receptors, mutations, copy number)"),
+        _entry(pf, "Report", "profile", "Derived profile", profile_text(p, derived=True),
+               f"{INFERENCE} (PAM50, risk group, immune band)")]
 
 
 def build_index(files: dict, lookup=None) -> list[dict]:

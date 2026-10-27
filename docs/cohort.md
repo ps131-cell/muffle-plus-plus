@@ -15,7 +15,8 @@ the 41 files), for each file as of its latest report:
 
 | Entry | From | Opens |
 |---|---|---|
-| File profile | stage, receptors, PAM50 call, mutated drivers, copy-number calls, risk group, RNA immune band, tests on file (`cohort.profile`) | the report |
+| Recorded profile | stage, receptors, mutated drivers, copy-number calls, tests on file (`cohort.profile`), observed | the report |
+| Derived profile | the PAM50 call, the risk group, the RNA immune band, model inference (kept apart from the recorded fields, so a derived field never reads as observed) | the report |
 | Finding cards | every workbench's `summary` and the report header's own cards (stage and receptors, imaging, the risk) | the card's test at its evidence |
 | Attention items | the file's one queue: SOS alerts, tests that disagree (`crosstest`), every workbench's `queue` | the item's test at its pointer |
 | Variants | `genomics.file_variants`, with the strongest CIViC level when CIViC loaded | the sequencing test at the variant |
