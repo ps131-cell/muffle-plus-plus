@@ -316,3 +316,30 @@ def test_summary_and_queue_carry_the_round2_findings():
     pf = tcga(1043, slides=["TCGA-PL-A8LZ-DX1", "TCGA-PL-A8LZ-DX2", "TCGA-PL-A8LZ-DX3"])
     card = next(c for c in omics.summary(pf)["cards"] if c["what"] == "Immune picture")
     assert "disagree" in card["text"] and "pathologist" in card["text"]
+
+
+def test_scores_compare_with_the_cohort_and_outline_the_open_finding():
+    from pathlib import Path
+
+    from streamlit.testing.v1 import AppTest
+
+    root = Path(__file__).resolve().parents[1]
+    at = AppTest.from_string(f"""
+import sys
+sys.path[:0] = [{str(root / "app")!r}, {str(root / "src")!r}]
+import pandas as pd
+import streamlit as st
+from workbenches.omics import score_bars
+st.session_state.setdefault("spot", "k2")
+score_bars(pd.DataFrame({{"set": ["e2f targets", "hypoxia"], "z": [1.2, -0.4],
+                         "percentile": [88.0, 31.0], "key": ["k1", "k2"]}}), "set", "score", [],
+           "spot", "bars", 80)
+""", default_timeout=60).run()
+    assert not at.exception
+    spec = at.get("vega_lite_chart")[0].proto.spec
+    assert "cohort z-score" in spec and "middle half" not in spec
+    assert 'datum.key == \\"k2\\"' in spec  # the open finding is outlined
+    at.toggle(key="bars-cohort").set_value(True).run()
+    spec = at.get("vega_lite_chart")[0].proto.spec
+    assert not at.exception and "cohort percentile (0 to 100)" in spec
+    assert '"type": "rect"' in spec and '"type": "rule"' in spec  # middle half, median

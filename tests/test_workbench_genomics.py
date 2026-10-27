@@ -720,3 +720,22 @@ def test_the_patient_overview_gets_copy_number_and_burden():
     assert [c["what"] for c in summary["cards"]] == ["Key drivers", "Copy number",
                                                      "Mutation burden"]
     assert any(i["pointer"] == "ERBB2" for i in g.queue(pf))  # even without CIViC loaded
+
+
+def test_the_page_guides_a_first_reader_copies_the_variant_list_and_pins():
+    AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
+    wbs = str(ROOT / "app" / "workbenches")
+    case = tcga_case(61).__dict__
+    at = AppTest.from_string(PAGE.format(workbenches=wbs, body=(
+        f"genomics.render(case_file(SimpleNamespace(**{case!r})))")), default_timeout=120).run()
+    assert not at.exception
+    md = [m.value for m in at.markdown]
+    assert any(m.startswith(":material/lightbulb: **How to use this page:**") for m in md)
+    copied = at.code[0].value.splitlines()  # "Copy the variant list": one variant per line
+    assert copied and all(len(line.split("\t")) == 3 for line in copied)
+    assert copied[0].split("\t")[2].startswith("CIViC: ")
+    title = next(m for m in md if m.startswith("##### "))  # the Spot panel names its variant
+    variant = title[6:].split(" · ")[0].replace("\\", "")
+    key = finding_key(case_file(SimpleNamespace(**case)), "variant", variant, None)
+    at.checkbox(key=f"pin-{key}").check().run()
+    assert at.session_state["pins"][key].startswith(variant)

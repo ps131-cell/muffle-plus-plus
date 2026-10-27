@@ -40,8 +40,13 @@ from muffle.report import trials  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
+from workbenches._howto import how_to, instruct  # noqa: E402
 from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
 
+HOW_TO = ("**The record over time**: every dated event of the file (hover a point for its "
+          "text). **Look here**: what to watch next, and why, from a cited table. **Spot "
+          "panel**, below: one hypothesis with the evidence for and against; **Watch this** "
+          "pins it to the report with its source, and **Open the trial** goes to the registry.")
 DOCS = "https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/evolution.md"
 KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78d6",
                "sequencing": "#7b4fd6", "marker": "#1a9e8f", "alert": "#e34948"}
@@ -90,8 +95,8 @@ def review_box(key: str, what: str) -> None:
         st.segmented_control("Your mark", REVIEW_MARKS, key=f"evo-mark-{h}",
                              default=done["mark"] if done and done["mark"] in REVIEW_MARKS
                              else None, on_change=_mark, args=(key, what, f"evo-mark-{h}"))
-        st.checkbox("Pin to the top of the report", key=f"evo-pin-{h}",
-                    value=key in st.session_state.setdefault("pins", {}), on_change=_pin,
+        st.session_state[f"evo-pin-{h}"] = key in st.session_state.setdefault("pins", {})
+        st.checkbox("Pin to the top of the report", key=f"evo-pin-{h}", on_change=_pin,
                     args=(key, what))
         if done:
             st.caption(f"{done['mark']} · {done['by'] or 'no initials'} · {done['at']}")
@@ -181,16 +186,39 @@ def watch_table(hs: dict, items: list[dict], spot: str) -> None:
         selection_mode="single-row", key=key)
 
 
-def item_spot(it: dict) -> None:
+def watch_what(it: dict) -> str:
+    """What "Watch this" pins: the event, its lead source and the test that would detect it."""
+    lead = it["support"][0]["source"]
+    return (f"Watch for {it['event']} (hypothesis; {lead['cite']}, PMID {lead['pmid']}); "
+            f"detect with {it['detect'].split(';')[0]}")
+
+
+def item_trials(it: dict, rows: list[dict]) -> list[dict]:
+    """The registry's trials that mention one of the hypothesis's genes (not a match:
+    eligibility is not assessed)."""
+    return [t for t in rows if any(g in t["mentions"] for g in it["genes"])]
+
+
+def item_spot(it: dict, rows: list[dict] = ()) -> None:
     """One hypothesis in full: why, status, frequency, detection, timing, the evidence for and
-    against with PubMed links, its CIViC items and the review box."""
+    against with PubMed links, its CIViC items, the review box, "Watch this" (a pin with its
+    source) and the trials that mention its genes."""
     lead = it["support"][0]["source"]
     head, box = line_and_action()
-    head.markdown(f"**{it['event']}** {badge(HYPOTHESIS)} "
-                  + (badge("already observed", "blue") if it["status"].startswith("already")
-                     else ""))
+    head.markdown(f"##### {it['event']}")
     with box:
+        watching = it["key"] in st.session_state.setdefault("pins", {})
+        st.button("Watching: stop" if watching else "Watch this", key=f"watch-{it['key']}",
+                  type="secondary" if watching else "primary", on_click=_pin,
+                  args=(it["key"], watch_what(it)),
+                  help="Pins this hypothesis to the top of the report, with its source and the "
+                       "test that would detect it; the attention queue marks it pinned")
         review_box(it["key"], f"Evolution: {it['event']} ({lead['cite']})")
+    st.caption(f"{badge(HYPOTHESIS)} "
+               + (badge("already observed", "blue") + " " if it["status"].startswith("already")
+                  else "")
+               + f"· Method: the cited table's rule ({lead['cite']}, PMID {lead['pmid']}), no "
+                 "model · for clinician review, never advice")
     st.markdown(f"**Why this file raises it:** {esc('; '.join(it['why']))}.  \n"
                 f"**Status:** {esc(it['status'])}.  \n"
                 f"**Reported frequency:** {it['frequency']}.  \n"
@@ -225,6 +253,14 @@ def item_spot(it: dict) -> None:
                 "CIViC": st.column_config.LinkColumn(display_text="item")})
     else:
         st.caption("CIViC: no accepted item for this event in breast cancer.")
+    named = item_trials(it, list(rows))
+    if named:
+        st.markdown(f"**Trials that mention {', '.join(it['genes'])}** ({len(named)}; "
+                    "ClinicalTrials.gov, recruiting or not yet; eligibility is not assessed here)")
+        with st.container(horizontal=True, gap="small"):
+            for t in named[:4]:
+                st.link_button(f"Open the trial {t['nct']}",
+                               f"https://clinicaltrials.gov/study/{t['nct']}", help=t["title"])
 
 
 def clonal(panel: dict) -> None:
@@ -300,7 +336,10 @@ def trials_section(pf: PatientFile, genes: list[str], rows: list[dict], results:
                             index=None, key=f"{key}-trial", placeholder="Choose a trial")
         if pick:
             nct = pick.split(" · ")[0]
-            review_box(finding_key(pf, "evolution", "trial", nct), f"Trial {pick}")
+            with st.container(horizontal=True, gap="small", vertical_alignment="center"):
+                st.link_button("Open the trial on ClinicalTrials.gov",
+                               f"https://clinicaltrials.gov/study/{nct}")
+                review_box(finding_key(pf, "evolution", "trial", nct), f"Trial {pick}")
     stamp = next((r.get("data_timestamp") for r in results if r.get("data_timestamp")), "")
     st.caption("Source: ClinicalTrials.gov (U.S. National Library of Medicine), API v2"
                + (f"; data processed by ClinicalTrials.gov on {stamp[:10]}" if stamp else "")
@@ -355,6 +394,7 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
     spot = f"evolution-spot-{pf.id}"
 
     page.title(IMPLEMENTED, OBSERVED, INFERENCE, HYPOTHESIS)
+    how_to("evolution", HOW_TO)
     if pf.kind == "synthetic":
         st.warning(f"{pf.title}. Its record exists to show how this view reads a history.")
     st.caption(PROVENANCE)
@@ -375,7 +415,8 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
             + ("  \n**What would settle the first ones:** " + "; ".join(
                 f"{it['event']} → {it['detect'].split(';')[0]}" for it in hs["items"][:2])
                 if hs["items"] else ""))
-        page.look_here(queue_items("evolution", pf, i, lambda: evolution.queue(pf, i, hs=hs)),
+        page.look_here(instruct(queue_items("evolution", pf, i,
+                                            lambda: evolution.queue(pf, i, hs=hs))),
                        land=lambda focus: land(pf, i, focus),
                        empty="Nothing raised by this file's own treatments or drivers.")
         query = st.text_input("Search what to watch: a gene, a drug class, a test or a source",
@@ -395,7 +436,9 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
     with page.picture("The record over time", caption="Every point is observed in the record; "
                       "hover for the text. Red: an alert (progression, a new site, a marker "
                       "rise). The dashed line is this report version. Treatment starts only: "
-                      "the record holds no stop dates."):
+                      "the record holds no stop dates. The chart cannot show what happens "
+                      "between samples or after the last one: what to watch is a hypothesis, "
+                      "listed below with its sources."):
         st.caption(" ".join([badge(OBSERVED), badge(IMPLEMENTED)]))
         if ev:
             st.altair_chart(events_chart(ev, v.month), width="stretch",
@@ -428,7 +471,7 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
                 st.session_state[spot] = items[0]["key"]
             picked = st.selectbox("Thing to watch", list(by_key), key=spot,
                                   format_func=lambda k: by_key[k]["event"])
-            item_spot(by_key[picked])
+            item_spot(by_key[picked], rows)
         else:
             st.caption("Nothing to open: no row of the table is raised for this file"
                        + (" or matches the search." if query else "."))
