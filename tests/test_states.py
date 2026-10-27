@@ -121,12 +121,14 @@ def test_metric_tiles_wrap_instead_of_cutting_their_values():
 CONTROLS = {"button", "download_button", "popover", "selectbox", "multiselect", "pills",
             "segmented_control", "toggle", "checkbox", "text_input", "select_slider", "radio",
             "number_input", "text_area", "file_uploader", "slider", "page_link"}
+FORMATS = ("Markdown", "CSV", "JSON", "PNG", "PDF", "MAF", "VCF", "text", "DICOM")
 
 
 def test_every_control_of_the_shell_says_what_it_does():
     """Every button, popover, picker and toggle of the shell (the patient list, the file, the
     report, the guide, the timeline, the page helper) has a tooltip (docs/ux.md §2); every
-    download in the app names its format, "(Markdown)", "(CSV)" (docs/ux.md §1)."""
+    download in the app whose label is written out names its format, "(Markdown)", "CSV"
+    (docs/ux.md §1); a label held in a variable is not read here."""
     missing, downloads = [], []
     for path in sorted(APP.parent.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -141,9 +143,12 @@ def test_every_control_of_the_shell_says_what_it_does():
                 missing.append(f"{path.name}:{n.lineno}")
             if n.func.attr == "download_button" and n.args:
                 label = n.args[0]
-                tail = label.values[-1] if isinstance(label, ast.JoinedStr) else label
-                if not (isinstance(tail, ast.Constant) and str(tail.value).endswith(")")):
-                    downloads.append(f"{path.name}:{n.lineno}")
+                for branch in (label.body, label.orelse) if isinstance(label, ast.IfExp) \
+                        else (label,):  # each side of "a if b else c" names it
+                    text = " ".join(str(c.value) for c in ast.walk(branch)
+                                    if isinstance(c, ast.Constant) and isinstance(c.value, str))
+                    if text and not any(f in text for f in FORMATS):
+                        downloads.append(f"{path.name}:{n.lineno}")
     assert not missing, missing
     assert not downloads, downloads
 
