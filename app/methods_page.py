@@ -20,7 +20,7 @@ from workbenches import documents, omics
 from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
-from muffle import crosstest, feedback, workspace
+from muffle import cohort, crosstest, feedback, workspace
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.nemotron import DEFAULT_MODEL, WRITER_MODEL, model_name
 from muffle.timeline import CTDNA
@@ -627,6 +627,7 @@ def placeholders() -> None:
         ("Slides", "risk map points and levels", ", ".join(
             f"{k} {v}" for k, v in invasion.RISK_POINTS.items())),
         *(("Radiology", what, value) for what, value in radiology_rules.PLACEHOLDERS),
+        *(("Patients · across the files", what, value) for what, value in cohort.PLACEHOLDERS),
     ]
     st.header("Every placeholder in the app")
     st.caption(f"{len(rows)} values nobody has validated yet. Each workbench marks its own "
