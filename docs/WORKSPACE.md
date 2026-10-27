@@ -76,6 +76,9 @@ Three buttons lead on: **Import tests**, **Tests** and **Timeline**.
 - Every test in the file with its type, date, source, status (analyzed, quality issue, not
   supported yet) and a short result; filters by type and date.
 - Opening a test opens its workbench.
+- Built 2026-10-27: a launcher of tiles, one per test grouped by kind (a dated series is one
+  tile with a pill per month), each with what it holds, its status, its look-here count and
+  "Open"; the table of every test stays below it, collapsed ([`ux.md`](ux.md) §2).
 
 ### 5. Timeline
 - Every report version from baseline to now on a real time axis, with the tests and treatments

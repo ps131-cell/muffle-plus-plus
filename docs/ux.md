@@ -74,6 +74,19 @@ version slider sits under it. It sticks below Streamlit's toolbar in windows 102
 quarter of the screen, so there it scrolls away with the page. Streamlit 1.66 wraps the header
 in a layout wrapper of its own height, so the wrapper is what sticks (`app/navigation.py`).
 
+**The Tests launcher** (2026-10-27). Tests opens on a tile per test, grouped by kind, in rows
+that wrap (220 px tiles: three a row at 1280 px, two at 800 px with the sidebar open). A tile
+names the kind and the test, says what it holds (the result, "Latest: …" for a series), its
+status chip and scope ("report text, no images", "example region, first version"), "imported
+this session" where it applies, how many look-here items of its workbench's `queue()` open at
+it ("4 items to look at (month 4, 11, 16, 24)", or "nothing flagged") and "Open". A dated
+series of one test (CA 15-3 at eight months, the twelve ctDNA samples) is one tile with a pill
+per month, so 29 tests fit in six tiles: a pill opens that month's test, "Open month 24" the
+latest. The open test's tile says "open below" (or "month 11 open below"), and the breadcrumb
+names it. Every test is also a row of **All tests (n)**, collapsed under the launcher, where
+selecting a row opens it too. Deep links, the attention queue's "Open" and the overview cards'
+"Open" land as before.
+
 **The way back.** After an "Open" (an attention-queue item, an overview card), the workbench
 shows "← Back to the file" (the file's report, at its top) and, when it came from the queue,
 "← Back to the queue, item 6 of 15", which returns to the queue on that item.
