@@ -61,7 +61,10 @@ The front page of a file is always the newest version of the report:
   treatment unknown").
 - **Caveats, data sources and model versions.**
 
-Three buttons lead on: **Import tests**, **Tests** and **Timeline**.
+Three buttons lead on: **Import tests**, **Tests** and **Timeline**. Built 2026-10-27: an action
+row under the views on every screen of the file: Attention queue (n), Import a test, Compare
+versions, Export this report, Your marks (n) (the Feedback page) and How to read this, and a
+"Next step" line under the queue ([`ux.md`](ux.md) §2).
 
 ### 3. Import tests
 - Any supported test type comes in through its own input adapter: slide images, scan series

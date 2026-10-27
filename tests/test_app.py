@@ -73,7 +73,7 @@ def test_patient_files_render_in_every_view(app):
     assert "**unsure list**" in shown(at) and "1/8 · 12-month risk up" in shown(at)
     at.button(key=f"unsure-{queue}").click().run()
     assert [b.label for b in at.main.get("download_button")] == [
-        "Download this report version (Markdown)"]
+        "Export this report (Markdown)", "Download this report version (Markdown)"]
     at.segmented_control(key="view").set_value("Tests").run()
     at.session_state["picked-SYNTHETIC-001"] = ("Lab", 11, "CA 15-3")
     at.run()  # the lab page as of month 12: the month-11 rise is a flagged result
