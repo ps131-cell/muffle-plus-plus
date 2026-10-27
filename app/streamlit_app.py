@@ -31,6 +31,7 @@ import logging
 import os
 import sys
 import tempfile
+import threading
 from collections import Counter
 from datetime import datetime
 from functools import partial
@@ -1743,3 +1744,9 @@ if LIVE:
     budget_slot.progress(notes_left / CAP if CAP else 0,
                          text=f"Live notes left this session: {notes_left} of {CAP}")
 session_marks(marks_slot)
+
+# scipy (the slide maths, the omics immune picture) is not needed for the first screen: it loads
+# once that screen is drawn, while the reader looks at it, so the first file need not wait for it
+if "scipy.spatial" not in sys.modules:
+    threading.Thread(target=lambda: (__import__("scipy.ndimage"), __import__("scipy.spatial")),
+                     daemon=True).start()
