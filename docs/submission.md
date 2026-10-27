@@ -69,12 +69,12 @@ report exports as one page.
 "what this test cannot see", a model and validation card, and export:
 - **Pathology** (five TCGA cases, eight of their own diagnostic sections): a pan-and-zoom viewer
   on the patient's slide; a tissue map from a breast tissue head trained on BCSS on a frozen
-  open encoder (QuiltNet-B-32); the invasive front, its zones and the direction of invasion per
+  open encoder (GigaPath-Flash; tiles unlike its training tissue are not scored); the invasive front, its zones and the direction of invasion per
   arc (a hypothesis about the section); StarDist nuclei, breakaway (budding) candidates in the
   ITBCC counting field and lymphocytes by TILs zone; a second opinion on lymphocytes from the
   WSInfer TIL model, whose disagreements with the head go to the queue. Seven tile encoders were
   compared with the same head on the same held-out slides (accuracy: GigaPath-Flash 0.919,
-  QuiltNet-B-32 0.877).
+  QuiltNet-B-32 0.877), and the sections were re-scored with the winner.
 - **Expression, methylation and protein** (TCGA cases): PAM50 subtype with its margin, Hallmark
   pathway scores, ten RPPA protein pathways, promoter methylation of six genes, an immune and
   stromal picture read against the slide's lymphocytes, and receptor consistency (IHC against
@@ -163,7 +163,7 @@ nor the output of a model trained on it, which includes SYNTHETIC-001's risk sco
   event; it scores the synthetic patient.
 - **Workbench pipelines** run offline (in WSL on a Windows PC, CPU only) and ship derived numbers
   and small images; the hosted app runs no model. Slides: OpenSlide tiling at 0.5 µm/px,
-  QuiltNet-B-32 embeddings, a logistic tissue head trained on BCSS, StarDist, WSInfer TIL, Deep
+  GigaPath-Flash embeddings, a logistic tissue head trained on BCSS, StarDist, WSInfer TIL, Deep
   Zoom pyramids served from a GitHub release to an OpenSeadragon viewer. Radiology: TCIA
   downloads, a seed rule, MedSAM box prompts, kinetics, a rigid alignment by mutual information
   written with SciPy. Omics: PAM50 centroids (genefu), MSigDB Hallmark, RPPA pathways (Akbani et
@@ -175,7 +175,7 @@ nor the output of a model trained on it, which includes SYNTHETIC-001's risk sco
   weights and 40 held-out cases' processed inputs) plus the slide tiles on a second release.
 
 **Models and their licenses.** Used in the app (open licenses, results precomputed offline):
-QuiltNet-B-32 (MIT), StarDist 2D_versatile_he (BSD-3-Clause), WSInfer TIL InceptionV4 (CC BY
+GigaPath-Flash (Apache-2.0), StarDist 2D_versatile_he (BSD-3-Clause), WSInfer TIL InceptionV4 (CC BY
 4.0), MedSAM ViT-B (Apache-2.0), mammoscreen (Apache-2.0), MONAI breast density (Apache-2.0),
 AlphaMissense predictions (CC BY 4.0), OpenMed ZeroShot NER Oncology 220M (Apache-2.0; its
 spans ship for the bundled reports), Granite-Docling 258M (Apache-2.0; scans, local pipeline
@@ -223,7 +223,7 @@ Every dataset, model and service, with its license and what leaves the machine:
   placeholder; a Methods page that lists every known failure and every placeholder.
 - Measured where we could: PAM50 agrees with TCGA's published calls on 94.7% of 950 tumors (κ
   0.92; the centering was chosen after a first run, so not an independent test); the tissue head
-  reaches 87.7% held-out accuracy on three patient-disjoint slides; the second-opinion lymphocyte
+  reaches 91.9% held-out accuracy on three patient-disjoint slides; the second-opinion lymphocyte
   model reaches AUROC 0.955 on those slides (an upper bound: it was trained on TCGA); when a
   report states a fact, the document rules read it right 91–98% of the time for seven of ten
   fields on 481 held-out reports. The numbers appendix lists each with its caveat.
@@ -265,7 +265,7 @@ Every dataset, model and service, with its license and what leaves the machine:
 
 Python, PyTorch, NVIDIA FLARE, NVIDIA Nemotron 3 Super, NVIDIA Nemotron 3 Ultra, Nebius Token
 Factory, Tavily, Streamlit, Altair, OpenSeadragon, OpenSlide, scikit-learn, SciPy, Playwright
-(QA); models: QuiltNet-B-32, StarDist, WSInfer TIL, MedSAM, mammoscreen, MONAI breast density,
+(QA); models: GigaPath-Flash, StarDist, WSInfer TIL, MedSAM, mammoscreen, MONAI breast density,
 OpenMed ZeroShot NER Oncology, Granite-Docling; data: TCGA-BRCA (GDC open access), BCSS,
 TCGA-Reports, TCIA, CIViC, ClinicalTrials.gov, Ensembl VEP, AlphaMissense, MSK-CHORD (local
 only).
@@ -455,7 +455,8 @@ quantities name each. If a source changes, change the figure everywhere it is qu
 
 | Figure | Value | Measured on | Source |
 |---|---|---|---|
-| Breast tissue head, held-out accuracy | **87.7%** (balanced 85.4%); lymphocyte recall 0.74 | 357 tiles on 3 patient-disjoint BCSS slides, QuiltNet-B-32 embeddings | `docs/pathology.md`; `app/workbenches/slides_example/summary.json` |
+| Breast tissue head, held-out accuracy | **91.9%** (balanced 91.7%); lymphocyte recall 0.90 | 357 tiles on 3 patient-disjoint BCSS slides, GigaPath-Flash embeddings (QuiltNet-B-32, the encoder until 2026-10-26: 87.7%, balanced 85.4%, on the same tiles) | `docs/pathology.md` §9; `app/workbenches/slides_example/summary.json` |
+| "Unlike training tissue" quality rule (slides) | cutoff **0.507**, mean cosine distance to the 5 nearest of the head's 1,052 training tiles; calibrated leave-one-slide-out (99th percentile); flags 1 of the 357 held-out tiles (0.3%) | the head's 8 training and 3 held-out BCSS slides | `docs/pathology.md` §9; decisions 2026-10-27 |
 | Encoder comparison (same head, same held-out slides) | GigaPath-Flash **0.919** (balanced 0.917) against QuiltNet-B-32 **0.877** (0.854): +4.2 points, 95% interval +0.3 to +8.1; Hibou-B 0.880, Hibou-L 0.810; local only: CONCH 0.896, UNI2-h 0.838, GPFM 0.863 | 357 held-out tiles (correlated) | `docs/encoders.md`; decisions 2026-10-22 |
 | WSInfer TIL second opinion, lymphocytes vs rest | **AUROC 0.955**; cutoff **0.667**, calibrated on the 8 training slides (Youden's J; training AUROC 0.971) and applied unchanged: recall 97%, specificity 79%, accuracy 83% | the head's 3 held-out BCSS slides (357 tiles); the model was trained on TCGA, so an upper bound, not an independent validation | `docs/pathology.md` §8; decisions 2026-10-21 |
 | Second opinion on Case 299's section | disagrees with the head on 43 of 1,500 scored tiles (3%) | front-band and peritumoral tiles | the slide workbench (video shot 5) |

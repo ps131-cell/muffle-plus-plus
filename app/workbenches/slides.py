@@ -43,6 +43,7 @@ from muffle.workbench.slides import (  # noqa: E402
     LABELS,
     PLACEHOLDER,
     QC_OK,
+    QC_UNLIKE,
     TILE_UM,
     analyze,
     load_result,
@@ -242,8 +243,9 @@ def slide_map(df: pd.DataFrame, res: dict, layer: str, overlays: list[str], clas
         "certainty": ("certainty", alt.Scale(domain=["confident", "unsure here", "excluded"],
                                              range=["#2a78d6", "#f39c12", "#bbbbbb"]),
                       "Certainty"),
-        "QC": ("qc", alt.Scale(domain=[QC_OK, "glass", "pen ink", "blur"],
-                               range=["#dfe6e9", "#74b9ff", "#6c5ce7", "#d63031"]), "Quality"),
+        "QC": ("qc", alt.Scale(domain=[QC_OK, "glass", "pen ink", "blur", QC_UNLIKE],
+                               range=["#dfe6e9", "#74b9ff", "#6c5ce7", "#d63031", "#e17055"]),
+               "Quality"),
         "zones": ("zone_shown", alt.Scale(
             domain=["core", "front line", "front band", "peritumoral", "outside",
                     "no tissue zone"],
@@ -418,6 +420,17 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
                      f"Slide {slide}, tile {t['tile']}: {t['class']} ({t['zone'] or 'no zone'})")
 
 
+def coverage_line(zones: dict) -> str:
+    """How much of each zone the nuclei and the second lymphocyte model actually cover: counts
+    and the TIL comparison hold only for those tiles."""
+    def part(key: str) -> str:
+        return "; ".join(f"{z} {v.get(key, 0)} of {v['tiles']} usable tiles"
+                         + (f" ({v.get(key, 0) / v['tiles']:.0%})" if v["tiles"] else "")
+                         for z, v in zones.items() if z != "core")
+    return (f"Coverage: nuclei counted on {part('nuclei_tiles')}; the second model scored "
+            f"{part('til_scored_tiles')}.")
+
+
 def head_card(meta: dict, classes: list[str]) -> None:
     head, enc = meta.get("head", {}), meta.get("encoder", {})
     st.markdown(
@@ -531,6 +544,8 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
         f"· head: {meta.get('head', {}).get('kind')} · nuclei: {nuc.get('model') or 'not run'} on "
         f"{nuc.get('tiles', 0)} tiles · method version {meta.get('method_version', '0.2')} · "
         f"status: {meta.get('status', 'implemented')}.")
+    for note in meta.get("known_failures", []):  # a reviewer's note on this section's map
+        st.warning(f"Known failure on this section: {note}")
     if sc.get("skipped_tiles"):
         st.warning(f"{sc['skipped_tiles']} tissue tiles outside the scored window were skipped "
                    "(the budget for this PC's CPU): tumor outside the window is not in this "
@@ -731,7 +746,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                 "lymphocyte-like nuclei / mm²": st.column_config.NumberColumn(format="%d"),
                 "within 50 µm of tumor": st.column_config.NumberColumn(format="percent")})
             st.caption("An empty cell means the zone has no tiles, no counted stroma tiles or no "
-                       "tile scored by the second model.")
+                       "tile scored by the second model. " + coverage_line(im["zones"]))
             d = res["til"]
             if til and d["scored"]:
                 ho = til.get("held_out", {})
@@ -812,6 +827,14 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                    "measures; the cutoffs were set by eye on colon slides and not re-checked on "
                    "breast: placeholders. Blood, folds and stain variation are not checked "
                    "(planned). Switch the map's layer to 'QC' to see where.")
+        nov = meta.get("novelty")
+        if nov:
+            st.caption(f"Unlike training tissue, not scored: the tile's embedding is farther "
+                       f"than {nov['cutoff']} (mean cosine distance to its {nov['k']} nearest) "
+                       f"from all {nov['reference_tiles']} tiles the head was trained on; "
+                       f"{nov['cutoff_source']}; it flags {nov['held_out_flagged']:.1%} of the "
+                       f"{nov['held_out_tiles']} held-out tiles. Tissue outside the head's five "
+                       "classes (muscle, crushed margins) would otherwise get one of them.")
         st.markdown(f"{len(excluded)} of {s['tiles']} tiles excluded"
                     + (": " + ", ".join(f"{v} {k}" for k, v in s["excluded"].items())
                        if s["excluded"] else "") + ".")

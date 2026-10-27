@@ -21,7 +21,7 @@ in the right-hand column on the hosted app after the freeze and update the click
 | Workbench launcher tiles on Tests; an action row on the file header; clickable overview cards; "where am I" in the sticky header | 3, 5–10 | how a test's workbench opens (today: select its row in **Tests**); where **Why?** and **Open** sit |
 | Workbench polish (how-to lines, quick actions, documents jump-to-sentence) | 6, 7, 9, 10 | the tab and section names quoted below |
 | Search across every file's findings; "Similar patients" on the report | 2, 3 | the search box's placeholder and what a PIK3CA search lists |
-| Slide re-score with GigaPath-Flash (gate: Oct 27, 18:00 Chicago) | 5, 12 | the tissue head's encoder name and held-out accuracy (87.7% with QuiltNet-B-32 today) |
+| Slide re-score with GigaPath-Flash (gate: Oct 27, 18:00 Chicago) | 5, 12 | the tissue head's encoder name and held-out accuracy (91.9% with GigaPath-Flash since the re-score; 87.7% with QuiltNet-B-32 before); every slide map changed, cases 730 and 563 now at the right place on the slide; case 926 shows a known-failure warning |
 | Minor QA fixes (R2-15, R2-16, R2-18, the MRI at 800 px) | 3, 5, 8 | the breadcrumb's "?", the viewer's first **n** |
 
 ## Recording checklist (do these first)

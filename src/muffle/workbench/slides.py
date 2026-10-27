@@ -65,8 +65,14 @@ CUTOFFS = {
                     "origin"),
     "blur_rel": (0.1, PLACEHOLDER, "blurry = Laplacian variance below 10% of the region's median; "
                  "same origin"),
+    "unlike_training_cosine": (0.507, MEASURED, "unlike the tissue the head was trained on, not "
+                               "scored = mean cosine distance of the tile's GigaPath-Flash "
+                               "embedding to its 5 nearest of the head's 1,052 training tiles "
+                               "above this; calibrated leave-one-slide-out on the 8 training "
+                               "slides (99th percentile); flags 0.3% of the 357 held-out tiles"),
 }
 QC_GLASS, QC_INK, QC_BLUR, QC_OK = "glass", "pen ink", "blur", "ok"
+QC_UNLIKE = "unlike training tissue"  # set by the pipeline from the embeddings, not by quality()
 
 CANNOT_SEE = [
     ("Single cells and tumor budding", "a 112 µm tile is one score; cells are not resolved",

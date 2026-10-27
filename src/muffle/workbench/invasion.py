@@ -125,12 +125,23 @@ KNOWN_FAILURES = [
     "an excluded tile inside the tumor leaves a hole in the mask (small holes are filled).",
     "The front normals come from a blurred mask: on a front thinner than two tiles the arrow "
     "direction is unstable.",
+    "Tissue the head was not trained on (muscle, cautery-crushed margins, nerve, vessels) is "
+    "read as one of its five classes, often invasive carcinoma. Tiles unlike every training tile "
+    "are not scored (a calibrated rule), but the rule misses some: on TCGA-EW-A1J2-DX1 small "
+    "fragments on crushed margin tissue still read as carcinoma. Check small tumor pieces by "
+    "eye.",
+    "On a section with little carcinoma, collagen and loose stroma can be read as invasive "
+    "carcinoma: on TCGA-PL-A8LZ-DX1 several hundred such tiles form small false tumor pieces, "
+    "flagged by a high unsure share.",
 ]
 
 MODEL_CARD = {
-    "tissue head": "logistic regression on frozen QuiltNet-B-32 (CLIP ViT-B/32, MIT) tile "
-                   "embeddings; trained on BCSS (CC0) tiles of 8 TCGA-BRCA slides, held out on 3 "
-                   "patient-disjoint slides; the numbers on this page are those held-out numbers",
+    "tissue head": "logistic regression on frozen GigaPath-Flash (Prov-GigaPath's tile encoder "
+                   "distilled to a ViT-S/16, Apache-2.0) tile embeddings; trained on BCSS (CC0) "
+                   "tiles of 8 TCGA-BRCA slides, held out on 3 patient-disjoint slides; the "
+                   "numbers on this page are those held-out numbers; tiles unlike every "
+                   "training tile (cosine distance to the 5 nearest of its 1,052 training tiles "
+                   "above a calibrated cutoff) are not scored",
     "nuclei": "StarDist 2D_versatile_he (Schmidt et al., MICCAI 2018; Weigert et al., WACV "
               "2020; BSD-3-Clause), pretrained, run on the tile at the slide's own resolution; "
               "not validated on breast here: counts are model inferences without a measured "
@@ -445,6 +456,7 @@ def immune_by_zone(tiles: pd.DataFrame, til_cutoff: float | None = None) -> dict
                "lymph_tile_share": round(float((tz["label"] == "lymphocytes").mean()), 3)
                if len(tz) else None}
         if "n_lymph" in tz:
+            rec["nuclei_tiles"] = int(tz["n_nuclei"].notna().sum())  # coverage, any class
             counted = tz[tz["n_nuclei"].notna() & tz["label"].isin(["stroma", "lymphocytes"])]
             rec["counted_tiles"] = int(len(counted))
             if len(counted):

@@ -46,7 +46,7 @@ hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 
 | Workbench | What it does | Status |
 |---|---|---|
-| Pathology ([`docs/pathology.md`](docs/pathology.md)) | the patient's own section in a pan-and-zoom viewer (5 cases, 8 sections); tissue map from a BCSS-trained head on QuiltNet-B-32; invasive front and direction of invasion; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (87.7%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
+| Pathology ([`docs/pathology.md`](docs/pathology.md)) | the patient's own section in a pan-and-zoom viewer (5 cases, 8 sections); tissue map from a BCSS-trained head on GigaPath-Flash (tiles unlike its training tissue not scored); invasive front and direction of invasion; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (91.9%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
 | Expression, methylation, protein ([`docs/omics.md`](docs/omics.md)) | PAM50, Hallmark and RPPA pathway scores, promoter methylation, immune and stromal picture, receptor consistency | PAM50 experimentally validated against TCGA's published calls (94.7% of 950 tumors, κ 0.92; the ER-balanced centering was chosen after seeing the first result, 72.5%, so not an independent test); receptor levels against recorded IHC: ER AUC 0.958, PR 0.926, HER2 0.811 (RNA), cutoffs calibrated in-sample; the rest implemented, methylation cutoffs placeholders |
 | Genomics ([`docs/genomics.md`](docs/genomics.md)) | variants with detection, interpretation and predicted effect apart (VEP, ClinVar, AlphaMissense); CIViC ladder; copy-number landscape with ABSOLUTE purity and ploidy; burden; pathway map; variants over time | implemented; copy-number cutoffs placeholders |
 | Radiology ([`docs/radiology.md`](docs/radiology.md)) | report reading; DCE-MRI viewers in three planes with MedSAM contours and kinetics (5 TCIA cases); mammoscreen and MONAI density; change over time on a labeled public example pair | implemented; not validated on breast imaging here; kinetic cutoffs placeholders |
@@ -186,7 +186,7 @@ in [`docs/registry.md`](docs/registry.md). In short:
   number, diagnostic slides), BCSS (CC0), TCGA-Reports (CC BY 4.0), TCIA breast imaging (CC BY
   3.0), CIViC (CC0), ClinicalTrials.gov, Ensembl VEP and ClinVar, AlphaMissense (CC BY 4.0).
 - **Models in the app** (open licenses, precomputed offline; the hosted app runs no model):
-  QuiltNet-B-32 (MIT), StarDist (BSD-3-Clause), WSInfer TIL (CC BY 4.0), MedSAM, mammoscreen,
+  GigaPath-Flash (Apache-2.0), StarDist (BSD-3-Clause), WSInfer TIL (CC BY 4.0), MedSAM, mammoscreen,
   MONAI breast density and the OpenMed oncology named-entity model (Apache-2.0), and NVIDIA
   Nemotron 3 Super and Ultra on Token Factory.
 - **Local only:** MSK-CHORD (Jee et al., *Nature* 2024; CC BY-NC-ND 4.0) and the timeline models
@@ -215,7 +215,8 @@ Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 28):
 - [x] Timeline round 2: lanes on a month axis and time travel
 - [x] Feedback page: the ledger of review marks (nothing trains on it)
 - [x] Encoder comparison on held-out BCSS slides ([`docs/encoders.md`](docs/encoders.md)):
-      GigaPath-Flash 0.919 against QuiltNet-B-32 0.877
+      GigaPath-Flash 0.919 against QuiltNet-B-32 0.877; the eight sections re-scored with it
+      (2026-10-27, [`docs/pathology.md`](docs/pathology.md) §9)
 - [x] QA round 2 in headless Chrome: 334 screens, 29 findings, the minor ones left listed
       ([`docs/qa.md`](docs/qa.md))
 - [ ] Video (`docs/video.md`); Devpost form (`docs/submission.md`); submit by Oct 30, 10:00 am PT

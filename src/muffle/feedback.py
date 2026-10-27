@@ -88,7 +88,7 @@ SOURCES = {
     "ctDNA monitor rules": Source(
         CTDNA, "rule", "ctDNA rules, app build", "the synthetic series' allele fractions"),
     "Slide tile findings": Source(
-        SLIDES, "model", "QuiltNet-B-32 with the five-class breast tissue head, StarDist nuclei "
+        SLIDES, "model", "GigaPath-Flash with the five-class breast tissue head, StarDist nuclei "
         "and the slide rules, precomputed offline", "the diagnostic section's tiles"),
     "PAM50 subtype call": Source(
         OMICS, "model", "nearest centroid (Parker et al. 2009), ER-balanced centering",

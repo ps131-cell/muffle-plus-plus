@@ -264,6 +264,7 @@ def landmark_card(tl: dict | None) -> None:
 
 def slide_model_cards() -> None:
     from muffle.workbench import invasion  # scipy, as on the slide workbench
+    from muffle.workbench import slides as slide_rules
 
     meta = json.loads((APP / "workbenches" / "slides_example" / "summary.json").read_text())
     head = meta["head"]
@@ -280,9 +281,16 @@ def slide_model_cards() -> None:
         + ".\n- **Not learned:** " + "; ".join(f"{k.replace('_', ' ')} ({why})" for k, why in
                                                head["not_learned"].items())
         + ". Their tiles get one of the five classes.\n"
-        "- **Encoder:** QuiltNet-B-32, run offline; the hosted app reads precomputed results "
-        "and runs no encoder. Three held-out slides are a small test: no other institution, "
-        "scanner or stain has been checked.")
+        f"- **Encoder:** {meta['encoder']['name']} ({meta['encoder']['license']}), run offline; "
+        "the hosted app reads precomputed results and runs no encoder. It was chosen over "
+        "QuiltNet-B-32 (87.7%) on the same tiles, split and head; its card does not say whether "
+        "TCGA slides were in its pretraining. Three held-out slides are a small test: no other "
+        "institution, scanner or stain has been checked.\n"
+        "- **Not scored (quality control):** tiles " + slide_rules.CUTOFFS[
+            "unlike_training_cosine"][2].split(" = ", 1)[1] + " (cutoff "
+        f"{slide_rules.CUTOFFS['unlike_training_cosine'][0]}). Tissue outside the five classes "
+        "(muscle, cautery-crushed margins) is otherwise read as one of them; the rule misses "
+        "some of it (known failures below).")
     card("Nuclei (StarDist)", workspace.IMPLEMENTED,
          "pretrained, not validated on breast here · the slide workbench's cell level")
     st.markdown(
@@ -468,7 +476,8 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
      "lesion contours, run offline", "Apache-2.0"),
     ("mammoscreen (ianpan/mammoscreen)", "the mammography screening score and density, run "
      "offline", "Apache-2.0"),
-    ("QuiltNet-B-32 (Ikezogwo et al., NeurIPS 2023)", "the tile encoder, run offline", "MIT"),
+    ("GigaPath-Flash (prov-gigapath/prov-gigapath-flash; distilled from Prov-GigaPath, Xu et "
+     "al., Nature 2024)", "the tile encoder, run offline", "Apache-2.0; gated click-through"),
     ("StarDist 2D_versatile_he (Schmidt et al. 2018; Weigert et al. 2020)",
      "nuclei on front-band tiles, run offline", "BSD-3-Clause"),
     ("PAM50 centroids (Parker et al. 2009) from genefu (Gendoo et al. 2016)",

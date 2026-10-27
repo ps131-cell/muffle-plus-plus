@@ -51,6 +51,7 @@ from muffle.workbench.slides import (  # noqa: E402
     CLASSES,
     CUTOFFS,
     MPP,
+    QC_UNLIKE,
     TILE_PX,
     analyze,
     quality,
@@ -638,6 +639,15 @@ def cmd_result(a):
     for i, c in enumerate(head["classes"]):
         df[f"p_{c}"] = np.round(proba[:, i], 4)
     classes = list(head["classes"])
+    novelty = None
+    if a.novelty:  # slide_pipeline.py novelty-calibrate's rule: unlike every training tile
+        novelty = json.loads((Path(a.novelty) / "novelty.json").read_text())
+        e = emb / np.linalg.norm(emb, axis=1, keepdims=True)
+        ref = np.load(Path(a.novelty) / "novelty_ref.npy")
+        d = 1 - np.sort(e @ ref.T, axis=1)[:, -novelty["k"]:].mean(1)
+        far = (d > novelty["cutoff"]) & (df["qc"] == "ok").to_numpy()
+        df.loc[far, "qc"] = QC_UNLIKE
+        novelty["excluded_tiles"] = int(far.sum())
     cols = ["row", "col", "x", "y", "qc", "edges", "structure_cov", "ink_bluegreen", "ink_black",
             "ink_red", "blur"] + [f"p_{c}" for c in classes]
     out = Path(a.out)
@@ -675,7 +685,7 @@ def cmd_result(a):
                  "share_below_cutoff": metrics["share_below_cutoff"],
                  "not_learned": {"normal_breast": "too few labeled tiles in BCSS at this tile size",
                                  "dcis": "one BCSS slide only; cannot be held out"}},
-        "analysis": res["summary"],
+        "analysis": res["summary"], "novelty": novelty,
         "status": "implemented, experimentally validated on held-out BCSS slides only; not "
                   "reviewed by a pathologist",
     }
@@ -794,6 +804,8 @@ if __name__ == "__main__":
     r.add_argument("--work", required=True)
     r.add_argument("--slide", required=True)
     r.add_argument("--out", required=True)
+    r.add_argument("--novelty", help="a work folder with slide_pipeline.py novelty-calibrate's "
+                                     "novelty.json and novelty_ref.npy")
     rq = sub.add_parser("requality")
     rq.add_argument("--work", required=True)
     c = sub.add_parser("count")

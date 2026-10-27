@@ -17,11 +17,11 @@ import pandas as pd
 from scipy import ndimage
 
 from muffle.workbench import invasion as inv
-from muffle.workbench.slides import COLORS, LABELS, QC_OK
+from muffle.workbench.slides import COLORS, LABELS, QC_OK, QC_UNLIKE
 
 TILE, OVERLAP = 254, 1   # Deep Zoom tiles of 254 px plus a 1 px overlap: 256 px JPEGs
 ZONES = ["", "core", "front band", "peritumoral", "outside"]
-QCS = [QC_OK, "glass", "pen ink", "blur"]
+QCS = [QC_OK, "glass", "pen ink", "blur", QC_UNLIKE]
 CELL_KINDS = ["other", "lymphocyte-like", "tumor candidate", "breakaway cluster"]
 
 

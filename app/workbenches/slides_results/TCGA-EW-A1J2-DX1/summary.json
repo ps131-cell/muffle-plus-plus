@@ -28,13 +28,14 @@
   244
  ],
  "encoder": {
-  "name": "wisdomik/QuiltNet-B-32",
-  "license": "MIT",
-  "access": "open, ungated",
-  "kind": "clip",
-  "tiles_per_s_cpu": 16.13,
-  "threads": 4,
-  "peak_rss_gb": 1.17
+  "name": "prov-gigapath/prov-gigapath-flash",
+  "license": "Apache-2.0",
+  "access": "gated: contact info (instant)",
+  "kind": "timm_file",
+  "dim": 384,
+  "tiles_per_s_cpu": 7.88,
+  "threads": 2,
+  "peak_rss_gb": 0.93
  },
  "head": {
   "kind": "logistic regression on frozen embeddings",
@@ -47,27 +48,27 @@
   ],
   "training_data": "BCSS tiles from 8 TCGA-BRCA slides (1052 tiles)",
   "held_out": "3 slides, 357 tiles, patient-disjoint",
-  "accuracy": 0.877,
-  "balanced_accuracy": 0.854,
+  "accuracy": 0.919,
+  "balanced_accuracy": 0.917,
   "per_class": {
    "tumor": {
     "n_test": 90,
-    "recall": 0.889,
+    "recall": 1.0,
     "n_train": 548
    },
    "stroma": {
     "n_test": 149,
-    "recall": 0.919,
+    "recall": 0.866,
     "n_train": 346
    },
    "lymphocytes": {
     "n_test": 72,
-    "recall": 0.736,
+    "recall": 0.903,
     "n_train": 27
    },
    "necrosis": {
     "n_test": 11,
-    "recall": 0.727,
+    "recall": 0.818,
     "n_train": 77
    },
    "fat": {
@@ -86,31 +87,31 @@
    ],
    "rows_true_cols_pred": [
     [
-     80,
+     90,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
      10,
+     129,
+     7,
      0,
+     3
+    ],
+    [
+     0,
+     7,
+     65,
      0,
      0
     ],
     [
-     3,
-     137,
-     3,
-     0,
-     6
-    ],
-    [
-     3,
-     14,
-     53,
      2,
-     0
-    ],
-    [
-     3,
      0,
      0,
-     8,
+     9,
      0
     ],
     [
@@ -122,9 +123,9 @@
     ]
    ]
   },
-  "accuracy_below_cutoff": 0.607,
-  "accuracy_at_or_above_cutoff": 0.927,
-  "share_below_cutoff": 0.157,
+  "accuracy_below_cutoff": 0.673,
+  "accuracy_at_or_above_cutoff": 0.961,
+  "share_below_cutoff": 0.146,
   "not_learned": {
    "normal_breast": "too few labeled tiles in BCSS at this tile size",
    "dcis": "one BCSS slide only; cannot be held out"
@@ -133,262 +134,266 @@
  },
  "nuclei": {
   "model": "StarDist 2D_versatile_he",
-  "tiles": 400,
-  "nuclei": 18444,
-  "s_per_tile": 0.41,
+  "tiles": 451,
+  "nuclei": 25873,
+  "s_per_tile": 0.7,
   "run_mpp": 0.2485,
-  "threads": 4,
-  "uptime": "load average 8.2 6.1 7.5"
+  "threads": 2,
+  "uptime": "load average 10.3 12.0 13.0",
+  "topup": {
+   "cached_tiles_kept": 51,
+   "cached_tiles_left_out": 349,
+   "new_tiles": 400,
+   "s_per_tile": 0.7,
+   "uptime": "load average 10.3 12.0 13.0",
+   "note": "timed from the log after the PC woke: 200 tiles from 11:55:32 to 11:57:53; the run spanned the overnight sleep"
+  }
  },
  "analysis": {
   "tiles": 6270,
-  "usable_tiles": 6253,
+  "usable_tiles": 5536,
   "excluded": {
+   "unlike training tissue": 717,
    "blur": 12,
    "glass": 4,
    "pen ink": 1
   },
   "tissue_fractions": {
-   "fat": 0.369,
-   "lymphocytes": 0.004,
-   "necrosis": 0.157,
-   "stroma": 0.424,
-   "tumor": 0.046
+   "fat": 0.19,
+   "lymphocytes": 0.005,
+   "necrosis": 0.0,
+   "stroma": 0.581,
+   "tumor": 0.225
   },
-  "unsure_share": 0.296,
-  "tumor_mm2": 2.83,
-  "main_tumor_mm2": 0.78,
-  "satellite_pieces": 26,
-  "front_length_mm": 2.58,
+  "unsure_share": 0.428,
+  "tumor_mm2": 12.46,
+  "main_tumor_mm2": 2.58,
+  "satellite_pieces": 166,
+  "front_length_mm": 6.83,
   "zone_tiles": {
    "core": 0,
-   "front band": 190,
-   "peritumoral": 583,
-   "outside": 5497
+   "front band": 429,
+   "peritumoral": 675,
+   "outside": 5166
   },
   "facing": {
-   "stroma": 0.909,
-   "fat": 0.091
+   "stroma": 1.0
   }
  },
  "numbers": {
-  "tumor_mm2": 2.83,
-  "front_length_mm": 2.58,
-  "infiltrative_arcs": 5,
+  "tumor_mm2": 12.46,
+  "front_length_mm": 6.83,
+  "infiltrative_arcs": 7,
   "arcs": 12,
-  "buds_in_field": 33,
-  "islands": 26,
+  "buds_in_field": 88,
+  "islands": 169,
   "immune_pattern": "desert (no core: front band only)",
-  "tsr": "stroma-high",
+  "tsr": "stroma-low",
   "faces_top": "stroma",
-  "unsure_share": 0.296,
-  "counted_tiles": 400
+  "unsure_share": 0.428,
+  "counted_tiles": 451,
+  "til_disagree_share": null
  },
  "arcs": [
   {
    "arc": "A1",
    "from_deg": 0,
    "to_deg": 30,
-   "tiles": 1,
-   "length_mm": 0.11,
-   "direction_deg": 34.0,
-   "push": 0.186,
-   "roughness": 0.0,
-   "pattern": "pushing",
-   "faces": {
-    "stroma": 1.0
-   },
-   "faces_top": "stroma",
-   "row": 130.0,
-   "col": 98.0
-  },
-  {
-   "arc": "A2",
-   "from_deg": 30,
-   "to_deg": 60,
-   "tiles": 1,
-   "length_mm": 0.11,
-   "direction_deg": 38.0,
-   "push": 0.102,
-   "roughness": 0.0,
-   "pattern": "pushing",
-   "faces": {
-    "stroma": 1.0
-   },
-   "faces_top": "stroma",
-   "row": 129.0,
-   "col": 97.0
-  },
-  {
-   "arc": "A3",
-   "from_deg": 60,
-   "to_deg": 90,
-   "tiles": 1,
-   "length_mm": 0.11,
-   "direction_deg": 58.0,
-   "push": 0.201,
-   "roughness": 1.0,
-   "pattern": "infiltrative",
-   "faces": {
-    "stroma": 1.0
-   },
-   "faces_top": "stroma",
-   "row": 126.0,
-   "col": 96.0
-  },
-  {
-   "arc": "A4",
-   "from_deg": 90,
-   "to_deg": 120,
-   "tiles": 1,
-   "length_mm": 0.11,
-   "direction_deg": 95.0,
-   "push": 0.134,
-   "roughness": 0.0,
-   "pattern": "pushing",
-   "faces": {
-    "stroma": 1.0
-   },
-   "faces_top": "stroma",
-   "row": 126.0,
-   "col": 94.0
-  },
-  {
-   "arc": "A5",
-   "from_deg": 120,
-   "to_deg": 150,
-   "tiles": 3,
-   "length_mm": 0.34,
-   "direction_deg": 121.0,
-   "push": 0.093,
+   "tiles": 6,
+   "length_mm": 0.67,
+   "direction_deg": 331.0,
+   "push": 0.115,
    "roughness": 0.667,
    "pattern": "infiltrative",
    "faces": {
     "stroma": 1.0
    },
    "faces_top": "stroma",
-   "row": 127.3,
-   "col": 92.0
+   "row": 118.0,
+   "col": 133.3
+  },
+  {
+   "arc": "A2",
+   "from_deg": 30,
+   "to_deg": 60,
+   "tiles": 14,
+   "length_mm": 1.57,
+   "direction_deg": 42.0,
+   "push": 0.319,
+   "roughness": 0.5,
+   "pattern": "infiltrative",
+   "faces": {
+    "stroma": 1.0
+   },
+   "faces_top": "stroma",
+   "row": 113.0,
+   "col": 133.6
+  },
+  {
+   "arc": "A3",
+   "from_deg": 60,
+   "to_deg": 90,
+   "tiles": 5,
+   "length_mm": 0.56,
+   "direction_deg": 107.0,
+   "push": 0.294,
+   "roughness": 0.2,
+   "pattern": "pushing",
+   "faces": {
+    "stroma": 1.0
+   },
+   "faces_top": "stroma",
+   "row": 113.4,
+   "col": 128.8
+  },
+  {
+   "arc": "A4",
+   "from_deg": 90,
+   "to_deg": 120,
+   "tiles": 4,
+   "length_mm": 0.45,
+   "direction_deg": 96.0,
+   "push": 0.471,
+   "roughness": 0.5,
+   "pattern": "infiltrative",
+   "faces": {
+    "stroma": 1.0
+   },
+   "faces_top": "stroma",
+   "row": 114.2,
+   "col": 124.8
+  },
+  {
+   "arc": "A5",
+   "from_deg": 120,
+   "to_deg": 150,
+   "tiles": 6,
+   "length_mm": 0.67,
+   "direction_deg": 99.0,
+   "push": 0.352,
+   "roughness": 0.333,
+   "pattern": "infiltrative",
+   "faces": {
+    "stroma": 1.0
+   },
+   "faces_top": "stroma",
+   "row": 114.5,
+   "col": 121.5
   },
   {
    "arc": "A6",
    "from_deg": 150,
    "to_deg": 180,
-   "tiles": 2,
-   "length_mm": 0.22,
-   "direction_deg": 172.0,
-   "push": 0.214,
+   "tiles": 3,
+   "length_mm": 0.34,
+   "direction_deg": 171.0,
+   "push": 0.187,
    "roughness": 0.0,
    "pattern": "pushing",
    "faces": {
     "stroma": 1.0
    },
    "faces_top": "stroma",
-   "row": 129.5,
-   "col": 91.0
+   "row": 118.0,
+   "col": 118.7
   },
   {
    "arc": "A7",
    "from_deg": 180,
    "to_deg": 210,
-   "tiles": 2,
-   "length_mm": 0.22,
-   "direction_deg": 211.0,
-   "push": 0.168,
-   "roughness": 0.0,
-   "pattern": "pushing",
+   "tiles": 3,
+   "length_mm": 0.34,
+   "direction_deg": 215.0,
+   "push": 0.334,
+   "roughness": 0.333,
+   "pattern": "infiltrative",
    "faces": {
     "stroma": 1.0
    },
    "faces_top": "stroma",
-   "row": 131.5,
-   "col": 91.5
+   "row": 122.7,
+   "col": 119.3
   },
   {
    "arc": "A8",
    "from_deg": 210,
    "to_deg": 240,
-   "tiles": 2,
-   "length_mm": 0.22,
-   "direction_deg": 233.0,
-   "push": 0.118,
-   "roughness": 0.5,
-   "pattern": "infiltrative",
-   "faces": {
-    "stroma": 0.667,
-    "fat": 0.333
-   },
-   "faces_top": "stroma",
-   "row": 133.0,
-   "col": 92.5
+   "tiles": 4,
+   "length_mm": 0.45,
+   "direction_deg": 212.0,
+   "push": 0.268,
+   "roughness": 0.25,
+   "pattern": "pushing",
+   "faces": {},
+   "faces_top": "nothing",
+   "row": 125.0,
+   "col": 122.0
   },
   {
    "arc": "A9",
    "from_deg": 240,
    "to_deg": 270,
-   "tiles": 2,
-   "length_mm": 0.22,
-   "direction_deg": 247.0,
-   "push": 0.177,
-   "roughness": 0.0,
-   "pattern": "pushing",
-   "faces": {
-    "stroma": 1.0
-   },
-   "faces_top": "stroma",
-   "row": 133.5,
-   "col": 94.5
+   "tiles": 4,
+   "length_mm": 0.45,
+   "direction_deg": 334.0,
+   "push": 0.166,
+   "roughness": 0.5,
+   "pattern": "infiltrative",
+   "faces": {},
+   "faces_top": "nothing",
+   "row": 129.5,
+   "col": 126.0
   },
   {
    "arc": "A10",
    "from_deg": 270,
    "to_deg": 300,
-   "tiles": 2,
-   "length_mm": 0.22,
-   "direction_deg": 267.0,
-   "push": 0.195,
-   "roughness": 0.0,
-   "pattern": "pushing",
+   "tiles": 6,
+   "length_mm": 0.67,
+   "direction_deg": 339.0,
+   "push": 0.498,
+   "roughness": 0.5,
+   "pattern": "infiltrative",
    "faces": {
-    "fat": 1.0
+    "stroma": 1.0
    },
-   "faces_top": "fat",
-   "row": 134.5,
-   "col": 96.5
+   "faces_top": "stroma",
+   "row": 128.0,
+   "col": 127.2
   },
   {
    "arc": "A11",
    "from_deg": 300,
    "to_deg": 330,
-   "tiles": 2,
-   "length_mm": 0.22,
-   "direction_deg": 303.0,
-   "push": 0.209,
-   "roughness": 0.5,
-   "pattern": "infiltrative",
+   "tiles": 4,
+   "length_mm": 0.45,
+   "direction_deg": 339.0,
+   "push": 0.477,
+   "roughness": 0.25,
+   "pattern": "pushing",
    "faces": {
     "stroma": 1.0
    },
    "faces_top": "stroma",
-   "row": 134.0,
-   "col": 98.5
+   "row": 122.5,
+   "col": 128.2
   },
   {
    "arc": "A12",
    "from_deg": 330,
    "to_deg": 360,
-   "tiles": 4,
-   "length_mm": 0.45,
-   "direction_deg": 359.0,
-   "push": 0.199,
-   "roughness": 0.5,
-   "pattern": "infiltrative",
+   "tiles": 2,
+   "length_mm": 0.22,
+   "direction_deg": 304.0,
+   "push": 0.301,
+   "roughness": 0.0,
+   "pattern": "pushing",
    "faces": {
     "stroma": 1.0
    },
    "faces_top": "stroma",
-   "row": 131.8,
-   "col": 99.5
+   "row": 120.0,
+   "col": 129.0
   }
  ],
  "rose": [
@@ -396,383 +401,528 @@
    "from_deg": 0.0,
    "to_deg": 30.0,
    "tiles": 3,
-   "push_sum": 0.53,
-   "push_mean": 0.178
+   "push_sum": 0.5,
+   "push_mean": 0.166
   },
   {
    "from_deg": 30.0,
    "to_deg": 60.0,
-   "tiles": 3,
-   "push_sum": 0.49,
-   "push_mean": 0.163
+   "tiles": 2,
+   "push_sum": 0.53,
+   "push_mean": 0.263
   },
   {
    "from_deg": 60.0,
    "to_deg": 90.0,
-   "tiles": 0,
-   "push_sum": 0.0,
-   "push_mean": 0.0
+   "tiles": 6,
+   "push_sum": 2.17,
+   "push_mean": 0.362
   },
   {
    "from_deg": 90.0,
    "to_deg": 120.0,
-   "tiles": 2,
-   "push_sum": 0.31,
-   "push_mean": 0.153
+   "tiles": 14,
+   "push_sum": 5.16,
+   "push_mean": 0.369
   },
   {
    "from_deg": 120.0,
    "to_deg": 150.0,
    "tiles": 1,
-   "push_sum": 0.11,
-   "push_mean": 0.107
+   "push_sum": 0.15,
+   "push_mean": 0.153
   },
   {
    "from_deg": 150.0,
    "to_deg": 180.0,
    "tiles": 2,
-   "push_sum": 0.32,
-   "push_mean": 0.158
+   "push_sum": 0.56,
+   "push_mean": 0.28
   },
   {
    "from_deg": 180.0,
    "to_deg": 210.0,
-   "tiles": 2,
-   "push_sum": 0.23,
-   "push_mean": 0.115
+   "tiles": 4,
+   "push_sum": 0.99,
+   "push_mean": 0.249
   },
   {
    "from_deg": 210.0,
    "to_deg": 240.0,
-   "tiles": 3,
-   "push_sum": 0.45,
-   "push_mean": 0.151
+   "tiles": 4,
+   "push_sum": 1.08,
+   "push_mean": 0.27
   },
   {
    "from_deg": 240.0,
    "to_deg": 270.0,
-   "tiles": 3,
-   "push_sum": 0.61,
-   "push_mean": 0.203
+   "tiles": 0,
+   "push_sum": 0.0,
+   "push_mean": 0.0
   },
   {
    "from_deg": 270.0,
    "to_deg": 300.0,
-   "tiles": 2,
-   "push_sum": 0.43,
-   "push_mean": 0.217
+   "tiles": 3,
+   "push_sum": 0.47,
+   "push_mean": 0.156
   },
   {
    "from_deg": 300.0,
    "to_deg": 330.0,
-   "tiles": 1,
-   "push_sum": 0.12,
-   "push_mean": 0.118
+   "tiles": 5,
+   "push_sum": 1.11,
+   "push_mean": 0.223
   },
   {
    "from_deg": 330.0,
    "to_deg": 360.0,
-   "tiles": 1,
-   "push_sum": 0.26,
-   "push_mean": 0.26
+   "tiles": 17,
+   "push_sum": 6.69,
+   "push_mean": 0.393
   }
  ],
  "islands": [
   {
-   "island": "S2",
+   "island": "S13",
    "tiles": 1,
    "area_mm2": 0.013,
-   "distance_um": 17743,
+   "distance_um": 14361,
+   "row": 40.0,
+   "col": 14.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.6,
+    "fat": 0.2,
+    "tumor": 0.2
+   }
+  },
+  {
+   "island": "S16",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 14011,
+   "row": 44.0,
+   "col": 15.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S36",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 12934,
    "row": 55.0,
    "col": 239.0,
    "between": "stroma",
    "between_shares": {
-    "stroma": 0.56,
-    "necrosis": 0.19,
-    "fat": 0.14,
-    "tumor": 0.12
+    "stroma": 0.42,
+    "fat": 0.37,
+    "tumor": 0.21
+   }
+  },
+  {
+   "island": "S35",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 12544,
+   "row": 55.0,
+   "col": 235.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.48,
+    "stroma": 0.3,
+    "fat": 0.22
+   }
+  },
+  {
+   "island": "S39",
+   "tiles": 6,
+   "area_mm2": 0.075,
+   "distance_um": 12478,
+   "row": 57.0,
+   "col": 236.5,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.45,
+    "stroma": 0.45,
+    "tumor": 0.1
+   }
+  },
+  {
+   "island": "S32",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 12408,
+   "row": 54.0,
+   "col": 233.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.41,
+    "tumor": 0.34,
+    "fat": 0.24
+   }
+  },
+  {
+   "island": "S14",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 12349,
+   "row": 42.0,
+   "col": 224.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.71,
+    "fat": 0.24,
+    "tumor": 0.06
+   }
+  },
+  {
+   "island": "S42",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 12327,
+   "row": 59.0,
+   "col": 235.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.53,
+    "fat": 0.41,
+    "tumor": 0.06
    }
   },
   {
    "island": "S15",
-   "tiles": 5,
-   "area_mm2": 0.063,
-   "distance_um": 9544,
-   "row": 123.8,
-   "col": 185.4,
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 12299,
+   "row": 43.5,
+   "col": 225.0,
    "between": "stroma",
    "between_shares": {
-    "stroma": 0.53,
-    "tumor": 0.32,
-    "fat": 0.16
+    "stroma": 0.8,
+    "fat": 0.13,
+    "tumor": 0.07
    }
   },
   {
    "island": "S1",
    "tiles": 1,
    "area_mm2": 0.013,
-   "distance_um": 8949,
-   "row": 47.0,
-   "col": 82.0,
+   "distance_um": 12239,
+   "row": 19.0,
+   "col": 65.0,
    "between": "stroma",
    "between_shares": {
-    "stroma": 0.81,
-    "tumor": 0.12,
-    "fat": 0.08
+    "stroma": 0.82,
+    "tumor": 0.14,
+    "fat": 0.04
    }
   },
   {
-   "island": "S3",
-   "tiles": 10,
-   "area_mm2": 0.125,
-   "distance_um": 8555,
-   "row": 69.7,
-   "col": 149.2,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.8,
-    "tumor": 0.1,
-    "fat": 0.07,
-    "necrosis": 0.03
-   }
-  },
-  {
-   "island": "S5",
-   "tiles": 5,
-   "area_mm2": 0.063,
-   "distance_um": 8243,
-   "row": 86.6,
-   "col": 159.8,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.85,
-    "tumor": 0.12,
-    "fat": 0.02
-   }
-  },
-  {
-   "island": "S4",
-   "tiles": 7,
-   "area_mm2": 0.088,
-   "distance_um": 7908,
-   "row": 87.3,
-   "col": 156.6,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.87,
-    "tumor": 0.1,
-    "fat": 0.03
-   }
-  },
-  {
-   "island": "S20",
-   "tiles": 2,
-   "area_mm2": 0.025,
-   "distance_um": 7809,
-   "row": 143.5,
-   "col": 169.0,
-   "between": "fat",
-   "between_shares": {
-    "fat": 0.86,
-    "stroma": 0.14
-   }
-  },
-  {
-   "island": "S21",
+   "island": "S48",
    "tiles": 3,
    "area_mm2": 0.038,
-   "distance_um": 7692,
-   "row": 152.3,
-   "col": 166.3,
-   "between": "fat",
+   "distance_um": 12231,
+   "row": 71.7,
+   "col": 240.7,
+   "between": "stroma",
    "between_shares": {
-    "fat": 0.5,
-    "necrosis": 0.17,
-    "stroma": 0.17,
-    "tumor": 0.17
+    "stroma": 0.5,
+    "fat": 0.42,
+    "tumor": 0.08
    }
   },
   {
-   "island": "S19",
-   "tiles": 6,
-   "area_mm2": 0.075,
-   "distance_um": 7637,
-   "row": 137.5,
-   "col": 169.0,
-   "between": "fat",
-   "between_shares": {
-    "fat": 0.56,
-    "stroma": 0.33,
-    "necrosis": 0.11
-   }
-  },
-  {
-   "island": "S18",
-   "tiles": 3,
-   "area_mm2": 0.038,
-   "distance_um": 7616,
-   "row": 134.0,
-   "col": 168.0,
-   "between": "fat",
-   "between_shares": {
-    "fat": 0.45,
-    "tumor": 0.45,
-    "stroma": 0.09
-   }
-  },
-  {
-   "island": "S26",
+   "island": "S50",
    "tiles": 1,
    "area_mm2": 0.013,
-   "distance_um": 5413,
-   "row": 179.0,
-   "col": 77.0,
-   "between": "fat",
+   "distance_um": 12086,
+   "row": 73.0,
+   "col": 239.0,
+   "between": "stroma",
    "between_shares": {
-    "fat": 0.5,
-    "necrosis": 0.38,
-    "stroma": 0.08,
+    "stroma": 0.5,
+    "fat": 0.46,
     "tumor": 0.04
    }
   },
   {
-   "island": "S25",
+   "island": "S9",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 11917,
+   "row": 28.7,
+   "col": 54.7,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.61,
+    "fat": 0.33,
+    "tumor": 0.06
+   }
+  },
+  {
+   "island": "S38",
+   "tiles": 11,
+   "area_mm2": 0.138,
+   "distance_um": 11795,
+   "row": 57.5,
+   "col": 231.7,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.39,
+    "stroma": 0.35,
+    "fat": 0.26
+   }
+  },
+  {
+   "island": "S52",
    "tiles": 1,
    "area_mm2": 0.013,
-   "distance_um": 5163,
-   "row": 177.0,
-   "col": 78.0,
-   "between": "fat",
+   "distance_um": 11761,
+   "row": 76.0,
+   "col": 237.0,
+   "between": "stroma",
    "between_shares": {
-    "fat": 0.55,
-    "necrosis": 0.41,
-    "stroma": 0.05
+    "stroma": 0.6,
+    "fat": 0.4
+   }
+  },
+  {
+   "island": "S28",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 11681,
+   "row": 52.0,
+   "col": 224.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.77,
+    "tumor": 0.23
+   }
+  },
+  {
+   "island": "S12",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 11564,
+   "row": 39.0,
+   "col": 47.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S30",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 11525,
+   "row": 53.0,
+   "col": 223.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.77,
+    "tumor": 0.23
+   }
+  },
+  {
+   "island": "S5",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 11433,
+   "row": 25.0,
+   "col": 193.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.94,
+    "fat": 0.06
+   }
+  },
+  {
+   "island": "S8",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 11400,
+   "row": 26.0,
+   "col": 194.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.88,
+    "fat": 0.12
+   }
+  },
+  {
+   "island": "S31",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 11370,
+   "row": 54.0,
+   "col": 222.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.91,
+    "tumor": 0.09
+   }
+  },
+  {
+   "island": "S2",
+   "tiles": 14,
+   "area_mm2": 0.176,
+   "distance_um": 11183,
+   "row": 25.1,
+   "col": 69.4,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.89,
+    "tumor": 0.07,
+    "fat": 0.04
+   }
+  },
+  {
+   "island": "S4",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 11086,
+   "row": 25.0,
+   "col": 187.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.84,
+    "fat": 0.16
+   }
+  },
+  {
+   "island": "S41",
+   "tiles": 10,
+   "area_mm2": 0.125,
+   "distance_um": 10911,
+   "row": 59.7,
+   "col": 224.9,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.5,
+    "tumor": 0.28,
+    "fat": 0.22
+   }
+  },
+  {
+   "island": "S3",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 10671,
+   "row": 25.0,
+   "col": 85.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.95,
+    "fat": 0.04,
+    "tumor": 0.02
+   }
+  },
+  {
+   "island": "S60",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 10621,
+   "row": 88.0,
+   "col": 230.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.54,
+    "fat": 0.38,
+    "tumor": 0.08
+   }
+  },
+  {
+   "island": "S43",
+   "tiles": 6,
+   "area_mm2": 0.075,
+   "distance_um": 10586,
+   "row": 62.3,
+   "col": 220.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.47,
+    "fat": 0.35,
+    "tumor": 0.18
    }
   },
   {
    "island": "S6",
    "tiles": 1,
    "area_mm2": 0.013,
-   "distance_um": 4809,
-   "row": 111.0,
-   "col": 138.0,
+   "distance_um": 10526,
+   "row": 26.0,
+   "col": 86.0,
    "between": "stroma",
    "between_shares": {
-    "stroma": 0.81,
-    "tumor": 0.19
+    "stroma": 0.93,
+    "tumor": 0.05,
+    "fat": 0.02
+   }
+  },
+  {
+   "island": "S72",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 10391,
+   "row": 99.0,
+   "col": 230.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.93,
+    "fat": 0.07
    }
   },
   {
    "island": "S7",
-   "tiles": 3,
-   "area_mm2": 0.038,
-   "distance_um": 4559,
-   "row": 112.3,
-   "col": 136.7,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.86,
-    "tumor": 0.14
-   }
-  },
-  {
-   "island": "S23",
-   "tiles": 2,
-   "area_mm2": 0.025,
-   "distance_um": 4438,
-   "row": 162.0,
-   "col": 64.5,
-   "between": "fat",
-   "between_shares": {
-    "fat": 0.67,
-    "necrosis": 0.33
-   }
-  },
-  {
-   "island": "S11",
-   "tiles": 8,
-   "area_mm2": 0.1,
-   "distance_um": 3933,
-   "row": 118.9,
-   "col": 134.1,
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 10138,
+   "row": 26.6,
+   "col": 92.3,
    "between": "stroma",
    "between_shares": {
     "stroma": 1.0
+   }
+  },
+  {
+   "island": "S113",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 10133,
+   "row": 141.5,
+   "col": 30.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.6,
+    "tumor": 0.32,
+    "fat": 0.09
+   }
+  },
+  {
+   "island": "S21",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 10073,
+   "row": 47.0,
+   "col": 59.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.88,
+    "fat": 0.12
    }
   },
   {
    "island": "S22",
    "tiles": 1,
    "area_mm2": 0.013,
-   "distance_um": 3573,
-   "row": 161.0,
-   "col": 116.0,
-   "between": "fat",
-   "between_shares": {
-    "fat": 0.62,
-    "stroma": 0.25,
-    "necrosis": 0.12
-   }
-  },
-  {
-   "island": "S24",
-   "tiles": 1,
-   "area_mm2": 0.013,
-   "distance_um": 3536,
-   "row": 166.0,
-   "col": 91.0,
-   "between": "necrosis",
-   "between_shares": {
-    "necrosis": 0.69,
-    "fat": 0.31
-   }
-  },
-  {
-   "island": "S17",
-   "tiles": 6,
-   "area_mm2": 0.075,
-   "distance_um": 3248,
-   "row": 131.7,
-   "col": 129.7,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.44,
-    "tumor": 0.44,
-    "fat": 0.11
-   }
-  },
-  {
-   "island": "S14",
-   "tiles": 7,
-   "area_mm2": 0.088,
-   "distance_um": 2940,
-   "row": 123.9,
-   "col": 126.3,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 1.0
-   }
-  },
-  {
-   "island": "S9",
-   "tiles": 24,
-   "area_mm2": 0.301,
-   "distance_um": 2578,
-   "row": 117.3,
-   "col": 121.2,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.8,
-    "tumor": 0.2
-   }
-  },
-  {
-   "island": "S16",
-   "tiles": 23,
-   "area_mm2": 0.289,
-   "distance_um": 2474,
-   "row": 129.1,
-   "col": 124.5,
+   "distance_um": 10061,
+   "row": 49.0,
+   "col": 57.0,
    "between": "stroma",
    "between_shares": {
     "stroma": 0.8,
@@ -780,63 +930,1785 @@
    }
   },
   {
-   "island": "S13",
-   "tiles": 4,
-   "area_mm2": 0.05,
-   "distance_um": 1959,
-   "row": 121.5,
-   "col": 115.5,
-   "between": "stroma",
+   "island": "S25",
+   "tiles": 9,
+   "area_mm2": 0.113,
+   "distance_um": 10058,
+   "row": 50.6,
+   "col": 52.8,
+   "between": "fat",
    "between_shares": {
-    "stroma": 0.88,
-    "tumor": 0.12
+    "fat": 1.0
    }
   },
   {
-   "island": "S8",
-   "tiles": 5,
-   "area_mm2": 0.063,
-   "distance_um": 1277,
-   "row": 114.6,
-   "col": 90.2,
+   "island": "S19",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 10010,
+   "row": 46.0,
+   "col": 61.0,
    "between": "stroma",
    "between_shares": {
-    "stroma": 0.88,
-    "tumor": 0.12
-   }
-  },
-  {
-   "island": "S12",
-   "tiles": 2,
-   "area_mm2": 0.025,
-   "distance_um": 808,
-   "row": 120.0,
-   "col": 89.5,
-   "between": "stroma",
-   "between_shares": {
-    "stroma": 0.75,
-    "fat": 0.25
+    "stroma": 0.9,
+    "fat": 0.1
    }
   },
   {
    "island": "S10",
-   "tiles": 32,
-   "area_mm2": 0.401,
-   "distance_um": 560,
-   "row": 123.3,
-   "col": 103.7,
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 9889,
+   "row": 28.0,
+   "col": 99.0,
    "between": "stroma",
    "between_shares": {
     "stroma": 1.0
    }
+  },
+  {
+   "island": "S61",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 9806,
+   "row": 90.0,
+   "col": 223.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.52,
+    "fat": 0.44,
+    "tumor": 0.04
+   }
+  },
+  {
+   "island": "S65",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 9755,
+   "row": 92.0,
+   "col": 223.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.5,
+    "fat": 0.46,
+    "tumor": 0.04
+   }
+  },
+  {
+   "island": "S63",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 9671,
+   "row": 91.0,
+   "col": 222.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.52,
+    "fat": 0.4,
+    "tumor": 0.08
+   }
+  },
+  {
+   "island": "S11",
+   "tiles": 23,
+   "area_mm2": 0.289,
+   "distance_um": 9443,
+   "row": 40.0,
+   "col": 70.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S17",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 9086,
+   "row": 44.0,
+   "col": 77.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.89,
+    "tumor": 0.09,
+    "fat": 0.03
+   }
+  },
+  {
+   "island": "S152",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 9066,
+   "row": 166.0,
+   "col": 50.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.7,
+    "tumor": 0.2,
+    "stroma": 0.1
+   }
+  },
+  {
+   "island": "S64",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8991,
+   "row": 92.0,
+   "col": 216.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.65,
+    "fat": 0.35
+   }
+  },
+  {
+   "island": "S54",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8943,
+   "row": 81.0,
+   "col": 212.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.71,
+    "fat": 0.18,
+    "tumor": 0.12
+   }
+  },
+  {
+   "island": "S141",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 8668,
+   "row": 156.5,
+   "col": 49.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.63,
+    "stroma": 0.3,
+    "fat": 0.07
+   }
+  },
+  {
+   "island": "S165",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 8451,
+   "row": 172.0,
+   "col": 59.5,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.5,
+    "tumor": 0.3,
+    "stroma": 0.2
+   }
+  },
+  {
+   "island": "S37",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8361,
+   "row": 56.0,
+   "col": 72.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.67,
+    "fat": 0.33
+   }
+  },
+  {
+   "island": "S104",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 8286,
+   "row": 136.7,
+   "col": 45.3,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.57,
+    "tumor": 0.33,
+    "fat": 0.1
+   }
+  },
+  {
+   "island": "S69",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8261,
+   "row": 95.0,
+   "col": 210.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.54,
+    "fat": 0.46
+   }
+  },
+  {
+   "island": "S33",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8177,
+   "row": 55.0,
+   "col": 76.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.82,
+    "fat": 0.18
+   }
+  },
+  {
+   "island": "S127",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8146,
+   "row": 146.0,
+   "col": 50.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.76,
+    "stroma": 0.19,
+    "fat": 0.05
+   }
+  },
+  {
+   "island": "S20",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 8114,
+   "row": 46.0,
+   "col": 94.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.97,
+    "fat": 0.03
+   }
+  },
+  {
+   "island": "S70",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 8018,
+   "row": 96.0,
+   "col": 208.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.76,
+    "fat": 0.24
+   }
+  },
+  {
+   "island": "S49",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7930,
+   "row": 73.0,
+   "col": 61.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S23",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 7883,
+   "row": 49.0,
+   "col": 91.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.92,
+    "fat": 0.08
+   }
+  },
+  {
+   "island": "S68",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7824,
+   "row": 95.0,
+   "col": 206.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.65,
+    "fat": 0.35
+   }
+  },
+  {
+   "island": "S47",
+   "tiles": 4,
+   "area_mm2": 0.05,
+   "distance_um": 7802,
+   "row": 71.5,
+   "col": 63.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S27",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7768,
+   "row": 51.0,
+   "col": 90.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.89,
+    "fat": 0.09,
+    "tumor": 0.03
+   }
+  },
+  {
+   "island": "S145",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7564,
+   "row": 160.0,
+   "col": 62.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.78,
+    "stroma": 0.11,
+    "tumor": 0.11
+   }
+  },
+  {
+   "island": "S29",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7517,
+   "row": 53.0,
+   "col": 91.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.91,
+    "fat": 0.09
+   }
+  },
+  {
+   "island": "S24",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7497,
+   "row": 49.0,
+   "col": 103.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S109",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 7477,
+   "row": 139.0,
+   "col": 53.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.48,
+    "tumor": 0.45,
+    "fat": 0.06
+   }
+  },
+  {
+   "island": "S119",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 7438,
+   "row": 143.7,
+   "col": 55.3,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.74,
+    "stroma": 0.2,
+    "fat": 0.06
+   }
+  },
+  {
+   "island": "S18",
+   "tiles": 11,
+   "area_mm2": 0.138,
+   "distance_um": 7366,
+   "row": 46.7,
+   "col": 108.2,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.91,
+    "fat": 0.09
+   }
+  },
+  {
+   "island": "S26",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 7224,
+   "row": 50.0,
+   "col": 111.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.9,
+    "fat": 0.1
+   }
+  },
+  {
+   "island": "S168",
+   "tiles": 10,
+   "area_mm2": 0.125,
+   "distance_um": 7211,
+   "row": 177.3,
+   "col": 76.7,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.73,
+    "stroma": 0.27
+   }
+  },
+  {
+   "island": "S101",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 7119,
+   "row": 134.0,
+   "col": 55.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.42,
+    "tumor": 0.39,
+    "fat": 0.18
+   }
+  },
+  {
+   "island": "S116",
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 6871,
+   "row": 143.0,
+   "col": 58.7,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.74,
+    "stroma": 0.21,
+    "fat": 0.06
+   }
+  },
+  {
+   "island": "S34",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 6767,
+   "row": 55.0,
+   "col": 106.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.96,
+    "fat": 0.04
+   }
+  },
+  {
+   "island": "S85",
+   "tiles": 10,
+   "area_mm2": 0.125,
+   "distance_um": 6609,
+   "row": 117.0,
+   "col": 57.5,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.56,
+    "stroma": 0.42,
+    "fat": 0.03
+   }
+  },
+  {
+   "island": "S137",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 6563,
+   "row": 154.5,
+   "col": 69.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.67,
+    "tumor": 0.33
+   }
+  },
+  {
+   "island": "S89",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 6496,
+   "row": 119.0,
+   "col": 60.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.52,
+    "stroma": 0.42,
+    "fat": 0.06
+   }
+  },
+  {
+   "island": "S133",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 6463,
+   "row": 150.0,
+   "col": 68.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.74,
+    "stroma": 0.22,
+    "fat": 0.04
+   }
+  },
+  {
+   "island": "S144",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 6127,
+   "row": 157.0,
+   "col": 74.5,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.86,
+    "tumor": 0.14
+   }
+  },
+  {
+   "island": "S120",
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 6074,
+   "row": 143.3,
+   "col": 66.7,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.54,
+    "stroma": 0.33,
+    "fat": 0.12
+   }
+  },
+  {
+   "island": "S130",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 6061,
+   "row": 148.0,
+   "col": 71.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.73,
+    "stroma": 0.23,
+    "fat": 0.05
+   }
+  },
+  {
+   "island": "S84",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 6048,
+   "row": 115.0,
+   "col": 64.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.61,
+    "fat": 0.22,
+    "stroma": 0.17
+   }
+  },
+  {
+   "island": "S40",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5988,
+   "row": 58.0,
+   "col": 145.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.94,
+    "fat": 0.03,
+    "tumor": 0.03
+   }
+  },
+  {
+   "island": "S131",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5918,
+   "row": 149.0,
+   "col": 73.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.8,
+    "stroma": 0.15,
+    "fat": 0.05
+   }
+  },
+  {
+   "island": "S59",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 5911,
+   "row": 86.7,
+   "col": 185.7,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.64,
+    "fat": 0.21,
+    "tumor": 0.14
+   }
+  },
+  {
+   "island": "S153",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5895,
+   "row": 166.0,
+   "col": 84.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S142",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 5878,
+   "row": 156.5,
+   "col": 77.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.86,
+    "tumor": 0.14
+   }
+  },
+  {
+   "island": "S157",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5869,
+   "row": 168.0,
+   "col": 86.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.75,
+    "tumor": 0.25
+   }
+  },
+  {
+   "island": "S134",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5868,
+   "row": 150.0,
+   "col": 74.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.5,
+    "stroma": 0.33,
+    "tumor": 0.17
+   }
+  },
+  {
+   "island": "S135",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5812,
+   "row": 151.0,
+   "col": 75.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.83,
+    "tumor": 0.17
+   }
+  },
+  {
+   "island": "S83",
+   "tiles": 22,
+   "area_mm2": 0.276,
+   "distance_um": 5713,
+   "row": 117.9,
+   "col": 63.4,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.63,
+    "tumor": 0.33,
+    "fat": 0.03
+   }
+  },
+  {
+   "island": "S128",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5660,
+   "row": 146.0,
+   "col": 74.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.73,
+    "stroma": 0.23,
+    "fat": 0.05
+   }
+  },
+  {
+   "island": "S102",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 5632,
+   "row": 135.3,
+   "col": 69.3,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.52,
+    "stroma": 0.42,
+    "fat": 0.06
+   }
+  },
+  {
+   "island": "S111",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 5598,
+   "row": 140.0,
+   "col": 71.5,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.69,
+    "stroma": 0.28,
+    "fat": 0.03
+   }
+  },
+  {
+   "island": "S122",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5562,
+   "row": 144.0,
+   "col": 74.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.62,
+    "stroma": 0.31,
+    "fat": 0.08
+   }
+  },
+  {
+   "island": "S114",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5532,
+   "row": 141.0,
+   "col": 73.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.71,
+    "stroma": 0.25,
+    "fat": 0.04
+   }
+  },
+  {
+   "island": "S124",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5510,
+   "row": 145.0,
+   "col": 75.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.6,
+    "stroma": 0.3,
+    "fat": 0.1
+   }
+  },
+  {
+   "island": "S66",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5428,
+   "row": 93.0,
+   "col": 183.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.73,
+    "fat": 0.2,
+    "tumor": 0.07
+   }
+  },
+  {
+   "island": "S149",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5395,
+   "row": 165.0,
+   "col": 89.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S93",
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 5382,
+   "row": 123.3,
+   "col": 185.4,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S138",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5378,
+   "row": 154.0,
+   "col": 81.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S169",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5368,
+   "row": 177.0,
+   "col": 106.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.89,
+    "stroma": 0.11
+   }
+  },
+  {
+   "island": "S140",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5343,
+   "row": 155.0,
+   "col": 82.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S167",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5343,
+   "row": 173.0,
+   "col": 99.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.5,
+    "stroma": 0.5
+   }
+  },
+  {
+   "island": "S56",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5313,
+   "row": 84.0,
+   "col": 177.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S166",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5313,
+   "row": 172.0,
+   "col": 98.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.67,
+    "stroma": 0.33
+   }
+  },
+  {
+   "island": "S44",
+   "tiles": 24,
+   "area_mm2": 0.301,
+   "distance_um": 5310,
+   "row": 68.5,
+   "col": 94.1,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.91,
+    "fat": 0.09
+   }
+  },
+  {
+   "island": "S154",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5307,
+   "row": 166.0,
+   "col": 91.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S117",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5265,
+   "row": 142.0,
+   "col": 76.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.55,
+    "stroma": 0.28,
+    "fat": 0.17
+   }
+  },
+  {
+   "island": "S146",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5248,
+   "row": 163.0,
+   "col": 89.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S158",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5237,
+   "row": 168.0,
+   "col": 94.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S112",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5075,
+   "row": 140.0,
+   "col": 77.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.58,
+    "stroma": 0.33,
+    "fat": 0.08
+   }
+  },
+  {
+   "island": "S143",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5071,
+   "row": 156.0,
+   "col": 165.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S151",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 5069,
+   "row": 165.0,
+   "col": 158.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S77",
+   "tiles": 14,
+   "area_mm2": 0.176,
+   "distance_um": 5040,
+   "row": 113.9,
+   "col": 71.1,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.5,
+    "fat": 0.29,
+    "stroma": 0.21
+   }
+  },
+  {
+   "island": "S106",
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 4958,
+   "row": 138.1,
+   "col": 75.9,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.71,
+    "stroma": 0.21,
+    "fat": 0.07
+   }
+  },
+  {
+   "island": "S45",
+   "tiles": 4,
+   "area_mm2": 0.05,
+   "distance_um": 4920,
+   "row": 67.5,
+   "col": 122.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.87,
+    "tumor": 0.13
+   }
+  },
+  {
+   "island": "S123",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 4863,
+   "row": 144.5,
+   "col": 81.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.74,
+    "stroma": 0.16,
+    "fat": 0.11
+   }
+  },
+  {
+   "island": "S136",
+   "tiles": 6,
+   "area_mm2": 0.075,
+   "distance_um": 4809,
+   "row": 152.8,
+   "col": 165.2,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S55",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4689,
+   "row": 84.0,
+   "col": 170.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.83,
+    "fat": 0.17
+   }
+  },
+  {
+   "island": "S108",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4680,
+   "row": 138.0,
+   "col": 80.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.68,
+    "stroma": 0.28,
+    "fat": 0.04
+   }
+  },
+  {
+   "island": "S121",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 4597,
+   "row": 143.5,
+   "col": 169.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.67,
+    "fat": 0.33
+   }
+  },
+  {
+   "island": "S97",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4569,
+   "row": 128.0,
+   "col": 78.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.46,
+    "stroma": 0.31,
+    "fat": 0.23
+   }
+  },
+  {
+   "island": "S160",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 4559,
+   "row": 169.3,
+   "col": 105.3,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.71,
+    "stroma": 0.29
+   }
+  },
+  {
+   "island": "S46",
+   "tiles": 15,
+   "area_mm2": 0.188,
+   "distance_um": 4538,
+   "row": 69.7,
+   "col": 149.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.93,
+    "fat": 0.04,
+    "tumor": 0.04
+   }
+  },
+  {
+   "island": "S159",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4310,
+   "row": 168.0,
+   "col": 109.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.89,
+    "stroma": 0.11
+   }
+  },
+  {
+   "island": "S164",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 4293,
+   "row": 171.2,
+   "col": 115.4,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.75,
+    "tumor": 0.17,
+    "stroma": 0.08
+   }
+  },
+  {
+   "island": "S51",
+   "tiles": 6,
+   "area_mm2": 0.075,
+   "distance_um": 4265,
+   "row": 75.0,
+   "col": 153.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S110",
+   "tiles": 25,
+   "area_mm2": 0.314,
+   "distance_um": 4265,
+   "row": 141.6,
+   "col": 82.4,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.71,
+    "stroma": 0.21,
+    "fat": 0.07
+   }
+  },
+  {
+   "island": "S161",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4216,
+   "row": 169.0,
+   "col": 114.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.54,
+    "stroma": 0.23,
+    "tumor": 0.23
+   }
+  },
+  {
+   "island": "S105",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 4209,
+   "row": 136.5,
+   "col": 169.0,
+   "between": "touching",
+   "between_shares": {}
+  },
+  {
+   "island": "S162",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4156,
+   "row": 169.0,
+   "col": 116.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.8,
+    "tumor": 0.2
+   }
+  },
+  {
+   "island": "S115",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4112,
+   "row": 141.0,
+   "col": 87.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.67,
+    "stroma": 0.2,
+    "fat": 0.13
+   }
+  },
+  {
+   "island": "S163",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 4088,
+   "row": 170.6,
+   "col": 118.8,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.89,
+    "tumor": 0.11
+   }
+  },
+  {
+   "island": "S103",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 4060,
+   "row": 135.0,
+   "col": 168.0,
+   "between": "touching",
+   "between_shares": {}
+  },
+  {
+   "island": "S99",
+   "tiles": 15,
+   "area_mm2": 0.188,
+   "distance_um": 4002,
+   "row": 134.5,
+   "col": 83.4,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.76,
+    "stroma": 0.14,
+    "fat": 0.1
+   }
+  },
+  {
+   "island": "S156",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 3969,
+   "row": 167.5,
+   "col": 115.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.54,
+    "stroma": 0.23,
+    "tumor": 0.23
+   }
+  },
+  {
+   "island": "S132",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3946,
+   "row": 149.0,
+   "col": 93.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.5,
+    "tumor": 0.5
+   }
+  },
+  {
+   "island": "S125",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 3808,
+   "row": 145.5,
+   "col": 92.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S155",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 3696,
+   "row": 166.2,
+   "col": 127.6,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.91,
+    "tumor": 0.09
+   }
+  },
+  {
+   "island": "S150",
+   "tiles": 3,
+   "area_mm2": 0.038,
+   "distance_um": 3694,
+   "row": 165.3,
+   "col": 116.3,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.86,
+    "tumor": 0.14
+   }
+  },
+  {
+   "island": "S58",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 3572,
+   "row": 86.6,
+   "col": 159.8,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.85,
+    "fat": 0.08,
+    "tumor": 0.08
+   }
+  },
+  {
+   "island": "S147",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 3508,
+   "row": 163.0,
+   "col": 115.5,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.64,
+    "stroma": 0.27,
+    "tumor": 0.09
+   }
+  },
+  {
+   "island": "S107",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3506,
+   "row": 137.0,
+   "col": 91.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.56,
+    "stroma": 0.33,
+    "fat": 0.11
+   }
+  },
+  {
+   "island": "S53",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3479,
+   "row": 80.0,
+   "col": 140.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S80",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3479,
+   "row": 113.0,
+   "col": 87.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.4,
+    "stroma": 0.3,
+    "tumor": 0.3
+   }
+  },
+  {
+   "island": "S87",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 3479,
+   "row": 117.0,
+   "col": 86.5,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.69,
+    "fat": 0.23,
+    "tumor": 0.08
+   }
+  },
+  {
+   "island": "S148",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3450,
+   "row": 163.0,
+   "col": 118.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.93,
+    "tumor": 0.07
+   }
+  },
+  {
+   "island": "S129",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3294,
+   "row": 146.0,
+   "col": 98.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 1.0
+   }
+  },
+  {
+   "island": "S57",
+   "tiles": 7,
+   "area_mm2": 0.088,
+   "distance_um": 3256,
+   "row": 87.3,
+   "col": 156.6,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.92,
+    "fat": 0.08
+   }
+  },
+  {
+   "island": "S126",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 3138,
+   "row": 145.0,
+   "col": 99.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 1.0
+   }
+  },
+  {
+   "island": "S81",
+   "tiles": 10,
+   "area_mm2": 0.125,
+   "distance_um": 2912,
+   "row": 115.2,
+   "col": 90.5,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.4,
+    "stroma": 0.3,
+    "tumor": 0.3
+   }
+  },
+  {
+   "island": "S90",
+   "tiles": 14,
+   "area_mm2": 0.176,
+   "distance_um": 2912,
+   "row": 120.4,
+   "col": 88.9,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.53,
+    "stroma": 0.47
+   }
+  },
+  {
+   "island": "S118",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 2487,
+   "row": 143.2,
+   "col": 103.6,
+   "between": "touching",
+   "between_shares": {}
+  },
+  {
+   "island": "S78",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 2376,
+   "row": 112.0,
+   "col": 97.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S139",
+   "tiles": 6,
+   "area_mm2": 0.075,
+   "distance_um": 2355,
+   "row": 155.2,
+   "col": 123.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S62",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 2339,
+   "row": 91.0,
+   "col": 144.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S76",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 2284,
+   "row": 111.0,
+   "col": 98.0,
+   "between": "fat",
+   "between_shares": {
+    "fat": 1.0
+   }
+  },
+  {
+   "island": "S94",
+   "tiles": 2,
+   "area_mm2": 0.025,
+   "distance_um": 2265,
+   "row": 123.5,
+   "col": 98.0,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.73,
+    "stroma": 0.27
+   }
+  },
+  {
+   "island": "S96",
+   "tiles": 86,
+   "area_mm2": 1.079,
+   "distance_um": 2232,
+   "row": 130.7,
+   "col": 95.5,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 0.55,
+    "stroma": 0.45
+   }
+  },
+  {
+   "island": "S82",
+   "tiles": 4,
+   "area_mm2": 0.05,
+   "distance_um": 2128,
+   "row": 114.5,
+   "col": 98.5,
+   "between": "fat",
+   "between_shares": {
+    "fat": 0.8,
+    "tumor": 0.2
+   }
+  },
+  {
+   "island": "S100",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 1904,
+   "row": 131.0,
+   "col": 104.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.67,
+    "tumor": 0.33
+   }
+  },
+  {
+   "island": "S98",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 1604,
+   "row": 129.0,
+   "col": 106.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.6,
+    "tumor": 0.4
+   }
+  },
+  {
+   "island": "S86",
+   "tiles": 56,
+   "area_mm2": 0.702,
+   "distance_um": 1417,
+   "row": 122.0,
+   "col": 102.9,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 1.0
+   }
+  },
+  {
+   "island": "S67",
+   "tiles": 19,
+   "area_mm2": 0.238,
+   "distance_um": 1349,
+   "row": 96.9,
+   "col": 132.3,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.73,
+    "tumor": 0.27
+   }
+  },
+  {
+   "island": "S75",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 1153,
+   "row": 106.0,
+   "col": 147.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S71",
+   "tiles": 6,
+   "area_mm2": 0.075,
+   "distance_um": 1120,
+   "row": 100.2,
+   "col": 135.8,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 0.89,
+    "tumor": 0.11
+   }
+  },
+  {
+   "island": "S91",
+   "tiles": 5,
+   "area_mm2": 0.063,
+   "distance_um": 1120,
+   "row": 119.6,
+   "col": 106.8,
+   "between": "tumor",
+   "between_shares": {
+    "tumor": 1.0
+   }
+  },
+  {
+   "island": "S74",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 1033,
+   "row": 102.0,
+   "col": 134.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S88",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 571,
+   "row": 118.0,
+   "col": 113.0,
+   "between": "touching",
+   "between_shares": {}
+  },
+  {
+   "island": "S73",
+   "tiles": 40,
+   "area_mm2": 0.502,
+   "distance_um": 475,
+   "row": 104.8,
+   "col": 127.7,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S79",
+   "tiles": 1,
+   "area_mm2": 0.013,
+   "distance_um": 224,
+   "row": 112.0,
+   "col": 125.0,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S92",
+   "tiles": 33,
+   "area_mm2": 0.414,
+   "distance_um": 224,
+   "row": 123.5,
+   "col": 113.9,
+   "between": "stroma",
+   "between_shares": {
+    "stroma": 1.0
+   }
+  },
+  {
+   "island": "S95",
+   "tiles": 26,
+   "area_mm2": 0.326,
+   "distance_um": 158,
+   "row": 127.5,
+   "col": 130.7,
+   "between": "touching",
+   "between_shares": {}
   }
  ],
  "hotspot": {
-  "row": 133,
-  "col": 97,
-  "buds_in_field": 33,
+  "row": 112,
+  "col": 125,
+  "buds_in_field": 88,
   "field_mm2": 0.785,
-  "coverage": 0.98,
+  "coverage": 0.87,
   "radius_tiles": 4.46
  },
  "immune": {
@@ -844,21 +2716,24 @@
    "core": {
     "tiles": 0,
     "lymph_tile_share": null,
+    "nuclei_tiles": 0,
     "counted_tiles": 0
    },
    "front band": {
-    "tiles": 189,
-    "lymph_tile_share": 0.0,
-    "counted_tiles": 72,
-    "lymph_nuclei_per_mm2": 3575,
+    "tiles": 429,
+    "lymph_tile_share": 0.007,
+    "nuclei_tiles": 400,
+    "counted_tiles": 137,
+    "lymph_nuclei_per_mm2": 3227,
     "tumor_contacting_share": 0.22
    },
    "peritumoral": {
-    "tiles": 582,
-    "lymph_tile_share": 0.0,
-    "counted_tiles": 98,
-    "lymph_nuclei_per_mm2": 3523,
-    "tumor_contacting_share": 0.19
+    "tiles": 671,
+    "lymph_tile_share": 0.016,
+    "nuclei_tiles": 51,
+    "counted_tiles": 9,
+    "lymph_nuclei_per_mm2": 3579,
+    "tumor_contacting_share": 0.37
    }
   },
   "pattern": "desert (no core: front band only)",
@@ -866,33 +2741,32 @@
   "status": "placeholder cutoffs on tile shares; nuclei counts are StarDist inferences, not validated on breast"
  },
  "tsr": {
-  "stroma_share": 0.526,
-  "tumor_tiles": 65,
-  "stroma_tiles": 72,
-  "verdict": "stroma-high"
+  "stroma_share": 0.323,
+  "tumor_tiles": 281,
+  "stroma_tiles": 134,
+  "verdict": "stroma-low"
  },
  "necrosis": {
-  "necrosis_tiles": 979,
-  "necrosis_mm2": 12.281,
-  "touching_tumor_tiles": 6,
-  "share_touching": 0.01
+  "necrosis_tiles": 0,
+  "necrosis_mm2": 0.0,
+  "touching_tumor_tiles": 0,
+  "share_touching": null
  },
  "risk_cards": [
   {
    "card": "R1",
    "level": 3,
-   "points": 7,
+   "points": 6,
    "features": [
     "infiltrative arc",
     "breakaway candidates",
-    "faces fat",
     "satellite island",
     "immune-poor front"
    ],
-   "tiles": 384,
-   "mm2": 4.82,
-   "row": 127,
-   "col": 95
+   "tiles": 702,
+   "mm2": 8.81,
+   "row": 114,
+   "col": 128
   },
   {
    "card": "R2",
@@ -901,13 +2775,13 @@
    "features": [
     "infiltrative arc",
     "breakaway candidates",
-    "faces fat",
+    "satellite island",
     "immune-poor front"
    ],
-   "tiles": 10,
-   "mm2": 0.13,
-   "row": 142,
-   "col": 98
+   "tiles": 4,
+   "mm2": 0.05,
+   "row": 134,
+   "col": 131
   },
   {
    "card": "R3",
@@ -916,13 +2790,13 @@
    "features": [
     "infiltrative arc",
     "breakaway candidates",
-    "faces fat",
+    "satellite island",
     "immune-poor front"
    ],
-   "tiles": 4,
-   "mm2": 0.05,
-   "row": 138,
-   "col": 102
+   "tiles": 3,
+   "mm2": 0.04,
+   "row": 134,
+   "col": 121
   },
   {
    "card": "R4",
@@ -931,13 +2805,13 @@
    "features": [
     "infiltrative arc",
     "breakaway candidates",
-    "faces fat",
+    "satellite island",
     "immune-poor front"
    ],
-   "tiles": 1,
-   "mm2": 0.01,
-   "row": 138,
-   "col": 98
+   "tiles": 3,
+   "mm2": 0.04,
+   "row": 137,
+   "col": 123
   },
   {
    "card": "R5",
@@ -946,68 +2820,128 @@
    "features": [
     "infiltrative arc",
     "breakaway candidates",
-    "faces fat",
+    "satellite island",
     "immune-poor front"
    ],
-   "tiles": 1,
-   "mm2": 0.01,
-   "row": 140,
-   "col": 103
+   "tiles": 3,
+   "mm2": 0.04,
+   "row": 139,
+   "col": 124
   },
   {
    "card": "R6",
-   "level": 2,
-   "points": 4,
+   "level": 3,
+   "points": 6,
    "features": [
     "infiltrative arc",
+    "breakaway candidates",
     "satellite island",
     "immune-poor front"
    ],
    "tiles": 2,
    "mm2": 0.03,
    "row": 124,
-   "col": 84
+   "col": 134
   },
   {
    "card": "R7",
-   "level": 2,
-   "points": 4,
+   "level": 3,
+   "points": 6,
    "features": [
     "infiltrative arc",
-    "satellite island",
-    "immune-poor front"
-   ],
-   "tiles": 2,
-   "mm2": 0.03,
-   "row": 126,
-   "col": 83
-  },
-  {
-   "card": "R8",
-   "level": 2,
-   "points": 4,
-   "features": [
     "breakaway candidates",
-    "faces fat",
+    "satellite island",
     "immune-poor front"
    ],
    "tiles": 1,
    "mm2": 0.01,
-   "row": 142,
-   "col": 93
+   "row": 130,
+   "col": 116
+  },
+  {
+   "card": "R8",
+   "level": 3,
+   "points": 6,
+   "features": [
+    "infiltrative arc",
+    "breakaway candidates",
+    "satellite island",
+    "immune-poor front"
+   ],
+   "tiles": 1,
+   "mm2": 0.01,
+   "row": 133,
+   "col": 118
   },
   {
    "card": "R9",
+   "level": 3,
+   "points": 6,
+   "features": [
+    "infiltrative arc",
+    "breakaway candidates",
+    "satellite island",
+    "immune-poor front"
+   ],
+   "tiles": 1,
+   "mm2": 0.01,
+   "row": 133,
+   "col": 122
+  },
+  {
+   "card": "R10",
+   "level": 3,
+   "points": 5,
+   "features": [
+    "infiltrative arc",
+    "breakaway candidates",
+    "immune-poor front"
+   ],
+   "tiles": 5,
+   "mm2": 0.06,
+   "row": 139,
+   "col": 121
+  },
+  {
+   "card": "R11",
+   "level": 3,
+   "points": 5,
+   "features": [
+    "infiltrative arc",
+    "breakaway candidates",
+    "immune-poor front"
+   ],
+   "tiles": 1,
+   "mm2": 0.01,
+   "row": 141,
+   "col": 123
+  },
+  {
+   "card": "R12",
+   "level": 2,
+   "points": 4,
+   "features": [
+    "breakaway candidates",
+    "satellite island",
+    "immune-poor front"
+   ],
+   "tiles": 1,
+   "mm2": 0.01,
+   "row": 131,
+   "col": 115
+  },
+  {
+   "card": "R13",
    "level": 2,
    "points": 3,
    "features": [
     "breakaway candidates",
     "satellite island"
    ],
-   "tiles": 2,
-   "mm2": 0.03,
+   "tiles": 5,
+   "mm2": 0.06,
    "row": 120,
-   "col": 106
+   "col": 107
   }
  ],
  "risk_points": [
@@ -1046,9 +2980,9 @@
   {
    "pointer": "T1",
    "what": "Risk level 3 region (R1)",
-   "why": "infiltrative arc, breakaway candidates, faces fat, satellite island, immune-poor front",
-   "row": 127,
-   "col": 95,
+   "why": "infiltrative arc, breakaway candidates, satellite island, immune-poor front",
+   "row": 114,
+   "col": 128,
    "evidence": "model inference",
    "status": "placeholder points",
    "check": "the front here at 10\u00d7 and 20\u00d7: infiltration, buds, the tissue it faces",
@@ -1057,9 +2991,9 @@
   {
    "pointer": "T2",
    "what": "Risk level 3 region (R2)",
-   "why": "infiltrative arc, breakaway candidates, faces fat, immune-poor front",
-   "row": 142,
-   "col": 98,
+   "why": "infiltrative arc, breakaway candidates, satellite island, immune-poor front",
+   "row": 134,
+   "col": 131,
    "evidence": "model inference",
    "status": "placeholder points",
    "check": "the front here at 10\u00d7 and 20\u00d7: infiltration, buds, the tissue it faces",
@@ -1068,9 +3002,9 @@
   {
    "pointer": "T3",
    "what": "Risk level 3 region (R3)",
-   "why": "infiltrative arc, breakaway candidates, faces fat, immune-poor front",
-   "row": 138,
-   "col": 102,
+   "why": "infiltrative arc, breakaway candidates, satellite island, immune-poor front",
+   "row": 134,
+   "col": 121,
    "evidence": "model inference",
    "status": "placeholder points",
    "check": "the front here at 10\u00d7 and 20\u00d7: infiltration, buds, the tissue it faces",
@@ -1079,9 +3013,9 @@
   {
    "pointer": "T4",
    "what": "Risk level 3 region (R4)",
-   "why": "infiltrative arc, breakaway candidates, faces fat, immune-poor front",
-   "row": 138,
-   "col": 98,
+   "why": "infiltrative arc, breakaway candidates, satellite island, immune-poor front",
+   "row": 137,
+   "col": 123,
    "evidence": "model inference",
    "status": "placeholder points",
    "check": "the front here at 10\u00d7 and 20\u00d7: infiltration, buds, the tissue it faces",
@@ -1089,10 +3023,10 @@
   },
   {
    "pointer": "T5",
-   "what": "Breakaway counting field: 33 candidate cluster(s) in 0.785 mm\u00b2",
-   "why": "98% of the field was counted",
-   "row": 133,
-   "col": 97,
+   "what": "Breakaway counting field: 88 candidate cluster(s) in 0.785 mm\u00b2",
+   "why": "87% of the field was counted",
+   "row": 112,
+   "col": 125,
    "evidence": "model inference",
    "status": "weak until validated",
    "check": "count buds at 20\u00d7 in this field; fill in the counter",
@@ -1100,10 +3034,10 @@
   },
   {
    "pointer": "T6",
-   "what": "Roughest arc A3: infiltrative, invading upper right, faces stroma",
-   "why": "100% of its front tiles are fingers; push 0.20",
-   "row": 126,
-   "col": 96,
+   "what": "Roughest arc A1: infiltrative, invading lower right, faces stroma",
+   "why": "67% of its front tiles are fingers; push 0.12",
+   "row": 118,
+   "col": 133,
    "evidence": "hypothesis",
    "status": "placeholder cutoff",
    "check": "single cells and small nests beyond the front at 20\u00d7",
@@ -1111,10 +3045,10 @@
   },
   {
    "pointer": "T7",
-   "what": "Island S2: 0.013 mm\u00b2, 17743 \u00b5m from the main tumor, stroma between",
+   "what": "Island S13: 0.013 mm\u00b2, 14361 \u00b5m from the main tumor, stroma between",
    "why": "a separate tumor piece in the map",
-   "row": 55,
-   "col": 239,
+   "row": 40,
+   "col": 14,
    "evidence": "model inference",
    "status": "geometry on the tile classes",
    "check": "is it a satellite, a tangential cut of the same tumor, or in-situ disease? (DCIS is not a class of the head)",
@@ -1122,10 +3056,10 @@
   },
   {
    "pointer": "T8",
-   "what": "Island S15: 0.063 mm\u00b2, 9544 \u00b5m from the main tumor, stroma between",
+   "what": "Island S16: 0.013 mm\u00b2, 14011 \u00b5m from the main tumor, fat between",
    "why": "a separate tumor piece in the map",
-   "row": 124,
-   "col": 185,
+   "row": 44,
+   "col": 15,
    "evidence": "model inference",
    "status": "geometry on the tile classes",
    "check": "is it a satellite, a tangential cut of the same tumor, or in-situ disease? (DCIS is not a class of the head)",
@@ -1134,9 +3068,9 @@
   {
    "pointer": "T9",
    "what": "Most unsure spot",
-   "why": "1849 unsure tiles in the map, densest here",
-   "row": 24,
-   "col": 66,
+   "why": "2371 unsure tiles in the map, densest here",
+   "row": 123,
+   "col": 47,
    "evidence": "model inference",
    "status": "placeholder cutoff",
    "check": "what is this tissue? the head is unsure here",
@@ -1145,260 +3079,294 @@
  ],
  "crops": [
   {
-   "row": 127,
-   "col": 95,
+   "row": 114,
+   "col": 128,
    "why": "T1"
   },
   {
-   "row": 142,
-   "col": 98,
+   "row": 134,
+   "col": 131,
    "why": "T2"
   },
   {
-   "row": 138,
-   "col": 102,
+   "row": 134,
+   "col": 121,
    "why": "T3"
   },
   {
-   "row": 138,
-   "col": 98,
+   "row": 137,
+   "col": 123,
    "why": "T4"
   },
   {
-   "row": 133,
-   "col": 97,
+   "row": 112,
+   "col": 125,
    "why": "T5"
   },
   {
-   "row": 126,
-   "col": 96,
+   "row": 118,
+   "col": 133,
    "why": "T6"
   },
   {
-   "row": 55,
-   "col": 239,
+   "row": 40,
+   "col": 14,
    "why": "T7"
   },
   {
-   "row": 124,
-   "col": 185,
+   "row": 44,
+   "col": 15,
    "why": "T8"
   },
   {
-   "row": 24,
-   "col": 66,
+   "row": 123,
+   "col": 47,
    "why": "T9"
   },
   {
-   "row": 140,
-   "col": 103,
+   "row": 139,
+   "col": 124,
    "why": "R5"
   },
   {
    "row": 124,
-   "col": 84,
+   "col": 134,
    "why": "R6"
   },
   {
-   "row": 132,
-   "col": 101,
+   "row": 111,
+   "col": 121,
    "why": "breakaway candidates"
   },
   {
-   "row": 130,
-   "col": 99,
+   "row": 109,
+   "col": 135,
    "why": "breakaway candidates"
   },
   {
    "row": 123,
-   "col": 98,
-   "why": "breakaway candidates"
-  },
-  {
-   "row": 131,
-   "col": 104,
-   "why": "breakaway candidates"
-  },
-  {
-   "row": 132,
-   "col": 100,
-   "why": "breakaway candidates"
-  },
-  {
-   "row": 135,
-   "col": 96,
-   "why": "breakaway candidates"
-  },
-  {
-   "row": 134,
-   "col": 93,
+   "col": 118,
    "why": "breakaway candidates"
   },
   {
    "row": 124,
-   "col": 99,
+   "col": 120,
    "why": "breakaway candidates"
   },
   {
-   "row": 135,
-   "col": 98,
+   "row": 126,
+   "col": 131,
    "why": "breakaway candidates"
   },
   {
-   "row": 135,
-   "col": 95,
+   "row": 111,
+   "col": 131,
    "why": "breakaway candidates"
   },
   {
-   "row": 128,
-   "col": 99,
+   "row": 108,
+   "col": 132,
    "why": "breakaway candidates"
   },
   {
-   "row": 128,
-   "col": 103,
+   "row": 113,
+   "col": 123,
    "why": "breakaway candidates"
   },
   {
-   "row": 132,
-   "col": 99,
+   "row": 113,
+   "col": 128,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 115,
+   "col": 136,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 115,
+   "col": 124,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 113,
+   "col": 120,
+   "why": "breakaway candidates"
+  },
+  {
+   "row": 124,
+   "col": 129,
    "why": "front, highest push"
   },
   {
-   "row": 129,
-   "col": 91,
+   "row": 125,
+   "col": 128,
    "why": "front, highest push"
   },
   {
-   "row": 134,
-   "col": 98,
+   "row": 131,
+   "col": 127,
    "why": "front, highest push"
   },
   {
-   "row": 133,
-   "col": 100,
-   "why": "front, highest push"
-  },
-  {
-   "row": 134,
-   "col": 96,
-   "why": "front, highest push"
-  },
-  {
-   "row": 132,
-   "col": 92,
-   "why": "front, highest push"
-  },
-  {
-   "row": 133,
-   "col": 94,
+   "row": 123,
+   "col": 129,
    "why": "front, highest push"
   },
   {
    "row": 130,
-   "col": 98,
+   "col": 127,
    "why": "front, highest push"
   },
   {
-   "row": 127,
-   "col": 93,
+   "row": 115,
+   "col": 125,
    "why": "front, highest push"
   },
   {
-   "row": 133,
-   "col": 93,
+   "row": 114,
+   "col": 125,
    "why": "front, highest push"
   },
   {
-   "row": 134,
-   "col": 95,
+   "row": 113,
+   "col": 134,
    "why": "front, highest push"
   },
   {
-   "row": 135,
-   "col": 97,
+   "row": 116,
+   "col": 124,
    "why": "front, highest push"
   },
   {
-   "row": 126,
-   "col": 94,
+   "row": 122,
+   "col": 119,
    "why": "front, highest push"
   },
   {
-   "row": 134,
-   "col": 99,
+   "row": 113,
+   "col": 133,
    "why": "front, highest push"
   },
   {
-   "row": 126,
-   "col": 95,
-   "why": "finger"
+   "row": 125,
+   "col": 127,
+   "why": "front, highest push"
   },
   {
-   "row": 127,
-   "col": 92,
-   "why": "finger"
+   "row": 114,
+   "col": 126,
+   "why": "front, highest push"
   },
   {
-   "row": 127,
-   "col": 96,
-   "why": "finger"
+   "row": 129,
+   "col": 127,
+   "why": "front, highest push"
   },
   {
    "row": 128,
-   "col": 91,
+   "col": 127,
+   "why": "front, highest push"
+  },
+  {
+   "row": 111,
+   "col": 132,
    "why": "finger"
   },
   {
-   "row": 131,
-   "col": 100,
+   "row": 111,
+   "col": 136,
    "why": "finger"
   },
   {
-   "row": 133,
-   "col": 92,
+   "row": 111,
+   "col": 137,
    "why": "finger"
   },
   {
-   "row": 62,
-   "col": 220,
+   "row": 111,
+   "col": 138,
+   "why": "finger"
+  },
+  {
+   "row": 112,
+   "col": 130,
+   "why": "finger"
+  },
+  {
+   "row": 112,
+   "col": 134,
+   "why": "finger"
+  },
+  {
+   "row": 112,
+   "col": 135,
+   "why": "finger"
+  },
+  {
+   "row": 112,
+   "col": 136,
+   "why": "finger"
+  },
+  {
+   "row": 163,
+   "col": 123,
    "why": "unsure"
   },
   {
-   "row": 160,
+   "row": 114,
+   "col": 104,
+   "why": "unsure"
+  },
+  {
+   "row": 113,
    "col": 118,
    "why": "unsure"
   },
   {
-   "row": 59,
-   "col": 226,
+   "row": 136,
+   "col": 123,
    "why": "unsure"
   },
   {
-   "row": 24,
-   "col": 69,
-   "why": "unsure"
-  },
-  {
-   "row": 126,
-   "col": 186,
-   "why": "unsure"
-  },
-  {
-   "row": 122,
-   "col": 54,
+   "row": 90,
+   "col": 177,
    "why": "unsure"
   }
  ],
  "timings": {
-  "uptime_at_start": "load average 2.5 7.0 9.6",
-  "threads": 4,
-  "grid_s": 10.6,
+  "uptime_at_start": "load average 0.8 1.7 4.8",
+  "threads": 2,
+  "grid_s": 0.0,
   "select_s": 0.0,
-  "embed_s": 505.4,
-  "nuclei_s": 169.2,
-  "uptime_at_end": "load average 8.2 6.1 7.5"
+  "embed_s": 930.0,
+  "embed_uptime": "load average 8.7 7.7 6.4",
+  "nuclei_s": 315.7,
+  "nuclei_uptime": "load average 10.3 12.0 13.0",
+  "uptime_at_end": "load average 0.8 1.7 4.8"
  },
- "method_version": "0.2",
- "status": "implemented; tissue head validated on held-out BCSS slides only; nuclei model pretrained, not validated on breast here; not reviewed by a pathologist"
+ "method_version": "0.3",
+ "status": "implemented; tissue head validated on held-out BCSS slides only; nuclei model pretrained, not validated on breast here; not reviewed by a pathologist",
+ "novelty": {
+  "encoder": "prov-gigapath/prov-gigapath-flash",
+  "k": 5,
+  "metric": "mean cosine distance to the k nearest training tiles",
+  "cutoff": 0.507,
+  "percentile": 99,
+  "cutoff_source": "calibrated leave-one-slide-out on the 8 training slides (1052 tiles), 99th percentile",
+  "reference_tiles": 1052,
+  "held_out_tiles": 357,
+  "held_out_flagged": 0.0028,
+  "held_out_flagged_by_class": {
+   "tumor": 0,
+   "stroma": 0,
+   "lymphocytes": 0,
+   "necrosis": 1,
+   "fat": 0
+  },
+  "excluded_tiles": 717
+ },
+ "known_failures": [
+  "Cautery-crushed and muscle-like tissue at the margins is not one of the head's training classes. The 'unlike training tissue' rule keeps most of it out of the map, but small fragments on it may still read as invasive carcinoma (checked by eye on tile contact sheets, 2026-10-27). Check small tumor pieces and islands here by eye before relying on them; the main tumor and its front sit on carcinoma."
+ ]
 }
