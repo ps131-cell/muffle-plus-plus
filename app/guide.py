@@ -106,13 +106,15 @@ def walkthrough() -> None:
         st.markdown(f"**First time here? {step + 1} of {len(STEPS)} · {title}**")
         st.markdown(text)
         with st.container(horizontal=True, gap="small"):
-            st.button("Back", key="walk-back", disabled=step == 0,
+            st.button("Back", key="walk-back", disabled=step == 0, help="The previous step",
                       on_click=lambda: ss.update(walkthrough_step=step - 1))
             if step < len(STEPS) - 1:
-                st.button("Next", key="walk-next",
+                st.button("Next", key="walk-next", help="The next step",
                           on_click=lambda: ss.update(walkthrough_step=step + 1))
             else:
-                st.button("Start", key="walk-done",
+                st.button("Start", key="walk-done", help="Close the tour; How to read this, on "
+                          "every screen, holds the guide",
                           on_click=lambda: ss.update(walkthrough_done=True))
             st.button("Skip the tour", key="walk-skip", type="tertiary",
+                      help="Close the tour for this browser session",
                       on_click=lambda: ss.update(walkthrough_done=True))

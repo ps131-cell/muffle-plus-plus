@@ -83,7 +83,7 @@ it ("4 items to look at (month 4, 11, 16, 24)", or "nothing flagged") and "Open"
 series of one test (CA 15-3 at eight months, the twelve ctDNA samples) is one tile with a pill
 per month, so 29 tests fit in six tiles: a pill opens that month's test, "Open month 24" the
 latest. The open test's tile says "open below" (or "month 11 open below"), and the breadcrumb
-names it. Every test is also a row of **All tests (n)**, collapsed under the launcher, where
+names it. Every test is also a row of **Show all n tests as a table**, collapsed under it, where
 selecting a row opens it too. Deep links, the attention queue's "Open" and the overview cards'
 "Open" land as before.
 
@@ -168,6 +168,21 @@ sentence ("A model's or a rule's estimate from the data, with its uncertainty; n
 measurement."). A chip that names a label inherits that label's sentence ("placeholder
 threshold", "subtype call: experimentally validated"). Chips inside sentences stay plain
 badges; their meanings are one click away in the guide.
+
+**Nothing hidden behind an unlabeled click** (2026-10-27). Every button, popover, picker and
+toggle of the shell (the patient list, the file, the report, the guide, the timeline, the page
+helper) says in one sentence on hover what it does, and every download in the app names its
+format; a test reads the code for both. The shell's expanders start with a verb and carry a
+count ("Show the caveats, data sources and model versions (5)", "Show what you pinned and
+reviewed: 1 pinned, 2 marked", "Show all 29 tests as a table"); the workbench pages' details
+keep their "Name (count)" headers (§1), which their tests and pages share. Methods and
+validation is one click from the file's action row and from every workbench's Model and
+validation card; the Feedback page from "Your marks". A button that opens a view carries that
+view's one icon (Timeline on "Compare versions", Import tests on every "Import a test",
+Evolution on "Open the Evolution view"); the view control itself stays plain, since a control
+bound to the address would put the icon into `?view` and break every link. An address whose
+`?view` names no view opens the report. The queue's keys sit in a thin bar under it (`j` next ·
+`k` previous · `p` pin · `m` mark reviewed · `u` unsure list · `o` open).
 
 ## 4. Wording, density and states
 

@@ -16,6 +16,7 @@ import streamlit as st
 SEP = "›"
 RECENT = 5  # files kept in the recently opened list
 LINK_KEYS = ("test", "pointer", "version")
+PAGES: dict = {}  # the app's pages by address ("methods"), set by the shell for page links
 
 
 # --- breadcrumbs -------------------------------------------------------------------------------
