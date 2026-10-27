@@ -126,7 +126,14 @@ unknown pointer) opens the file as usual. Example:
 synthetic patient's lab workbench as of month 12 with the CA 15-3 rise in the Spot panel.
 
 **Recently opened files** (the last five of the browser session) are buttons above the patient
-list.
+list, under the **pinned** files ("Pin this file" in a file's action row; for the session).
+
+**Start here** (2026-10-27): until a file is opened in the browser session, a card above the
+tour offers two files, each a button with one line on what it shows: "Open the longitudinal
+example: SYNTHETIC-001" (the synthetic patient over 24 months) and "Open a case with its own
+slide and sequencing: Case 299" (Case 299 holds its own H&E section, mutations and pathology
+report but no scan; Cases 563 and 926 hold a scan and a slide). The tour's four steps name
+these buttons, the file's action row and the Tests launcher.
 
 ## 3. The guide inside the app
 
