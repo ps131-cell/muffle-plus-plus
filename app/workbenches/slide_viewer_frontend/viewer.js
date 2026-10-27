@@ -23,7 +23,8 @@ const TOGGLES = [["front", "front line", true], ["arcs", "arcs and direction", t
   ["regions", "risk regions", false], ["pointers", "pointers", true], ["nuclei", "nuclei", true],
   ["window", "scored window", true]];
 const ZONE_COLORS = {"core": "#8e1b1b", "front band": "#f39c12", "peritumoral": "#f9e79f"};
-const QC_COLORS = {"glass": "#74b9ff", "pen ink": "#6c5ce7", "blur": "#d63031"};
+const QC_COLORS = {"glass": "#74b9ff", "pen ink": "#6c5ce7", "blur": "#d63031",
+                   "unlike training tissue": "#e17055"};
 const RISK_COLORS = [null, "#fde9c9", "#f5b041", "#c0392b"];
 const IMMUNE = [["20 or more per tile", "#1b4f72"], ["5–19", "#5dade2"], ["under 5", "#d6eaf8"]];
 const TIL = [["not lymphocytes", "#d6eaf8"], ["lymphocytes", "#1b4f72"],
@@ -626,7 +627,8 @@ function legend() {
                                                                "#bbbbbb"]]),
       certainty: [["unsure here (top score below the placeholder cutoff)", "#f39c12"],
                   ["excluded", "#bbbbbb"], ["confident: no colour", "transparent"]],
-      qc: Object.entries(QC_COLORS).map(([k, c]) => [k + " (placeholder rule)", c]),
+      qc: Object.entries(QC_COLORS).map(([k, c]) => [k + (k === "unlike training tissue"
+        ? ": not scored (calibrated rule)" : " (placeholder rule)"), c]),
       zones: [["front line", "#111111"], ["core", ZONE_COLORS.core],
               ["front band ± 500 µm", ZONE_COLORS["front band"]],
               ["peritumoral 0.5–2 mm", ZONE_COLORS.peritumoral]],
@@ -647,7 +649,7 @@ function legend() {
         " · drawn from about 0.5 screen px per µm; circles of the nucleus's area, not its outline"
       : " not counted on this section"));
   }
-  rows.push("<i>Tile classes are model inferences (a BCSS head on QuiltNet-B-32 embeddings). " +
+  rows.push("<i>Tile classes are model inferences (a BCSS head on GigaPath-Flash embeddings)." +
             "The front, zones, arcs, islands, counting field and risk points are rules on those " +
             "inferences, with placeholder cutoffs. The arrows are a hypothesis about where the " +
             "tumor is invading in this section, not a forecast. Nuclei: StarDist " +

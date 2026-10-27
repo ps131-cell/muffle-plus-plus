@@ -12,7 +12,7 @@ texture measures, encoder loading and head (``scripts/slide_spike.py``,
       2. if more tissue tiles than --budget: a coarse pass (every 3rd row and column) finds the
          largest tumor piece, and a square window around it holding at most --budget tissue
          tiles is scored in full; the rest of the slide is skipped and the summary says so
-      3. QuiltNet-B-32 embeddings (CPU) -> the BCSS head's class probabilities -> quality rules
+      3. GigaPath-Flash embeddings (CPU, --model) -> the BCSS head's probabilities -> quality
       4. ``invasion.analyze_slide``: front, zones, normals, arcs, islands, risk map
       5. StarDist 2D_versatile_he on up to --nuclei front-band and peritumoral tiles (front
          tiles first), at the slide's own resolution -> per-tile nuclei summaries
@@ -37,11 +37,18 @@ texture measures, encoder loading and head (``scripts/slide_spike.py``,
       --weights ... --metrics WORK/til_metrics.json [--budget 1500]
       scores the front-band and peritumoral tiles of an already written result folder with the
       TIL model and writes til.json next to it (tile id -> probability, the cutoff and its source,
-      the measured numbers): derived numbers only
+      the measured numbers): derived numbers only. On a re-scored map the cached scores still in
+      those zones are kept and only the tiles without one are scored
+  python scripts/slide_pipeline.py nuclei-topup --slide SLIDES/X.svs --work WORK --results RESULTS
+      after a re-score: StarDist on the new map's front-band and peritumoral tiles without a
+      cached count, cached counts still in those zones kept; then ``run`` again (embeddings
+      cached) to write the result folder from the union
 
-Work files (WORK/<slide>/: grid.csv, embeddings.npy, tiles.csv, nuclei.csv, selection.json)
-stay local. A re-run with another encoder (``--model``) only changes "encoder" in summary.json
-and the probabilities; the grid, window and nuclei are reused.
+Work files (WORK/<slide>/: grid.csv, embeddings.npy, tiles.csv, nuclei.csv, nuclei_ran.csv,
+selection.json) stay local. A re-run with another encoder (``--model``, a new WORK with that
+encoder's head.json) changes "encoder" in summary.json, the probabilities and everything drawn
+from them; the grid, window and nuclei are reused, and the nuclei summaries are recounted on the
+tiles StarDist ran on (nuclei_ran.csv) against the new map.
 """
 
 from __future__ import annotations
@@ -63,7 +70,14 @@ import slide_spike  # noqa: E402
 from slide_spike import ENCODERS, embed_stack, texture  # noqa: E402
 
 from muffle.workbench import invasion as inv  # noqa: E402
-from muffle.workbench.slides import MPP, TILE_PX, analyze, quality  # noqa: E402
+from muffle.workbench.slides import (  # noqa: E402
+    MPP,
+    QC_OK,
+    QC_UNLIKE,
+    TILE_PX,
+    analyze,
+    quality,
+)
 from muffle.workbench.viewer import cells_json  # noqa: E402
 
 TISSUE_SAT = 12       # placeholder: the colon analyzer's saturation rule, as in slide_spike count
@@ -156,6 +170,20 @@ def apply_head(head: dict, emb: np.ndarray) -> pd.DataFrame:
                          enumerate(head["classes"])})
 
 
+def rows(mask: list[bool]) -> np.ndarray:
+    """A row mask that stays a row mask when empty (``df[[]]`` would select columns)."""
+    return np.asarray(mask, dtype=bool)
+
+
+def novelty_distance(emb: np.ndarray, ref: np.ndarray, k: int) -> np.ndarray:
+    """Mean cosine distance of each embedding to its ``k`` nearest reference embeddings (``ref``
+    unit-length): how unlike the head's training tiles a tile is."""
+    q = emb / np.linalg.norm(emb, axis=1, keepdims=True)
+    out = [1 - np.sort(q[i:i + 2048] @ ref.T, axis=1)[:, -k:].mean(1)
+           for i in range(0, len(q), 2048)]
+    return np.concatenate(out) if out else np.zeros(0)
+
+
 def choose_window(grid: pd.DataFrame, budget: int, centre: tuple[float, float]) -> dict:
     """The largest square window (in tiles) around ``centre`` holding at most ``budget`` tissue
     tiles."""
@@ -230,10 +258,11 @@ def nuclei_tiles(tiles: pd.DataFrame, n: int) -> pd.DataFrame:
     return chosen[["row", "col"]].head(n).reset_index(drop=True)
 
 
-def run_stardist(slide, region: dict, ran: pd.DataFrame, threads: int, work: Path
-                 ) -> tuple[pd.DataFrame, dict]:
+def run_stardist(slide, region: dict, ran: pd.DataFrame, threads: int, work: Path,
+                 origin: tuple[int, int] = (0, 0)) -> tuple[pd.DataFrame, dict]:
     """Nuclei on each chosen tile at the slide's own resolution: one row per nucleus with its
-    tile, centroid (µm inside the tile), area (µm²) and solidity. Cached as nuclei.csv."""
+    tile, centroid (µm inside the tile), area (µm²) and solidity. ``ran`` holds window rows and
+    columns; ``origin`` is the window's first tile on the slide. Cached as nuclei.csv."""
     if (work / "nuclei.csv").exists():
         meta = json.loads((work / "nuclei_meta.json").read_text())
         return pd.read_csv(work / "nuclei.csv"), meta
@@ -251,7 +280,7 @@ def run_stardist(slide, region: dict, ran: pd.DataFrame, threads: int, work: Pat
     mpp_run = mpp / up
     rows, t0 = [], time.time()
     for i, (r, c) in enumerate(ran[["row", "col"]].itertuples(index=False)):
-        img = read_tile(slide, step, int(r), int(c), size=step)
+        img = read_tile(slide, step, int(r) + origin[0], int(c) + origin[1], size=step)
         if up > 1:
             img = np.array(Image.fromarray(img).resize((step * up, step * up), Image.BICUBIC))
         labels, _ = model.predict_instances(normalize(img, 1, 99.8, axis=(0, 1)),
@@ -308,7 +337,8 @@ def crop_tiles(res: dict) -> list[tuple[int, int, str]]:
 
 def write_result(slide, region: dict, sel: dict, tiles: pd.DataFrame, nuclei: pd.DataFrame | None,
                  nuc_meta: dict | None, res: dict, head_metrics: dict, encoder_info: dict,
-                 timings: dict, out: Path, slide_name: str, work: Path) -> None:
+                 timings: dict, out: Path, slide_name: str, work: Path,
+                 extra: dict | None = None) -> None:
     from PIL import Image
 
     out.mkdir(parents=True, exist_ok=True)
@@ -391,11 +421,12 @@ def write_result(slide, region: dict, sel: dict, tiles: pd.DataFrame, nuclei: pd
         "necrosis": res["necrosis"], "risk_cards": res["risk"]["cards"],
         "risk_points": res["risk"]["table"], "queue": res["queue"],
         "crops": [{"row": r, "col": c, "why": why} for r, c, why in picks],
-        "timings": timings, "method_version": "0.2",
+        "timings": timings, "method_version": "0.3",
         "status": "implemented; tissue head validated on held-out BCSS slides only; nuclei "
                   "model pretrained, not validated on breast here; not reviewed by a "
                   "pathologist",
     }
+    summary.update(extra or {})
     (out / "summary.json").write_text(json.dumps(summary, indent=1, default=_json))
     size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file()) / 1e6
     log(f"wrote {out} ({size:.2f} MB, {len(picks)} crops)")
@@ -445,7 +476,9 @@ def cmd_run(a):
         timings["embed_uptime"] = cached["uptime"]
     else:
         t0 = time.time()
-        emb, measures, rate = embed_tiles(slide, region["step"], positions, encoder, a.batch,
+        # positions are window tiles; the pixels are read at the window's place on the slide
+        on_slide = positions.assign(row=positions.row + sel["r0"], col=positions.col + sel["c0"])
+        emb, measures, rate = embed_tiles(slide, region["step"], on_slide, encoder, a.batch,
                                           True)
         tiles = pd.concat([positions[["row", "col"]], pd.DataFrame(measures)], axis=1)
         tiles["qc"] = quality(tiles)
@@ -459,14 +492,29 @@ def cmd_run(a):
     for col in probs:
         tiles[col] = probs[col].to_numpy()
     classes = head["classes"]
+    novelty = None
+    if (Path(a.work) / "novelty.json").exists():  # tissue unlike every training tile: not scored
+        novelty = json.loads((Path(a.work) / "novelty.json").read_text())
+        d = novelty_distance(emb, np.load(Path(a.work) / "novelty_ref.npy"), novelty["k"])
+        far = (d > novelty["cutoff"]) & (tiles["qc"] == QC_OK).to_numpy()
+        tiles.loc[far, "qc"] = QC_UNLIKE
+        novelty["excluded_tiles"] = int(far.sum())
+        log(f"{int(far.sum())} tiles unlike the training tissue, not scored")
 
     res = inv.analyze_slide(tiles, classes)
     nuclei, nuc_meta = None, None
-    if not a.skip_nuclei and res["tiles"]["front"].any():
-        ran = nuclei_tiles(res["tiles"], a.nuclei)
+    ran_path = work / "nuclei_ran.csv"
+    if (work / "nuclei.csv").exists() and not ran_path.exists():
+        raise SystemExit(f"{work}: nuclei.csv is cached without nuclei_ran.csv (the tiles "
+                         "StarDist ran on); write it from the old nuclei.json first")
+    if not a.skip_nuclei and (ran_path.exists() or res["tiles"]["front"].any()):
+        # a re-score counts on the tiles StarDist ran on, not on the new map's front
+        ran = pd.read_csv(ran_path) if ran_path.exists() else nuclei_tiles(res["tiles"], a.nuclei)
+        ran.to_csv(ran_path, index=False)
         log(f"nuclei on {len(ran)} tiles")
         t0 = time.time()
-        nuclei, nuc_meta = run_stardist(slide, region, ran, a.threads, work)
+        nuclei, nuc_meta = run_stardist(slide, region, ran, a.threads, work,
+                                        (sel["r0"], sel["c0"]))
         timings["nuclei_s"] = round(nuc_meta["s_per_tile"] * nuc_meta["tiles"], 1)
         timings["nuclei_uptime"] = nuc_meta["uptime"]
         summ = inv.nuclei_summary(nuclei, res["tiles"], ran)
@@ -483,8 +531,11 @@ def cmd_run(a):
                     "dim": spec.get("dim"), "tiles_per_s_cpu": round(rate, 2),
                     "threads": a.threads, "peak_rss_gb": timing.get("peak_rss_gb")}
     timings["uptime_at_end"] = uptime()
+    notes = work / "known_failures.json"  # a reviewer's notes on this section, for its page
+    extra = {"novelty": novelty,
+             "known_failures": json.loads(notes.read_text()) if notes.exists() else []}
     write_result(slide, region, sel, tiles, nuclei, nuc_meta, res, head_metrics, encoder_info,
-                 timings, Path(a.out), name, work)
+                 timings, Path(a.out), name, work, extra)
     print(json.dumps(res["numbers"], indent=1, default=_json))
 
 
@@ -499,6 +550,73 @@ def cmd_cells(a):
         path.write_text(json.dumps(nuc))
         log(f"{name}: {sum(len(v) for v in nuc['cells']['tiles'].values()) // 4} nuclei, "
             f"nuclei.json {path.stat().st_size / 1e6:.2f} MB")
+
+
+def cmd_nuclei_topup(a):
+    """Nuclei on a re-scored map: StarDist on the tiles a fresh run would pick on the result
+    folder's map (``nuclei_tiles``) that have no cached count. Cached counts on tiles that still
+    lie in the front band or the peritumoral zone are kept, the others left out. Rewrites
+    WORK/<slide>/nuclei.csv, nuclei_ran.csv and nuclei_meta.json (the previous ones are kept in
+    WORK/<slide>/before_topup/); ``run`` afterwards (embeddings cached) writes the result."""
+    import shutil
+
+    import openslide
+
+    name = Path(a.slide).stem
+    work, out = Path(a.work) / name, Path(a.results) / name
+    meta = json.loads((out / "summary.json").read_text())
+    t = inv.analyze_slide(pd.read_json(out / "tiles.json", orient="split"),
+                          meta["head"]["classes"])["tiles"]
+    zone = dict(zip(zip(t.row, t.col, strict=True), t.zone, strict=True))
+    wanted = nuclei_tiles(t, a.nuclei)
+    have = pd.read_csv(work / "nuclei_ran.csv") if (work / "nuclei_ran.csv").exists() \
+        else wanted.iloc[0:0]
+    usable = set(zip(t.row[t.qc == QC_OK], t.col[t.qc == QC_OK], strict=True))
+    kept = have.loc[rows([zone.get((r, c)) in ("front band", "peritumoral") and (r, c) in usable
+                         for r, c in zip(have.row, have.col, strict=True)])]
+    done = set(zip(kept.row, kept.col, strict=True))
+    new = wanted.loc[rows([(r, c) not in done
+                           for r, c in zip(wanted.row, wanted.col, strict=True)])]
+    log(f"{name}: {len(wanted)} tiles wanted on the new map, {len(kept)} of {len(have)} cached "
+        f"kept, {len(new)} to count ({uptime()})")
+    if not len(have) + len(new):  # never counted, and no front band now either
+        return
+    cols = ["row", "col", "x_um", "y_um", "area_um2", "solidity"]
+    old = pd.read_csv(work / "nuclei.csv") if (work / "nuclei.csv").exists() \
+        else pd.DataFrame(columns=cols)
+    old_meta = json.loads((work / "nuclei_meta.json").read_text()) \
+        if (work / "nuclei_meta.json").exists() else {}
+    if len(have) and not (work / "before_topup").exists():
+        (work / "before_topup").mkdir()
+        for f in ("nuclei.csv", "nuclei_ran.csv", "nuclei_meta.json"):
+            shutil.copy(work / f, work / "before_topup" / f)
+    m = {}
+    found = pd.DataFrame(columns=cols)
+    if len(new):
+        slide = openslide.OpenSlide(a.slide)
+        _, region = tissue_grid(slide, work)
+        sel = json.loads((work / "selection.json").read_text())
+        tmp = work / "topup"
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir()
+        found, m = run_stardist(slide, region, new.reset_index(drop=True), a.threads, tmp,
+                                (sel["r0"], sel["c0"]))
+    keep_rows = old.loc[rows([(r, c) in done for r, c in zip(old.row, old.col, strict=True)])]
+    nuclei = pd.concat([keep_rows, found], ignore_index=True)
+    ran = pd.concat([kept, new], ignore_index=True)
+    nuclei.to_csv(work / "nuclei.csv", index=False)
+    ran.to_csv(work / "nuclei_ran.csv", index=False)
+    meta_out = {"model": f"StarDist {STARDIST_MODEL}", "tiles": int(len(ran)),
+                "nuclei": int(len(nuclei)),
+                "s_per_tile": m.get("s_per_tile", old_meta.get("s_per_tile")),
+                "run_mpp": m.get("run_mpp", old_meta.get("run_mpp")), "threads": a.threads,
+                "uptime": m.get("uptime", old_meta.get("uptime")),
+                "topup": {"cached_tiles_kept": int(len(kept)),
+                          "cached_tiles_left_out": int(len(have) - len(kept)),
+                          "new_tiles": int(len(new)), "s_per_tile": m.get("s_per_tile"),
+                          "uptime": m.get("uptime")}}
+    (work / "nuclei_meta.json").write_text(json.dumps(meta_out, indent=1))
+    log(f"{name}: nuclei on {len(ran)} tiles ({len(new)} new), {len(nuclei)} nuclei")
 # --- the second opinion on lymphocytes (WSInfer TIL model) ---------------------------------
 
 TIL_SPEC = {"name": "kaczmarj/pancancer-lymphocytes-inceptionv4.tcga",
@@ -590,6 +708,42 @@ def cmd_til_measure(a):
     print(json.dumps(result, indent=1))
 
 
+def cmd_novelty_calibrate(a):
+    """The "unlike the training tissue" rule for one encoder: the head's training tiles (pure,
+    quality-passed BCSS tiles of its training slides) are the reference; each training slide's
+    distance to the other seven slides' tiles (leave one slide out) gives the cutoff at
+    ``--percentile``; the held-out slides say how many labelled tiles it would drop. Writes
+    WORK/novelty_ref.npy (embeddings: local only, never shipped) and WORK/novelty.json."""
+    runs, work = Path(a.runs), Path(a.work)
+    m = json.loads((runs / "head_metrics.json").read_text())
+    classes = m["classes"]
+
+    def load(slide):
+        df = pd.read_csv(runs / slide / "tiles.csv")
+        keep = (df["bcss_label"].isin(classes) & (df["qc"] == "ok")).to_numpy()
+        e = np.load(runs / slide / "embeddings.npy")[keep]
+        return e / np.linalg.norm(e, axis=1, keepdims=True), df[keep]["bcss_label"].to_numpy()
+
+    train = {s: load(s) for s in m["train_slides"]}
+    ref = np.concatenate([e for e, _ in train.values()])
+    loo = np.concatenate([novelty_distance(e, np.concatenate(
+        [x for t, (x, _) in train.items() if t != s]), a.k) for s, (e, _) in train.items()])
+    cutoff = round(float(np.percentile(loo, a.percentile)), 3)
+    test = [load(s) for s in m["test_slides"]]
+    d = novelty_distance(np.concatenate([e for e, _ in test]), ref, a.k)
+    lab = np.concatenate([x for _, x in test])
+    out = {"encoder": m["encoder"], "k": a.k, "metric": "mean cosine distance to the k nearest "
+           "training tiles", "cutoff": cutoff, "percentile": a.percentile,
+           "cutoff_source": f"calibrated leave-one-slide-out on the {len(train)} training slides "
+                            f"({len(ref)} tiles), {a.percentile}th percentile",
+           "reference_tiles": int(len(ref)), "held_out_tiles": int(len(d)),
+           "held_out_flagged": round(float((d > cutoff).mean()), 4),
+           "held_out_flagged_by_class": {c: int((d[lab == c] > cutoff).sum()) for c in classes}}
+    np.save(work / "novelty_ref.npy", ref.astype(np.float32))
+    (work / "novelty.json").write_text(json.dumps(out, indent=1))
+    print(json.dumps(out, indent=1))
+
+
 def til_tiles(tiles: pd.DataFrame, n: int) -> pd.DataFrame:
     """Which tiles the TIL model scores: the front band (nearest the front first), then the
     peritumoral zone by distance; usable tiles only."""
@@ -612,12 +766,22 @@ def cmd_til(a):
     tiles = pd.read_json(out / "tiles.json", orient="split")
     res = inv.analyze_slide(tiles, meta["head"]["classes"])
     chosen = til_tiles(res["tiles"], a.budget)
+    # a re-scored map: keep the cached scores that still lie in the front band or peritumoral
+    # zone, score only the chosen tiles without one
+    old = json.loads((out / "til.json").read_text()) if (out / "til.json").exists() else {}
+    t = res["tiles"]
+    zone = dict(zip("r" + t["row"].astype(str) + "c" + t["col"].astype(str),
+                    t["zone"].where(t["qc"] == QC_OK, ""), strict=True))
+    kept = {k: v for k, v in old.get("tiles", {}).items()
+            if zone.get(k) in ("front band", "peritumoral")}
+    chosen = chosen.loc[rows([f"r{r}c{c}" not in kept
+                              for r, c in zip(chosen.row, chosen.col, strict=True)])]
     metrics = json.load(open(a.metrics))
     norm = metrics["chosen_norm"]
     model = load_til(a.weights, a.threads)
     slide = openslide.OpenSlide(a.slide)
     step, (r0, c0) = meta["step_base_px"], meta["scored"]["origin_tile"]
-    log(f"{name}: TIL model on {len(chosen)} tiles ({uptime()})")
+    log(f"{name}: TIL model on {len(chosen)} tiles, {len(kept)} cached kept ({uptime()})")
     probs, t0 = [], time.time()
     pos = chosen[["row", "col"]].to_numpy(int)
     for i in range(0, len(pos), 16):
@@ -633,13 +797,19 @@ def cmd_til(a):
            "held_out": {"slides": metrics["test_slides"], "tiles": metrics["n_test_tiles"],
                         "auroc": m["auroc_test"], "at_cutoff": m["test_at_cutoff"],
                         "mean_p_by_class": m["mean_p_by_class_test"]},
-           "scored_tiles": int(len(pos)), "zones": "front band first, then peritumoral",
-           "s_per_tile": round(dt / max(len(pos), 1), 2), "threads": a.threads,
-           "uptime": uptime(),
-           "tiles": {f"r{r}c{c}": round(float(v), 3) for (r, c), v in zip(pos, p, strict=True)}}
+           "scored_tiles": int(len(pos) + len(kept)), "zones": "front band first, then "
+                                                               "peritumoral",
+           "s_per_tile": round(dt / len(pos), 2) if len(pos) else old.get("s_per_tile"),
+           "threads": a.threads, "uptime": uptime() if len(pos) else old.get("uptime"),
+           "tiles": {**kept, **{f"r{r}c{c}": round(float(v), 3)
+                                for (r, c), v in zip(pos, p, strict=True)}}}
+    if old.get("tiles"):
+        til["topup"] = {"cached_tiles_kept": len(kept),
+                        "cached_tiles_left_out": len(old["tiles"]) - len(kept),
+                        "new_tiles": int(len(pos))}
     (out / "til.json").write_text(json.dumps(til))
-    log(f"wrote {out / 'til.json'}: {len(pos)} tiles, {til['s_per_tile']} s per tile, "
-        f"{int((p >= m['cutoff']).sum())} at or above the cutoff")
+    log(f"wrote {out / 'til.json'}: {til['scored_tiles']} tiles ({len(pos)} new), "
+        f"{til['s_per_tile']} s per tile")
 
 
 def cmd_index(a):
@@ -662,7 +832,7 @@ if __name__ == "__main__":
     r.add_argument("--slide", required=True)
     r.add_argument("--work", required=True, help="holds head.json, head_metrics.json")
     r.add_argument("--out", required=True)
-    r.add_argument("--model", default="wisdomik/QuiltNet-B-32")
+    r.add_argument("--model", default="prov-gigapath/prov-gigapath-flash")
     r.add_argument("--budget", type=int, default=9000)
     r.add_argument("--nuclei", type=int, default=500)
     r.add_argument("--threads", type=int, default=4)
@@ -672,6 +842,18 @@ if __name__ == "__main__":
     c.add_argument("--work", required=True)
     c.add_argument("--results", required=True)
     c.add_argument("--slide", action="append", required=True)
+    nc = sub.add_parser("novelty-calibrate")
+    nc.add_argument("--runs", required=True, help="the encoder's spike run: head_metrics.json, "
+                                                  "<slide>/tiles.csv and embeddings.npy")
+    nc.add_argument("--work", required=True)
+    nc.add_argument("--k", type=int, default=5)
+    nc.add_argument("--percentile", type=float, default=99)
+    nt = sub.add_parser("nuclei-topup")
+    nt.add_argument("--slide", required=True)
+    nt.add_argument("--work", required=True)
+    nt.add_argument("--results", required=True)
+    nt.add_argument("--nuclei", type=int, default=400)
+    nt.add_argument("--threads", type=int, default=2)
     i = sub.add_parser("index")
     i.add_argument("--results", required=True)
     i.add_argument("--case", action="append", required=True, help="INDEX=SLIDE[,SLIDE]")
@@ -691,4 +873,5 @@ if __name__ == "__main__":
     tl.add_argument("--threads", type=int, default=2)
     args = p.parse_args()
     {"run": cmd_run, "index": cmd_index, "cells": cmd_cells, "til-measure": cmd_til_measure,
-     "til": cmd_til}[args.cmd](args)
+     "til": cmd_til, "nuclei-topup": cmd_nuclei_topup,
+     "novelty-calibrate": cmd_novelty_calibrate}[args.cmd](args)

@@ -41,12 +41,18 @@ the queue tiles may be shipped; embeddings never are.
    that pass centres a square window holding at most 9,000 tissue tiles, which is then scored
    in full. The summary says how many tiles were skipped; the page shows a warning. Tumor
    outside the window is not in the map.
-3. **Embedding and classes.** QuiltNet-B-32 (CLIP ViT-B/32, MIT, ungated) on CPU, batches of
-   32 streamed from the slide, no tile stack in memory; the round-1 BCSS head (logistic
-   regression; 5 classes: invasive carcinoma, stroma, lymphocytes, necrosis, fat) gives the
+3. **Embedding and classes.** GigaPath-Flash (`prov-gigapath/prov-gigapath-flash`, Prov-GigaPath's
+   tile encoder distilled to a ViT-S/16, 384-d, Apache-2.0, gated by a contact-information
+   click-through) on CPU since 2026-10-27, batches of 32 streamed from the slide, no tile stack
+   in memory; a BCSS head (logistic regression, C = 0.1; 5 classes: invasive carcinoma, stroma,
+   lymphocytes, necrosis, fat) trained on its embeddings of the spike's tiles gives the
    probabilities; the round-1 quality rules (glass, pen ink, blur; placeholders) exclude tiles.
-   A re-run with another encoder (`--model`) changes only `encoder` in `summary.json` and the
-   probabilities; grid, window and nuclei are cached and reused.
+   Until 2026-10-26 the encoder was QuiltNet-B-32 (CLIP ViT-B/32, MIT, ungated); §9 has the
+   swap and what it changed. A re-run with another encoder (`--model`, a work folder holding that
+   encoder's head) changes `encoder` in `summary.json`, the probabilities and everything drawn
+   from them; grid, window, nuclei and the second lymphocyte model's scores are cached and
+   reused, and the nuclei summaries are recounted against the new map on the tiles StarDist ran
+   on (`nuclei_ran.csv`).
 4. **Map geometry** (round 1): 3×3 smoothing, tumor = smoothed P(invasive) ≥ 0.5, small holes
    filled, the largest piece is the main tumor, front = main-tumor tiles with a non-tumor
    tissue neighbour, zones by distance (core > 500 µm inside; front band ± 500 µm; peritumoral
@@ -117,9 +123,16 @@ validated on the page.
 
 ## 4. Validation and honesty
 
-- The tissue head keeps round 1's held-out numbers (3 patient-disjoint BCSS slides, 357 tiles,
-  accuracy 87.7%, balanced 85.4%; per class on the page). `summary.json` says whether the
-  patient's own slide was among the head's training or held-out slides.
+- The tissue head's held-out numbers (`docs/encoders.md`, same protocol for every encoder: 8
+  BCSS training slides, 1,052 tiles; 3 patient-disjoint held-out slides, 357 tiles; C = 0.1):
+  accuracy 91.9%, balanced 91.7%; recall tumor 1.00, stroma 0.87, lymphocytes 0.90, necrosis
+  0.82 (11 tiles), fat 1.00 (per class on the page). QuiltNet-B-32's head scored 87.7% (balanced
+  85.4%) on the same tiles; the paired gain is +4.2 points (tile bootstrap interval +0.3 to
+  +8.1, optimistic because tiles of one slide are correlated). Caveats: three held-out slides
+  and five coarse classes are a small test; GigaPath-Flash's card does not say what its
+  distillation saw, so whether TCGA-BRCA slides (the held-out ones included) were in its
+  pretraining is unknown. `summary.json` says whether the patient's own slide was among the
+  head's training or held-out slides.
 - StarDist 2D_versatile_he is **pretrained, not validated on breast here**: nuclei counts are
   model inferences without a measured error. Every flag built on them says "weak until
   validated".
@@ -247,7 +260,8 @@ build step), the geometry in `muffle.workbench.viewer`, the tiles from `scripts/
 
 ## 8. Second opinion on lymphocytes (2026-10-21)
 
-The tissue head's weakest class is lymphocytes (held-out recall 0.74), so the WSInfer TIL model
+The tissue head's weakest class was lymphocytes (held-out recall 0.74 on QuiltNet-B-32; 0.90 on
+GigaPath-Flash since 2026-10-27), so the WSInfer TIL model
 (`kaczmarj/pancancer-lymphocytes-inceptionv4.tcga`; Abousamra et al., *Front Oncol* 2022,
 [10.3389/fonc.2021.806603](https://doi.org/10.3389/fonc.2021.806603); CC BY 4.0; TorchScript,
 `torch.jit.load`) gives a second reading of the same tiles: the centre 50 µm (100 px at 0.5
@@ -291,14 +305,84 @@ softmax over its two classes.
 - Not done: the WSInfer tumor model (AUROC 0.921, balanced accuracy 0.788 at its cutoff in the
   screening check) is not wired in.
 
-## 8. What is left
+## 9. Re-score with GigaPath-Flash (2026-10-27)
+
+**What changed.** Every section and the example region now come from GigaPath-Flash embeddings
+(`prov-gigapath/prov-gigapath-flash`: Prov-GigaPath's tile encoder distilled to a ViT-S/16,
+384-d; Apache-2.0; gated by a contact-information click-through the team's account has passed;
+its card puts clinical and deployed use out of scope, so it runs offline and the hosted app reads
+precomputed results). The head is the comparison's (`docs/encoders.md`): logistic regression,
+C = 0.1, the same 5 BCSS classes, the same 224 px tiles at 0.5 µm/px, the same 8 training slides
+(1,052 tiles) and 3 patient-disjoint held-out slides (357 tiles): accuracy **0.919** (balanced
+0.917) against QuiltNet-B-32's 0.877 (0.854). Whether TCGA-BRCA slides were among the
+distillation's pretraining data is not stated on its card. Method version 0.3 in `summary.json`
+(the geometry rules are unchanged).
+
+**A misregistration fixed.** On the three sections scored through a window (TCGA-D8-A1XF-DX1
+and -DX2, TCGA-BH-A0H5-DX1) the pipeline embedded each tile, and StarDist counted its nuclei,
+from the pixels at the window-relative position, not at the window's place on the slide (the
+thumbnail, crops and TIL scores were right). On `main` since 2026-10-20 (#87); the viewer has
+drawn those maps over the real tissue since 2026-10-21. Recomputing the cached texture measures
+at both positions matched the wrong one on 18 of 18 sampled tiles. Their "before" numbers below
+are therefore from the wrong tissue (case 563's mostly from glass, hence "no tumor found"), and
+their nuclei were counted again at the right place.
+
+**A new quality rule: "unlike training tissue", not scored.** On TCGA-EW-A1J2-DX1 the GigaPath
+head read 808 tiles of cautery-crushed, muscle-like margin tissue as invasive carcinoma (mean
+P 0.76; QuiltNet called them necrosis; tile contact sheets checked by eye); neither head has a
+class for it, and the main tumor, front, arcs and risk regions sat on it. A tile is now excluded
+like glass or pen ink when its embedding's mean cosine distance to its 5 nearest of the head's
+1,052 training tiles exceeds **0.507**: the 99th percentile of the same distance for each
+training slide against the other seven (leave one slide out; `slide_pipeline.py
+novelty-calibrate`). It flags 1 of the 357 held-out tiles (0.3%, a necrosis tile) and 1 of the
+example region's 234. On TCGA-EW-A1J2-DX1 it moves the main tumor back onto carcinoma but catches
+only about two thirds of that tissue: small fragments on it may still read as carcinoma, which
+the section's page says (a reviewer's note in its `summary.json`, `known_failures`).
+
+**Nuclei and the second lymphocyte model, topped up.** The new maps move the front, so cached
+StarDist counts and TIL scores were kept where they still lie on a usable tile of the new front
+band or peritumoral zone, and the tiles a fresh run would pick on the new map (up to 400 for
+StarDist, 1,500 for the TIL model) were scored where they had no result (`slide_pipeline.py
+nuclei-topup`, `til`); `run` then wrote each folder from the union. The page's coverage line
+under "Stromal lymphocytes by zone" gives the counted share per zone.
+
+**Before and after** (before = QuiltNet-B-32 as shipped; after = GigaPath-Flash with the rule
+and the top-ups; numbers as the page computes them, the TIL comparison at the calibrated cutoff
+0.667):
+
+{TABLE1}
+
+**Coverage after the top-ups** (usable tiles of each zone with nuclei counted or a second-model
+score; before → after):
+
+{TABLE2}
+
+**Checked by eye** (maps rendered with `invasion.map_png` and contact sheets of eight random
+224 px tiles per disagreement between the two heads; not a pathologist's review):
+- *TCGA-AN-A0AS-DX1 (case 299):* the 537 tiles that went from stroma to carcinoma are carcinoma
+  around fat vacuoles that QuiltNet missed; the main tumor now follows the whole dense cellular
+  band of the section as one piece (9.6 → 18.3 mm²). The 174 tiles that went from fat to
+  carcinoma are loose collagen at low confidence (mostly unsure). Better.
+- *TCGA-EW-A1J2-DX1 (case 926):* better on carcinoma (486 tiles QuiltNet called stroma), worse
+  on cautery-crushed, muscle-like margin tissue (above). With the rule, the main tumor and its
+  front sit on the central carcinoma; small fragments on margin tissue remain and the page says
+  so. Usable with that warning.
+- *TCGA-D8-A1XF-DX1 (case 730):* the map now lines up with the section's own picture (fat and
+  glass blank on the left, the tumor nests where the H&E shows purple lobules). The second
+  lymphocyte model was always scored at the right place, so its agreement with the head is a
+  check of the fix: Cohen's kappa rose from −0.03 (map from the wrong tissue) to 0.55.
+{EYE2}
+
+{TIMES}
+
+## 10. What is left
 
 - A pathologist's review of one scored slide, and a measured error for StarDist on breast
   tiles (a few hand-counted tiles would do).
 - Nucleus outlines (a re-run that keeps StarDist's polygons) and registration of a patient's
   sections, so side by side could line up anatomy.
-- A stronger encoder behind `HF_TOKEN` (another session owns `slide_spike.ENCODERS`); the
-  result files are designed so only `encoder` changes.
+- The gated encoders not yet measured (Path Foundation, H-optimus-0, Virchow) and Midnight-12k
+  on a GPU (`docs/encoders.md`); a re-score with any of them is the §9 procedure.
 - Vessels, DCIS and normal breast as classes (more labeled tiles); blood, folds and stain
   variation in quality control.
 - Margins only where the specimen type allows; comparison across time needs a second specimen.

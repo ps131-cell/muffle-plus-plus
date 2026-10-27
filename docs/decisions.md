@@ -2,6 +2,39 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-27 — Slide maps from GigaPath-Flash; a misregistration on three sections fixed
+- **What:** the eight sections and the example region are re-scored with GigaPath-Flash
+  (`prov-gigapath/prov-gigapath-flash`, Apache-2.0, gated click-through, run offline) under the
+  BCSS head trained on its embeddings: held-out accuracy **0.919** (balanced 0.917) on the same
+  3 patient-disjoint slides and 357 tiles where QuiltNet-B-32's head scored **0.877** (balanced
+  0.854), the number quoted until today. Grids and windows are reused; nuclei and the second
+  lymphocyte model's scores are kept where they still lie in the new front band or peritumoral
+  zone and topped up on the new zones' tiles without one. Per-section numbers before and after,
+  with coverage: `docs/pathology.md` §9.
+- **Bug fixed:** on the three sections scored through a window (TCGA-D8-A1XF-DX1 and -DX2, case
+  730; TCGA-BH-A0H5-DX1, case 563) `slide_pipeline.py run` embedded each tile, and StarDist
+  counted its nuclei, from the pixels at the window-relative position instead of the window's
+  place on the slide. On `main` since #87 (2026-10-20), and drawn over the real tissue by the
+  viewer since #107 (2026-10-21): case 730's classes and nuclei came from tissue 3–5 mm away,
+  case 563's mostly from glass (hence "no tumor found"). The thumbnail, crops and TIL scores were
+  at the right place. Found by recomputing the cached texture measures at both positions (18 of
+  18 sampled tiles matched the wrong one); those sections' "before" numbers are from the wrong
+  tissue and their nuclei were counted again.
+- **New quality rule:** a tile whose GigaPath-Flash embedding is farther than cosine 0.507 (mean
+  over its 5 nearest) from all 1,052 tiles the head was trained on is "unlike training tissue"
+  and not scored, like glass or pen ink. Cutoff calibrated leave-one-slide-out on the 8 training
+  slides (99th percentile); it flags 1 of the 357 held-out tiles (0.3%).
+- **Why:** GigaPath-Flash wins on every held-out slide, and on case 299 every new tumor tile we
+  looked at is carcinoma QuiltNet called stroma. But on case 926 its head read 808 tiles of
+  cautery-crushed, muscle-like margin tissue (a class neither head has; QuiltNet called it
+  necrosis) as carcinoma, and the main tumor, front, arcs and risk regions sat on it. The rule
+  moves case 926's main tumor back onto carcinoma; it misses about a third of that tissue, so
+  small fragments remain, which the section's page and the known failures say.
+- **Consequence:** status unchanged (*experimentally validated on held-out BCSS regions only*;
+  not reviewed by a pathologist). README, the Devpost numbers appendix and the Methods card
+  quote 91.9%. If the swap had missed its gate, QuiltNet would have stayed only with the
+  window fix re-run on the three sections, never a pointer that leads to muscle.
+
 ## 2026-10-27 — Across the files: one search, similar patients and cohort position, as lookups
 - **What:** `src/muffle/cohort.py` ([`cohort.md`](cohort.md)) indexes every file's findings
   once per bundle (the workbenches' cards and queue items, tests that disagree, documented
