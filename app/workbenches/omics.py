@@ -38,6 +38,7 @@ from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import omics as wb
 from muffle.workbench.genomics import add_mark, mark_text
 from muffle.workbench.grammar import chip, count_label, esc
+from workbenches._howto import how_to, instruct
 from workbenches._page import Page, land, queue_items
 
 APP = Path(__file__).resolve().parents[1]
@@ -56,6 +57,10 @@ MISSING = {  # what a missing layer limits
 METH_COLORS = {wb.CONSISTENT: "green", wb.NOT_CONSISTENT: "red", "unmethylated": "gray",
                wb.NO_COMPARISON: "gray"}
 TOP = 10
+HOW_TO = ("**Subtype and pathway scores**: the PAM50 call and each score against this cohort "
+          "(**Compare with the cohort** shows percentiles with the cohort's median and middle "
+          "half; click a bar to open it). **Look here**: what to check first, and why. **Spot "
+          "panel**, below: one finding with its method, your mark and a pin.")
 CANNOT = ("Protein level from RNA, single cells or where in the tumor (the slide workbench), point "
           "mutations (the genomics workbench), change over time (TCGA holds one sample per "
           "patient). A subtype from bulk RNA is not the IHC surrogate subtype used in the clinic, "
@@ -250,6 +255,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
     page.title(wb.IMPLEMENTED, *([f"subtype call: {wb.VALIDATED}"] if cs else []),
                "immune deconvolution, recurrence-score-like signatures: planned",
                colors={f"subtype call: {wb.VALIDATED}": "green"})
+    how_to("omics", HOW_TO)
     st.caption(f"{pf.title} · {v.label}")
     st.caption("Data: TCGA-BRCA open access (UCSC Xena GDC hub; IHC from TCGA clinical data via "
                "cBioPortal) · scores precomputed offline from derived numbers, "
@@ -305,7 +311,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                           "layers", "why": f"what would settle it: {pic['settle']}",
                           "evidence": pic["evidence"], "trust": "weak", "consequence": 1,
                           "month": None, "key": key, "focus": {"omics": key}})
-        page.look_here(items, land=lambda focus: land(pf, page.version, focus))
+        page.look_here(instruct(items), land=lambda focus: land(pf, page.version, focus))
         if "genomic" in case.layers:
             st.caption("Standing caveat: the copy-number layer ranks patients worse than chance "
                        "across hospitals, a known failure (Details › Data layers).")
@@ -338,7 +344,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                        "the subtype call.")
         st.markdown(f"**Pathway, proliferation and immune scores** {tag(INFERENCE)}")
         if cs:
-            pathway_chart(cs, data)
+            pathway_chart(cs, data, pf, spot)
         else:
             st.caption(f"Needs RNA expression ({MISSING['rna']}).")
 
@@ -362,7 +368,7 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                       len(wb.rppa_rows(cs, data)) if has_rppa else "not measured"):
         st.caption(f"{tag(INFERENCE)} {chip(wb.IMPLEMENTED)}")
         if has_rppa:
-            rppa_section(pf, cs, data, reviews, spot)
+            rppa_section(pf, cs, data, reviews, spot, version)
         else:
             st.caption(f"Needs the protein array ({MISSING['protein']}).")
     has_meth = bool(cs and cs.get("methylation"))
@@ -413,7 +419,8 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                                       if opened else keys[0])
         st.selectbox("Open a finding", keys, key=spot, format_func=lambda k: (
             f"{by_key[k]['kind']} · {by_key[k]['layer']} · {by_key[k]['name']}"))
-        spot_panel(pf, by_key[st.session_state[spot]], cs, data, contrib, reviews, pins)
+        spot_panel(pf, by_key[st.session_state[spot]], cs, data, contrib, reviews, pins,
+                   version)
 
     with page.card():
         method_card(data)
@@ -491,7 +498,54 @@ def subtype_card(sub: dict, data: dict) -> None:
                "recommendation.")
 
 
-def pathway_chart(cs: dict, data: dict) -> None:
+def score_bars(df: pd.DataFrame, label: str, what: str, extra: list, spot: str, key: str,
+               height: int) -> None:
+    """A cohort score per bar (``df``: label, z, percentile, key), drawn as a z-score or, with
+    "Compare with the cohort", as a cohort percentile with the cohort's median and middle half
+    (quartiles, exact by the percentile's definition). A click on a bar opens its finding in the
+    Spot panel; the finding open there is outlined."""
+    cohort = st.toggle("Compare with the cohort", key=f"{key}-cohort",
+                       help="Each score as this tumor's percentile in the cohort, with the "
+                            "cohort's median and its middle half (25th to 75th percentile)")
+    df = df.assign(direction=["above the cohort average" if z >= 0 else "below"
+                              for z in df["z"]], evidence="model inference, relative to this "
+                                                          "cohort")
+    x = (alt.X("percentile:Q", scale=alt.Scale(domain=[0, 100]),
+               title=f"{what}: cohort percentile (0 to 100)") if cohort else
+         alt.X("z:Q", title=f"{what} (cohort z-score; 0 = cohort average)"))
+    picked = json.dumps(str(st.session_state.get(spot, "")))
+    bars = alt.Chart(df).mark_bar(stroke="#1f2329").encode(
+        x=x, y=alt.Y(f"{label}:N", sort="-x", title=None,
+                     axis=alt.Axis(labelLimit=260, labelOverlap=False)),
+        color=alt.Color("direction:N", title="this tumor",
+                        legend=alt.Legend(orient="bottom", symbolStrokeWidth=0),
+                        scale=alt.Scale(domain=["above the cohort average", "below"],
+                                        range=[charts.BLUE, charts.ORANGE])),
+        strokeWidth=alt.condition(f"datum.key == {picked}", alt.value(2.5), alt.value(0)),
+        tooltip=[alt.Tooltip(f"{label}:N"), alt.Tooltip("z:Q", format="+.2f"),
+                 alt.Tooltip("percentile:Q", format=".0f", title="cohort percentile"), *extra,
+                 alt.Tooltip("evidence:N")]).add_params(
+        alt.selection_point(name="bar", fields=["key"], on="click"))
+    layers = [bars]
+    if cohort:
+        ref = pd.DataFrame({"lo": [25], "hi": [75], "mid": [50],
+                            "t": ["the cohort's middle half (25th to 75th percentile); line: "
+                                  "its median"]})
+        layers = [alt.Chart(ref).mark_rect(opacity=0.12, color="#5c6370").encode(
+                      x="lo:Q", x2="hi:Q", tooltip=alt.Tooltip("t:N", title="cohort")),
+                  bars, alt.Chart(ref).mark_rule(color="#5c6370", strokeDash=[4, 3]).encode(
+                      x="mid:Q", tooltip=alt.Tooltip("t:N", title="cohort"))]
+
+    def pick():
+        sel = (st.session_state[key].selection.get("bar") or [{}])[0]
+        if sel.get("key"):
+            st.session_state[spot] = sel["key"]
+
+    st.altair_chart(alt.layer(*layers).properties(height=height), width="stretch", key=key,
+                    on_select=pick, selection_mode="bar")
+
+
+def pathway_chart(cs: dict, data: dict, pf, spot: str) -> None:
     s = cs["scores"]
     row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
     row.metric("Proliferation, cohort percentile", ordinal(s["proliferation"][1]),
@@ -502,41 +556,30 @@ def pathway_chart(cs: dict, data: dict) -> None:
                help="GZMA and PRF1 (Rooney et al. 2015), cohort z-score.")
     df = pd.DataFrame([{"set": k.replace("_", " ").lower(), "z": z, "percentile": p,
                         "genes": f"{data['sets'][k]['measured']} of {data['sets'][k]['size']}",
-                        "direction": "above the cohort average" if z >= 0 else "below"}
+                        "key": workspace.finding_key(pf, "omics", "score" if k in (
+                            "proliferation", "immune") else "pathway", k)}
                        for k, (z, p) in s.items() if k in data["sets"]])
-    st.altair_chart(alt.Chart(df).mark_bar().encode(
-        x=alt.X("z:Q", title="score (cohort z-score; 0 = cohort average)"),
-        y=alt.Y("set:N", sort="-x", title=None,
-                axis=alt.Axis(labelLimit=260, labelOverlap=False)),
-        color=alt.Color("direction:N", legend=None, scale=alt.Scale(
-            domain=["above the cohort average", "below"], range=[charts.BLUE, charts.ORANGE])),
-        tooltip=["set", alt.Tooltip("z:Q", format="+.2f"),
-                 alt.Tooltip("percentile:Q", format=".0f", title="cohort percentile"),
-                 alt.Tooltip("genes:N", title="genes measured")]
-    ).properties(height=17 * len(df) + 30), width="stretch")
+    score_bars(df, "set", "score", [alt.Tooltip("genes:N", title="genes measured")], spot,
+               f"omics-sets-{pf.id}", 17 * len(df) + 30)
     st.caption("MSigDB Hallmark sets (Liberzon et al. 2015, CC BY 4.0): each gene z-scored over "
                "the cohort, the set's mean z-score z-scored again (z-score averaging). Relative to "
-               "this cohort, not an absolute pathway activity; hover a bar for its percentile. "
-               "Search a set's name to open it in the Spot panel.")
+               "this cohort, not an absolute pathway activity; hover a bar for its percentile, "
+               "click it to open it in the Spot panel (outlined while open). The chart cannot "
+               "show which cells express the genes (bulk RNA) or the pathway's protein activity.")
 
 
-def rppa_section(pf, cs: dict, data: dict, reviews: dict, spot: str) -> None:
+def rppa_section(pf, cs: dict, data: dict, reviews: dict, spot: str,
+                 version: int | None = None) -> None:
     rows, val = wb.rppa_rows(cs, data), data.get("validation", {}).get("protein_vs_rna", {})
     df = pd.DataFrame([{"pathway": r["pathway"], "z": r["z"], "percentile": r["pct"],
                         "measured": f"{r['measured']} of {r['of']}",
                         "genomics map": r["map"] or "none", "members": r["hover"],
-                        "direction": "above the cohort average" if r["z"] >= 0 else "below"}
+                        "key": workspace.finding_key(pf, "pathway_protein", r["pathway"])}
                        for r in rows])
-    st.altair_chart(alt.Chart(df).mark_bar().encode(
-        x=alt.X("z:Q", title="pathway score (cohort z-score; 0 = cohort average)"),
-        y=alt.Y("pathway:N", sort="-x", title=None, axis=alt.Axis(labelOverlap=False)),
-        color=alt.Color("direction:N", legend=None, scale=alt.Scale(
-            domain=["above the cohort average", "below"], range=[charts.BLUE, charts.ORANGE])),
-        tooltip=["pathway", alt.Tooltip("z:Q", format="+.2f"),
-                 alt.Tooltip("percentile:Q", format=".0f", title="cohort percentile"),
-                 alt.Tooltip("measured:N", title="antibodies measured"), "genomics map",
-                 alt.Tooltip("members:N", title="members (sign, z, percentile)")]
-    ).properties(height=24 * len(df) + 30), width="stretch")
+    score_bars(df, "pathway", "pathway score",
+               [alt.Tooltip("measured:N", title="antibodies measured"), "genomics map",
+                alt.Tooltip("members:N", title="members (sign, z, percentile)")], spot,
+               f"omics-rppa-chart-{pf.id}", 24 * len(df) + 30)
     st.caption(f"Akbani et al. 2014 (Nat Commun 5:3887, Supplementary Table 13): each antibody "
                "median-centered and scaled by its standard deviation over this cohort's "
                f"{data['rppa']['tumors']} RPPA tumors, the members' mean with negative regulators "
@@ -575,6 +618,7 @@ def rppa_section(pf, cs: dict, data: dict, reviews: dict, spot: str) -> None:
                     + ". The alterations are observed; that they act on this pathway in this "
                       "tumor is a hypothesis, which the protein score above reads from another "
                       "side.")
+        genomics_link(pf, version, r["map"], "rppa")
     st.caption("Click a row for its Spot panel. Protein vs RNA: the antibody against its gene's "
                "RNA over the cohort (Methods and validation); below "
                f"{wb.WEAK_RHO} (placeholder) the two agree weakly, as most phospho-sites do: a "
@@ -726,10 +770,32 @@ def layer_card(pf, v, m: str, case, contrib: dict, feats: list[dict], cs: dict |
     st.caption(f"What to check: {info['check']}. What it cannot see: {info['cannot']}.")
 
 
+def genomics_link(pf, version: int | None, pathway: str, where: str) -> None:
+    """"Open the genomics pathway": the genomics workbench on its pathway map, at ``pathway``
+    (the tests view opens the file's sequencing; the workbench's tab and pathway are set)."""
+    seq = next((t for v in pf.versions[: None if version is None else version + 1]
+                for t in v.tests if t.workbench == "mutations"), None)
+    if seq is None:
+        return
+    key = f"genomics-{pf.id}-{'latest' if version is None else version}"
+
+    def go():  # as the shell's "Open": a fresh tests table, no type filter hiding the test
+        ss = st.session_state
+        ss.update({"view": "Tests", f"picked-{pf.id}": (seq.kind, seq.month, seq.name),
+                   f"kinds-{pf.id}": [], "tests_n": ss.get("tests_n", 0) + 1,
+                   f"{key}-tabs": "Pathway map", f"{key}-pathway": pathway})
+
+    st.button(f"Open the genomics pathway: {pathway}", key=f"omics-genomics-{pf.id}-{where}",
+              on_click=go, help="The genomics workbench's pathway map at this pathway: the "
+                                "tumor's mutations and copy-number changes on its genes")
+
+
 def spot_panel(pf, f: dict, cs: dict | None, data: dict | None, contrib: dict, reviews: dict,
-               pins: dict) -> None:
+               pins: dict, version: int | None = None) -> None:
     with st.container(border=True):
-        st.markdown(f"**{f['name']}** · {f['kind']} · {f['layer']} {tag(f['evidence'])}")
+        st.markdown(f"##### {f['name']} · {f['kind'].replace('_', ' ')} · {f['layer']}")
+        st.caption(f"{tag(f['evidence'])} · Method and its source below; the Model and "
+                   "validation card has every cutoff")
         if f["kind"] == "feature":
             info = wb.LAYERS[f["layer"]]
             st.markdown(
@@ -770,6 +836,8 @@ def spot_panel(pf, f: dict, cs: dict | None, data: dict | None, contrib: dict, r
                   "- **What it cannot see:** pathway proteins not on the array, where in the "
                   f"tissue the signal sits; RPPA reads a lysate of the whole sample. "
                   f"{wb.RPPA_ABSENT}.")
+            if r["map"]:
+                genomics_link(pf, version, r["map"], "spot")
         elif f["kind"] == "methylation" and f["name"] == "index":
             mm = data["methylation_markers"]
             st.markdown(

@@ -312,3 +312,42 @@ def test_report_markdown_carries_sources_and_marks():
     assert "## Rows not raised for this file" in page and "HER2-positive" in page
     assert "Evolution: PTEN loss: agree (AB" in page and "allele fraction not available" in page
     assert "Synthetic patient" in page
+
+
+def test_the_page_watches_a_hypothesis_with_its_source_and_opens_a_trial():
+    from streamlit.testing.v1 import AppTest
+
+    def page():
+        import json as j
+        import sys as s
+        from pathlib import Path as P
+
+        s.path.insert(0, str(P.cwd() / "app"))
+        from workbenches import evolution as page_ev
+
+        from muffle.report import trials as tr
+        from muffle.workspace import synthetic_file as sf
+
+        def offline(*a, **k):
+            raise OSError("no registry calls in tests")
+
+        tr._get = offline  # the trials come from the snapshot
+        tl = j.loads((P.cwd() / "app" / "timeline_synthetic.json").read_text(encoding="utf-8"))
+        page_ev.render(sf(tl), 11)
+
+    at = AppTest.from_function(page, default_timeout=90).run()
+    assert not at.exception, at.exception
+    assert any(m.value.startswith(":material/lightbulb: **How to use this page:**")
+               for m in at.markdown)
+    assert any(m.value.startswith("##### ") for m in at.markdown)  # the Spot panel's hypothesis
+    watch = next(b for b in at.button if b.label == "Watch this")
+    key = watch.key.removeprefix("watch-")
+    watch.click().run()
+    pinned = at.session_state["pins"][key]
+    assert pinned.startswith("Watch for ") and "PMID" in pinned and "detect with" in pinned
+    assert any(b.label == "Watching: stop" for b in at.button)
+    trial = at.selectbox(key="evolution-SYNTHETIC-001-11-trial")
+    if trial.options:  # the snapshot's trials for the observed drivers
+        trial.select(trial.options[0]).run()
+        assert any(b.proto.label == "Open the trial on ClinicalTrials.gov"
+                   for b in at.get("link_button"))

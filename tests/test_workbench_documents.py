@@ -592,3 +592,41 @@ def test_a_tcga_file_shows_the_model_layer():
     index = json.loads((DOCS / "TCGA-AO-A03R.json").read_text())["case_index"]
     at.text_input(key=f"docs-q-Case {index}").set_value("HER2").run()
     assert not at.exception and "**Findings**" in " ".join(e.value for e in at.markdown)
+
+
+def test_the_two_readers_side_by_side_and_a_jump_from_the_spot_panel():
+    AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
+
+    def page():
+        import json as j
+        import sys as s
+        from pathlib import Path as P
+        from types import SimpleNamespace as N
+
+        s.path.insert(0, str(P.cwd() / "app"))
+        from workbenches import documents as page_wb
+
+        from muffle.workbench import documents as w
+        from muffle.workspace import case_file as cf
+
+        d = j.loads((P(page_wb.APP) / "documents" / "TCGA-AO-A03R.json").read_text())
+        case = N(index=d["case_index"], site="site-1", percentile=50.0, group="mid", age=60.0,
+                 stage="II", layers=["clinical"], missing=[], mutations=None)
+        page_wb.render(cf(case, 0.7, documents=w.case_documents(d["case_index"])))
+
+    at = AppTest.from_function(page, default_timeout=90).run()
+    assert not at.exception, at.exception
+    pid = f"Case {json.loads((DOCS / 'TCGA-AO-A03R.json').read_text())['case_index']}"
+    assert any(m.value.startswith(":material/lightbulb: **How to use this page:** **Documents**")
+               for m in at.markdown)
+    tables = len(at.dataframe)
+    at.toggle(key=f"docs-compare-{pid}").set_value(True).run()
+    assert not at.exception and len(at.dataframe) == tables + 1
+    both = next(d.value for d in at.dataframe if list(d.value.columns)[:3] == [
+        "Field", "Readings", "Rules"])
+    assert not both.empty
+    assert any(m.value.startswith("##### ") for m in at.markdown)  # the Spot panel's finding
+    jump = next(b for b in at.button if b.label == "Jump to the sentence")
+    jump.click().run()
+    assert not at.exception and at.session_state[f"docs-jump-{pid}"]
+    assert "boxed in blue" in " ".join(m.value for m in at.markdown)

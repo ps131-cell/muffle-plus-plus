@@ -260,6 +260,11 @@ Built in two rounds (2026-10-19, 2026-10-20/21; method and numbers in
   it is not covered; in the genome views "amplified", a gene, "PI3K pathway", "high burden".
 - **Export** [now]: the variant table, the ladder, the sources, the reviewer marks; the genome
   sections, the copy-number table (CSV) and the genome findings (JSON).
+- **Quick actions** [built 2026-10-27]: "Copy the variant list" (variant, sample, strongest CIViC
+  level, one per line, with a copy button); the gene open in the Spot panel ringed on the
+  copy-number landscape and the pathway map, whose nodes open their gene; the variant and gene
+  Spot panels titled with their evidence labels and method, with a pin beside the marks; the
+  shared how-to line and instruction-style look-here items.
 
 ## 5. Pathology workbench (H&E slides)
 
@@ -386,6 +391,11 @@ Built 2026-10-20 (`app/workbenches/omics.py`, method and numbers in [`omics.md`]
 - **Spot panel, search, marks, export** [now, built]: per feature, pathway, receptor line and
   subtype; JSON and CSV. Round 2 adds the protein pathways, antibodies, promoters, signatures
   and the immune picture, with the finding kinds `pathway_protein` and `methylation`.
+- **Compare with the cohort** [built 2026-10-27]: a toggle on the Hallmark and the RPPA pathway
+  scores redraws them as cohort percentiles with the cohort's median and middle half (25th to
+  75th percentile, exact by the percentile's definition); a click on a bar opens it in the Spot
+  panel, outlined while open; "Open the genomics pathway" from a protein pathway (its section
+  and Spot panel) opens the genomics workbench's pathway map at that pathway.
 
 ## 8. Clinical documents workbench
 
@@ -427,9 +437,18 @@ reports (TCGA-Reports, CC BY 4.0) and imported reports and notes.
   score, the TCGA field it was measured against with both readers' numbers, and the mark.
 - **Diagnoses and procedures beyond breast pathology, negation and hedging, specimen linking**
   [model]: need a clinical language model run locally and its own validation.
+- **Compare the two readers and Jump to the sentence** [built 2026-10-27]: a toggle under the
+  document sets the rules' and the model's readings of that document side by side, field by
+  field; the Spot panel's "Jump to the sentence" boxes the finding's sentence in the document
+  above; the Spot panel titled with its finding, label and method.
 
-## 8b. Import tests
+## 8b. Evolution view and Import tests
 
+- **Watch this** [built 2026-10-27]: a hypothesis's Spot panel pins it to the report with its
+  lead source (PMID) and the test that would detect it; the attention queue shows it pinned.
+  **Open the trial** links reach ClinicalTrials.gov from the trials section and from a
+  hypothesis whose genes a listed trial mentions (a mention, not a match: eligibility is not
+  assessed).
 - **What happens after an import** [built 2026-10-27]: one line on the Import tests view (a new
   version, signed; where each test opens; the alert rules; session only) and the example files
   one click away: lab results (CSV), sequencing (MAF), a pathology report (text), all written

@@ -59,7 +59,8 @@ from muffle.workbench import genomics as wb  # noqa: E402
 from muffle.workbench import omics as om  # noqa: E402
 from muffle.workbench.grammar import chip, count_label, esc  # noqa: E402
 from muffle.workspace import finding_key  # noqa: E402
-from workbenches._page import Page, land, queue_items  # noqa: E402
+from workbenches._howto import how_to, instruct, pin_toggle  # noqa: E402
+from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
 
 # page-specific colors; statuses and evidence types take the shared grammar's
 COLORS = {wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray", "derived": "blue",
@@ -71,6 +72,10 @@ ITEM_COLUMNS = {"evidence_level": "Level", "therapies": "Therapies",
                 "significance": "Significance", "direction": "Direction", "url": "CIViC",
                 "level_meaning": "Level meaning", "citation": "Citation", "disease": "Disease",
                 "match": "Profile match"}
+HOW_TO = ("**Variants and the tumor's genome**: one tab per view (variants, copy number, burden, "
+          "predicted effect, pathway map); a click on a row, a gene or a pathway node opens it. "
+          "**Look here**: what to check first, and why. **Spot panel**, below: one variant or "
+          "gene with its evidence ladder, your mark and a pin.")
 LINK = {"CIViC": st.column_config.LinkColumn(display_text="evidence item"),
         "Source link": st.column_config.LinkColumn(display_text="open")}
 
@@ -95,8 +100,10 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
     """The Spot panel of one variant: the three evidence types side by side (detected,
     interpreted, predicted), ladder, CIViC table, the panel's view of the gene, the sample, the
     review marks."""
-    st.markdown(f"**{esc(v['variant'])}** · {v['sample']}"
+    st.markdown(f"##### {esc(v['variant'])} · {v['sample']}"
                 + (f" · month {v['month']}" if v["month"] is not None else ""))
+    st.caption(f"{badge('observed')} the call · {badge('hypothesis')} its CIViC evidence, for "
+               f"clinician review · Method: {wb.data_card()['model']} · Levels: CIViC's A to E")
     items = v["interpretation"]["items"]
     if ef is not None:
         _three_kinds(v, ef, af)
@@ -143,6 +150,7 @@ def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, re
     if reviews.get(vkey) and cols.button("Clear mark", key=f"{key}-{v['variant']}-clear"):
         wb.add_mark(reviews, vkey, "", None)
         st.rerun()
+    pin_toggle(vkey, f"{v['variant']} ({v['sample']}), genomics")
     if items:
         with st.expander("Mark one evidence item"):
             labels = {f"{i.get('evidence_level', '?')} · {i.get('therapies', '')} · "
@@ -305,7 +313,24 @@ def _picked(ev, param: str, state: str, mode_key: str | None = None) -> None:
     st.session_state[memo] = gene
 
 
-def _cn_chart(rows: list[dict]) -> alt.LayerChart:
+def variant_list(vs: list[dict]) -> str:
+    """The observed variants as plain text, one per line: variant, sample (month), strongest
+    CIViC level; what "Copy the variant list" copies."""
+    return "\n".join(f"{v['variant']}\t{v['sample']}"
+                     + ("" if v["month"] is None else f", month {v['month']}")
+                     + f"\tCIViC: {_level_text(v['strongest_level'])}" for v in vs)
+
+
+def _ring(df: pd.DataFrame, x, y, picked: str | None):
+    """The gene open in the Spot panel, ringed on a chart (a layer, or None)."""
+    if not picked or not (df["gene"] == picked).any():
+        return None
+    return alt.Chart(df[df["gene"] == picked]).mark_point(
+        size=900, filled=False, strokeWidth=2.5, color="#1f2329").encode(
+        x=x, y=y, tooltip=alt.value(f"{picked} is open in the Spot panel"))
+
+
+def _cn_chart(rows: list[dict], picked: str | None = None) -> alt.LayerChart:
     df = pd.DataFrame([{**r, "y": max(-2.6, min(2.6, r["log2"])) if r["log2"] is not None
                         else None, "pathways": ", ".join(r["pathways"]) or "none",
                         "layer": "model input" if r["in_layer"] else "not a model input",
@@ -344,7 +369,9 @@ def _cn_chart(rows: list[dict]) -> alt.LayerChart:
     amp = amp.mark_rule(color="#c8362b", strokeDash=[6, 4]).encode(y="y:Q") + amp.mark_text(
         align="left", dx=4, dy=10, fontSize=10, color="#c8362b").encode(x=alt.value(0), y="y:Q",
                                                                          text="t:N")
-    return (bands + ploidy + amp + points + names + labels).properties(height=320)
+    ring = _ring(df, x, "y:Q", picked)
+    out = bands + ploidy + amp + points + names + labels
+    return (out if ring is None else out + ring).properties(height=320)
 
 
 def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict,
@@ -354,7 +381,9 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
     observed variants in it, review marks."""
     rows = g["rows"]
     r = next((x for x in rows if x["gene"] == gene), None)
-    st.markdown(f"**{gene}**" + (f" · chr{r['chrom']} {r['start_mb']:.2f} Mb" if r else ""))
+    st.markdown(f"##### {gene}" + (f" · chr{r['chrom']} {r['start_mb']:.2f} Mb" if r else ""))
+    st.caption(f"{badge('observed')} copies (ASCAT3, gene level) · {badge(INFERENCE)} the ploidy "
+               f"estimate · the call: a rule with {badge('placeholder', 'orange')} cutoffs")
     if r is None or r["copies"] is None:
         st.info(f"No copy number for {gene} in this file: unknown, not normal.")
     else:
@@ -416,8 +445,10 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
     st.markdown("**Observed variants in this gene** · " + (", ".join(mine) or "none in this "
                                                            "sample's sequencing"))
     if r is not None:
-        _marks(reviews, finding_key(file, "cn", gene), f"{gene} copy number: {r['call_text']} "
-               f"({r['copies']:g} copies at ploidy {r['ploidy']:g})", f"{key}-cn-{gene}")
+        what = (f"{gene} copy number: {r['call_text']} ({r['copies']:g} copies at ploidy "
+                f"{r['ploidy']:g})")
+        _marks(reviews, finding_key(file, "cn", gene), what, f"{key}-cn-{gene}")
+        pin_toggle(finding_key(file, "cn", gene), what + ", genomics")
 
 
 def _genome_data(file, version, vs, g, case, demo, key) -> dict:
@@ -514,7 +545,10 @@ def _cn_view(file, g, omics_view, key) -> None:
              or (show.startswith("breast") and (r["interest"] or r["pathways"]))]
     shown = [{**r, "rank": n} for n, r in enumerate(shown)]
     if shown:
-        ev = st.altair_chart(_cn_chart(shown), on_select="rerun", selection_mode=["gene"],
+        picked = (st.session_state.get(f"{key}-gene")
+                  if st.session_state.get(f"{key}-spotmode") == "Gene" else None)
+        ev = st.altair_chart(_cn_chart(shown, picked), on_select="rerun",
+                             selection_mode=["gene"],
                              key=f"{key}-cnchart-{show}", width="stretch",
                              alt="Copy number of each gene relative to the ploidy, in genome "
                                  "order: " + ", ".join(f"{r['gene']} {r['call_text']}"
@@ -659,7 +693,7 @@ def _effect_view(vs, effects, afs) -> None:
           "call's own transcript (e.g. GATA3 A441Wfs*33 is p.Ala442TrpfsTer33 on MANE).")
 
 
-def _pathway_chart(nodes: list[dict]) -> alt.LayerChart:
+def _pathway_chart(nodes: list[dict], picked: str | None = None) -> alt.LayerChart:
     df = pd.DataFrame([{**n, "variants": ", ".join(n["variants"]) or "none",
                         "marks": ", ".join(n["statuses"]) or n["status"],
                         "copies_text": "" if n["copies"] is None else f"{n['copies']:g}",
@@ -689,12 +723,16 @@ def _pathway_chart(nodes: list[dict]) -> alt.LayerChart:
             "datum.status == 'mutated' || datum.status == 'amplification' || "
             "datum.status == 'deep deletion'", alt.value("white"), alt.value("black")),
         tooltip=tip)
-    return (dots + text).properties(height=330)
+    ring = _ring(df, x, y, picked)
+    return (dots + text if ring is None else dots + text + ring).properties(height=330)
 
 
 def _pathway_view(file, nodes, table, reviews, key) -> None:
     st.markdown(f"{badge('hypothesis')} {gx.PATHWAY_NOTE}")
-    ev = st.altair_chart(_pathway_chart(nodes), on_select="rerun", selection_mode=["node"],
+    picked = (st.session_state.get(f"{key}-gene")
+              if st.session_state.get(f"{key}-spotmode") == "Gene" else None)
+    ev = st.altair_chart(_pathway_chart(nodes, picked), on_select="rerun",
+                         selection_mode=["node"],
                          key=f"{key}-pathchart", width="stretch",
                          alt="Pathway map: " + ("; ".join(
                              f"{n['gene']} ({n['pathway']}) {', '.join(n['statuses'])}"
@@ -855,13 +893,16 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
 
     page.title(wb.IMPLEMENTED, OBSERVED, INFERENCE, HYPOTHESIS,
                f"{len(wb.PLANNED_ROWS)} parts planned")
+    how_to("genomics", HOW_TO)
     if file.kind == "synthetic":
         st.warning(f"{file.title}. Not taken from any dataset; its record follows the "
                    "structure of real breast cancer timelines.")
     else:
         st.caption(file.title)
-    for col, (k, val) in zip(st.columns([1, 1, 1, 2, 2, 3]), strip, strict=True):
-        col.markdown(f"**{k}**  \n{val}")  # the sample's provenance strip
+    # the sample's provenance strip: the short fields on one line, what it can and cannot
+    # show under it (six fixed columns broke words in half at 800 px)
+    st.markdown(" · ".join(f"**{k.capitalize()}:** {val}" for k, val in strip[:4]))
+    st.caption("  \n".join(f"**{k.capitalize()}:** {val}" for k, val in strip[4:]))
 
     # overview: the counts, what was observed, the look-here queue, search
     with page.overview():
@@ -872,10 +913,15 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
             row.metric(name.capitalize(), len(queue[name]), width="content")
         if vs:
             strongest = _level_text(levels[0] if levels else None)
-            st.markdown("Observed: " + ", ".join(f"**{esc(v['variant'])}**" for v in vs)
-                        + f". Strongest evidence level present: {strongest}."
-                        " CIViC items are evidence **for clinician review, never a "
-                        "recommendation**.")
+            line, act = line_and_action()
+            line.markdown("Observed: " + ", ".join(f"**{esc(v['variant'])}**" for v in vs)
+                          + f". Strongest evidence level present: {strongest}."
+                          " CIViC items are evidence **for clinician review, never a "
+                          "recommendation**.")
+            with act.popover("Copy the variant list", help="The observed variants as text, one "
+                             "per line, with their sample and strongest CIViC level"):
+                st.code(variant_list(vs), language=None)
+                st.caption("The copy icon at the box's top right copies it.")
         elif not lon["timepoints"]:
             st.info("Not sequenced: the mutation status of every panel gene is unknown, not "
                     "wild type. Tumor sequencing (a panel or an exome, or a VCF or MAF brought in "
@@ -883,8 +929,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         else:
             st.info("Sequenced: none of the panel's genes mutated (panel genes only; purity and "
                     "depth unknown, so this is not proof of absence).")
-        page.look_here(queue_items("genomics", full, version, lambda: wb.queue(
-                           full, version, lookup=None if full.kind == "synthetic" else lookup)),
+        page.look_here(instruct(queue_items("genomics", full, version, lambda: wb.queue(
+                           full, version, lookup=None if full.kind == "synthetic" else lookup))),
                        land=lambda focus: land(full, page.version, focus))
         _genome_search(gv, key)
 

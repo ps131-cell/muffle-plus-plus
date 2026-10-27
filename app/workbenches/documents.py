@@ -41,7 +41,8 @@ from muffle.report.case_tools import INFERENCE  # noqa: E402
 from muffle.workbench import documents as wb  # noqa: E402
 from muffle.workbench.grammar import esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
-from workbenches._page import Page, land, queue_items  # noqa: E402
+from workbenches._howto import how_to, instruct  # noqa: E402
+from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
 
 FACT, FOCUS, HIT, MODEL = "#fde68a", "#bfdbfe", "#bbf7d0", "#7c3aed"
 NO_MARK = "no mark"
@@ -53,6 +54,10 @@ PROVENANCE = (f"Data: the file's documents as written (sources below). Method: {
               "leaves this machine. Status: implemented; both readings measured on TCGA "
               "pathology reports against TCGA's clinical fields (Methods and validation).")
 VALIDATION = APP / "documents" / "validation.json"
+HOW_TO = ("**Documents**: each document with the rules' facts in yellow and the model's spans "
+          "underlined in violet (**Compare the two readers** sets their readings side by side). "
+          "**Look here**: what to check first, and why. **Spot panel**, below: one fact at its "
+          "sentence, with **Jump to the sentence**, your mark and a pin.")
 
 
 def _marked(text: str, spans: list[tuple[int, int]], lo: int, hi: int, color: str = FACT,
@@ -146,6 +151,12 @@ def _jump(file: PatientFile, f: dict) -> None:
         st.rerun()
 
 
+def jump_to(file: PatientFile, f: dict) -> None:
+    """The Spot panel's "Jump to the sentence": the picture opens the finding's document with
+    its sentence boxed (a callback, so the picture above follows on this run)."""
+    st.session_state[f"docs-jump-{file.id}"] = (f["doc"], tuple(f["sentence"]))
+
+
 def _pct(x) -> str:
     return "–" if x is None else f"{x:.0%}"
 
@@ -167,6 +178,8 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
     page.title(IMPLEMENTED, wb.DOCUMENTED, "rules", *([INFERENCE] if read else []),
                *(["synthetic patient"] if file.kind == "synthetic" else []),
                colors={wb.DOCUMENTED: "blue", "synthetic patient": "orange"})
+    if docs:
+        how_to("documents", HOW_TO)
     if file.kind == "synthetic":
         st.warning("Synthetic patient: these notes were written by hand and are not a real "
                    "person's. They are short, so few pathology facts appear.")
@@ -206,7 +219,8 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                f"field(s) and differ on {count['disagree']}." if read else
                " The named-entity model has not read these documents (it runs on a local "
                "machine; imported documents are queued for the local pipeline)."))
-        page.look_here(queue_items("documents", file, version, lambda: wb.queue(file, version)),
+        page.look_here(instruct(queue_items("documents", file, version,
+                                            lambda: wb.queue(file, version))),
                        land=lambda f: land(file, i, f),
                        empty="Nothing to check: no conflict between documents, and the rules "
                              "and the model agree on every receptor and stage field.")
@@ -225,7 +239,10 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
     # the picture: the documents with both layers
     with page.picture("Documents", caption="Yellow: the rules' facts (documented). Violet "
                       "underline: the named-entity model's spans (model inference); hover for "
-                      "its label and score."):
+                      "its label and score. A row of Documented facts, or Jump to the sentence "
+                      "in the Spot panel, boxes its sentence in blue. The documents cannot show "
+                      "what they do not say: a field no document states is unknown, not "
+                      "negative."):
         jump = st.session_state.get(f"docs-jump-{file.id}")
         start = ids.index(focus) if focus in ids else 0
         if jump and jump[0] in ids:
@@ -242,6 +259,10 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                              disabled=doc["id"] not in read,
                              help="Show the named-entity model's spans beside the rules' facts")
         with right:
+            both = st.toggle("Compare the two readers", key=f"docs-compare-{file.id}",
+                             disabled=doc["id"] not in read,
+                             help="The rules' and the model's readings of this document, field "
+                                  "by field, under the text: agree, differ, or read by one only")
             own = [f for f in facts if f["doc"] == doc["id"]]
             mine = [f for f in model if f["doc"] == doc["id"]]
             tips = _tips(mine) if show else []
@@ -254,6 +275,17 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                 viewer(doc["text"], spans, foc, max(0, foc[0] - 250), foc[1] + 250, height=150,
                        model=tips)
             viewer(doc["text"], spans, foc, model=tips)
+            if both:
+                mine_rows = [r for r in rows if r["doc"] == doc["id"]]
+                st.markdown(f"**The two readers of this document** · rules "
+                            f"{':blue-badge[documented]'} against the model "
+                            f"{':violet-badge[model inference]'}, {len(mine_rows)} fields")
+                st.dataframe(pd.DataFrame([{
+                    "Field": r["label"], "Readings": r["kind"],
+                    "Rules": "" if r["rules"] is None else str(r["rules"]),
+                    "Model": "" if r["model"] is None else str(r["model"]),
+                    "In words": r["line"]} for r in mine_rows]), hide_index=True,
+                    width="stretch")
             st.caption(f"{len(own)} facts highlighted in yellow ({wb.DOCUMENTED}: the "
                        "characters each rule matched)"
                        + (f"; {len(tips)} spans underlined in violet ({INFERENCE}: the "
@@ -277,9 +309,9 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
         sel = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
                            key=f"docs-facts-{file.id}-{i}-{'.'.join(fields)}",
                            width="stretch").selection.rows if shown else []
-        st.caption("Select a row to open its document at the source sentence and its Spot "
-                   "panel. Status documented: the document says it; nothing is derived (a % is "
-                   "not turned into a status, a pT into a stage).")
+        st.caption("Click a row to jump to its sentence in Documents above and open it in the "
+                   "Spot panel. Status documented: the document says it; nothing is derived (a % "
+                   "is not turned into a status, a pT into a stage).")
         if sel:
             _jump(file, shown[sel[0]][0])
 
@@ -481,9 +513,14 @@ def spot(file: PatientFile, i: int, docs: list[dict], facts: list[dict], model: 
     d = next(x for x in docs if x["id"] == f["doc"])
     is_model = f["rule"] == "model"
     with st.container(border=True):
-        st.markdown(f"**{f['label']} {f['value'] or '(a mention, no result)'}** "
-                    + (":violet-badge[model inference]" if is_model else
-                       ":blue-badge[documented]") + f" · {titles[f['doc']]}")
+        head, act = line_and_action()
+        head.markdown(f"##### {f['label']} {f['value'] or '(a mention, no result)'}")
+        act.button("Jump to the sentence", key=f"docs-jump-btn-{k}", on_click=jump_to,
+                   args=(file, f), help="Open its document in Documents above with this "
+                                        "sentence boxed in blue")
+        st.caption((":violet-badge[model inference]" if is_model else ":blue-badge[documented]")
+                   + f" · {titles[f['doc']]} · Method: "
+                   + (wb.NER_METHOD if is_model else wb.RULES_VERSION))
         s, e = f["sentence"]
         viewer(d["text"], [(x["start"], x["end"]) for x in facts if x["doc"] == f["doc"]],
                (f["start"], f["end"]), s, e, height=120,
