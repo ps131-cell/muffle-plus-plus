@@ -288,8 +288,6 @@ def open_file(pid: str):
 def patients_page():
     """The breadcrumbs (whose file crumb is the file picker, bound to ?patient) head every
     screen of this page; the sticky patient header holds them while a file is open."""
-    if st.session_state.pop("_goto", None) == "feedback":  # the file's "Your marks"
-        st.switch_page(FEEDBACK)
     header = st.container(key="patient-header")
     with header:
         row = st.container(horizontal=True, gap="xsmall", vertical_alignment="center")
@@ -565,11 +563,11 @@ def action_row(pf: workspace.PatientFile, i: int, screen: str):
                                                "sources, placeholders, model versions and your "
                                                "review marks")
     marks = sum(k.startswith(pf.id + "|") for k in ss.reviews)
-    st.button(f"Your marks ({marks})", key="act-marks", icon=":material/how_to_vote:",
-              on_click=lambda: ss.update(_goto="feedback"),
-              help=f"{marks} review mark{'' if marks == 1 else 's'} on this file, "
-                   f"{len(ss.reviews)} in this session: the Feedback page lists them as a "
-                   "ledger, with its download")
+    # a page link, as the sidebar's: st.switch_page can't leave a page whose ?patient is bound
+    st.page_link(FEEDBACK, label=f"Your marks ({marks})", icon=":material/how_to_vote:",
+                 help=f"{marks} review mark{'' if marks == 1 else 's'} on this file, "
+                      f"{len(ss.reviews)} in this session: the Feedback page lists them as a "
+                      "ledger, with its download")
     guide.help_icon(screen, label="How to read this")
 
 

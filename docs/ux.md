@@ -88,12 +88,13 @@ selecting a row opens it too. Deep links, the attention queue's "Open" and the o
 "Open" land as before.
 
 **The file's action row** (2026-10-27), under the view control on every view, in the sticky
-header, each a real button with a one-sentence tooltip: **Attention queue (n)** (n items not
-marked yet; it opens the report's queue on the first of them), **Import a test**, **Compare
-versions** (the Timeline's comparison; disabled, saying why, while the file has one version),
-**Export this report (Markdown)** (the version shown, built when clicked), **Your marks (n)**
-(this file's review marks; it opens the Feedback page) and **How to read this** (the guide of
-the screen shown). Each screen has one primary action: the queue's Open on the report, the
+header, each with a one-sentence tooltip: **Attention queue (n)** (n items not marked yet; it
+opens the report's queue on the first of them), **Import a test**, **Compare versions** (the
+Timeline's comparison; disabled, saying why, while the file has one version), **Export this
+report (Markdown)** (the version shown, built when clicked), **Your marks (n)** (this file's
+review marks: a link to the Feedback page, as in the sidebar, since `st.switch_page` refuses
+to leave a page whose ?patient is bound to the file picker) and **How to read this** (the guide
+of the screen shown). Each screen has one primary action: the queue's Open on the report, the
 launcher on Tests, "Jump to this version" on the Timeline ("Back to latest" and the case note's
 button are secondary). Under the queue's header a **Next step** line says what to do: "12 items
 need a look: press j for the next one, or click a row's Open".
