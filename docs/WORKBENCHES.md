@@ -186,6 +186,14 @@ table, flags with rule and source, quality checks, look-here queue, rules card):
 - **Search** [now]: "values above the limit", "after palbociclib", "rising", an analyte or a
   panel; "can't see that" for anything the panel lacks, naming the panel that would show it.
 - **Export** [now]: the chart, the table, the flags with sources, the reviewer marks.
+- **For a first-time reader** [built 2026-10-27]: a "How to use this page" line under the title
+  (open on the first visit, folded afterwards) with links to the Spot panel, the card, what the
+  test cannot see and the export; look-here items phrased as instructions with their reason,
+  consequence and target ("Look at CA 15-3 52 U/mL at month 11 … Opens L4 in the Spot panel");
+  a click on a trend point opens it in the Spot panel and the open value is ringed, the panel
+  tabs following it; the Spot panel titled with its value, evidence, method and reference
+  source, with a pin beside the review mark; "Add CA 15-3 values…" under each trend opens
+  Import tests with the analyte and unit typed in (a typed table beside the CSV upload).
 
 ### ctDNA monitor (liquid biopsy)
 
@@ -200,6 +208,11 @@ table, flags with rule and source, quality checks, look-here queue, rules card):
   picture; every variant keeps the matched white-cell caveat.
 - **Lead and lag, Spot panel, review marks, cannot see, rules card, exports** [now]; links to the
   genomics workbench and the Evolution view.
+- **Overlay CA 15-3 and quick ways out** [built 2026-10-27]: a toggle draws CA 15-3 on the
+  allele-fraction chart on its own right-hand axis; "Open the tumor sequencing" and "Open the
+  Evolution view" sit above the chart; a click on a point opens that sample in the Spot panel
+  (ringed), which now carries the review mark and a pin; the shared how-to line and
+  instruction-style look-here items as on the lab page.
 
 ## 4. Genomics workbench
 
@@ -414,6 +427,13 @@ reports (TCGA-Reports, CC BY 4.0) and imported reports and notes.
   score, the TCGA field it was measured against with both readers' numbers, and the mark.
 - **Diagnoses and procedures beyond breast pathology, negation and hedging, specimen linking**
   [model]: need a clinical language model run locally and its own validation.
+
+## 8b. Import tests
+
+- **What happens after an import** [built 2026-10-27]: one line on the Import tests view (a new
+  version, signed; where each test opens; the alert rules; session only) and the example files
+  one click away: lab results (CSV), sequencing (MAF), a pathology report (text), all written
+  by hand. The lab workbench's "Add … values" opens the dialog with the analyte typed in.
 
 ## 9. Cross-test intelligence
 

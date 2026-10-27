@@ -282,3 +282,40 @@ def test_an_imaging_report_on_a_tcga_file_starts_its_sites_and_progressions():
     rows = dict(new.latest.observed)
     assert rows["Metastatic sites"] == "Bone (month 4, imported report)"
     assert rows["Progressions on imaging"] == "1, last at month 4"
+
+
+def test_the_example_files_import_as_their_format_reads_them():
+    from muffle import imports as intake
+    from muffle.workbench.documents import extract
+
+    ok, bad, meta = parse_variants(intake.MAF_EXAMPLE.encode(), SYNTHETIC_PANEL)
+    assert [r["variant"] for r in ok] == ["ESR1 Y537S", "PIK3CA H1047R"] and not bad
+    assert meta["format"] == "MAF"
+    fields = {f["field"] for f in extract(intake.REPORT_EXAMPLE)}
+    assert {"histologic_type", "grade", "er", "pr", "her2", "ki67", "laterality"} <= fields
+    assert intake.REPORT_EXAMPLE.startswith("Synthetic example")
+
+
+def test_the_import_view_says_what_happens_and_offers_the_examples():
+    from streamlit.testing.v1 import AppTest
+
+    def page():
+        import json as j
+        import sys as s
+        from pathlib import Path as P
+
+        s.path.insert(0, str(P.cwd() / "app"))
+        from workbenches import imports as page_im
+
+        from muffle.workspace import synthetic_file as sf
+
+        tl = j.loads((P.cwd() / "app" / "timeline_synthetic.json").read_text(encoding="utf-8"))
+        page_im.render_view(sf(tl))
+
+    at = AppTest.from_function(page, default_timeout=60).run()
+    assert not at.exception, at.exception
+    text = " ".join(m.value for m in at.markdown)
+    assert "**What happens after an import:** the file gains a new report version" in text
+    labels = [d.proto.label for d in at.get("download_button")]
+    assert labels == ["Example lab results (CSV)", "Example sequencing (MAF)",
+                      "Example pathology report (text)"]

@@ -133,6 +133,15 @@ read this", a short panel in three tabs:
 opens on its latest report; every test has its workbench; read the labels), with Back, Next
 and "Skip the tour"; finished or skipped, it stays away for the browser session.
 
+**How to use this page** (2026-10-27, `app/workbenches/_howto.py`): one line under each
+workbench's title says what the picture shows, what the look-here list is and where the Spot
+panel is; it is open on the page's first visit in the browser session and folded into an
+expander once the reader has been on another workbench. Under it, "Jump to" links reach the
+Spot panel, the Model and validation card, What this test cannot see and Export. The
+look-here items read as instructions: what to look at, why (the reason's main clauses, its
+thresholds and citations on hover), the consequence in words and the pointer the Spot button
+opens.
+
 **Chips explain themselves.** The status chips at the top of every workbench page and the
 label row under the report's title are buttons: clicking "model inference" opens its one
 sentence ("A model's or a rule's estimate from the data, with its uncertainty; not a
