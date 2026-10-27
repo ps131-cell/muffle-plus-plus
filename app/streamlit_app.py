@@ -300,11 +300,11 @@ def patients_page():
                  "searches everything.")
         tail = st.container(horizontal=True, gap="xsmall", vertical_alignment="center",
                             width="content")
-        st.space("stretch")
-        help_slot = st.empty()  # the guide's "?", for the screen drawn below
+        st.space("stretch")  # pushes the guide's "?" to the line's right end
+        help_slot = st.container(width="content")  # the "?", for the screen drawn below
     if pid is None:
         first.markdown("**Patients**", width="content")
-        with help_slot.container():
+        with help_slot:
             guide.help_icon("patients")
         st.title("MuFFLe++")
         st.markdown("An evidence-linked picture of each patient's breast cancer, updated as "
@@ -325,7 +325,7 @@ def patients_page():
         first.button("Patients", type="tertiary", key="crumb-patients", on_click=to_list,
                      help="Back to the patient list")
         screen = patient_file(FILES[pid], header, tail)
-        with help_slot.container():
+        with help_slot:
             guide.help_icon(screen)
 
 

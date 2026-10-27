@@ -57,7 +57,8 @@ from workbenches._page import Page, land, queue_items  # noqa: E402
 RESULTS = APP / "workbenches" / "radiology_results"
 COLORS = {"C1": (230, 73, 72), "C2": (235, 160, 52), "C3": (64, 160, 230)}
 HEX = {k: "#%02x%02x%02x" % v for k, v in COLORS.items()}
-ZOOM = 2  # shipped slices are at most 256 px; drawn at twice that
+ZOOM = 2  # shipped slices are at most 256 px; drawn at up to twice that,
+VIEW_PX = 460  # and at most this wide: the page column is 468 px at 800 px with the sidebar open
 NO_MARK = "no mark"
 PHASE_NAMES = {"pre": "Pre-contrast", "early": "Early post-contrast", "late": "Delayed",
                "sub": "Subtraction (early − pre)"}
@@ -156,18 +157,20 @@ def overlay(img: np.ndarray, cands: list[dict], i: int, mask: bool, view: tuple)
 
 
 def view_of(study: dict, c: dict | None, i: int, zoom: bool) -> tuple:
-    """The whole shown slice at ``ZOOM``, or a square around candidate ``c`` (its box on this
-    slice, else on its longest-diameter slice) drawn four times larger."""
+    """The whole shown slice at ``ZOOM`` (narrower when that would pass ``VIEW_PX``), or a
+    square around candidate ``c`` (its box on this slice, else on its longest-diameter slice)
+    drawn four times larger. The image and its outlines share one scale, so they stay aligned."""
     d = study["display"]
     w, h = d["cols"], d["rows"]
+    k = min(ZOOM, VIEW_PX / w)
     if not zoom or c is None or not c["per_slice"]:
-        return 0, 0, w, h, ZOOM
+        return 0, 0, w, h, k
     s = c["per_slice"].get(str(i)) or c["per_slice"][str(_ld_index(study, c))]
     side = min(64, w, h)
     cx, cy = (s["box"][0] + s["box"][2]) / 2, (s["box"][1] + s["box"][3]) / 2
     x0 = int(min(max(cx - side / 2, 0), w - side))
     y0 = int(min(max(cy - side / 2, 0), h - side))
-    return x0, y0, side, side, w * ZOOM / side  # the same drawn width as the whole slice
+    return x0, y0, side, side, w * k / side  # the same drawn width as the whole slice
 
 
 def viewer_chart(img: Image.Image, cands: list[dict], i: int, show_box: bool, show_ld: bool,
@@ -214,7 +217,10 @@ def viewer_chart(img: Image.Image, cands: list[dict], i: int, show_box: bool, sh
         layers.append(alt.Chart(pd.DataFrame(lines)).mark_rule(
             color="#ffff66", strokeWidth=2, clip=True).encode(
             x=x, y=y, x2="x2:Q", y2="y2:Q", tooltip=["candidate:N", "longest diameter:N"]))
-    return alt.layer(*layers).properties(width=vw * k, height=vh * k).configure_view(
+    # autosize "pad", no padding: the plot is exactly the image, so the boxes and the measure
+    # line sit on the contours (Streamlit's default "fit" shrank the plot under the image)
+    return alt.layer(*layers).properties(width=vw * k, height=vh * k, padding=0,
+                                        autosize=alt.AutoSizeParams(type="pad")).configure_view(
         strokeWidth=0)
 
 
@@ -448,7 +454,7 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
             st.session_state[f"{key0}-slice"] = _ld_index(study, picked) + 1 if picked else \
                 d["slices"] // 2 + 1
         # the image keeps its drawn size; the controls sit beside it where they fit, else under
-        # it (fixed columns let a 512 px image cover the controls at 1280 px with the sidebar)
+        # it (fixed columns let a 460 px image cover the controls at 1280 px with the sidebar)
         row = st.container(horizontal=True, gap="small")
         left, right = row.container(width="content"), row.container(width=260)
         with right:
