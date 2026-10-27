@@ -14,6 +14,7 @@ from statistics import median
 
 from muffle import evolution
 from muffle.demo import ordinal
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import documents, omics, slides
 from muffle.workspace import ASSAYS, EGTM, MARKERS, RISK_JUMP, PatientFile, finding_key
@@ -452,6 +453,7 @@ def _import_rules(pf: PatientFile, i: int) -> list[dict]:
     return out
 
 
+@per_file
 def discrepancies(pf: PatientFile, i: int) -> list[dict]:
     """Tests that disagree as of version i. Each item names both sources, why that is a
     discrepancy, which test or document would settle it, the evidence labels, the cited basis
@@ -540,6 +542,7 @@ def discrepancies(pf: PatientFile, i: int) -> list[dict]:
 
 # ---------------------------------------------------------------- what would reduce uncertainty
 
+@per_file
 def uncertainty_reducers(pf: PatientFile, i: int) -> list[dict]:
     """Open hypotheses as of version i and the test that would resolve each: evidence for the
     clinician's judgment, never an instruction."""

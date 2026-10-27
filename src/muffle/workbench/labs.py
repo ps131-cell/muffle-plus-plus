@@ -20,6 +20,7 @@ import math
 import re
 from statistics import median
 
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import labs_reference as ref
 from muffle.workspace import (
@@ -910,6 +911,7 @@ def _focus(r: dict) -> dict:
     return {"marker": r["key"], "month": r["month"]}
 
 
+@per_file
 def summary(pf, version: int | None = None) -> dict:
     """The latest value of each tumor marker and of each analyte whose latest value is flagged,
     and the latest rise still waiting for its confirming specimen (EGTM)."""
@@ -936,6 +938,7 @@ def summary(pf, version: int | None = None) -> dict:
     return {"workbench": "labs", "title": "Blood and lab", "cards": cards, "note": note}
 
 
+@per_file
 def queue(pf, version: int | None = None) -> list[dict]:
     """Each change flag (a tumor marker's rise with its EGTM confirmation outcome, a fall, a
     large change of another analyte), each CTCAE-graded low count, and each analyte's latest

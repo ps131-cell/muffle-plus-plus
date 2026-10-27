@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy import ndimage
 
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE
 from muffle.workspace import card, finding_key, look
 
@@ -99,6 +99,7 @@ def tissue_grid(tiles: pd.DataFrame, classes: list[str] = CLASSES) -> dict:
 
 def smooth(probs: np.ndarray, usable: np.ndarray, size: int = CUTOFFS["smooth_size"][0]):
     """Mean probability over a size×size neighbourhood of usable tiles (NaN elsewhere)."""
+    from scipy import ndimage  # here: opening the app needs none of scipy
     filled = np.where(usable[..., None], probs, 0.0)
     num = ndimage.uniform_filter(filled, size=(size, size, 1), mode="constant")
     den = ndimage.uniform_filter(usable.astype(float), size=size, mode="constant")[..., None]
@@ -116,6 +117,7 @@ def unsure(probs: np.ndarray, usable: np.ndarray,
 def tumor_regions(smoothed: np.ndarray, usable: np.ndarray, classes: list[str] = CLASSES) -> dict:
     """Tumor mask from the smoothed invasive-carcinoma probability, small holes filled; the
     largest connected piece is the main tumor, the others satellites."""
+    from scipy import ndimage
     p = np.nan_to_num(smoothed[..., classes.index("tumor")], nan=0.0)
     mask = usable & (p >= CUTOFFS["tumor_prob"][0])
     filled = ndimage.binary_fill_holes(mask)
@@ -136,6 +138,7 @@ def tumor_regions(smoothed: np.ndarray, usable: np.ndarray, classes: list[str] =
 def front_and_zones(main: np.ndarray, tissue: np.ndarray) -> dict:
     """The invasive front (main-tumor tiles with a non-tumor tissue neighbour) and the zones by
     distance to it, in tiles of 112 µm: core, front band (both sides), peritumoral, outside."""
+    from scipy import ndimage
     if not main.any():
         empty = np.zeros_like(main)
         return {"front": empty, "zone": np.full(main.shape, "", object), "dist_um": None,
@@ -159,6 +162,7 @@ def front_and_zones(main: np.ndarray, tissue: np.ndarray) -> dict:
 
 def facing(front: np.ndarray, labels: np.ndarray, main: np.ndarray, tissue: np.ndarray) -> dict:
     """What the front faces: the class shares of the non-tumor tiles touching the front."""
+    from scipy import ndimage
     ring = ndimage.binary_dilation(front) & ~main & tissue
     vals = labels[ring]
     vals = vals[(vals != "") & (vals != "tumor")]  # tumor-labeled tiles below the mask cutoff
@@ -268,6 +272,7 @@ def _head(meta: dict) -> str:
             f"the front band; method version {meta.get('method_version', '?')}")
 
 
+@per_file
 def summary(pf, version: int | None = None) -> dict:
     """The slide picture of the section with the largest main tumor: its area, infiltrative arcs,
     breakaway candidates and immune pattern."""
@@ -297,6 +302,7 @@ def summary(pf, version: int | None = None) -> dict:
         "(literature)", "weak", s["opens"], {"slide": s["slide"]})]}
 
 
+@per_file
 def queue(pf, version: int | None = None) -> list[dict]:
     """Each section's look-here pointers T1…Tn (risk regions, the counting field, the roughest
     arc, islands, the most unsure spot). The map is not validated on breast nuclei nor reviewed

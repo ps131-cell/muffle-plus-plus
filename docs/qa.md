@@ -1,7 +1,7 @@
 # QA passes over the clinician application
 
 Round 1 (2026-10-20, Streamlit's AppTest) first; round 2 (2026-10-22, every screen in headless
-Chrome, read by eye) at the end.
+Chrome, read by eye) next; the performance pass (2026-10-27) at the end.
 
 ## Round 1 (2026-10-20)
 
@@ -156,3 +156,141 @@ Chromium, a screen reader, and the hosted app's memory under several readers at 
 (R2-14), until the charts' label colours follow the theme; and any change to `config.toml`'s
 text colours without `test_the_theme_passes_wcag_aa_contrast` passing. Everything on main today
 can ship.
+
+## Performance pass (2026-10-27)
+
+Where the app spends its time and memory, what was cut without changing a single thing it
+shows, and the numbers before (main at #136) and after. The identity check was repeated after
+rebasing onto main at #142 (the Tests launcher, cohort search, the workbench polish).
+
+### How it was measured
+
+- **AppTest walk**, in WSL on a Linux copy of the repository, the release bundle
+  `demo-bundle-v2`, offline (the trials from their snapshot), one process per walk: the patient
+  list from a cold process; SYNTHETIC-001 and Case 299 in every view (Report, Tests, Timeline,
+  Evolution, Import tests) and one test per workbench; then eight more files (Cases 601, 545,
+  1043, 730, 47, 564, 926, 563) the same way: 114 screens. Times are the server's script time
+  for a screen (a real browser adds about 1–1.5 s: round 2's medians were 1.5–2.0 s); resident
+  memory (RSS) is psutil's, in the same process. Before and after ran alternately, four times
+  each; a screen's time is its median.
+- **Load**: six other sessions' tests and the slide pipeline shared the 8 cores, at load average
+  11–15 throughout. At that load one walk's screen times swing by ±50% (one single pair even
+  came out reversed), so only medians over the four pairs and the per-call timings below are
+  worth comparing.
+- **Identity**: every element of all 114 screens (text, captions, metrics, tables as their Arrow
+  bytes, chart specs, images and every download's content, the radiology export's minute
+  masked) was dumped and compared: identical before and after, on the old and the rebased main.
+  The test suite passes unchanged (438 tests, five of them new for the memo and the digest).
+- **cProfile** under the walk found the hot spots; the per-call timings come from the same
+  functions called outside Streamlit.
+
+### What took the time
+
+- The hot-update guard hashed every source and result file on every rerun: 12–29 ms a click.
+- All 41 patient files were rebuilt on every rerun, and each workbench's `summary()` and
+  `queue()` were recomputed by the report (once per browser session), by the Timeline (once per
+  report version) and by each workbench page (on every rerun): 25–311 ms for a report's cards
+  and queue, 12–49 ms for the genomics page's queue, 160–480 ms for SYNTHETIC-001's twelve
+  versions. CIViC's table was filtered again for every variant on every call (5–10 ms each).
+- Charts: Altair validates each chart against the Vega-Lite schema on every rerun, a third of a
+  chart-heavy screen's time (not changed here, see below).
+- A section's first open on the slide workbench (0.5–2 s, its analysis; cached afterwards).
+- A cold start: mostly imports (torch, pandas, Streamlit, Altair, and scipy for the slide maths,
+  0.35 s at load 18). Locally Jupyter's jsonschema extras add `rfc3987-syntax`, about 2 s and
+  16 MB through Altair; `app/requirements.txt` does not install it, so the hosted app does not
+  pay that.
+- Memory: about 390 MB of it is the libraries at startup (torch alone 200 MB). What a walk adds
+  comes mostly from the slide workbench's first opens (15–63 MB a section) and the MRI screens
+  (35–78 MB a study). Those are working memory while the page is drawn (image overlays, tile
+  maps, chart data), which the allocator keeps for reuse: clearing the radiology caches after
+  every study was opened gave back 5 MB. The app's own caches are small (the slide sections
+  21.7 MB pickled for six, the precomputed files 1 MB, `st.session_state` 170 kB).
+
+### What changed
+
+| Change | Where |
+|---|---|
+| Each workbench's `summary()` and `queue()`, the cross-test rules and the evolution hypotheses are computed once per patient file and version and handed out as copies (`muffle.memo`). A file is never changed in place (an import makes a new one), so the result can stay with the file object | `src/muffle/memo.py`, a decorator on each module's functions |
+| The bundle's 41 files and their cases are built once per bundle, saved notes and code version and shared by every session, instead of on every rerun | `bundle_files` in `app/streamlit_app.py` |
+| CIViC items are looked up once per variant | `evidence()` in the app |
+| The hot-update guard reads directory entries and stats only the matching files (same files, same skips); a script showed it still purges after a changed module and a changed result file | `muffle.hotreload.source_digest` |
+| scipy loads in the background once the first screen is drawn, not before the patient list (otherwise the first TCGA report would wait for it instead) | the slide maths imports it where it runs; the app's last lines |
+| The copy-number file is parsed once per version on disk, not on every call | `genome.load` |
+| The radiology page's decoded MRI phases, masks and mammograms keep at most 16 entries each (an MRI study is 17–27 MB decoded plus about 10 MB of masks, and these caches never let go). A walk that opens each study once stays under that bound, so this caps the worst case (the cine and the study pairs opened on every study), not the walk's numbers | `app/workbenches/radiology.py`, decorators only |
+
+### Before and after
+
+Per call, the same functions outside Streamlit, with scipy loaded in both (load average
+11.4–12.1; the first call, then the same call again, as a rerun or the next session makes it).
+The first call gains too: within one report the cross-test rules, the evolution hypotheses and
+the CIViC items are now computed once instead of two or three times.
+
+| | Before: first / again | After: first / again |
+|---|---|---|
+| The hot-update check, every rerun | 25 ms | 2.2 ms |
+| Rebuilding the 41 files, every rerun | 5.1 ms | none (built once) |
+| SYNTHETIC-001's report: cards and queue | 65 / 45 ms | 49 / 0.27 ms |
+| Case 299's report | 142 / 62 ms | 61 / 0.34 ms |
+| Case 926's report | 341 / 267 ms | 205 / 0.56 ms |
+| The genomics page's queue (Case 926) | 66 / 48 ms | 0.05 / 0.04 ms (the report computed it) |
+| The Timeline: SYNTHETIC-001's twelve versions' cards | 416 / 277 ms | 86 / 1.1 ms |
+| CIViC items for all 47 variants | 449 / 500 ms | 438 / 0.46 ms |
+
+The AppTest walk (medians over four alternating pairs, load average 12.6–14.9):
+
+| | Before | After |
+|---|---|---|
+| All 114 screens, total | 81.3 s | 76.9 s |
+| Median screen | 0.47 s | 0.43 s |
+| Patient list rerun | 0.28 s | 0.20 s |
+| A report's rerun (two files) | 0.44 s | 0.37 s |
+| Back to a report from a view (ten files, median) | 0.40 s | 0.33 s |
+| Tests view (ten files, median) | 0.49 s | 0.42 s |
+| Documents workbench (ten files, median / max) | 0.40 / 0.81 s | 0.35 / 0.47 s |
+| Genomics workbench (nine files, median / max) | 0.46 / 0.89 s | 0.43 / 0.49 s |
+| Slide workbench, a section's first open (six, median) | 1.84 s | 1.83 s |
+| Imaging workbench (four studies, median) | 1.02 s | 1.02 s |
+| A cold process to the drawn list (seven and eight runs, load 11–13) | median 12.5 s (9.4–13.8) | median 10.0 s (8.4–13.9) |
+| RSS after the ten files, every view and workbench (four walks each) | 548–583 MB | 561–574 MB |
+| RSS after all 41 files, every view and workbench | 720 MB | 699–710 MB (two walks) |
+| The same, with the allocator held to two arenas (`MALLOC_ARENA_MAX=2`) | 673 MB | 674 MB |
+| `st.session_state` after the ten files | 46 keys, 170 kB | 46 keys, 169 kB |
+
+In headless Chromium (Playwright, a freshly started server each time, two runs each, load
+average 9.4–11.5), from the address to the end of the run: the patient list's first open
+20.6–20.8 s before and 14.7–21.9 s after; ten screens of SYNTHETIC-001 and Case 299 (report,
+labs, Timeline, omics, slides, the report again) 3.5–7.2 s before and 1.6–7.6 s after. At that
+load the browser's own work dominates and the two overlap; round 2 measured 1.5–2.0 s medians
+at a quieter moment.
+
+So the app's own computing per click is now small next to what Streamlit spends building the
+page's elements; the screens that gained are the ones that recomputed the queue (report,
+Tests, documents, genomics, the Timeline). The cold start's runs overlap too much at this load
+to claim more than the 0.35 s scipy took. Memory did not move: after ten files it stays under
+600 MB locally (the hosted app about 16 MB less), but a walk through all 41 files ends near
+700 MB, above the 600 MB aimed for. What would bring it down is in the pages that draw the slide
+sections and the MRI studies (their working memory), not in a cache; holding the allocator to
+two arenas saves about 45 MB, an environment variable set when the process starts.
+
+### Left alone, and why
+
+- **Chart specs on the workbench pages and the Timeline.** Caching them means changing how each
+  page draws its charts (pages that are being reworked today) or relying on Streamlit's
+  internal Altair conversion; the report's two costly charts were already cached
+  (`case_charts`).
+- **The slide page's scored sections and the omics and genomics pages' copies of the
+  precomputed files** stay `st.cache_data`: every rerun gets its own copy (1–7 MB pickled per
+  section, 2–56 ms to unpickle). Sharing one object (`st.cache_resource`) would save that but let
+  any later edit to those pages change the cached object for every session.
+- **Splitting the per-case JSON files.** `omics_scores.json` (427 kB) and `genomics_cn.json`
+  (225 kB) hold every case and are now parsed once per process (5–10 ms); splitting them means
+  regenerating the derived files the day before the freeze. The trials snapshot (44 kB) and the
+  radiology `study.json` files (6–46 kB) are small; the decoded images are what weighs, hence the
+  bounded caches. Slide pyramids are never read into memory (streamed to disk, served as files).
+- **Startup imports.** torch is needed for the bundle and Altair by every page module; deferring
+  them would reorder imports across the shell and the pages.
+- **The memory the slide and MRI pages use while drawing.** Cutting it means drawing the tile
+  maps and image overlays from smaller intermediates: page code, not loading. Returning freed
+  memory to the system (`malloc_trim`) gives back 5–7 MB, not worth it; two allocator arenas
+  (`MALLOC_ARENA_MAX=2`) gives back about 45 MB but only when set before the process starts,
+  which is the host's setting, not the app's.

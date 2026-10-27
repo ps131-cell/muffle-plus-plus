@@ -18,6 +18,7 @@ import math
 import re
 from pathlib import Path
 
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench import documents
 from muffle.workspace import (
@@ -760,6 +761,7 @@ def _wanted(want: dict) -> str:
 
 # --------------------------------------------------------------------------- hypothesis set
 
+@per_file
 def hypothesis_set(pf: PatientFile, version: int | None = None, lookup=None) -> dict:
     """"What to watch next" for one file as of a report version: the table rows its observed
     drivers, receptor status and recorded treatments raise, ranked, each labeled hypothesis
@@ -1088,6 +1090,7 @@ def _raised(item: dict) -> bool:
     return any("recorded from month" in w or w.startswith("observed") for w in item["why"])
 
 
+@per_file
 def summary(pf: PatientFile, version: int | None = None) -> dict:
     """The top hypothesis of what to watch next, with why this file raises it."""
     hs = hypothesis_set(pf, version)
@@ -1104,6 +1107,7 @@ def summary(pf: PatientFile, version: int | None = None) -> dict:
         ("Evolution",))]}
 
 
+@per_file
 def queue(pf: PatientFile, version: int | None = None, k: int = 3,
           hs: dict | None = None) -> list[dict]:
     """The first ``k`` rows the file raises itself, as hypotheses worth a look (consequence 1,

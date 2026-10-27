@@ -31,6 +31,7 @@ import logging
 import os
 import sys
 import tempfile
+import threading
 from collections import Counter
 from datetime import datetime
 from functools import partial
@@ -72,7 +73,7 @@ from workbenches._page import dated_focus, land, line_and_action, strict  # noqa
 import guide  # noqa: E402
 import navigation as nav  # noqa: E402
 
-from muffle import cohort, crosstest, evolution, overview, workspace  # noqa: E402
+from muffle import cohort, crosstest, evolution, memo, overview, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
     evidence_lookup,
@@ -138,8 +139,10 @@ def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, 
 
 @st.cache_resource(show_spinner="Loading CIViC treatment evidence…")
 def evidence():
-    """CIViC's table once per process; None (no treatment_evidence tool) if it can't load."""
-    return evidence_lookup()
+    """CIViC's table once per process; None (no treatment_evidence tool) if it can't load. Each
+    variant is looked up in it once (``muffle.memo.calls``)."""
+    lookup = evidence_lookup()
+    return None if lookup is None else memo.calls(lookup)
 
 
 @st.cache_data
@@ -195,18 +198,33 @@ st.session_state.setdefault("pins", {})     # finding key -> what it is
 st.session_state.setdefault("imports", {})  # patient id -> this session's imports
 
 TL = timeline()
-FILES, CASES = {}, {}  # patient id -> PatientFile; and for a TCGA file, its held-out case
-if TL:
-    synthetic = workspace.synthetic_file(TL)
-    FILES[synthetic.id] = synthetic
-SLIDE_CASES = APP / "workbenches" / "slides_results" / "cases.json"  # index -> scored slides
-SLIDE_CASES = json.loads(SLIDE_CASES.read_text()) if SLIDE_CASES.exists() else {}
-IMAGING = load_index(APP / "workbenches" / "radiology_results")  # public TCIA studies by case
-for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile)):
-    pf = workspace.case_file(c, demo.c_index, slides=SLIDE_CASES.get(str(c.index), ()),
-                             documents=case_documents(c.index),
-                             imaging=IMAGING.get(c.index))
-    FILES[pf.id], CASES[pf.id] = pf, c
+SOURCE = args.bundle or (f"{args.ckpt}|{args.data}" if Path(args.ckpt).exists() and
+                         (Path(args.data) / "cohort.npz").exists() else BUNDLE_URL)
+
+
+@st.cache_resource(show_spinner=False)
+def bundle_files(source: str, notes: str, code: str) -> tuple[dict, dict]:
+    """The patient files the bundle (``source``) and the repo's data hold, and each TCGA file's
+    held-out case: built once per bundle, saved notes and code version, and shared by every
+    session. A file is never changed in place (an import makes a new one), so what is computed
+    from it is kept with it (``muffle.memo``)."""
+    files, cases = {}, {}  # patient id -> PatientFile; and for a TCGA file, its held-out case
+    if TL:
+        synthetic = workspace.synthetic_file(TL)
+        files[synthetic.id] = synthetic
+    slide_cases = APP / "workbenches" / "slides_results" / "cases.json"  # index -> scored slides
+    slide_cases = json.loads(slide_cases.read_text()) if slide_cases.exists() else {}
+    imaging = load_index(APP / "workbenches" / "radiology_results")  # public TCIA studies by case
+    for c in sorted(demo.cases, key=lambda c: (c.index not in demo.notes, -c.percentile)):
+        pf = workspace.case_file(c, demo.c_index, slides=slide_cases.get(str(c.index), ()),
+                                 documents=case_documents(c.index),
+                                 imaging=imaging.get(c.index))
+        files[pf.id], cases[pf.id] = pf, c
+    return files, cases
+
+
+BUNDLE_FILES, CASES = bundle_files(SOURCE, args.notes, CODE_DIGEST)  # read-only: shared
+FILES = dict(BUNDLE_FILES)  # this session's: its imports replace files below
 
 
 def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
@@ -221,7 +239,6 @@ def civic_items(pf: workspace.PatientFile, variant: str) -> list[dict] | None:
     return EVIDENCE(gene, change)
 
 
-BUNDLE_FILES = dict(FILES)  # as the bundle and the repo hold them, before this session's imports
 for pid, records in st.session_state.imports.items():  # each import adds a report version
     for r in records:
         FILES[pid] = workspace.add_version(FILES[pid], **r["version"],
@@ -376,10 +393,6 @@ def open_selected():
     if rows:
         st.session_state.patient = st.session_state.list_ids[rows[0]]
         st.session_state.list_n += 1
-
-
-SOURCE = args.bundle or (f"{args.ckpt}|{args.data}" if Path(args.ckpt).exists() and
-                         (Path(args.data) / "cohort.npz").exists() else BUNDLE_URL)
 
 
 @st.cache_data(show_spinner=False)
@@ -1731,3 +1744,9 @@ if LIVE:
     budget_slot.progress(notes_left / CAP if CAP else 0,
                          text=f"Live notes left this session: {notes_left} of {CAP}")
 session_marks(marks_slot)
+
+# scipy (the slide maths, the omics immune picture) is not needed for the first screen: it loads
+# once that screen is drawn, while the reader looks at it, so the first file need not wait for it
+if "scipy.spatial" not in sys.modules:
+    threading.Thread(target=lambda: (__import__("scipy.ndimage"), __import__("scipy.spatial")),
+                     daemon=True).start()

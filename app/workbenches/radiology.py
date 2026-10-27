@@ -112,7 +112,9 @@ def review(key: str, what: str) -> None:
 
 
 # --- images ---------------------------------------------------------------------------------------
-@st.cache_resource(show_spinner=False)  # read-only arrays: no copy per rerun
+# Read-only arrays: no copy per rerun. An MRI study's phases are 17-27 MB decoded and its masks
+# about 10 MB, so the least recently used go (a screen needs at most two studies at once).
+@st.cache_resource(show_spinner=False, max_entries=16)
 def _strip(path: str) -> np.ndarray:
     return np.asarray(Image.open(path).convert("L"))
 
@@ -240,7 +242,7 @@ def kinetics_chart(c: dict) -> alt.Chart:
     return (rules + line).properties(height=220)
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=16)  # 3-4.5 MB each (see _strip)
 def _mask(folder: str, cid: str, shape: tuple) -> np.ndarray:
     study = rad.load_study(folder)
     return rad.candidate_mask(next(c for c in study["candidates"] if c["id"] == cid), shape)
@@ -972,7 +974,7 @@ NO_DETECTOR = ("Lesion candidates on mammograms: none shown. No open, permissive
                "without licensed weights). The density opinions stay.")
 
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False, max_entries=16)
 def _mammo(path: str) -> np.ndarray:
     return np.asarray(Image.open(path).convert("L"))
 
