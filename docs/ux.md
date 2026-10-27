@@ -177,10 +177,12 @@ count ("Show the caveats, data sources and model versions (5)", "Show what you p
 reviewed: 1 pinned, 2 marked", "Show all 29 tests as a table"); the workbench pages' details
 keep their "Name (count)" headers (§1), which their tests and pages share. Methods and
 validation is one click from the file's action row and from every workbench's Model and
-validation card; the Feedback page from "Your marks". Each view has one icon wherever it is
-opened from (the view control, the action row, the report's buttons): Report, Tests, Timeline,
-Evolution, Import tests. The queue's keys sit in a thin bar under it (`j` next · `k` previous
-· `p` pin · `m` mark reviewed · `u` unsure list · `o` open).
+validation card; the Feedback page from "Your marks". A button that opens a view carries that
+view's one icon (Timeline on "Compare versions", Import tests on every "Import a test",
+Evolution on "Open the Evolution view"); the view control itself stays plain, since a control
+bound to the address would put the icon into `?view` and break every link. An address whose
+`?view` names no view opens the report. The queue's keys sit in a thin bar under it (`j` next ·
+`k` previous · `p` pin · `m` mark reviewed · `u` unsure list · `o` open).
 
 ## 4. Wording, density and states
 

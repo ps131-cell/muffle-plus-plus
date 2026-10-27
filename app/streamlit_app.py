@@ -655,9 +655,8 @@ def cohort_sections(pf: workspace.PatientFile):
 
 # --- Patients: one patient file ----------------------------------------------------------------
 VIEWS = ("Report", "Tests", "Timeline", "Evolution", "Import tests")
-VIEW_ICONS = {"Report": ":material/description:", "Tests": ":material/science:",  # one per
-              "Timeline": ":material/timeline:", "Evolution": ":material/account_tree:",  # view,
-              "Import tests": ":material/upload_file:"}  # wherever it is opened from
+VIEW_ICONS = {"Timeline": ":material/timeline:", "Evolution": ":material/account_tree:",
+              "Import tests": ":material/upload_file:"}  # on every button that opens the view
 
 
 def safely(what: str, draw, *args, spin: str | None = None, **kwargs):
@@ -701,11 +700,13 @@ def patient_file(pf: workspace.PatientFile, header, tail):
         ident = st.empty()
         if "view" not in ss and "view" not in st.query_params:
             ss.view = "Report"  # no default=: "open the test" sets the view in code
+        # no format_func (icons): a bound widget puts its formatted label in the address, so
+        # ?view=Tests would no longer open Tests; an address naming no view opens the report
         view = st.segmented_control("View", VIEWS, required=True, key="view",
                                     bind="query-params", label_visibility="collapsed",
-                                    format_func=lambda v: f"{VIEW_ICONS[v]} {v}",
                                     help="This file's views: its report, its tests in their "
-                                         "workbenches, the timeline, evolution, imports")
+                                         "workbenches, the timeline, evolution, imports") \
+            or "Report"
     # right under the sticky header, filled once the view is drawn: it scrolls away with the
     # page (two lines of buttons would make the header a third of a laptop screen)
     actions = st.container(horizontal=True, gap="small", vertical_alignment="center",
