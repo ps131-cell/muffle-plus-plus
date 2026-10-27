@@ -20,23 +20,27 @@ SHORTCUTS = [  # the report's attention queue (docs/WORKBENCHES.md §2)
     ("o", "open the item's evidence in its workbench"),
 ]
 STEPS = [
-    ("Your patients", "This is the patient list: every file with its diagnosis, subtype, mutated "
-     "genes, the workbenches that hold its data and its open SOS alerts. Search a patient, a "
-     "gene or a stage; sort by last update, risk or open SOS; click a row to open the file."),
-    ("A file opens on its latest report", "The report starts with finding cards from every "
-     "test and one attention queue: SOS alerts, tests that disagree and what each workbench "
-     "flags, strongest first. **Open** lands on the evidence; the keys j, k, p, m, u and o "
-     "walk the queue."),
-    ("Every test has its workbench", "Tests opens each test in its workbench, all laid out the "
-     "same way: overview with the look-here list, the picture, details (collapsed, counted), "
-     "the Spot panel, the model and validation card, what the test cannot see, export. "
-     "Timeline lays the record out over time: click any point to open the file as it was "
-     "then, see what each version brought, compare any two."),
+    ("Your patients", "Begin with **Start here**: **Open the longitudinal example** "
+     "(SYNTHETIC-001, a synthetic patient over 24 months) or **Open a case with its own slide "
+     "and sequencing** (Case 299). Below, the patient list holds every file with its diagnosis, "
+     "subtype, mutated genes, the workbenches that hold its data and its open SOS alerts: search "
+     "it, sort it, click a row to open a file. Files you pin or open come back as buttons above "
+     "the list."),
+    ("A file opens on its latest report", "Under the views, the file's buttons: **Attention "
+     "queue**, **Import a test**, **Compare versions**, **Export this report**, **Your marks**, "
+     "**Pin this file** and **How to read this**. The report starts with finding cards (each "
+     "card's **Open** lands on its evidence) and one attention queue, strongest first: "
+     "**Next step** says what to do, and the keys j, k, p, m, u and o walk it."),
+    ("Every test has its workbench", "**Tests** opens on a tile per test: **Open** (or a month) "
+     "opens its workbench below, all laid out the same way: overview with the look-here list, "
+     "the picture, details (collapsed, counted), the Spot panel, the model and validation card, "
+     "what the test cannot see, export. **Timeline** lays the record out over time: click any "
+     "point to open the file as it was then, compare any two versions."),
     ("Read the labels", "Every finding says whether it is **observed**, **model inference** "
      "or a **hypothesis**, how far to trust it, and where its threshold comes from; a "
-     "placeholder is always orange. Click a label to see what it means; the **?** on every "
-     "screen opens this guide. Research and decision support, not a diagnosis or a "
-     "prescription."),
+     "placeholder is always orange. Click a label to see what it means; **How to read this** "
+     "(or the **?**) on every screen opens this guide. Research and decision support, not a "
+     "diagnosis or a prescription."),
 ]
 
 
@@ -105,10 +109,10 @@ def walkthrough() -> None:
             st.button("Back", key="walk-back", disabled=step == 0,
                       on_click=lambda: ss.update(walkthrough_step=step - 1))
             if step < len(STEPS) - 1:
-                st.button("Next", key="walk-next", type="primary",
+                st.button("Next", key="walk-next",
                           on_click=lambda: ss.update(walkthrough_step=step + 1))
             else:
-                st.button("Start", key="walk-done", type="primary",
+                st.button("Start", key="walk-done",
                           on_click=lambda: ss.update(walkthrough_done=True))
             st.button("Skip the tour", key="walk-skip", type="tertiary",
                       on_click=lambda: ss.update(walkthrough_done=True))

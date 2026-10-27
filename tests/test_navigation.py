@@ -197,8 +197,8 @@ def test_the_files_action_row(app):
     at = app.new().run()
     at.selectbox(key="patient").select(SYN).run()
     acts = [b for b in at.button if (b.key or "").startswith("act-")]
-    assert [b.label.split(" (")[0] for b in acts] == ["Attention queue", "Import a test",
-                                                      "Compare versions"]
+    assert [b.label.split(" (")[0] for b in acts] == [
+        "Attention queue", "Import a test", "Compare versions", "Pin this file"]
     assert all(b.help for b in acts) and "How to read this" in popovers(at)
     marks = {p.label: p for p in at.get("page_link")}
     assert marks["Your marks (0)"].proto.page == "feedback" and marks["Your marks (0)"].proto.help
@@ -222,6 +222,24 @@ def test_the_files_action_row(app):
     one = app.new().run()  # a TCGA file has one version: nothing to compare yet
     one.selectbox(key="patient").select(app.case).run()
     assert one.button(key="act-compare").disabled and not one.exception
+
+
+def test_start_here_and_pinned_files(app):
+    """A first visit starts with two files (those the bundle holds: Case 299 is not in the
+    tests' bundle); once a file was opened the card is gone, and a pinned file sits above the
+    list for the session. The search box says what it finds."""
+    at = app.new().run()
+    assert "diagnosis" in at.text_input(key="list-search").placeholder
+    starts = [b for b in at.button if (b.key or "").startswith("start-")]
+    assert [b.label for b in starts] == ["Open the longitudinal example: SYNTHETIC-001"]
+    starts[0].click().run()
+    assert at.selectbox(key="patient").value == SYN and not at.exception
+    at.button(key="act-pin").click().run()
+    assert at.button(key="act-pin").label == "Unpin this file"
+    at.button(key="crumb-patients").click().run()
+    assert not [b for b in at.button if (b.key or "").startswith("start-")]
+    at.button(key=f"pinned-{SYN}").click().run()
+    assert at.selectbox(key="patient").value == SYN and not at.exception
 
 
 def test_recently_opened_files_on_the_patients_page(app):

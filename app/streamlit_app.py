@@ -281,8 +281,42 @@ def to_list():
 
 
 def open_file(pid: str):
-    """A recently opened file's button: open it on its report."""
+    """A start, pinned or recently opened file's button: open it on its report."""
     st.session_state.update(patient=pid, view="Report")
+
+
+START = (  # the first visit's two files: (id, the button, what the file shows)
+    ("SYNTHETIC-001", "Open the longitudinal example: SYNTHETIC-001",
+     "One synthetic patient over 24 months, written by hand: labs, ctDNA, imaging reads, "
+     "clinic notes and the 12-month risk at each step."),
+    ("Case 299", "Open a case with its own slide and sequencing: Case 299",
+     "A public TCGA-BRCA case: its own H&E section scored tile by tile, its mutations and its "
+     "pathology report, read by rules."),
+)
+
+
+def start_here():
+    """Before any file is opened in this browser session: two files to begin with."""
+    picks = [s for s in START if s[0] in FILES]
+    if st.session_state.get("recent") or not picks:
+        return
+    with st.container(border=True, key="start-here"):
+        st.markdown("**Start here** · two files that show what the app does")
+        with st.container(horizontal=True, gap="medium"):  # side by side; stacked when narrow
+            for n, (pid, label, what) in enumerate(picks):
+                with st.container(width=340):
+                    st.button(label, key=f"start-{pid}", on_click=open_file, args=(pid,),
+                              type="primary" if n == 0 else "secondary", help=what)
+                    st.caption(what)
+
+
+def toggle_file_pin(pid: str):
+    """"Pin this file": it sits at the top of the Patients page for this browser session."""
+    pinned = st.session_state.setdefault("pinned_files", [])
+    if pid in pinned:
+        pinned.remove(pid)
+    else:
+        pinned.append(pid)
 
 
 def patients_page():
@@ -312,14 +346,17 @@ def patients_page():
                     "the record grows. Every finding is marked **observed**, **model "
                     "inference** or **hypothesis**.")
         st.caption(DISCLAIMER)
+        start_here()
         guide.walkthrough()
-        recent = [p for p in st.session_state.get("recent", []) if p in FILES]
-        if recent:
-            with st.container(horizontal=True, gap="small", vertical_alignment="center"):
-                st.caption("Recently opened:", width="content")
-                for p in recent:
-                    st.button(p, key=f"recent-{p}", on_click=open_file, args=(p,),
-                              help=f"Open {p} on its latest report")
+        for name, key, prefix in (("Pinned", "pinned_files", "pinned"),
+                                  ("Recently opened", "recent", "recent")):
+            files = [p for p in st.session_state.get(key, []) if p in FILES]
+            if files:
+                with st.container(horizontal=True, gap="small", vertical_alignment="center"):
+                    st.caption(f"{name}:", width="content")
+                    for p in files:
+                        st.button(p, key=f"{prefix}-{p}", on_click=open_file, args=(p,),
+                                  help=f"Open {p} on its latest report")
         nav.sync(None, None, None, None)  # no file open: no test, pointer or version
         # cohort-search hook 1 of 2 (muffle.cohort, docs/cohort.md): "Search every file", above
         # the patient list and apart from its search. Keep this call when reshaping the page.
@@ -382,8 +419,11 @@ def patient_list():
                 "workbenches and how the report changed over time.")
     q, sos = line_and_action()
     query = q.text_input("Search", key="list-search", label_visibility="collapsed",
-                         placeholder="Search a patient, a gene (PIK3CA), a subtype (luminal), a "
-                                     "stage (stage III) or a workbench (slides)")
+                         placeholder="Find a patient ID, a diagnosis (ductal), a gene (PIK3CA), a "
+                                     "subtype (luminal), a stage (stage III) or a workbench "
+                                     "(slides)",
+                         help="Every word must match the file's ID, diagnosis, PAM50 subtype, "
+                              "stage, mutated genes or the workbenches that hold its data")
     open_sos = sos.toggle("Open SOS alerts only", key="list-sos",
                           help="Files with an alert no reviewer has marked yet.")
     f = st.columns([2, 2, 1])
@@ -743,6 +783,10 @@ def action_row(pf: workspace.PatientFile, i: int, screen: str):
                  help=f"{marks} review mark{'' if marks == 1 else 's'} on this file, "
                       f"{len(ss.reviews)} in this session: the Feedback page lists them as a "
                       "ledger, with its download")
+    pinned = pf.id in ss.get("pinned_files", [])
+    st.button("Unpin this file" if pinned else "Pin this file", key="act-pin",
+              icon=":material/push_pin:", on_click=toggle_file_pin, args=(pf.id,),
+              help="Pinned files sit at the top of the Patients page, for this browser session")
     guide.help_icon(screen, label="How to read this")
 
 

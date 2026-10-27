@@ -35,6 +35,8 @@ and `docs/video.md`. What stays in the app, in product language:
 - Built 2026-10-22: a one-line explanation, sorting by last update, risk or open SOS alerts, the
   open SOS count second ("🔴 3 open"), a risk column, the recently opened files, and a
   four-step walk-through the first time the page opens ([`ux.md`](ux.md) §3, §5).
+- Built 2026-10-27: a "Start here" card on a first visit (SYNTHETIC-001, Case 299), pinned
+  files above the recently opened ones, a search box that names what it finds.
 
 ### 2. Patient file: the latest report first
 The front page of a file is always the newest version of the report:
