@@ -2,6 +2,20 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-27 — Across the files: one search, similar patients and cohort position, as lookups
+- **What:** `src/muffle/cohort.py` ([`cohort.md`](cohort.md)) indexes every file's findings
+  once per bundle (the workbenches' cards and queue items, tests that disagree, documented
+  facts, variants, methylation calls, hypotheses, a file profile), searched in plain words from
+  a "Search every file" box on the Patients page. Each report gains "Where this patient sits"
+  (percentiles among the 40 TCGA files, a small chart per score) and "Similar patients" (the
+  five nearest TCGA files on eight recorded and derived fields).
+- **Why:** a clinician with 41 files asks "who else has this?" and "is this patient unusual?";
+  both are answerable from what the files already hold, without a new model.
+- **Consequence:** labeled lookups and percentiles, never a model or a prognosis; the
+  similarity's equal field weights are placeholders. The synthetic patient is outside the
+  cohort and never a candidate, and its MSK-CHORD risk is never compared. Search is a text
+  lookup: a differently worded finding is missed, which `cohort.md` says.
+
 ## 2026-10-27 — Final numbers pass: each figure named by what it measures; the video re-walked
 - **What:** every figure in `docs/submission.md`, the README, `docs/HACKATHON.md` and the Methods
   page traced to its source (the appendix lists each). The demo model's 0.728 is described as

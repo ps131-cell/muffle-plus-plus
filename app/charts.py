@@ -277,3 +277,19 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float, ctx: di
                       .encode(tooltip=tip), lod).properties(height=130)
     return alt.vconcat(top, panel).resolve_scale(x="shared", color="independent").configure_axis(
         **GRID)
+
+
+def cohort_strip(values: dict[str, float], patient: str, axis: str, fmt: str = ".2f") -> alt.Chart:
+    """One score across the files as a strip of ticks (``muffle.cohort.cohort_position``), this
+    patient a larger blue dot; hover names each file and its value."""
+    df = pd.DataFrame({"file": list(values), "value": [float(v) for v in values.values()]})
+    df["who"] = np.where(df["file"] == patient, "this patient", "another file")
+    x = alt.X("value:Q", title=axis, scale=alt.Scale(zero=False, nice=True),
+              axis=alt.Axis(tickCount=4, labelFontSize=11, titleFontSize=11))
+    tip = ["file:N", alt.Tooltip("value:Q", format=fmt, title=axis)]
+    others = alt.Chart(df[df["who"] == "another file"]).mark_tick(
+        color="#8a8f98", thickness=1.5, size=18).encode(x=x, tooltip=tip)
+    me = alt.Chart(df[df["who"] == "this patient"]).mark_point(
+        filled=True, size=140, color=BLUE, opacity=1).encode(x="value:Q", tooltip=tip)
+    return (others + me).properties(height=44).configure_axis(**GRID).configure_view(
+        strokeWidth=0)

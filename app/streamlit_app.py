@@ -72,7 +72,7 @@ from workbenches._page import dated_focus, land, line_and_action, strict  # noqa
 import guide  # noqa: E402
 import navigation as nav  # noqa: E402
 
-from muffle import crosstest, evolution, overview, workspace  # noqa: E402
+from muffle import cohort, crosstest, evolution, overview, workspace  # noqa: E402
 from muffle.demo import (  # noqa: E402
     build_demo,
     evidence_lookup,
@@ -321,6 +321,9 @@ def patients_page():
                     st.button(p, key=f"recent-{p}", on_click=open_file, args=(p,),
                               help=f"Open {p} on its latest report")
         nav.sync(None, None, None, None)  # no file open: no test, pointer or version
+        # cohort-search hook 1 of 2 (muffle.cohort, docs/cohort.md): "Search every file", above
+        # the patient list and apart from its search. Keep this call when reshaping the page.
+        safely("The search across every file", cohort_search)
         safely("The patient list", patient_list)
     else:
         first.button("Patients", type="tertiary", key="crumb-patients", on_click=to_list,
@@ -435,6 +438,175 @@ def patient_list():
         "synthetic patient, written by hand. The TCGA cases are public TCGA-BRCA patients the "
         "risk model never trained on, each assigned to one of the simulated hospitals; TCGA holds "
         "one tumor sample per patient, so their files have one version. ★ = a saved case note.")
+
+
+# --- Across the files: one search, similar patients, where a patient sits (muffle.cohort) -------
+SHOW_FOUND = 12  # files a search lists before "narrow the search"
+
+
+@st.cache_data(show_spinner="Reading every file's findings (once per server start)…")
+def bundle_index(source: str, code: str, civic: bool) -> list[dict]:
+    """Every finding of the files the bundle (``source``) and the repo's data hold, once per
+    bundle, code version and CIViC availability (``civic``: levels in the variants' text)."""
+    return cohort.build_index(BUNDLE_FILES, EVIDENCE)
+
+
+@st.cache_data(show_spinner=False)
+def bundle_profiles(source: str, code: str) -> dict[str, dict]:
+    """The similarity and position fields of the bundle's files (``cohort.profile``)."""
+    rows = bundle_rows(source, code)
+    return {pid: cohort.profile(pf, rows[pid]) for pid, pf in BUNDLE_FILES.items()}
+
+
+def changed_files() -> list[str]:
+    """Files an import of this session changed: read live, not from the bundle's caches."""
+    return [pid for pid, pf in FILES.items() if pf is not BUNDLE_FILES.get(pid)]
+
+
+def search_index() -> list[dict]:
+    """The bundle's index with this session's imported files read again (once per version)."""
+    base, changed = bundle_index(SOURCE, CODE_DIGEST, EVIDENCE is not None), changed_files()
+    if not changed:
+        return base
+    memo = st.session_state.setdefault("cohort_entries", {})
+    for pid in changed:
+        pf = FILES[pid]
+        key = (CODE_DIGEST, pid, len(pf.versions))
+        if key not in memo:
+            memo[key] = cohort.entries(pf, None if pf.kind == "synthetic" else EVIDENCE)
+    return [e for e in base if e["patient"] not in changed] + [
+        e for pid in changed for e in memo[(CODE_DIGEST, pid, len(FILES[pid].versions))]]
+
+
+def profiles() -> dict[str, dict]:
+    base, changed = bundle_profiles(SOURCE, CODE_DIGEST), changed_files()
+    return {pid: cohort.profile(pf) if pid in changed else base[pid] for pid, pf in FILES.items()}
+
+
+def cohort_search():
+    """"Search every file": every file's findings at once (finding cards, attention items, tests
+    that disagree, documented facts, variants, methylation calls, hypotheses, the file profile),
+    in plain words; each matching file with its best finding, its evidence label and an Open
+    that lands on it (the deep link in its help)."""
+    with st.container(border=True, key="cohort-search-box"):
+        query = st.text_input(
+            "Search every file", key="cohort-search",
+            placeholder="Search every file's findings: ESR1 methylated, HER2 disagree, breakaway, "
+                        "washout, level A, basal, stage III PIK3CA",
+            help="Every word must be in one finding of a file (else, said so, across its "
+                 "findings), at a word's start: 'basal' finds Basal-like, 'methylated' not "
+                 "unmethylated. 'level A', 'stage III', 'grade 3', 'ER positive' and 'ESR1 "
+                 "methylated' read as phrases; \"quotes\" make any phrase. Files rank by how many "
+                 "of their findings match. The box above the list searches patients by ID, "
+                 "gene, subtype or stage.")
+        if not query.strip():
+            st.caption("Searches the findings of all files at once: the workbenches' cards and "
+                       "attention items, tests that disagree, documented facts, variants, "
+                       "methylation calls and evolution hypotheses, each with its evidence label.")
+            return
+        labels = st.pills("Evidence", cohort.LABELS, selection_mode="multi",
+                          key="cohort-labels", help="Keep only findings of these labels")
+        found = cohort.search(search_index(), query, labels or ())
+        pats = found["patients"]
+        if not pats:
+            st.info(f"No finding in any file matches “{query}”" + (
+                " with the evidence chosen" if labels else "") + ". Imported tests of this "
+                "session are searched too; a word must start a word of the finding.", icon="🔎")
+            return
+        st.caption(f"{len(pats)} file{'s' if len(pats) != 1 else ''} · "
+                   + ("no single finding holds every word, so these files hold them across "
+                      "their findings · " if found["across"] else "")
+                   + "ranked by matching findings, then how close the words sit, then evidence "
+                     "(observed, model inference, hypothesis) · a text lookup, not a model")
+        for n, p in enumerate(pats[:SHOW_FOUND]):
+            f, rest = p["findings"][0], p["findings"][1:]
+            body = f["text"] if f["text"].startswith(f["what"]) else f"{f['what']}: {f['text']}"
+            synthetic = " (synthetic)" if FILES[p["patient"]].kind == "synthetic" else ""
+            line, act = line_and_action()
+            line.markdown(f"**{p['patient']}**{synthetic} · {esc(shorten(body, 200))}  \n"
+                          f"{chip(f['label'])} {chip(f['workbench'])} {chip(f['kind'])}")
+            if rest:
+                with act.popover(f"+{len(rest)}", help="This file's other matching findings"):
+                    st.markdown("\n".join(f"- {esc(shorten(r['what'] + ': ' + r['text'], 160))} "
+                                          f"{chip(r['label'])}" for r in rest[:10]))
+                    if len(rest) > 10:
+                        st.caption(f"and {len(rest) - 10} more")
+            act.button("Open", key=f"cohort-open-{n}", on_click=open_finding,
+                       args=(f["patient"], f["opens"], f["focus"], f["pointer"]),
+                       help=f"Opens {p['patient']} at this finding: {f['link']}")
+        if len(pats) > SHOW_FOUND:
+            st.caption(f"Showing {SHOW_FOUND} of {len(pats)} files: add a word to narrow it.")
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def strip_specs(pid: str, source: str, code: str) -> list[dict]:
+    """A bundle file's cohort position with one small chart per score, built once per file."""
+    base = bundle_profiles(source, code)
+    pos = cohort.cohort_position(base[pid], base)
+    return [{**m, "spec": charts.cohort_strip(m["values"], pid, m["axis"]).to_dict()}
+            for m in pos["metrics"]]
+
+
+SIMILAR_WIDTH = STRIP_WIDTH = 260  # px: cards of one width wrap, two or three a row
+
+
+def cohort_sections(pf: workspace.PatientFile):
+    """Where this patient sits among the TCGA files (a small chart per score, the patient
+    marked) and the five most similar TCGA files (the fields shared and those that differ):
+    lookups and percentiles on the file's latest fields, never a model or a prognosis."""
+    profs = profiles()
+    p, n_tcga = profs[pf.id], sum(q["kind"] == "TCGA-BRCA" for q in profs.values())
+    st.markdown(f"**Where this patient sits** among the {n_tcga} TCGA files "
+                f"{chip('lookup, not a prognosis')}")
+    if pf.kind != "TCGA-BRCA":
+        st.caption(f"{pf.id} is a synthetic patient, written by hand, and is not in this cohort: "
+                   "its 12-month risk comes from other models (MSK-CHORD) and it has no scores "
+                   "measured the way the TCGA files' are.")
+    else:
+        metrics = strip_specs(pf.id, SOURCE, CODE_DIGEST) if pf.id not in changed_files() else [
+            {**m, "spec": charts.cohort_strip(m["values"], pf.id, m["axis"]).to_dict()}
+            for m in cohort.cohort_position(p, profs)["metrics"]]
+        with st.container(horizontal=True, gap="small"):
+            for m in metrics:
+                with st.container(border=True, width=STRIP_WIDTH):
+                    st.markdown(f"**{m['name']}** · {m['text']}  \n{tags(m['label'])}",
+                                help=f"{m['source']}; this patient {m['value']:.2f}")
+                    st.vega_lite_chart(spec=m["spec"], width="stretch",
+                                       alt=f"{m['name']} of {m['n']} TCGA files, this patient "
+                                           f"at the {m['text']}")
+        st.caption("Each tick is a TCGA file, the blue dot this patient; the percentile is the "
+                   "share of the other files with a lower value. These percentiles are among "
+                   f"these {n_tcga} files: the workbenches' percentiles are against the whole TCGA "
+                   "cohort, so they differ. The synthetic patient is not in this cohort. "
+                   "Percentiles, not a prognosis.")
+    sim = cohort.similar_patients(p, profs)
+    st.markdown(f"**Similar patients** · the {len(sim['nearest'])} nearest of "
+                f"{sim['candidates']} TCGA files {chip(cohort.LOOKUP)} "
+                f"{chip('placeholder weights')}")
+    with st.container(horizontal=True, gap="small"):
+        for n, r in enumerate(sim["nearest"]):
+            with st.container(border=True, width=SIMILAR_WIDTH):
+                line, act = line_and_action()
+                fields = len(cohort.FIELDS)
+                line.markdown(f"**{r['patient']}** · agrees on {r['score'] * fields:.1f} of "
+                              f"{fields} fields")
+                act.button("Open", key=f"similar-{pf.id}-{n}", on_click=open_file,
+                           args=(r["patient"],), help=f"Open {r['patient']} on its latest report")
+                if r["shared"]:
+                    st.markdown("**Shares** " + "; ".join(
+                        f"{x['field']}: {esc(shorten(x['this'], 60))}" for x in r["shared"]))
+                if r["differ"]:
+                    st.markdown("**Differs** " + "; ".join(
+                        f"{x['field']}: {esc(shorten(x['this'], 40))} here, "
+                        f"{esc(shorten(x['other'], 40))} there" for x in r["differ"]))
+                if r["missing"]:
+                    st.caption("Not compared (a file lacks it): " + ", ".join(r["missing"]))
+    st.caption("A lookup on recorded and derived fields, not a model and not a prognosis: the "
+               "share of " + ", ".join(name for name, _ in cohort.FIELDS.values()) + " on which "
+               "the two files agree (sets by the share of items in common), every field weighing "
+               "the same (placeholder); a field either file lacks counts as not shared. "
+               "Candidates are the TCGA files only; the synthetic patient is never one. Each "
+               "file's latest report is compared.")
 
 
 # --- Patients: one patient file ----------------------------------------------------------------
@@ -600,6 +772,9 @@ def report_view(pf: workspace.PatientFile, i: int):
     overview_header(pf, i, ov)
     attention_queue(pf, i, ov)
     review_panel(pf)
+    # cohort-search hook 2 of 2 (muffle.cohort, docs/cohort.md): "Where this patient sits" and
+    # "Similar patients", under the overview cards and the queue. Keep this call when reshaping.
+    safely("Where this patient sits and the similar patients", cohort_sections, pf)
 
     left, right = st.columns(2)
     with left:
@@ -1369,15 +1544,18 @@ def methods():
 
 
 # --- Feedback: the review marks as a ledger (app/feedback_page.py, muffle.feedback) ------------
-def open_finding(pid: str, opens: tuple, focus: dict | None):
-    """A Feedback queue item's "Open": the patient file at its latest version, landed on the
-    finding as the report's queue lands."""
+def open_finding(pid: str, opens: tuple, focus: dict | None, pointer: str | None = None):
+    """A Feedback queue item's (or a search result's) "Open": the patient file at its latest
+    version, landed on the finding as the report's queue lands; on the report when the finding
+    has no test behind it."""
     pf = FILES[pid]
     i = len(pf.versions) - 1
     st.session_state.patient = pid
     if i:
         st.session_state[f"version-{pid}"] = i
-    open_evidence(pf, i, opens, focus)
+    if not opens:
+        st.session_state.view = "Report"
+    open_evidence(pf, i, opens, focus, pointer)
 
 
 def feedback_view():
