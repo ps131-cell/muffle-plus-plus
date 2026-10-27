@@ -927,7 +927,7 @@ def report_page(pf: workspace.PatientFile, i: int, ov: dict, reviews: dict) -> s
 
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
-CARD_WIDTH, CARD_TEXT = 240, 150  # px; characters a card shows before "more"
+CARD_WIDTH, CARD_TEXT = 220, 150  # px (two a row at 800 px, sidebar open); characters before "more"
 
 
 def shorten(text: str, limit: int) -> str:
