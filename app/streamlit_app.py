@@ -31,6 +31,7 @@ import logging
 import os
 import sys
 import tempfile
+from collections import Counter
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -710,10 +711,10 @@ def overview_data(pf: workspace.PatientFile, i: int) -> dict:
     if key not in memo:
         lookup = None if pf.kind == "synthetic" else EVIDENCE  # its CIViC items are frozen
         disagree = crosstest.discrepancies(pf, i)
+        queues = overview.queues(pf, i, lookup)  # the Tests view counts them per test
         memo[key] = {"sums": overview.summaries(pf, i, lookup), "disagree": disagree,
-                     "reducers": crosstest.uncertainty_reducers(pf, i),
-                     "queue": overview.attention(pf, i, overview.queues(pf, i, lookup),
-                                                 disagree)}
+                     "reducers": crosstest.uncertainty_reducers(pf, i), "queues": queues,
+                     "queue": overview.attention(pf, i, queues, disagree)}
     return memo[key]
 
 
@@ -1146,22 +1147,12 @@ def evidence_chain(case, report: CaseReport):
 
 
 def tests_view(pf: workspace.PatientFile, i: int):
+    """The launcher (a tile per test, grouped by kind, each with its "Open"), every test as a
+    table in an expander under it, then the open test's workbench."""
     tests = [t for v in pf.versions[: i + 1] for t in v.tests]
     kinds = st.pills("Type", list(dict.fromkeys(t.kind for t in tests)), selection_mode="multi",
-                     key=f"kinds-{pf.id}")
+                     key=f"kinds-{pf.id}", help="Show only the tests of these kinds")
     shown = [t for t in tests if not kinds or t.kind in kinds]
-    table = pd.DataFrame([{"Type": t.kind, "Month": t.month, "Test": t.name, "Result": t.result,
-                           "Workbench": t.workbench, "Status": t.status + (
-                               f": {t.details['scope']}" if "scope" in t.details else "")}
-                          for t in shown])
-    if table["Month"].isna().all():  # a TCGA file: undated tests (the caption says why)
-        table = table.drop(columns="Month")
-    rows = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
-                        key=f"tests-{pf.id}-{i}-{'.'.join(kinds)}-{st.session_state.tests_n}",
-                        width="stretch").selection.rows
-    st.caption("Select a test to open its workbench. " + (
-        "Months count from the first tumor sequencing." if pf.kind == "synthetic" else
-        "TCGA holds one sample per patient, so its tests carry no dates."))
     if not shown:
         st.info("No test to open " + ("of this type " if kinds else "")
                 + "as of this report version. Import tests brings in lab results, reports, "
@@ -1169,23 +1160,141 @@ def tests_view(pf: workspace.PatientFile, i: int):
                   "here." + (" Clear the type filter to see every test." if kinds else ""),
                 icon="🧪")
         return None
-    picked = f"picked-{pf.id}"  # the last test opened here or from an alert
-    if rows:
-        new = (shown[rows[0]].kind, shown[rows[0]].month, shown[rows[0]].name)
-        if st.session_state.get(picked) != new:  # another test: the address drops the pointer
-            st.session_state.pop("_pointer", None)
-            if focus := dated_focus(shown[rows[0]]):  # and it opens on its own value
-                land(pf, i, focus)
-        st.session_state[picked] = new
-    t = next((t for t in shown if (t.kind, t.month, t.name) == st.session_state.get(picked)),
-             None) or next((t for w in ("labs", "mutations", "omics", "record") for t in shown
-                            if t.workbench == w), shown[0])
+    picked = st.session_state.get(f"picked-{pf.id}")  # the last test opened here or from an alert
+    t = next((t for t in shown if (t.kind, t.month, t.name) == picked), None) or next(
+        (t for w in ("labs", "mutations", "omics", "record") for t in shown if t.workbench == w),
+        shown[0])
+    launcher(pf, i, shown, t)
+    all_tests(pf, i, shown, kinds)
     st.session_state["_test_shown"] = nav.test_id(t)
     st.divider()
-    name = WORKBENCH_NAMES.get(SCREENS.get(t.workbench, ""), "test's page")
-    what = "The " + (name[0].lower() + name[1:] if name[1:2].islower() else name)
+    what = workbench_name(t)
     safely(what, draw_test, pf, i, t, spin=f"Opening {what[0].lower() + what[1:]}…")
     return t
+
+
+def workbench_name(t: workspace.Test) -> str:
+    """The workbench a test opens in, as a sentence starts: "The blood and lab workbench", "The
+    ctDNA monitor (liquid biopsy)"."""
+    name = WORKBENCH_NAMES.get(SCREENS.get(t.workbench, ""), "test's page")
+    return "The " + (name[0].lower() + name[1:] if name[1:2].islower() else name)
+
+
+TILE_WIDTH = 220  # px: two launcher tiles a row at 800 px with the sidebar open, three at 1280
+
+
+def tid(t: workspace.Test) -> tuple:
+    return t.kind, t.month, t.name
+
+
+def launcher(pf: workspace.PatientFile, i: int, shown: list, active: workspace.Test):
+    """A tile per test, grouped by kind; a dated series of one test (CA 15-3 at eight months)
+    is one tile with a pill per month, so a long record fits on a screen. A tile holds the kind
+    and the name, what the test holds (the latest result), its status, how many look-here items
+    of its workbench's ``queue()`` open at it, and "Open"; the open test's tile says it is open
+    below."""
+    counts = Counter(tuple(x["opens"][1:]) for q in overview_data(pf, i)["queues"].values()
+                     for x in q if tuple(x["opens"][:1]) == ("Tests",))
+    imported = {tid(t) for v in pf.versions[: i + 1] if v.imported for t in v.tests}
+    kinds = list(dict.fromkeys(t.kind for t in shown))
+    series: dict[tuple, list] = {}  # undated tests are a tile each
+    for n, t in enumerate(shown):
+        series.setdefault((t.kind, t.name, n if t.month is None else None), []).append(t)
+    st.markdown(f"**Open a test** · {len(shown)} test{'' if len(shown) == 1 else 's'} in "
+                f"{len(kinds)} kind{'' if len(kinds) == 1 else 's'}; each opens in its "
+                "workbench below.")
+    st.caption("Months count from the first tumor sequencing; a month opens that test." if
+               pf.kind == "synthetic" else
+               "TCGA holds one sample per patient, so its tests carry no dates.")
+    with st.container(horizontal=True, gap="small", key="launcher"):  # tiles of one width wrap
+        for n, ((kind, name, _), ts) in enumerate(sorted(series.items(),
+                                                         key=lambda s: kinds.index(s[0][0]))):
+            test_tile(pf, i, kind, name, ts, n, active, counts, imported)
+
+
+def test_tile(pf: workspace.PatientFile, i: int, kind: str, name: str, ts: list, n: int,
+              active: workspace.Test, counts: Counter, imported: set):
+    """A launcher tile for one test or a dated series of it (``ts``, in record order): what it
+    holds, its status and scope, its look-here count, "Open" (the latest) and, for a series, a
+    pill per month."""
+    latest = ts[-1]
+    here = next((t for t in ts if tid(t) == tid(active)), None)
+    look = {t.month: counts[tid(t)] for t in ts if counts[tid(t)]}
+    total = sum(look.values())
+    with st.container(border=True, width=TILE_WIDTH):
+        st.caption(esc(kind))
+        span = (f" · {len(ts)} tests, months {ts[0].month} to {latest.month}" if len(ts) > 1
+                else "" if latest.month is None else f" · month {latest.month}")
+        st.markdown(f"**{esc(name)}**{span}")
+        holds = "measured on the tumor sample" if latest.result == "measured" else latest.result
+        st.caption(esc(shorten(holds if len(ts) == 1 else f"Latest: {holds}", 90)))
+        scopes = list(dict.fromkeys(t.details["scope"] for t in ts if "scope" in t.details))
+        chips = [chip(s) for s in dict.fromkeys(t.status for t in ts)]
+        if any(tid(t) in imported for t in ts):
+            chips.append(chip("imported this session"))
+        st.markdown(" ".join(chips) + "".join(f" · {esc(s)}" for s in scopes))
+        st.markdown((f"**{total} item{'' if total == 1 else 's'} to look at**" if total else
+                     "nothing flagged")
+                    + (" (month " + ", ".join(str(m) for m in look) + ")"
+                       if total and len(ts) > 1 else ""))
+        h = hashlib.sha1(f"{kind}|{name}".encode()).hexdigest()[:10]
+        if len(ts) > 1:
+            key = f"months-{h}-{n}"
+            st.session_state[key] = None if here is None else here.month  # the open test's month
+            st.pills(f"Months of {name}", list(dict.fromkeys(t.month for t in ts)), key=key,
+                     label_visibility="collapsed", on_change=pick_month, args=(pf, i, key, ts),
+                     help=f"Each month opens {name} of that month")
+        if here is not None and tid(here) == tid(latest):
+            st.markdown(":blue-badge[:material/arrow_downward: open below]")
+        else:
+            st.button("Open" if len(ts) == 1 else f"Open month {latest.month}",
+                      key=f"launch-{h}-{n}", on_click=pick_test, args=(pf, i, latest),
+                      help=f"{workbench_name(latest)} opens on this test, below")
+            if here is not None:
+                st.markdown(f":blue-badge[:material/arrow_downward: month {here.month} open "
+                            "below]")
+
+
+def all_tests(pf: workspace.PatientFile, i: int, shown: list, kinds: list):
+    """Every test as a table, collapsed under the launcher; selecting a row opens it too."""
+    table = pd.DataFrame([{"Type": t.kind, "Month": t.month, "Test": t.name, "Result": t.result,
+                           "Workbench": t.workbench, "Status": t.status + (
+                               f": {t.details['scope']}" if "scope" in t.details else "")}
+                          for t in shown])
+    if table["Month"].isna().all():  # a TCGA file: undated tests (the launcher says why)
+        table = table.drop(columns="Month")
+    key = f"tests-{pf.id}-{i}-{'.'.join(kinds)}-{st.session_state.tests_n}"
+    with st.expander(f"All tests ({len(shown)})"):
+        st.dataframe(table, hide_index=True, on_select=partial(pick_row, pf, i, key, shown),
+                     selection_mode="single-row", key=key, width="stretch")
+        st.caption("Select a row to open that test's workbench below.")
+
+
+def pick_test(pf: workspace.PatientFile, i: int, t: workspace.Test, row: bool = False):
+    """A tile's "Open" (or a row of the tests table): that test's workbench, on its own value
+    for a dated lab or ctDNA test; another test drops the address's pointer."""
+    ss = st.session_state
+    new = (t.kind, t.month, t.name)
+    if ss.get(f"picked-{pf.id}") != new:
+        ss.pop("_pointer", None)
+        if focus := dated_focus(t):
+            land(pf, i, focus)
+    ss[f"picked-{pf.id}"] = new
+    if not row:
+        ss.tests_n += 1  # a fresh table: no old row stays selected
+
+
+def pick_row(pf: workspace.PatientFile, i: int, key: str, shown: list):
+    rows = st.session_state[key].selection.rows
+    if rows:
+        pick_test(pf, i, shown[rows[0]], row=True)
+
+
+def pick_month(pf: workspace.PatientFile, i: int, key: str, ts: list):
+    """A month pill of a series tile: that month's test (a pill clicked off changes nothing)."""
+    t = next((t for t in ts if t.month == st.session_state[key]), None)
+    if t is not None:
+        pick_test(pf, i, t)
 
 
 def draw_test(pf: workspace.PatientFile, i: int, t: workspace.Test):

@@ -3,13 +3,14 @@ open SOS count, the way back after an "Open", deep links (?patient, ?view, ?test
 ?version) that reopen a screen with the pointer in the Spot panel, and the recently opened
 files. The whole app under AppTest (the ``app`` fixture, tests/conftest.py)."""
 
+import hashlib
 import json
 import re
 
 import pytest
 
 from muffle import evolution
-from muffle.workspace import synthetic_file
+from muffle.workspace import ASSAYS, synthetic_file
 from tests.appfixture import APP, shown
 
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
@@ -150,6 +151,43 @@ def test_a_look_here_spot_lands_and_switching_files_drops_the_old_address(app):
     at.selectbox(key="patient").select(app.case).run()
     assert not at.exception and "pointer" not in at.query_params
     assert at.query_params.get("test", "").split("|")[0] != "Lab"
+
+
+def series(kind: str, name: str) -> str:
+    """A launcher tile's key part, as the app makes it from the test's kind and name."""
+    return hashlib.sha1(f"{kind}|{name}".encode()).hexdigest()[:10]
+
+
+def test_the_tests_launcher_opens_every_test(app):
+    """Tests opens on a launcher: a tile per test, grouped by kind, a dated series (CA 15-3 at
+    eight months) one tile with a pill per month, each with its look-here count and "Open"; the
+    open test's tile says so, and every test is a row of "All tests (n)" too."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    at.segmented_control(key="view").set_value("Tests").run()
+    assert "**Open a test** · 29 tests in 6 kinds" in shown(at) and not at.exception
+    assert "All tests (29)" in [e.label for e in at.expander]
+    assert "**CA 15-3** · 8 tests, months -2 to 24" in shown(at)
+    assert "**4 items to look at** (month 4, 11, 16, 24)" in shown(at)  # the labs queue()
+    lab = next(p for p in at.pills
+               if (p.key or "").startswith(f"months-{series('Lab', 'CA 15-3')}-"))
+    lab.set_value(11).run()  # a month opens that test, on its own value
+    assert at.selectbox(key=f"{SYN}_spot").value.startswith("L4 · month 11")
+    assert "Tests › **CA 15-3, month 11**" in texts(at) and at.query_params["test"] == \
+        "Lab|11|CA 15-3"
+    assert ":blue-badge[:material/arrow_downward: month 11 open below]" in shown(at)
+    ctdna = series("ctDNA (liquid biopsy)", "ctDNA panel (synthetic series)")
+    next(b for b in at.button if (b.key or "").startswith(f"launch-{ctdna}-")).click().run()
+    assert (f"ctDNA monitor (liquid biopsy) · {SYN} · ctDNA panel (synthetic series), month 24"
+            in shown(at)) and not at.exception  # a tile's Open: the latest of its series
+    # a TCGA file's tests carry no dates: a tile each
+    at.selectbox(key="patient").select(app.case).run()
+    at.segmented_control(key="view").set_value("Tests").run()
+    assert "Genomics workbench" in shown(at) and not at.exception  # opens as before
+    rna = series("Data layer", ASSAYS["rna"])
+    next(b for b in at.button if (b.key or "").startswith(f"launch-{rna}-")).click().run()
+    assert "Expression, methylation and protein" in shown(at) and not at.exception
+    assert ":blue-badge[:material/arrow_downward: open below]" in shown(at)
 
 
 def test_recently_opened_files_on_the_patients_page(app):
