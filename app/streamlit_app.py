@@ -419,9 +419,8 @@ def patient_list():
                 "workbenches and how the report changed over time.")
     q, sos = line_and_action()
     query = q.text_input("Search", key="list-search", label_visibility="collapsed",
-                         placeholder="Find a patient ID, a diagnosis (ductal), a gene (PIK3CA), a "
-                                     "subtype (luminal), a stage (stage III) or a workbench "
-                                     "(slides)",
+                         placeholder="Find by ID, diagnosis, gene (PIK3CA), subtype (luminal), "
+                                     "stage (III) or workbench (slides)",
                          help="Every word must match the file's ID, diagnosis, PAM50 subtype, "
                               "stage, mutated genes or the workbenches that hold its data")
     open_sos = sos.toggle("Open SOS alerts only", key="list-sos",
