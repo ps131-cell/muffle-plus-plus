@@ -927,7 +927,7 @@ def report_page(pf: workspace.PatientFile, i: int, ov: dict, reviews: dict) -> s
 
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
-CARD_WIDTH, CARD_TEXT = 240, 150  # px; characters a card shows before "more"
+CARD_WIDTH, CARD_TEXT = 220, 150  # px (two a row at 800 px, sidebar open); characters before "more"
 
 
 def shorten(text: str, limit: int) -> str:
@@ -967,14 +967,52 @@ def overview_header(pf: workspace.PatientFile, i: int, ov: dict):
                     (x["pointer"] for x in ov["queue"] if c["focus"] and x["focus"] == c["focus"]),
                     None)
                 finding_card(pf, i, c, pointer)
-    gaps = overview.absent(ov["sums"])
-    if gaps:
-        st.caption("Not in this file: " + "; ".join(gaps) + ".")
+        for name, note in overview.absent(ov["sums"]):
+            empty_card(pf, name, note)
+
+
+FILLS = {  # an empty card: the test that would fill it, and whether Import tests takes it
+    "labs": ("lab results, a CSV of values with their units", True),
+    "ctdna": ("a plasma ctDNA panel (liquid biopsy), repeated under treatment; Import tests "
+              "does not take ctDNA yet", False),
+    "genomics": ("tumor sequencing, a VCF or MAF file", True),
+    "slides": ("a scanned H&E section of this tumor; Import tests registers a slide region "
+               "image, not analyzed here", True),
+    "omics": ("expression, methylation or protein profiling of the tumor sample; Import tests "
+              "does not take it", False),
+    "documents": ("a pathology report or a clinic note, as text or PDF", True),
+    "radiology": ("an imaging report, or a DICOM study (registered, not analyzed here)", True),
+    "evolution": ("tumor sequencing or a treatment in the record raises its rows", True),
+}
+
+
+def empty_card(pf: workspace.PatientFile, name: str, note: str):
+    """A workbench with nothing to show in this file: why, what would fill it and, where Import
+    tests takes that test, a way there."""
+    what, importable = FILLS.get(name, ("its own test", False))
+    with st.container(border=True, width=CARD_WIDTH):
+        st.markdown(f"**{overview.NAMES[name]}** · nothing to show")
+        st.caption(esc(note[0].upper() + note[1:]) + ".")
+        st.markdown(f"What would fill it: {esc(what)}.")
+        if importable:
+            st.button("Import a test", key=f"fill-{pf.id}-{name}", icon=":material/upload_file:",
+                      width="stretch", on_click=lambda: st.session_state.update(
+                          view="Import tests"), help="Bring the test in; it adds a report version")
+
+
+def destination(pf: workspace.PatientFile, opens: tuple) -> str:
+    """Where an "Open" lands, in words: the test's breadcrumb ("CA 15-3, month 11", "Pathology
+    slide") or the view ("Timeline", "Evolution")."""
+    if opens[0] != "Tests":
+        return opens[0]
+    t = next((t for t in pf.tests if (t.kind, t.month, t.name) == tuple(opens[1:])), None)
+    return nav.crumb(t) if t else opens[1]
 
 
 def finding_card(pf: workspace.PatientFile, i: int, c: dict, pointer: str | None = None):
     """A card: the statement with its evidence label and trust; "Why?" names the source test,
-    the method and version, the threshold's source and the trust; "Open" lands on the evidence."""
+    the method and version, the threshold's source and the trust; its full-width "Open" lands on
+    the evidence."""
     title = (f"**:red[SOS]** · {c['open']} open" if c["what"] == "SOS" and c["open"] else
              f"**{c['what']}**")
     st.markdown(f"{title}  \n{tags(c['evidence'])}")
@@ -988,15 +1026,16 @@ def finding_card(pf: workspace.PatientFile, i: int, c: dict, pointer: str | None
     placeholder = " " + chip("placeholder threshold") if "placeholder" in c["threshold"] \
         else ""
     st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}")
-    with st.container(horizontal=True, gap="small"):  # wraps in a narrow card
-        with st.popover("Why?"):
-            st.markdown(f"**Source test:** {esc(c['source'])}  \n**Method and version:** "
-                        f"{esc(c['method'])}  \n**Threshold:** {esc(c['threshold'])}  \n"
-                        f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
-        if c["opens"]:
-            st.button("Open", key=f"card-{pf.id}-{i}-{c['what']}", on_click=open_evidence,
-                      args=(pf, i, c["opens"], c["focus"], pointer, {"card": c["what"]}),
-                      help="Opens the test behind this card at its evidence")
+    with st.popover("Why?", help="The source test, the method and its version, the threshold's "
+                                 "source and the trust"):
+        st.markdown(f"**Source test:** {esc(c['source'])}  \n**Method and version:** "
+                    f"{esc(c['method'])}  \n**Threshold:** {esc(c['threshold'])}  \n"
+                    f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
+    if c["opens"]:
+        st.button(f"Open · {destination(pf, c['opens'])}", key=f"card-{pf.id}-{i}-{c['what']}",
+                  icon=":material/arrow_forward:", width="stretch", on_click=open_evidence,
+                  args=(pf, i, c["opens"], c["focus"], pointer, {"card": c["what"]}),
+                  help="Opens the test behind this card at its evidence")
 
 
 def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):

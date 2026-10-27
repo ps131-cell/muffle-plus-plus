@@ -354,8 +354,8 @@ def test_the_header_cards_and_open_sos_alerts():
     reviewed = {x["key"]: {"mark": "reviewed"} for x in q if x["sos"]}
     assert overview.header(pf, 11, sums, q, reviewed)[-1]["open"] == 0
     assert overview.absent(sums) == [
-        "Slides: no scored section of this tumor: the slide workbench shows a public example "
-        "region", "Expression: no expression, methylation or protein scores in this file"]
+        ("slides", "no scored section of this tumor: the slide workbench shows a public example "
+         "region"), ("omics", "no expression, methylation or protein scores in this file")]
 
 
 def test_imports_reach_the_timeline_diff_queue_and_export():

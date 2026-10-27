@@ -80,6 +80,28 @@ def test_report_cards_are_short_with_their_full_text_one_click_away(app):
     assert cards[-1][:-2].split("*")[-1].strip()[:20] in full
 
 
+def test_cards_open_their_evidence_and_empty_ones_say_what_would_fill_them(app):
+    """Each finding card ends in a full-width Open that names where it lands; a workbench with
+    nothing to show is a card too, saying why and what would fill it, with Import a test where
+    Import tests takes that test."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    last = len(at.select_slider(key=f"version-{SYN}").options) - 1
+    opens = {b.key: b.label for b in at.button if (b.key or "").startswith(f"card-{SYN}-")}
+    assert opens and all(label.startswith("Open · ") for label in opens.values())
+    assert opens[f"card-{SYN}-{last}-12-month risk"] == "Open · Timeline"
+    assert opens[f"card-{SYN}-{last}-Key drivers"] == "Open · Sequencing, month 0"
+    assert "**Expression** · nothing to show" in shown(at)
+    assert "What would fill it: expression, methylation or protein profiling" in shown(at)
+    assert f"fill-{SYN}-omics" not in [b.key for b in at.button]  # Import tests can't take it
+    at.button(key=f"fill-{SYN}-slides").click().run()
+    assert at.segmented_control(key="view").value == "Import tests" and not at.exception
+    at.segmented_control(key="view").set_value("Report").run()
+    at.button(key=f"card-{SYN}-{last}-Key drivers").click().run()
+    assert at.segmented_control(key="view").value == "Tests" and not at.exception
+    assert "Genomics workbench" in shown(at)
+
+
 def test_metric_tiles_wrap_instead_of_cutting_their_values():
     """Every metric tile takes its content's width in a row that wraps on a narrow screen
     (st.container(horizontal=True)), never a fixed column that cuts "75th percentile" to "75th

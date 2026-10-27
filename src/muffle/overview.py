@@ -136,10 +136,10 @@ def header(pf: PatientFile, i: int, sums: dict, queue: list[dict] | None = None,
     return out
 
 
-def absent(sums: dict) -> list[str]:
-    """What the file lacks, by workbench, for a line under the header ("what a test cannot
-    see is said")."""
-    return [f"{NAMES[n]}: {s['note']}" for n, s in sums.items() if s.get("note")]
+def absent(sums: dict) -> list[tuple[str, str]]:
+    """What the file lacks, as (workbench, why) for an empty card beside the header's ("what
+    a test cannot see is said")."""
+    return [(n, s["note"]) for n, s in sums.items() if s.get("note")]
 
 
 # ------------------------------------------------------------------------------- the queue

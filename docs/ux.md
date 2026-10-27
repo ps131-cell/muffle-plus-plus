@@ -168,10 +168,15 @@ badges; their meanings are one click away in the guide.
   names ("finding_key", "pf", "FINDING_KINDS"), no "version index". Provenance stays: data
   source, method, model and version, in words ("precomputed offline from the open-access
   files", "Ensembl VEP, offline").
-- **The report's cards** are one width (240 px) and wrap: three a row at 800 px with the
-  sidebar collapsed, one with it open (Streamlit keeps the sidebar open at 800 px, which leaves
-  the page about 470 px), more on a wide screen. A card shows at most about 150 characters and ends in " …"; "more" opens the full
-  text.
+- **The report's cards** are one width (220 px since 2026-10-27, 240 before) and wrap: three a
+  row at 800 px with the sidebar collapsed, two with it open (Streamlit keeps the sidebar open
+  at 800 px, which leaves the page about 470 px), three at 1280 px. A card shows at most about
+  150 characters and ends in " …"; "more" opens the full text. Since 2026-10-27 a card ends in
+  a full-width **Open** naming where it lands ("Open ·
+  Sequencing, month 0", "Open · Timeline"), under its **Why?**; a workbench with nothing to
+  show in the file is a card of its own: why ("no ctDNA sample in this file"), what would fill
+  it, and **Import a test** where Import tests takes that test (the line "Not in this file: …"
+  it replaces said the same in one sentence).
 - **Numbers carry their unit**, and a hover says how they were measured (the slide's tumor
   area, front length, arcs, unsure share; the risk's percentile and model).
 - **Metric tiles show their values whole.** A tile's value is short and its unit sits in the
