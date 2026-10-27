@@ -23,6 +23,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+from muffle.memo import per_file
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.timeline import EVENTS
 from muffle.workspace import card, finding_key, look
@@ -1061,6 +1062,7 @@ def _focus(f: dict) -> dict:
     return {"doc": f["doc"], "sentence": tuple(f["sentence"])}
 
 
+@per_file
 def summary(pf, version: int | None = None) -> dict:
     """The documented stage and receptor status, type and grade, and the conflicts between
     documents: what the documents say, never derived."""
@@ -1132,6 +1134,7 @@ def _conflict_focus(all_facts: list[dict], c: dict) -> dict:
     return _focus(f)
 
 
+@per_file
 def queue(pf, version: int | None = None) -> list[dict]:
     """Fields two documents give different values for (D1…Dn): consequence 2 for receptors,
     stage, TNM, type, grade, margins and lymphovascular invasion, 1 otherwise; trust moderate

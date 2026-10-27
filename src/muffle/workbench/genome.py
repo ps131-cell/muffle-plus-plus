@@ -19,6 +19,7 @@ import io
 import json
 import math
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
@@ -120,7 +121,18 @@ def cn_call(copies, ploidy) -> int | None:
 
 
 def load(path: Path) -> dict | None:
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    """A precomputed file (copy number, variant effects), parsed once per version on disk and
+    shared, so read-only for every caller; None when absent."""
+    try:
+        s = Path(path).stat()
+    except FileNotFoundError:
+        return None
+    return _parsed(str(path), s.st_mtime_ns, s.st_size)
+
+
+@lru_cache(maxsize=8)
+def _parsed(path: str, mtime_ns: int, size: int) -> dict:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def case_index(file) -> int | None:

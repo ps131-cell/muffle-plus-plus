@@ -14,6 +14,7 @@ flagged and kept out of the tumor picture. SYNTHETIC-001's series is synthetic, 
 from __future__ import annotations
 
 from muffle.longitudinal import DRIVERS
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, OBSERVED
 from muffle.workbench import labs
 from muffle.workbench.genomics import AROMATASE_INHIBITORS
@@ -449,6 +450,7 @@ def _opens(pf, month) -> tuple:
     return () if t is None else ("Tests", t.kind, t.month, t.name)
 
 
+@per_file
 def summary(pf, version: int | None = None) -> dict:
     """The latest sample's calls, and the ESR1 rule when a new or rising ESR1 call raises it."""
     rows, events = file_series(pf, version)
@@ -472,6 +474,7 @@ def summary(pf, version: int | None = None) -> dict:
         _opens(pf, last))]}
 
 
+@per_file
 def queue(pf, version: int | None = None) -> list[dict]:
     """The page's look-here items (``look_here``) worth a look now: the ESR1 rule when it applies
     (consequence 2), the latest sample's new or rising calls and its low shedding, and possible

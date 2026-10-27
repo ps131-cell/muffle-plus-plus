@@ -26,6 +26,24 @@ def test_source_digest_changes_when_a_source_file_changes(tmp_path):
     assert source_digest([tmp_path]) == before
 
 
+def test_source_digest_sees_new_and_removed_files_at_any_depth(tmp_path):
+    deep = tmp_path / "workbenches" / "slides_results" / "S1"
+    deep.mkdir(parents=True)
+    (deep / "summary.json").write_text("{}")
+    (tmp_path / "__pycache__").mkdir()
+    first = source_digest([tmp_path])
+    (tmp_path / "__pycache__" / "x.cpython-312.pyc").write_text("")  # bytecode: not a source
+    (tmp_path / "__pycache__" / "y.py").write_text("")
+    assert source_digest([tmp_path]) == first
+    (deep / "tiles.json").write_text("[]")  # a new result file, three folders down
+    second = source_digest([tmp_path])
+    assert second != first
+    (deep / "tiles.json").unlink()
+    assert source_digest([tmp_path]) == first
+    (deep / "summary.json").write_text('{"n": 1}')
+    assert source_digest([tmp_path]) not in (first, second)
+
+
 def test_purge_modules_drops_only_the_named_prefixes():
     names = ("zzpkg", "zzpkg.sub", "zzpkgother", "zzcharts")
     for name in names:

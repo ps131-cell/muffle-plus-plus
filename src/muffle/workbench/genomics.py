@@ -23,6 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from muffle.data.tcga import DRIVERS
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.civic import CACHE, LEVELS
 from muffle.workbench import genome
@@ -611,6 +612,7 @@ def _seq_opens(file, v: dict) -> tuple:
     return () if t is None else ("Tests", t.kind, t.month, t.name)
 
 
+@per_file
 def summary(file, version: int | None = None, lookup=None) -> dict:
     """The observed drivers with their strongest CIViC level (or "not sequenced")."""
     vs, civic = file_variants(file, version, lookup)
@@ -642,6 +644,7 @@ def summary(file, version: int | None = None, lookup=None) -> dict:
         *extra]}
 
 
+@per_file
 def queue(file, version: int | None = None, lookup=None) -> list[dict]:
     """One item per observed variant, by the strength of its CIViC evidence: level A or B
     (consequence 2, trust strong), C to E (1, moderate), none (1, weak). Nothing without CIViC:

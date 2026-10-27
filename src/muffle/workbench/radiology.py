@@ -27,6 +27,7 @@ import numpy as np
 from muffle.imports import (CLAUSE, NOT_STATED, PROGRESSION, READS, RESPONSE, STABLE,
                             imaging_read, stated)
 from muffle.imports import SITE_WORDS as DISTANT_SITES
+from muffle.memo import per_file
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.workspace import card, finding_key, look
 from muffle.workbench.labs import lead_lag as _lab_lead_lag
@@ -1190,6 +1191,7 @@ def _opens(t) -> tuple:
     return ("Tests", t.kind, t.month, t.name)
 
 
+@per_file
 def summary(pf, version: int | None = None) -> dict:
     """A study pair's change (where two dates exist), a processed public study's headline (its
     contours, measurements or scores, and the structured report's BI-RADS), else the lesion
@@ -1244,6 +1246,7 @@ def summary(pf, version: int | None = None) -> dict:
             "note": None if cards else "the imaging reports state no read"}
 
 
+@per_file
 def queue(pf, version: int | None = None) -> list[dict]:
     """Each site a report names as new (consequence 3, trust strong: the reader's words; trust
     moderate for an imported report, whose site the import's text rule read, as its alert in

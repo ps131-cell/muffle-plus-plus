@@ -32,6 +32,7 @@ import pandas as pd
 
 from muffle.data.preprocess import zscore
 from muffle.demo import ordinal
+from muffle.memo import per_file
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workspace import ASSAYS, card, finding_key, look
 
@@ -724,6 +725,7 @@ def recorded_text(receptors: dict) -> str:
     return ", ".join(out)
 
 
+@per_file
 def summary(pf, version: int | None = None) -> dict:
     """The PAM50 call with its margin, the recorded receptor status, how RNA, copy number and
     protein agree with it, and the proliferation and immune scores."""
@@ -815,6 +817,7 @@ def summary(pf, version: int | None = None) -> dict:
             "note": None}
 
 
+@per_file
 def queue(pf, version: int | None = None) -> list[dict]:
     """Receptor comparisons that disagree with the recorded status (consequence 2 for ER and
     HER2, which decide endocrine and anti-HER2 eligibility; 1 for PR), a subtype call that differs
