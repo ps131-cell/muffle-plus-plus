@@ -48,7 +48,7 @@ def banner(pf, i: int) -> None:
         text.markdown(f"You are viewing **{when}** ({esc(v.label)}): the report, tests, queue and "
                       "timeline as they were then. Later entries are not in it.")
         back.button("Back to latest", key=f"latest-{pf.id}", on_click=travel, args=(pf, last),
-                    type="primary")
+                    help="The file as it is now: its latest report version")
 
 
 def render(pf, i: int, tl: dict | None, sums, open_evidence) -> None:
@@ -217,7 +217,7 @@ def compare(pf, i: int) -> None:
                      format_func=lambda k: pf.versions[k].label)
     for col, k, side in ((a, ia, "from"), (b, ib, "to")):
         col.button("Jump to this version", key=f"jump-{side}-{pf.id}-{i}", disabled=k == i,
-                   on_click=travel, args=(pf, k),
+                   on_click=travel, args=(pf, k), type="primary",  # the Timeline's one primary
                    help="Open the report, tests, queue and timeline as they were at it")
     lo, hi = sorted((ia, ib))
     diff = crosstest.diff_versions(pf, lo, hi)

@@ -87,6 +87,19 @@ names it. Every test is also a row of **All tests (n)**, collapsed under the lau
 selecting a row opens it too. Deep links, the attention queue's "Open" and the overview cards'
 "Open" land as before.
 
+**The file's action row** (2026-10-27), right under the sticky header on every view (it
+scrolls away with the page: two lines of buttons in the header would cover a third of a 900 px
+window), each with a one-sentence tooltip: **Attention queue (n)** (n items not marked yet; it
+opens the report's queue on the first of them), **Import a test**, **Compare versions** (the
+Timeline's comparison; disabled, saying why, while the file has one version), **Export this
+report (Markdown)** (the version shown, built when clicked), **Your marks (n)** (this file's
+review marks: a link to the Feedback page, as in the sidebar, since `st.switch_page` refuses
+to leave a page whose ?patient is bound to the file picker) and **How to read this** (the guide
+of the screen shown). Each screen has one primary action: the queue's Open on the report, the
+launcher on Tests, "Jump to this version" on the Timeline ("Back to latest" and the case note's
+button are secondary). Under the queue's header a **Next step** line says what to do: "12 items
+need a look: press j for the next one, or click a row's Open".
+
 **The way back.** After an "Open" (an attention-queue item, an overview card), the workbench
 shows "← Back to the file" (the file's report, at its top) and, when it came from the queue,
 "← Back to the queue, item 6 of 15", which returns to the queue on that item.

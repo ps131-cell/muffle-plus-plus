@@ -61,6 +61,9 @@ STICKY_CSS = """<style>
     }
   }
 }
+.st-key-file-actions [data-testid="stPageLink-NavLink"] {  /* a link among buttons, framed so */
+  border: 1px solid rgba(128, 128, 128, 0.3); border-radius: 0.5rem; padding: 0.3rem 0.75rem;
+}
 </style>"""
 
 

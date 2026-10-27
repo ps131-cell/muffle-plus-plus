@@ -11,7 +11,7 @@ import pytest
 
 from muffle import evolution
 from muffle.workspace import ASSAYS, synthetic_file
-from tests.appfixture import APP, shown
+from tests.appfixture import APP, popovers, shown
 
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
 SYN = "SYNTHETIC-001"
@@ -188,6 +188,40 @@ def test_the_tests_launcher_opens_every_test(app):
     next(b for b in at.button if (b.key or "").startswith(f"launch-{rna}-")).click().run()
     assert "Expression, methylation and protein" in shown(at) and not at.exception
     assert ":blue-badge[:material/arrow_downward: open below]" in shown(at)
+
+
+def test_the_files_action_row(app):
+    """Under the views, on every view, with their tooltips: the attention queue (on its first
+    item not marked), Import a test, Compare versions, the report's export, the reviewer's marks
+    (a link to the Feedback page) and the guide; the queue says what to do next."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    acts = [b for b in at.button if (b.key or "").startswith("act-")]
+    assert [b.label.split(" (")[0] for b in acts] == ["Attention queue", "Import a test",
+                                                      "Compare versions"]
+    assert all(b.help for b in acts) and "How to read this" in popovers(at)
+    marks = {p.label: p for p in at.get("page_link")}
+    assert marks["Your marks (0)"].proto.page == "feedback" and marks["Your marks (0)"].proto.help
+    assert "Export this report (Markdown)" in [b.label for b in at.get("download_button")]
+    queue = f"queue-{SYN}-{len(at.select_slider(key=f'version-{SYN}').options) - 1}"
+    n = int(at.button(key="act-queue").label.split("(")[1].rstrip(")"))
+    assert f"**Next step:** {n} items need a look" in shown(at) and not at.exception
+    at.button(key="act-import").click().run()
+    assert at.segmented_control(key="view").value == "Import tests" and not at.exception
+    at.button(key="act-compare").click().run()
+    assert at.segmented_control(key="view").value == "Timeline"
+    assert "Compare two versions" in shown(at) and not at.exception
+    at.button(key="act-queue").click().run()
+    assert at.segmented_control(key="view").value == "Report" and at.session_state[queue] == 0
+    at.button(key=f"reviewed-{queue}").click().run()  # the first item marked: the queue moves on
+    assert at.button(key="act-queue").label == f"Attention queue ({n - 1})"
+    at.segmented_control(key="view").set_value("Tests").run()
+    at.button(key="act-queue").click().run()
+    assert at.segmented_control(key="view").value == "Report" and at.session_state[queue] == 1
+    assert "Your marks (1)" in [p.label for p in at.get("page_link")] and not at.exception
+    one = app.new().run()  # a TCGA file has one version: nothing to compare yet
+    one.selectbox(key="patient").select(app.case).run()
+    assert one.button(key="act-compare").disabled and not one.exception
 
 
 def test_recently_opened_files_on_the_patients_page(app):

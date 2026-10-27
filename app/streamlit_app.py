@@ -656,6 +656,10 @@ def patient_file(pf: workspace.PatientFile, header, tail):
             ss.view = "Report"  # no default=: "open the test" sets the view in code
         view = st.segmented_control("View", VIEWS, required=True, key="view",
                                     bind="query-params", label_visibility="collapsed")
+    # right under the sticky header, filled once the view is drawn: it scrolls away with the
+    # page (two lines of buttons would make the header a third of a laptop screen)
+    actions = st.container(horizontal=True, gap="small", vertical_alignment="center",
+                           key="file-actions")
     st.caption(f"{pf.title} · {pf.diagnosis}  \n{DISCLAIMER}")
     if pf.kind == "synthetic":
         st.warning(pf.note, icon="🧪")
@@ -694,9 +698,60 @@ def patient_file(pf: workspace.PatientFile, header, tail):
     p = ss.get("_pointer") or {}
     here = (p.get("pid"), p.get("view"), p.get("test")) == (pf.id, view, test)
     nav.sync(pf.id, test, p.get("pointer") if here else None, None if i == last else i)
-    return SCREENS.get(shown.workbench, "report") if shown is not None else {
+    screen = SCREENS.get(shown.workbench, "report") if shown is not None else {
         "Report": "report", "Timeline": "timeline", "Evolution": "evolution",
         "Import tests": "imports"}.get(view, "report")
+    with actions:
+        safely("The file's actions", action_row, pf, i, screen)
+    return screen
+
+
+def action_row(pf: workspace.PatientFile, i: int, screen: str):
+    """The file's actions on every view, under the view control (docs/ux.md §2): the attention
+    queue, Import a test, Compare versions, the report's export, the reviewer's marks (the
+    Feedback page) and the guide, each saying on hover what it does."""
+    ss = st.session_state
+    with st.spinner("Counting the attention queue…"):  # shown after 0.5 s: once per version
+        ov = overview_data(pf, i)
+    queue = ov["queue"]
+    left = sum(x["key"] not in ss.reviews for x in queue)
+    st.button(f"Attention queue ({left})", key="act-queue", icon=":material/checklist:",
+              on_click=to_queue, args=(pf, i, queue),
+              help=f"{len(queue)} item{'' if len(queue) == 1 else 's'} in this version's queue, "
+                   f"{left} not marked yet: the report's queue at the first of them (there, j "
+                   "and k walk it, o opens one)")
+    st.button("Import a test", key="act-import", icon=":material/upload_file:",
+              on_click=lambda: ss.update(view="Import tests"),
+              help="Lab results, a report, sequencing (VCF or MAF), an imaging report, a slide "
+                   "image or a DICOM file: each is checked on intake and adds a report version")
+    st.button("Compare versions", key="act-compare", icon=":material/compare_arrows:",
+              disabled=i == 0, on_click=lambda: ss.update(view="Timeline"),
+              help="The Timeline compares any two report versions: what changed and why" if i
+              else "One report version so far: each import adds the next")
+    v = pf.versions[i]
+    st.download_button("Export this report (Markdown)",
+                       partial(report_page, pf, i, ov, dict(ss.reviews)),  # built on the click
+                       file_name=f"{pf.id.replace(' ', '_')}_"
+                                 f"{'baseline' if v.month is None else f'month{v.month}'}.md",
+                       mime="text/markdown", key="act-export", icon=":material/download:",
+                       on_click="ignore", help="This report version as one page: numbers, "
+                                               "sources, placeholders, model versions and your "
+                                               "review marks")
+    marks = sum(k.startswith(pf.id + "|") for k in ss.reviews)
+    # a page link, as the sidebar's: st.switch_page can't leave a page whose ?patient is bound
+    st.page_link(FEEDBACK, label=f"Your marks ({marks})", icon=":material/how_to_vote:",
+                 help=f"{marks} review mark{'' if marks == 1 else 's'} on this file, "
+                      f"{len(ss.reviews)} in this session: the Feedback page lists them as a "
+                      "ledger, with its download")
+    guide.help_icon(screen, label="How to read this")
+
+
+def to_queue(pf: workspace.PatientFile, i: int, queue: list):
+    """"Attention queue": the report, its queue on the first item not marked yet."""
+    ss = st.session_state
+    ss.update({"view": "Report", f"unsure-{pf.id}": False,
+               f"queue-{pf.id}-{i}": next((n for n, x in enumerate(queue)
+                                           if x["key"] not in ss.reviews), 0)})
 
 
 def apply_link(pf: workspace.PatientFile, link: dict, last: int) -> tuple | None:
@@ -852,9 +907,7 @@ def report_view(pf: workspace.PatientFile, i: int):
     with st.expander("Caveats, data sources and model versions"):
         st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
                     f"{pf.model['endpoint']}.\n" + "\n".join(f"- {s}" for s in sources(pf)))
-    page = workspace.report_markdown(pf, i, {var: civic_items(pf, var) for var in variants},
-                                     st.session_state.reviews, sources(pf), disagree, reducers,
-                                     ov["sums"], ov["queue"])
+    page = report_page(pf, i, ov, st.session_state.reviews)
     when = "baseline" if v.month is None else f"month{v.month}"
     st.download_button("Download this report version (Markdown)", page,
                        file_name=f"{pf.id.replace(' ', '_')}_{when}.md", mime="text/markdown",
@@ -862,6 +915,15 @@ def report_view(pf: workspace.PatientFile, i: int):
                             "review marks.")
     if case is not None:
         case_note(case)
+
+
+def report_page(pf: workspace.PatientFile, i: int, ov: dict, reviews: dict) -> str:
+    """Report version ``i`` as one Markdown page (the report's download and the file's "Export
+    this report"): numbers, sources, placeholders, model versions and the review marks."""
+    variants = [var for t in workspace.sequencing_tests(pf, i) for var in t.details["variants"]]
+    return workspace.report_markdown(pf, i, {var: civic_items(pf, var) for var in variants},
+                                     reviews, sources(pf), ov["disagree"], ov["reducers"],
+                                     ov["sums"], ov["queue"])
 
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
@@ -962,6 +1024,11 @@ def attention_queue(pf: workspace.PatientFile, i: int, ov: dict):
             return
         k = ss.get(pos, 0) % len(shown)
         cur = shown[k]
+        left = sum(x["key"] not in reviews for x in shown)
+        st.markdown(f"**Next step:** {left} item{'' if left == 1 else 's'} need"
+                    f"{'s' if left == 1 else ''} a look: press **j** for the next one, or click a "
+                    "row's **Open**." if left else "**Next step:** every item here is marked; "
+                    "**u** shows the unsure list (second looks and weak trust).")
         # in tab order: previous, next, pin, mark reviewed, unsure list, open (docs/ux.md §7);
         # a row that wraps on a narrow screen, never fixed columns that cut "Mark reviewed"
         c = st.container(horizontal=True, gap="small")
@@ -1237,7 +1304,7 @@ def case_note(case):
     saved = demo.notes.get(case.index)
     can_live = LIVE and st.session_state.live_used < CAP
     b1 = b2 = st.container(horizontal=True, gap="small")
-    write = b1.button("Write the note with Nemotron", type="primary", disabled=not can_live,
+    write = b1.button("Write the note with Nemotron", disabled=not can_live,
                       help=None if can_live else (
                           "Live notes are not set up on this server." if not LIVE
                           else "This session's live notes are used up."))
