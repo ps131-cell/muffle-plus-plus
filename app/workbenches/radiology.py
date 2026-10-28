@@ -394,7 +394,7 @@ def change_volume(pair_folder: str) -> dict[int, np.ndarray]:
     return out
 
 
-@st.cache_resource(show_spinner=False, max_entries=40)  # about 0.2 MB each: two windows
+@st.cache_resource(show_spinner=False, max_entries=30)  # about 0.2 MB each: two windows
 def slice_map(folder: str, stamp_: str, i: int, pair_folder: str | None) -> rm.ScanMap:
     """One MRI slice's map data (shared, read-only; never changed in place)."""
     study = rad.load_study(folder)
@@ -421,7 +421,7 @@ def figure_once(shape: tuple, build):
     rebuilding the figure. A few figures only."""
     with _fig_lock:
         if shape not in _figures:
-            if len(_figures) >= 6:
+            if len(_figures) >= 4:
                 _figures.pop(next(iter(_figures)))
             _figures[shape] = build()
         return _figures[shape]
@@ -1165,6 +1165,8 @@ def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -
                    + "; ".join(ch["protocol"]) + ".")
     reg = ch["registration"]
     st.markdown(f"**What changed** (model inference): {ch['what_changed']}")
+    if not marks:  # the example pair: its later study on the map, the Change view first
+        pair_map(changes, key0)
     n_bad = sum(not b["reliable"] for b in ch["blocks"])
     st.caption(f"Method: {reg['method']}. Normalised mutual information {reg['nmi_start']:g} at "
                f"the start, {reg['nmi_after']:g} aligned; {reg['evaluations']} evaluations, "
@@ -1248,6 +1250,44 @@ def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -
     row = next(r for r in rows if r["lesion"] == pick)
     review(finding_key(pf, "imaging", barcode, span, pick),
            f"{barcode} {span} {pick}: {row['status']} (model inference)")
+
+
+def pair_map(changes: dict, key0: str) -> None:
+    """A pair's later study on the scan map, opened on the Change view around its first
+    candidate: its contours against the earlier ones moved by the rigid alignment, where the
+    alignment is unreliable tinted; the Slice slider inside walks the slices around. Hover only:
+    the pair is not this file's, so no Spot panel and no mark."""
+    later = changes["later"]
+    d = later["display"]
+    folder, stamp_ = later["folder"], stamp(later)
+    pair = str(Path(folder).parent)
+    first = later["candidates"][0] if later["candidates"] else None
+    i = rm.ld_index(later, first) if first else d["slices"] // 2
+    lo = max(0, min(i - MAP_WINDOW, d["slices"] - 2 * MAP_WINDOW - 1))
+    shown = list(range(lo, min(d["slices"], lo + 2 * MAP_WINDOW + 1)))
+
+    def build():
+        vol = slices(later, "early")
+        frames = []
+        for k in shown:
+            mk = slice_map(folder, stamp_, k, pair)
+            frames.append(rm.frame_of(mk, rm.scan_jpeg(vol[k]),
+                                      {md: rm.overlay_png(mk, md) for md in rm.modes(mk)},
+                                      rm.candidate_pointers(later, k)))
+        m = frames[shown.index(i)]["m"]
+        return rm.figure(frames, {md: rm.legend_items(m, md, later) for md in rm.modes(m)},
+                         active_frame=shown.index(i), study=later, active="change",
+                         uirevision=f"{key0}-pair", height=rm.height_for(m),
+                         total=d["slices"])
+    fig, _ = figure_once(("pair", folder, stamp_, i), build)
+    st.plotly_chart(fig, key=f"{key0}-pairmap", width="stretch",
+                    config={"displayModeBar": False, "scrollZoom": True, "doubleClick": "reset"})
+    st.caption(f"The later study ({later['study']['date']}) on the scan map, slices "
+               f"{shown[0] + 1}–{shown[-1] + 1}: the Change view colours both dates' model "
+               "contours after the rigid alignment (larger now, smaller now, on one date only: "
+               "not new, not gone) and tints where the alignment is unreliable. A comparison of "
+               "two dates, not a forecast. Hover for the numbers; this pair is another patient's "
+               "public data, so it opens no Spot panel and takes no mark.")
 
 
 def change_rows(ch: dict) -> list[dict]:

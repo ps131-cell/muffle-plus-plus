@@ -361,6 +361,23 @@ def test_the_page_draws_the_map_for_every_file_with_imaging(idx):
     assert "**Square r" in text and "Why this colour:" in text and "What to check by eye:" in text
 
 
+def test_an_mri_page_shows_the_example_pair_on_the_map_in_its_change_view():
+    idx = next((i for i in FILES if INDEX[i][0]["modality"] == "MR"), None)
+    if idx is None or not rad.example_studies():
+        pytest.skip("no MRI study or no example pair in this checkout")
+    at = page(idx, INDEX[idx])
+    at.session_state[f"rad-Case {idx}-ex-open"] = True  # the lazy section, opened
+    at.run()
+    assert not at.exception, at.exception
+    charts = at.get("plotly_chart")
+    assert len(charts) == 2  # the file's own map, then the example's
+    spec = json.loads(charts[1].proto.spec)
+    menu = spec["layout"]["updatemenus"][0]
+    assert [b["label"] for b in menu["buttons"]][-1] == "Change" and menu["active"] == 3
+    text = words(at)
+    assert "not new, not gone" in text and "not a forecast" in text and "no mark" in text
+
+
 def test_the_page_shows_the_example_pair_with_its_change_view():
     studies = rad.example_studies()
     if not studies:

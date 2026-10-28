@@ -511,9 +511,14 @@ another patient and says so; the only BI-RADS category shown is the study's own 
 | Report (Markdown) | the study report | implemented |
 | Slide viewer one click away | not applicable (the copy is the map's image; the originals stay at TCIA) | not built |
 
-**Not built, and limits.** The Change view appears on the later study of a file that holds two
-dates; no bundled file does, so in the app it shows on the public example pair opened as a file
-(the workbench's standalone page) and the example section of each MRI page keeps its side-by-side
-panes. Coronal and sagittal stay in Three planes (the map is axial). The square's curve outside
-the contours is the copy's brightness, not a measurement. Pairs of mammogram dates and lesion
-candidates on mammograms do not exist here (§5).
+**Where the Change view shows.** On the later study of a file that holds two dates (no bundled
+file does; the public example pair opened as a file on the workbench's standalone page), and in
+every MRI page's "Change over time on a public example pair" section, where the example's later
+study opens on the map in the Change view above the side-by-side panes, labeled another
+patient's public data, with hover only (no Spot panel, no mark).
+
+**Not built, and limits.** Coronal and sagittal stay in Three planes (the map is axial). The
+square's curve outside the contours is the copy's brightness, not a measurement. Pairs of
+mammogram dates and lesion candidates on mammograms do not exist here (§5). A jump with Go to
+slice, the Candidate control, a pointer on another slice or a search spot rebuilds the map and
+shows its target's own zoom, not the one the reader had.
