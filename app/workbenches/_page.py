@@ -106,6 +106,7 @@ GRID_ROWS, GRID_COLUMNS = 25, 12  # a longer or wider list is a grid: it scrolls
 MD_LEAD = re.compile(r"^(\s*)([#>+*-]|\d+[.)])(?=\s|$)")  # a cell that would open a list
 NO_DATA = {"", "nan", "NaT", "<NA>"}  # a missing value: an empty cell
 LONG = re.compile(r"\S{22,}")  # a token too long for a column: a DOI, a chain of units
+DIGIT_HYPHEN = re.compile(r"(?<=\d)-(?=\d)")  # a range, a marker's name, a date: one piece
 
 
 def _breakable(text: str) -> str:
@@ -160,6 +161,7 @@ def _cell(v, mono: bool, chips: bool, link: str | None = None,
         text = str(v)
     if text in NO_DATA:
         return ""
+    text = DIGIT_HYPHEN.sub("-⁠", text)  # a word joiner: "CA 15-3" never ends a line at "15-"
     if mono:
         tick = "``" if "`" in text else "`"
         return f"{tick}{text}{tick}"

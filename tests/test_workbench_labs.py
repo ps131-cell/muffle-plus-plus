@@ -329,6 +329,7 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     # it at 1280 px (the orchestrator's round 15 follow-up); app/theme.css wraps every cell
     tracker = next(t.value for t in at.table if "due by" in t.value.columns)  # due_by, shown
     assert "too late to confirm it" in tracker["detail"].iloc[0]
+    assert "CA 15-⁠3" in tracker["marker"].iloc[0]  # a word joiner: never "15-" over "3"
     sheet = (root / "app" / "theme.css").read_text(encoding="utf-8")
     assert '[data-testid="stTable"] [data-testid="stMarkdownContainer"] p' in sheet
     assert "overflow-wrap: anywhere" in sheet and "min-width: 4.5rem" not in sheet
