@@ -148,17 +148,21 @@ Page height in px (headless Chromium; main at dbf9d29, then this branch):
 
 | Screen | 1280 px | 800 px |
 |---|---|---|
-| SYNTHETIC-001 · labs | 5,952 → LABS1 | 7,921 → LABS8 |
-| SYNTHETIC-001 · ctDNA | 5,193 → CT1 | 6,773 → CT8 |
-| Case 299 · genomics | 5,569 → GEN1 | 7,415 → GEN8 |
-| Case 299 · omics | 5,588 → OM1 | 7,574 → OM8 |
-| Case 299 · documents | 5,324 → DOC1 | 7,101 → DOC8 |
-| Case 299 · Evolution | 2,943 → EVO1 | 3,869 → EVO8 |
-| SYNTHETIC-001 · Import tests | 1,741 → IMP1 | 2,252 → IMP8 |
-| Feedback (no marks yet) | 1,008 → FB1 | 1,260 → FB8 |
-| Methods and validation | 16,544 → MET1 | 23,372 → MET8 |
-| Case 299 · slides (not changed) | 6,110 → SL1 | 8,643 → SL8 |
-| Case 563 · radiology (not changed) | 5,249 → RAD1 | 6,867 → RAD8 |
+| SYNTHETIC-001 · labs | 5,952 → 5,928 | 7,921 → 7,897 |
+| SYNTHETIC-001 · ctDNA | 5,193 → 5,160 | 6,773 → 6,740 |
+| Case 299 · genomics | 5,569 → 5,432 | 7,415 → 7,238 |
+| Case 299 · omics | 5,588 → 5,525 | 7,574 → 7,512 |
+| Case 299 · documents | 5,324 → 5,373 | 7,101 → 7,415 |
+| Case 299 · Evolution | 2,943 → 3,203 | 3,869 → 4,170 |
+| SYNTHETIC-001 · Import tests | 1,741 → 1,741 | 2,252 → 2,252 |
+| Feedback (no marks yet) | 1,008 → 1,012 | 1,260 → 1,262 |
+| Methods and validation | 16,544 → 16,613 | 23,372 → 24,034 |
+| Case 299 · slides (not changed) | 6,110 → 6,110 | 8,643 → 8,643 |
+| Case 563 · radiology (not changed) | 5,249 → 5,249 | 6,867 → 6,867 |
+| Feedback with two marks | 1,916 → 1,881 | 2,251 → 2,245 |
+
+The reports (Case 299 4,781 / 7,764, SYNTHETIC-001 4,100 / 6,119) and the Timeline (3,362 /
+4,053), whose charts take the theme, kept their heights.
 
 Where a page grew, it is a static table showing text the grid had cut; a first try that put a
 13-column lab history in `st.table` wrapped its rows four lines deep, hence the column limit.
