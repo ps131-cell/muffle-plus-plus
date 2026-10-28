@@ -299,7 +299,10 @@ def compare(pf, i: int, data, open_evidence) -> tuple[int, int] | None:
                 st.markdown("\n".join(
                     f"- {GLYPH[s['status']]} " + {
                         "added": esc(s["after"]), "removed": f"~~{esc(s['before'])}~~",
-                        "changed": changed(s["before"], s["after"])}[s["status"]]
+                        # whole sentences: a note's own "37% → 88%" would read as part
+                        # of a word-level redline
+                        "changed": "~~{}~~  \n  {}".format(esc(s["before"]), esc(s["after"])),
+                    }[s["status"]]
                     + f" {tags(s['evidence'])}" for s in d["note"]))
         if not rows:
             st.caption("No finding, test, queue item or note sentence differs between these two "
