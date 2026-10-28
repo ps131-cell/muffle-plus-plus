@@ -145,19 +145,27 @@
 [data-testid="stTable"]:has(thead th:nth-child(9)) :is(tbody td, tbody th, thead th) {
   padding-left: 0.3125rem; padding-right: 0.3125rem;
 }
-/* a narrow box (the 800 px page, or a half-width column at 1280 px): the same, long words
-   hyphenate where the browser can, and a header label may break inside a word as a last resort
-   (values never do; "anywhere" on a value let a squeezed column split 213 tiles into "21" over
-   "3"). After the rules above, which it overrides. */
+/* a narrow box (the 800 px page, or a half-width column at 1280 px): the same, smaller headers,
+   and long words hyphenate where the browser can. No word breaks anywhere else: letting any
+   word break made a squeezed column print 213 tiles as "21" over "3" and arc A1 as "A" over
+   "1". A table whose whole words still cannot fit scrolls inside its box, its first column held
+   in view; the page never scrolls sideways. After the rules above, which it overrides. */
 [data-testid="stTable"] { container-type: inline-size; }
 @container (max-width: 40rem) {
   [data-testid="stTable"] table { font-size: 0.75rem; hyphens: auto; }
-  [data-testid="stTable"] thead th,
-  [data-testid="stTable"] thead th [data-testid="stMarkdownContainer"],
-  [data-testid="stTable"] thead th [data-testid="stMarkdownContainer"] p { overflow-wrap: anywhere; }
   [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
   [data-testid="stTable"] thead th { padding-left: 0.3125rem; padding-right: 0.3125rem; }
-  [data-testid="stTable"] thead th { letter-spacing: 0.02em; }
+  [data-testid="stTable"] thead th { font-size: 0.625rem; letter-spacing: 0.02em; z-index: 2; }
+  [data-testid="stTable"] tr > :first-child {
+    position: sticky; left: 0; z-index: 1; background-color: #ffffff;
+  }
+  [data-testid="stTable"] thead tr > :first-child { z-index: 3; }
+  /* a shadow at the edge that has more to scroll to (the covers move with the content) */
+  [data-testid="stTable"] > div {
+    background:
+      linear-gradient(to left, #ffffff 40%, rgba(255, 255, 255, 0)) right / 1.5rem 100% no-repeat local,
+      linear-gradient(to left, rgba(14, 17, 23, 0.14), rgba(14, 17, 23, 0)) right / 0.5rem 100% no-repeat scroll;
+  }
 }
 
 /* --- number strips (workbenches._page.strip): label over a monospace value, hairline apart -- */

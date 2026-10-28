@@ -109,10 +109,10 @@ LONG = re.compile(r"\S{22,}")  # a token too long for a column: a DOI, a chain o
 
 
 def _breakable(text: str) -> str:
-    """A long token may break after / . : _ = ; or - (a zero-width space there), so a DOI does not
-    push its column wider than the table's box; links are left whole."""
+    """A long token may break after / . : _ = ; , or - (a zero-width space there), so a DOI or a
+    list of drugs does not push its column wider than the table's box; links are left whole."""
     return LONG.sub(lambda m: m.group(0) if "http" in m.group(0) or "](" in m.group(0)
-                    else re.sub(r"(?<=[/.:_=;-])", "​", m.group(0)), text)
+                    else re.sub(r"(?<=[/.:_=;,-])", "​", m.group(0)), text)
 
 
 def _chip_color(text: str, colors: dict | None = None) -> str | None:
