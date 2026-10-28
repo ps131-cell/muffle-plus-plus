@@ -542,7 +542,7 @@ def search_answer(found: dict | None) -> None:
     (st.caption if found.get("understood") else st.warning)(
         text + (f" The map colours every square that matches {rs.MIN_SCORE:.0%} or more "
                 "(model inference); Q1… mark the best spots, each with its slice or view."
-                if found.get("volume") is not None else ""))
+                if found.get("spots") else ""))
 
 
 def clear_search(key0: str) -> None:
@@ -703,7 +703,9 @@ def mri_map(pf: PatientFile, study: dict, key0: str, found: dict | None, changes
     pair = later_pair_folder(study, changes)
     m = slice_map(study["folder"], stamp(study), i, pair)
     picked = next((c for c in cands if c["id"] == focus), None)
-    matching = bool(found and found.get("volume") is not None and mem.get("match_on"))
+    # nothing reaching the cutoff colours nothing: the usual views stay (QA R4-8)
+    matching = bool(found and found.get("spots") and found.get("volume") is not None
+                    and mem.get("match_on"))
     view_modes = ("match",) if matching else tuple(rm.modes(m))
     lo = max(0, min(i - MAP_WINDOW, d["slices"] - 2 * MAP_WINDOW - 1))
     shown = list(range(lo, min(d["slices"], lo + 2 * MAP_WINDOW + 1)))
@@ -1006,9 +1008,10 @@ def map_png_button(row, key0: str, study: dict, m: rm.ScanMap, img: np.ndarray,
                    markers: list[dict], title: str, subtitle: str) -> None:
     """The map picture of one view at the shown slice or view, made when clicked."""
     views = rm.modes(m)
-    with row.popover("Download the map (PNG)", icon=":material/image:",
-                     help="A labelled picture of the map in one view at this slice or view, for "
-                          "a report or a tumor board"):
+    # no tooltip on the trigger: it stayed over the popover's own button (QA R4-2)
+    with row.popover("Download the map (PNG)", icon=":material/image:"):
+        st.caption("A labelled picture of the map in one view at this slice or view, for a "
+                   "report or a tumor board.")
         mode = st.selectbox("View", views, format_func=rm.MODES.get, key=f"{key0}-pngview")
         st.download_button(
             "Download the map (PNG)",
@@ -1595,7 +1598,8 @@ def mammo_map(pf: PatientFile, study: dict, key0: str, views: list[dict],
     m = view_map(study["folder"], stamp(study), vk)
     v = m.info["view"]
     img = window(_mammo(str(Path(study["folder"]) / v["image"])), level, width)
-    values = rs.values_for(found, m) if found and mem.get("match_on") else None
+    values = rs.values_for(found, m) if found and found.get("spots") and mem.get("match_on") \
+        else None
     markers = map_markers(study, m, found, [])[:MAX_MARKERS]
     view_modes = ("match",) if values is not None else tuple(rm.modes(m))
     sel = outline_index(mem, m)
