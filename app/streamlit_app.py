@@ -29,6 +29,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -203,9 +204,17 @@ def badge(status: str) -> str:
     return chip(status)
 
 
+THEME_CARRIER = ('[data-testid="stElementContainer"]:has(> [data-testid="stMarkdown"] style) '
+                 "{ display: none; }")
 st.set_page_config(page_title="MuFFLe++ · breast cancer intelligence", page_icon="🧬",
                    layout="wide")
-st.html(APP / "theme.css")  # what the theme in .streamlit/config.toml can't set (docs/ux.md §8)
+# What the theme in .streamlit/config.toml can't set (docs/ux.md §8), as a <style> in Markdown:
+# st.html's element is a script chunk of its own, so a first visit showed Streamlit's default
+# gutters for 1.5–4.6 s before the sheet applied (QA R4-4); Markdown draws with the first text.
+# The sheet's last rule hides the element that carries it, so it takes no space; its comments
+# (file paths and notes for us) stay out of the page.
+st.markdown("<style>" + re.sub(r"/\*.*?\*/", "", (APP / "theme.css").read_text(encoding="utf-8"),
+                               flags=re.S) + f"\n{THEME_CARRIER}</style>", unsafe_allow_html=True)
 DISCLAIMER = workspace.DISCLAIMER
 secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
@@ -1203,6 +1212,12 @@ def report_view(pf: workspace.PatientFile, i: int):
     arrived = v.event + ("" if v.month is None else f" (month {v.month})")
     st.markdown(f"**Summary** · {pf.diagnosis}. Latest in the record: {arrived}. "
                 f"{tags(OBSERVED)}  \n{v.summary} {tags(INFERENCE) if v.risk else ''}")
+    if i:  # what this version changed since the one before; the risk in it is a model inference
+        from muffle import version_diff
+        # markdown, not a caption: a caption fades its badges below AA contrast (QA R4-1)
+        st.markdown(esc(version_diff.version_delta_line(pf, i, partial(overview_data, pf)))
+                    + f" {tags(INFERENCE)} · Compare versions opens the whole difference on the "
+                      "Timeline.", help=version_diff.SNAPSHOT)
     ov = overview_data(pf, i)
     overview_header(pf, i, ov)
     cockpit(pf, i, ov, case)

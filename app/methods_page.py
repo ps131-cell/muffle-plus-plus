@@ -20,7 +20,7 @@ from workbenches import documents, omics
 from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
-from muffle import cohort, crosstest, feedback, literature, workspace
+from muffle import cohort, crosstest, feedback, literature, version_diff, workspace
 from muffle.overview import IMPACT_COLORS, LEVEL_COLORS
 from muffle.report import budget
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
@@ -98,7 +98,10 @@ CONTENTS = {
 
 
 def anchor(text: str) -> str:
-    """The id Streamlit gives a heading: lower case, spaces as hyphens, other signs dropped."""
+    """The id Streamlit gives a heading: words split at a case change too ("StarDist" ->
+    "star-dist", "ctDNA" -> "ct-dna", "MedSAM" -> "med-sam"), lower case, joined by hyphens,
+    other signs dropped (QA R4-6: three contents links led nowhere)."""
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", text)
     return re.sub(r"[^a-z0-9_-]+", "", "-".join(text.lower().split()))
 
 
@@ -131,8 +134,13 @@ def legend() -> None:
                     "Variant severity, Ensembl VEP's consequence table: " + " ".join(
                         chip(k.lower(), v) for k, v in IMPACT_COLORS.items())
                     + "  \nRisk: in a chart, red raises it and blue lowers it; a number's change, "
-                      "red up and green down. Variants, pointers, ids and amounts are set in "
-                      "monospace.")
+                      "red up and green down. The Timeline's report versions, by how the risk "
+                      "moved since the version before: " + " · ".join(
+                          chip(f"{sign} {words}", color) for color, sign, words in
+                          version_diff.SHIFTS.values())
+                    + f" ({version_diff.SPREAD}); the shift is a {INFERENCE}, a difference "
+                      "between two snapshots, not a trend. Variants, pointers, ids and amounts "
+                      "are set in monospace.")
 
 
 def records() -> list[dict]:
