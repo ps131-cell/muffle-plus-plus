@@ -33,6 +33,25 @@ NO_CALL = ("No BI-RADS assessment or diagnosis is made here; the BI-RADS categor
 
 # ---------------------------------------------------------------- map picture
 
+def _plain(text: str) -> str:
+    """Characters the picture's bitmap font has (it has no minus sign or ≤)."""
+    return text.replace("−", "-").replace("≤", "<=").replace("≥", ">=")
+
+
+def _wrap(text: str, font, width: float) -> list[str]:
+    """Words laid out in lines no wider than ``width`` pixels."""
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    lines, line = [], ""
+    for word in text.split():
+        trial = f"{line} {word}".strip()
+        if line and probe.textlength(trial, font=font) > width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    return lines + ([line] if line else [])
+
+
 def map_picture(img: np.ndarray, m: rm.ScanMap, mode: str, opacity: float = 0.55, *,
                 study: dict | None = None, values=None, markers=(), title: str = "",
                 subtitle: str = "", legend=None) -> Image.Image:
@@ -64,16 +83,18 @@ def map_picture(img: np.ndarray, m: rm.ScanMap, mode: str, opacity: float = 0.55
     for p in markers:
         x, y = p["c"] * k, p["r"] * k
         col = hex_rgb(p["color"])
+        text = _plain(p["label"])
         d.ellipse([x - 13, y - 13, x + 13, y + 13], outline=col, width=3)
-        tw = d.textlength(p["label"], font=font)
+        tw = d.textlength(text, font=font)
         d.rectangle([x + 16, y - 34, x + 24 + tw, y - 12], fill="white", outline=col, width=2)
-        d.text((x + 20, y - 33), p["label"], fill=col, font=font)
+        d.text((x + 20, y - 33), text, fill=col, font=font)
 
     pad, width = 28, max(pic.width + 56, 760)
     title_font, key_font, small = (_font(s) for s in (28, 19, 16))
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     rows, row, x = [], [], pad
     for text, color in legend if legend is not None else rm.legend_items(m, mode, study):
+        text = _plain(text)
         w = 24 + 8 + probe.textlength(text, font=key_font) + 28
         if row and x + w > width - pad:
             rows.append(row)
@@ -82,12 +103,13 @@ def map_picture(img: np.ndarray, m: rm.ScanMap, mode: str, opacity: float = 0.55
         x += w
     if row:
         rows.append(row)
-    header, key_h, footer = 92, 34 * len(rows) + 14, 64
+    foot = _wrap(_plain(f"{FOOTER} {NO_CALL} {date.today():%Y-%m-%d}."), small, width - 2 * pad)
+    header, key_h, footer = 92, 34 * len(rows) + 14, 24 * len(foot) + 18
     canvas = Image.new("RGB", (width, header + pic.height + key_h + footer), "white")
     c = ImageDraw.Draw(canvas)
-    c.text((pad, 20), f"{title}  ·  {rm.MODES.get(mode, mode)} view", fill=(20, 20, 20),
+    c.text((pad, 20), _plain(f"{title}  ·  {rm.MODES.get(mode, mode)} view"), fill=(20, 20, 20),
            font=title_font)
-    c.text((pad, 58), subtitle, fill=(90, 90, 90), font=small)
+    c.text((pad, 58), _plain(subtitle), fill=(90, 90, 90), font=small)
     canvas.paste(pic, (pad, header))
     y = header + pic.height + 12
     for row in rows:
@@ -96,9 +118,9 @@ def map_picture(img: np.ndarray, m: rm.ScanMap, mode: str, opacity: float = 0.55
                                 outline=(200, 200, 200))
             c.text((x + 32, y + 4), text, fill=(40, 40, 40), font=key_font)
         y += 34
-    c.text((pad, canvas.height - 54), FOOTER, fill=(90, 90, 90), font=small)
-    c.text((pad, canvas.height - 30), f"{NO_CALL} {date.today():%Y-%m-%d}.", fill=(90, 90, 90),
-           font=small)
+    for n, line in enumerate(foot):
+        c.text((pad, header + pic.height + key_h + 6 + 24 * n), line, fill=(90, 90, 90),
+               font=small)
     return canvas
 
 

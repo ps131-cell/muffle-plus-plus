@@ -287,11 +287,12 @@ def mammo_view(study: dict, view: dict, img: np.ndarray, position: int = 0,
     px = view["pixel_mm"]
     sq = square_px(px)
     out = rad.breast_outline(img)
-    breast = out["mask"]
-    edge = breast & ~ndimage.binary_erosion(breast, iterations=1)  # the outline, one pixel
+    breast = out["mask"]                         # the brightness mask: dark fat makes holes
+    whole = ndimage.binary_fill_holes(breast)    # the breast with its fat, for the map
+    edge = whole & ~ndimage.binary_erosion(whole, iterations=1)  # the outline, one pixel
     thr = rad.dense_fraction(np.where(breast, img, 0), background=0.5).get("threshold")
     dense = breast & (img > thr) if thr is not None else np.zeros_like(breast)
-    share_breast = square_shares(breast, sq)
+    share_breast = square_shares(whole, sq)
     share_dense = square_shares(dense, sq)
     sq_r, sq_c = np.nonzero(share_breast > 0)
     n = len(sq_r)
@@ -315,7 +316,7 @@ def mammo_view(study: dict, view: dict, img: np.ndarray, position: int = 0,
                    index=position, rows=h, cols=w, pixel_mm=px, square=sq, sq_r=sq_r,
                    sq_c=sq_c, wordings=wordings, word=np.zeros(n, np.int16),
                    numbers=numbers.astype(np.int32), cand=np.full(n, "", object),
-                   pix={"breast": breast, "dense": dense, "outline": edge},
+                   pix={"breast": whole, "dense": dense, "outline": edge},
                    info={"outline": out, "dense_share": share, "threshold": thr,
                          "monai": monai, "score": score, "view": view})
 
