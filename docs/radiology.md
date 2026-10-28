@@ -511,6 +511,14 @@ another patient and says so; the only BI-RADS category shown is the study's own 
 | Report (Markdown) | the study report | implemented |
 | Slide viewer one click away | not applicable (the copy is the map's image; the originals stay at TCIA) | not built |
 
+**Memory and speed.** Fresh servers, one headless walk of every imaging file's radiology page
+(cases 563, 937, 564, 537, 926 and SYNTHETIC-001's reports) after a slide page, so plotly is loaded
+on both sides as in use: main (1c07626) 435 MB at the first screen and 613 MB after the walk, this
+branch 436 and 616 MB. An MRI page took 4.3–5.4 s against 3.1–4.3 s with the Altair viewer (the
+window's first build); a window's figure is kept for reruns (three kept) and its slices' map data
+in a shared cache of 16. Each slice map stores its hover wordings once (an int16 index per square):
+storing them per square had cost about 50 MB over the same walk.
+
 **Where the Change view shows.** On the later study of a file that holds two dates (no bundled
 file does; the public example pair opened as a file on the workbench's standalone page), and in
 every MRI page's "Change over time on a public example pair" section, where the example's later

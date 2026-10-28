@@ -37,7 +37,6 @@ from dataclasses import dataclass, field
 import numpy as np
 from PIL import Image, ImageDraw
 
-from muffle.report.case_tools import INFERENCE
 from muffle.workbench import radiology as rad
 from muffle.workbench.tile_map import (
     MATCH_MIN,
@@ -1024,7 +1023,3 @@ def square_story(m: ScanMap, j: int, study: dict | None = None) -> dict:
         out["check"].append("a mass or non-mass enhancement the seed rule left out (deep, at the "
                             "chest wall, vessel-like or plate-like shapes are never proposed)")
     return out
-
-
-INFERENCE_NOTE = (f"Every colour is a {INFERENCE} or a rule on one; the image and the study's "
-                  "structured report are observed.")
