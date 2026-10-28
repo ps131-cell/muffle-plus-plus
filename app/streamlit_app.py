@@ -99,6 +99,7 @@ evolution_page = module("workbenches.evolution")
 genomics, labs, omics = (module(f"workbenches.{name}") for name in ("genomics", "labs", "omics"))
 from workbenches._page import dated_focus, land, line_and_action, strict  # noqa: E402
 
+import chart_theme  # noqa: E402 - the list's one chart, without Altair
 import guide  # noqa: E402
 import navigation as nav  # noqa: E402
 
@@ -589,12 +590,6 @@ def clear_filters():
             ss[key] = overview.LIST_DEFAULTS[part]
 
 
-@st.cache_data(show_spinner=False, max_entries=64)
-def band_spec(counts: tuple, shown: tuple) -> dict:
-    """The strip's risk-group histogram, built once per count (Altair loads on first use)."""
-    return charts.risk_bands(dict(counts), dict(shown)).to_dict()
-
-
 def cohort_strip(rows: list[dict], reviews: dict):
     """Above the list: the files and those with open SOS alerts, the TCGA files' risk groups
     (filled once the list is drawn: the chart library loads after the first screen), the
@@ -731,10 +726,9 @@ def patient_list():
         "one version. ★ = a saved case note.")
     write_list_address()
     counts = Counter(r["band"] for r in rows if r["band"] in ("low", "medium", "high"))
-    if counts:  # after the table: the chart library loads once the list is on screen
+    if counts:  # a plain Vega-Lite dict: the list's first screen never imports Altair
         kept = Counter(r["band"] for r in shown if r["band"] in counts)
-        slot.vega_lite_chart(spec=band_spec(tuple(sorted(counts.items())),
-                                            tuple(sorted(kept.items()))), width="stretch",
+        slot.vega_lite_chart(spec=chart_theme.risk_bands(counts, kept), width="stretch",
                              alt="TCGA files by risk group: " + ", ".join(
                                  f"{g} {counts[g]} ({kept.get(g, 0)} in the list now)"
                                  for g in ("low", "medium", "high") if g in counts))

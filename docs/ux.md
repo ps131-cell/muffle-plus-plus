@@ -238,8 +238,9 @@ bound to the address would put the icon into `?view` and break every link. An ad
   files (§2).
 - **Patients page as a worklist (2026-10-28):** under Start here, the tour and Search every
   file, a cohort strip of four small cards (files and open SOS alerts; the TCGA files' risk
-  groups as a histogram, model inference, drawn after the table so the chart library never
-  delays the list; the three simulated hospitals; the release), then the filters in three
+  groups as a histogram, model inference, written as a plain Vega-Lite dict in the app's chart
+  theme (`app/chart_theme.py`) so the first screen never imports Altair; the three simulated
+  hospitals; the release), then the filters in three
   lines that wrap (search and Open SOS alerts only; Risk, Tests present as letters, Pinned only
   and a "Subtype, gene, stage" popover that counts what it holds; Sort by, Reverse, "12 of 41
   files", Clear filters), then the table, 15 rows high before it scrolls. Column order puts the
