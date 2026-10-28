@@ -21,15 +21,25 @@ login). It holds 40 held-out TCGA-BRCA patients, each assigned to one of three *
 hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 
 ## What is in the app
-- **Patients:** search by patient, gene, subtype, stage or workbench; filters by subtype, gene,
-  stage, open alerts and what the file holds; a four-step walk-through on the first visit and a
-  "?" guide on every screen.
-- **Patient file:** finding cards from every workbench with **Why?** and **Open**; one attention
-  queue (alerts, tests that disagree, every workbench's look-here items) with keyboard triage and
-  review marks; risk with its model and uncertainty; mutations with CIViC evidence for clinician
-  review; a one-page export. Breadcrumbs and a sticky patient header; the address
-  (`?patient`, `?view`, `?test`, `?pointer`, `?version`) reopens the same screen and finding
-  ([`docs/ux.md`](docs/ux.md)).
+- **Patients:** a **Start here** card (the longitudinal example SYNTHETIC-001, and Case 299 with
+  its own slide and sequencing); pinned and recently opened files; search by patient, gene,
+  subtype, stage or workbench; filters by subtype, gene, stage, open alerts and what the file
+  holds; **Search every file**, a plain-words search across every file's findings (cards,
+  attention items, variants, documented facts, hypotheses) that opens the finding; a four-step
+  walk-through on the first visit and a "?" guide on every screen.
+- **Patient file:** an action row on every view (Attention queue, Import a test, Compare
+  versions, Export this report, Your marks, Pin this file, Methods and validation, How to read
+  this); finding cards from every workbench with **Why?** and an **Open** that names where it
+  lands; one attention queue (alerts, tests that disagree, every workbench's look-here items)
+  with keyboard triage, review marks and a **Next step** line; risk with its model and
+  uncertainty; mutations with CIViC evidence for clinician review; **Where this patient sits**
+  (percentiles among the 40 TCGA files) and **Similar patients** (the five nearest TCGA files on
+  eight recorded and derived fields), both lookups over what the files hold, not a model
+  ([`docs/cohort.md`](docs/cohort.md)); a one-page export. **Tests** opens on a launcher: a tile
+  per test with what it holds and its look-here count, a dated series as one tile with a pill
+  per month. Breadcrumbs name the open workbench ("Tests › Labs › CA 15-3, month 11") under a
+  sticky patient header; the address (`?patient`, `?view`, `?test`, `?pointer`, `?version`)
+  reopens the same screen and finding ([`docs/ux.md`](docs/ux.md)).
 - **Case note:** Nemotron 3 Super plans and calls our tools, Nemotron 3 Ultra writes, a
   plain-code grounding check verifies every number, gene and link (TCGA files).
 - **Timeline** ([`docs/timeline.md`](docs/timeline.md)): every test, treatment, alert and report
@@ -217,8 +227,17 @@ Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 28):
 - [x] Encoder comparison on held-out BCSS slides ([`docs/encoders.md`](docs/encoders.md)):
       GigaPath-Flash 0.919 against QuiltNet-B-32 0.877; the eight sections re-scored with it
       (2026-10-27, [`docs/pathology.md`](docs/pathology.md) §9)
-- [x] QA round 2 in headless Chrome: 334 screens, 29 findings, the minor ones left listed
-      ([`docs/qa.md`](docs/qa.md))
+- [x] QA round 2 in headless Chrome: 334 screens, 29 findings; the last minor ones fixed on
+      2026-10-27 ([`docs/qa.md`](docs/qa.md))
+- [x] Every function one click away (2026-10-27): the Tests launcher, the file's action row and
+      Next step line, cards whose Open names its destination, Start here and pinned files, a
+      tooltip on every control, the breadcrumb naming the open workbench, a how-to line on
+      every workbench
+- [x] Search across every file, similar patients and cohort position, as lookups
+      ([`docs/cohort.md`](docs/cohort.md))
+- [x] Performance pass ([`docs/qa.md`](docs/qa.md)): each workbench's summary and queue computed
+      once per file and version; a report shown again costs under 0.6 ms instead of 45–267 ms,
+      the 114-screen walk runs 5% faster, memory unchanged (about 700 MB after all 41 files)
 - [ ] Video (`docs/video.md`); Devpost form (`docs/submission.md`); submit by Oct 30, 10:00 am PT
 
 Beyond the hackathon ([`docs/VISION.md`](docs/VISION.md)): review by pathologists and

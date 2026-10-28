@@ -3,8 +3,10 @@
 The final text for the Devpost form, in the form's order: the project's fields, the story
 (Inspiration → What's next), Built with, the links, then the hackathon's own questions (how
 NVIDIA and Nebius are used, feedback, testing, data and licenses, prior work). Final numbers pass
-2026-10-27 against `main` after #134: every figure is listed with its source in the **Numbers**
-appendix, and the **Submission checklist** at the end is what is left to fill on Oct 29.
+2026-10-27, brought up to `main` at 9eab7b0 the same evening (the slide re-score, the Tests
+launcher and action row, cohort search, the performance pass): every figure is listed with its
+source in the **Numbers** appendix, and the **Submission checklist** at the end is what is left
+to fill on Oct 29.
 
 | Field | Value |
 |---|---|
@@ -49,28 +51,40 @@ recurrence, tumor sequencing (PIK3CA H1047R), CDK4/6 therapy, a liver progressio
 The other 40 files are real, public TCGA-BRCA patients the risk model never trained on, each
 assigned to one of three **simulated** hospitals.
 
-**Patients.** Search by patient, gene (PIK3CA), subtype, stage or workbench; filter by PAM50
-subtype, mutated gene, stage, open alerts and what the file holds (slides, imaging, documents).
-A four-step walk-through on the first visit and a "?" guide on every screen say how to read it;
-breadcrumbs and a sticky patient header say where you are, and the address
-(`?patient&view&test&pointer&version`) reopens the same screen on the same finding, so a link
-lands on the evidence.
+**Patients.** A **Start here** card opens the longitudinal example (SYNTHETIC-001) or a case
+with its own slide and sequencing (Case 299); pinned and recently opened files sit above the
+list. Search by patient, gene (PIK3CA), subtype, stage or workbench; filter by PAM50 subtype,
+mutated gene, stage, open alerts and what the file holds (slides, imaging, documents). **Search
+every file** looks through every file's findings at once (cards, attention items, variants,
+documented facts, methylation calls, hypotheses) in plain words, such as "HER2 disagree" or
+"stage III PIK3CA", and opens the finding; it is a text lookup, not a model. A four-step
+walk-through on the first visit, a "?" guide and a tooltip on every control say how to read it;
+breadcrumbs name the open workbench ("Tests › Labs › CA 15-3, month 11") under a sticky patient
+header, and the address (`?patient&view&test&pointer&version`) reopens the same screen on the
+same finding, so a link lands on the evidence.
 
 **The patient file.** It opens on finding cards from every workbench (receptors recorded and
 documented side by side, PAM50 subtype, drivers with their best CIViC level, the slide picture,
 imaging lesions, the risk, the top evolution hypothesis). Each card has **Why?** (source test,
-method and version, threshold source, trust) and **Open**, which lands on the evidence inside
-its workbench. One attention queue gathers alerts, tests that disagree (seven cross-test rules,
-such as ERBB2 copy number against HER2 status, each with its cited basis) and every workbench's
-"look here" items, ordered by consequence × trust, with keyboard triage and review marks. Every
+method and version, threshold source, trust) and an **Open** that names where it lands
+("Open · Sequencing, month 0") inside its workbench. One attention queue gathers alerts, tests
+that disagree (seven cross-test rules, such as ERBB2 copy number against HER2 status, each with
+its cited basis) and every workbench's "look here" items, ordered by consequence × trust, with
+keyboard triage, review marks and a **Next step** line. An action row on every view holds what a
+file can do: Attention queue, Import a test, Compare versions, Export this report, Your marks,
+Pin this file, Methods and validation, How to read this. **Where this patient sits** places the
+patient's scores among the 40 TCGA files, and **Similar patients** lists the five nearest TCGA
+files on eight recorded and derived fields (equal weights, marked placeholder): lookups over
+what the files hold, never a prognosis. **Tests** opens on a launcher, a tile per test with what
+it holds and its look-here count (a dated series is one tile with a pill per month). Every
 report exports as one page.
 
 **Eight workbenches**, each with its own viewer, measurements, look-here queue, quality checks,
 "what this test cannot see", a model and validation card, and export:
 - **Pathology** (five TCGA cases, eight of their own diagnostic sections): a pan-and-zoom viewer
   on the patient's slide; a tissue map from a breast tissue head trained on BCSS on a frozen
-  open encoder (GigaPath-Flash; tiles unlike its training tissue are not scored); the invasive front, its zones and the direction of invasion per
-  arc (a hypothesis about the section); StarDist nuclei, breakaway (budding) candidates in the
+  open encoder (GigaPath-Flash; tiles unlike its training tissue are not scored); the invasive
+  front, its zones and the direction of invasion per arc (a hypothesis about the section); StarDist nuclei, breakaway (budding) candidates in the
   ITBCC counting field and lymphocytes by TILs zone; a second opinion on lymphocytes from the
   WSInfer TIL model, whose disagreements with the head go to the queue. Seven tile encoders were
   compared with the same head on the same held-out slides (accuracy: GigaPath-Flash 0.919,
@@ -172,7 +186,11 @@ nor the output of a model trained on it, which includes SYNTHETIC-001's risk sco
   measured against TCGA's clinical fields; a page model reads scans to text. Evolution: a
   hand-curated table with PubMed-checked citations and ClinicalTrials.gov API v2.
 - **App:** Streamlit and Altair on Streamlit Community Cloud, from a small release bundle (model
-  weights and 40 held-out cases' processed inputs) plus the slide tiles on a second release.
+  weights and 40 held-out cases' processed inputs) plus the slide tiles on a second release. The
+  41 files are built once per bundle, and each workbench's summary and queue once per file and
+  version (a report shown again costs under 0.6 ms instead of 45–267 ms; whole screens about 5%
+  faster; memory unchanged, about 700 MB after a walk through all 41 files). Search across the
+  files is a plain index of their findings, built on the first search.
 
 **Models and their licenses.** Used in the app (open licenses, results precomputed offline):
 GigaPath-Flash (Apache-2.0), StarDist 2D_versatile_he (BSD-3-Clause), WSInfer TIL InceptionV4 (CC BY
@@ -199,9 +217,18 @@ Every dataset, model and service, with its license and what leaves the machine:
   limit, the planner stopped before the literature step. Fixes: the grounding check with one
   rewrite, Super writing the note when Ultra is cut off, one reminder turn.
 - **Pathology without a GPU.** Whole-slide encoders run at a fraction of a tile per second on a
-  CPU. We scored the slides' regions of interest with a small open encoder, kept the viewer's
-  tiles on a release (661 MB that never enter the repository) and wrote down every cutoff
-  carried over from colon tissue as a placeholder.
+  CPU. We scored the slides' regions of interest with a small open encoder (QuiltNet-B-32 first,
+  then GigaPath-Flash, Prov-GigaPath distilled to a ViT-S/16), kept the viewer's tiles on a
+  release (661 MB that never enter the repository) and wrote down every cutoff carried over from
+  colon tissue as a placeholder.
+- **A better encoder brought a new failure.** GigaPath-Flash raised the tissue head from 87.7%
+  to 91.9% on the held-out slides, but on one section it read cautery-crushed margin tissue, a
+  class neither head was trained on, as carcinoma. Tiles unlike anything the head was trained on
+  are now left unscored (a cutoff calibrated on the training slides, flagging 0.3% of held-out
+  tiles), and what that rule misses is a stated known failure on that section's page. The
+  re-score also found that three sections scored through a window had been read from the wrong
+  part of the slide (tissue 3–5 mm away, or glass) while the viewer drew them over the right
+  part; they are now read at their place.
 - **Licenses that change the design.** The strongest pathology encoders are CC BY-NC-ND; we kept
   them local only and built on MIT and Apache-2.0 models. AlphaMissense's table header and its
   README disagree; we follow the licensor's current statement and ship only the 21 scores we use.
@@ -362,20 +389,23 @@ Each item: what happened, why it mattered, and a suggestion.
 - Open the demo URL; no login. If Streamlit has put the app to sleep, click to wake it (about a
   minute). A four-step walk-through opens on the first visit (**Skip the tour** closes it); the
   "?" on every screen explains it.
-- **Patients** is the home page. Search **PIK3CA**, or switch on **Open SOS alerts only**; click a
-  row to open a file. The address reopens what is on screen: `?patient=<id>&view=<view>`, plus
-  `&test=`, `&pointer=` and `&version=` inside a file.
-- **Case 299** (`?patient=Case%20299`): the overview cards (click **Why?**), the attention queue
-  (J / K to move, M to mark reviewed, O to open), and the saved case note (**Show the saved
-  note**). In **Tests**, select the pathology slide to open the slide viewer (the first open of a
-  section downloads its tiles), or the mutation panel for the genomics workbench.
-- **Case 937** (`?patient=Case%20937&view=Tests`): the expression row for PAM50, pathways and
-  methylation; the imaging row for the MRI viewer and the public example pair.
-- **Case 563** (`?patient=Case%20563&view=Tests`): the pathology report row for the rules' facts
-  and the named-entity model beside them.
-- **SYNTHETIC-001** (`?patient=SYNTHETIC-001`): synthetic. In **Tests**, the CA 15-3 lab and the
-  synthetic ctDNA monitor; **Evolution** for what to watch next and trials; **Timeline**: click
-  any point to open the file as it was then, and compare two versions.
+- **Patients** is the home page. **Start here** opens the two files that show the most. Search
+  **PIK3CA**, or switch on **Open SOS alerts only**; click a row to open a file. **Search every
+  file** finds findings across all files ("HER2 disagree", "stage III PIK3CA"). The address
+  reopens what is on screen: `?patient=<id>&view=<view>`, plus `&test=`, `&pointer=` and
+  `&version=` inside a file.
+- **Case 299** (`?patient=Case%20299`): the overview cards (click **Why?**, or **Open ·** to land
+  on the evidence), the attention queue (J / K to move, M to mark reviewed, O to open), the saved
+  case note (**Show the saved note**), and **Similar patients** further down. In **Tests**, the
+  slide tile's **Open** opens the slide viewer (the first open of a section downloads its
+  tiles), and the mutation panel tile's opens the genomics workbench.
+- **Case 937** (`?patient=Case%20937&view=Tests`): the RNA-seq tile for PAM50, pathways and
+  methylation; the breast MRI tile for the MRI viewer and the public example pair.
+- **Case 563** (`?patient=Case%20563&view=Tests`): the pathology report tile for the rules'
+  facts and the named-entity model beside them.
+- **SYNTHETIC-001** (`?patient=SYNTHETIC-001`): synthetic. In **Tests**, the CA 15-3 tile (a pill
+  per month) and the synthetic ctDNA monitor; **Evolution** for what to watch next and trials;
+  **Timeline**: click any point to open the file as it was then, and compare two versions.
 - **Methods and validation** (`/methods`) and **Feedback** (`/feedback`, after marking a finding)
   need no input.
 - Locally: `make setup`, then `.venv/bin/streamlit run app/streamlit_app.py`; it downloads the
@@ -468,7 +498,7 @@ quantities name each. If a source changes, change the figure everywhere it is qu
 | "Unlike training tissue" quality rule (slides) | cutoff **0.507**, mean cosine distance to the 5 nearest of the head's 1,052 training tiles; calibrated leave-one-slide-out (99th percentile); flags 1 of the 357 held-out tiles (0.3%) | the head's 8 training and 3 held-out BCSS slides | `docs/pathology.md` §9; decisions 2026-10-27 |
 | Encoder comparison (same head, same held-out slides) | GigaPath-Flash **0.919** (balanced 0.917) against QuiltNet-B-32 **0.877** (0.854): +4.2 points, 95% interval +0.3 to +8.1; Hibou-B 0.880, Hibou-L 0.810; local only: CONCH 0.896, UNI2-h 0.838, GPFM 0.863 | 357 held-out tiles (correlated) | `docs/encoders.md`; decisions 2026-10-22 |
 | WSInfer TIL second opinion, lymphocytes vs rest | **AUROC 0.955**; cutoff **0.667**, calibrated on the 8 training slides (Youden's J; training AUROC 0.971) and applied unchanged: recall 97%, specificity 79%, accuracy 83% | the head's 3 held-out BCSS slides (357 tiles); the model was trained on TCGA, so an upper bound, not an independent validation | `docs/pathology.md` §8; decisions 2026-10-21 |
-| Second opinion on Case 299's section | disagrees with the head on 43 of 1,500 scored tiles (3%) | front-band and peritumoral tiles | the slide workbench (video shot 5) |
+| Second opinion on Case 299's section | disagrees with the head on 52 of 1,980 scored tiles (3%); 43 of 1,500 before the GigaPath-Flash re-score | front-band and peritumoral tiles of the re-scored map | `docs/pathology.md` §9; the slide workbench, Details › Cells (video shot 5, walked 2026-10-27 on 9eab7b0) |
 | WSInfer screening check | tumor vs rest AUROC 0.921, lymphocytes vs rest 0.980 | 516 BCSS-labelled tiles from 11 TCGA-BRCA slides | `docs/model_access.md` |
 
 **Clinical documents** (481 held-out TCGA-BRCA reports against TCGA's clinical fields; precision
@@ -512,7 +542,16 @@ a report states (receptors are often in an earlier biopsy report not in the data
 |---|---|---|---|
 | Saved notes | 9, all written by Nemotron 3 Ultra after Super's tool calls, 0 grounding issues; 9,401–23,474 tokens each | release `demo-bundle-v2` | `app/saved_notes.json`; decisions 2026-10-18 |
 | Spend | about $0.01 a note at 8k–16k tokens (decisions 2026-10-18); the local ledger reads $0.82 of the $25.50 cap (125 calls, its last entry 2026-10-19; $0.48 of it recorded by hand for calls made outside this code). The hosted app's live notes count on its own ledger | Token Factory | the local ledger `~/.muffle/token_factory_spend.json`; the cap in `src/muffle/report/budget.py` |
-| QA round 2 | 334 screens (330 before the fixes) of seven files at 1280 and 800 px, light and dark, in headless Chromium; 29 findings; open and minor: R2-15, R2-16, R2-18 and a 28 px overflow of the MRI at 800 px | 2026-10-22 | `docs/qa.md` |
+| QA round 2 | 334 screens (330 before the fixes) of seven files at 1280 and 800 px, light and dark, in headless Chromium; 29 findings; R2-15, R2-16, R2-18 and the MRI's overflow at 800 px fixed on 2026-10-27 (#136) | 2026-10-22 | `docs/qa.md` |
+| Performance pass | a report shown again: 0.27–0.56 ms instead of 45–267 ms (SYNTHETIC-001, Cases 299 and 926); the 114-screen AppTest walk 81.3 s → 76.9 s (5% faster, median screen 0.47 → 0.43 s); memory after all 41 files 720 → 699–710 MB | AppTest walks in WSL at load average 11–15, medians over four alternating pairs; every element of all 114 screens identical before and after | `docs/qa.md` (Performance pass, 2026-10-27) |
+
+**Across the files** (lookups, not models; `docs/cohort.md`)
+
+| Figure | Value | Measured on | Source |
+|---|---|---|---|
+| Similar patients | the 5 nearest TCGA files on 8 fields (PAM50 subtype, stage, receptor status, mutated drivers, copy-number calls, risk group, RNA immune band, tests on file), equal weights marked placeholder | the 40 TCGA files; the synthetic patient is never a candidate and its MSK-CHORD risk never compared | `docs/cohort.md`; decisions 2026-10-27 |
+| Where this patient sits | percentiles among the 40 TCGA files for risk, mutation burden and five expression and protein scores | as above | `docs/cohort.md` |
+| Search every file, "HER2 disagree" | 5 files whose HER2 IHC and ERBB2 RNA or copy number disagree | the release bundle's 41 files | `docs/cohort.md`; video shot 2 (walked 2026-10-27) |
 
 ## Submission checklist (fill on Oct 29)
 
