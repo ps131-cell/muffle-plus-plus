@@ -29,7 +29,7 @@ another session.
 - Commit style: `<area>: <change>`; areas data/model/fl/eval/app/infra/docs.
 - Merging: squash-merge your own PR once CI is green if it stays within the agreed plan. Ask
   first for PRs that change reported numbers or the pitch, touch submission material (README,
-  Devpost text, video), make the repo public, or land after the Oct 28 freeze.
+  Devpost text, video), make the repo public, or land after the Oct 29 10:00 CDT freeze.
 - Never commit `data/`, `outputs/`, `workspaces/`, any `.csv/.npz/.pt`, or `.env`. The repo will
   be public.
 - Never print or log API keys; read them from `.env` via environment variables.
