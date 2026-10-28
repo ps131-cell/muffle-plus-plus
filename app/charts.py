@@ -133,8 +133,8 @@ MARKS = {"version": ("circle", 150), "test": ("circle", 60), "treatment": ("tria
 VERSION_SHIFTS = {"up": ("▲ risk up", "triangle-up", RED),
                   "down": ("▼ risk down", "triangle-down", "#137a33")}
 VERSION_OTHER = ("● risk within spread", "circle", "#8a8f98")
-LANE_HEIGHT = 28  # px a lane: compact, the version markers still apart
-LEGEND_ROW = 18  # px a row of the two-column legend
+LANE_HEIGHT = 24  # px a lane: compact, the version markers still apart
+LEGEND_ROW = 12  # px more per row of the two-column legend (measured at 800 and 1280 px)
 
 
 def event_lanes(data: dict, viewing: int, pair: tuple[int, int] | None = None) -> alt.LayerChart:
@@ -207,10 +207,11 @@ def event_lanes(data: dict, viewing: int, pair: tuple[int, int] | None = None) -
                                color="#0e1117"),
                ring.mark_text(align="right", baseline="bottom", dx=-7, dy=-7, fontSize=10,
                               fontWeight="bold", color="#0e1117").encode(text="tag:N")]
-    # Streamlit fits the whole chart, month axis and legend included, into this height: with +50
-    # a two- or three-lane TCGA file got lanes 8 px apart, labels overprinted
+    # Streamlit fits the whole chart, month axis (two-line title) and legend included, into this
+    # height, about 145 px of it not lanes: with less a three-lane TCGA file got lanes 13 px
+    # apart, labels overprinted
     return alt.layer(*layers, points).properties(
-        height=LANE_HEIGHT * len(data["lanes"]) + 92 + LEGEND_ROW * -(-len(keys) // 2)
+        height=LANE_HEIGHT * len(data["lanes"]) + 145 + LEGEND_ROW * -(-len(keys) // 2)
     ).configure_axis(**GRID)
 
 

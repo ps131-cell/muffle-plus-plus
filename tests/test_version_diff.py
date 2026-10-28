@@ -158,6 +158,9 @@ def test_inline_shows_only_the_words_that_changed():
     long = vd.inline("word " * 30 + "old end", "word " * 30 + "new end")
     assert long[0][0] == "same" and long[0][1].startswith("… ") and len(long[0][1]) < 50
     assert [s for s in long if s[0] != "same"] == [("del", "old"), ("ins", "new")]
+    assert vd.similarity("CA 15-3 34 U/mL", "CA 15-3 34 U/mL") == 1.0
+    assert vd.similarity("Risk 62% → 46% (-15 points): progression history -15.",
+                         "Risk 46% → 60% (+14 points): month-24 model takes over +24.") < 0.6
 
 
 def test_a_queue_item_rekeyed_by_a_newer_specimen_is_one_item_not_two():

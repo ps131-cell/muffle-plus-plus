@@ -63,6 +63,8 @@ def changed(before, after) -> str:
     words that changed, the old struck through and the new in bold (``version_diff.inline``)."""
     if len(str(before)) <= SHORT and len(str(after)) <= SHORT:
         return f"{mono(before)} → {mono(after)}"
+    if vd.similarity(str(before), str(after)) < 0.6:  # mostly rewritten: both whole
+        return f"~~{esc(before)}~~ → {esc(after)}"
     out, prev = [], None
     for kind, text in vd.inline(str(before), str(after)):
         core = text.strip()
@@ -95,8 +97,7 @@ def open_compare(pf, i: int) -> None:
     """The file's "Compare versions": the Timeline, comparing version ``i`` with the one before
     (the latest and the previous, unless an older version is open)."""
     st.session_state.view = "Timeline"
-    if i:
-        st.session_state[compare_key(pf, i)] = (i - 1, i)
+    st.session_state.pop(compare_key(pf, i), None)  # the slider opens on its default pair
 
 
 def banner(pf, i: int) -> None:
@@ -228,10 +229,10 @@ def compare(pf, i: int, data, open_evidence) -> tuple[int, int] | None:
         st.caption("One report version so far: nothing earlier to compare with. Each import "
                    "adds a version, and what it changed appears here.")
         return None
-    key = compare_key(pf, i)
-    st.session_state.setdefault(key, (i - 1, i))
+    # value= makes it a range slider: Streamlit reads one end, not two, without it
     a, b = st.select_slider(
-        "Versions compared", options=range(i + 1), key=key, format_func=partial(option, pf),
+        "Versions compared", options=range(i + 1), value=(i - 1, i), key=compare_key(pf, i),
+        format_func=partial(option, pf),
         help="Drag either end to compare any two report versions so far; the change between "
              "them is listed below. Version v1 is the first; later versions are not in it "
              "while an older one is open.")

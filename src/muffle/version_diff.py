@@ -182,6 +182,13 @@ def sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE.split(text or "") if s.strip()]
 
 
+def similarity(before: str, after: str) -> float:
+    """How much of two texts is the same, word by word (0 to 1): below about 0.6 a word-level
+    diff reads worse than the two texts whole."""
+    x, y = re.findall(r"\S+|\s+", before or ""), re.findall(r"\S+|\s+", after or "")
+    return difflib.SequenceMatcher(a=x, b=y, autojunk=False).ratio()
+
+
 def inline(before: str, after: str, keep: int = 36) -> list[tuple[str, str]]:
     """A word-level diff of two texts as segments ("same" | "del" | "ins", text), for showing
     only what changed inside a long finding; an unchanged run longer than ``2 * keep`` characters
