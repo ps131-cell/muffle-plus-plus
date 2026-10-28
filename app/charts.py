@@ -138,7 +138,9 @@ def event_lanes(data: dict, viewing: int) -> alt.LayerChart:
     pts = pd.DataFrame(data["points"])
     pts["alpha"] = np.where(pts["version"] > viewing, 0.3, 1.0)
     lo, hi = pts["x"].min() - 1, pts["x"].max() + 1
-    x = alt.X("x:Q", title=data["axis"], scale=alt.Scale(domain=[lo, hi], nice=False))
+    head, _, tail = data["axis"].partition(" (")  # two lines: one is cut at 800 px (QA R3-9)
+    x = alt.X("x:Q", title=[head, f"({tail}"] if tail else head,
+              scale=alt.Scale(domain=[lo, hi], nice=False))
     y = alt.Y("lane:N", title=None, scale=alt.Scale(domain=data["lanes"]),
               axis=alt.Axis(labelLimit=200, labelOverlap=False))
     node = alt.selection_point(name="node", fields=["version"], on="click")

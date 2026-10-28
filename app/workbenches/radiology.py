@@ -226,13 +226,23 @@ def viewer_chart(img: Image.Image, cands: list[dict], i: int, show_box: bool, sh
         strokeWidth=0)
 
 
+def load(uptime: str | None) -> str:
+    """A run's machine load from its recorded ``uptime`` line ("load average 18.77, 18.38,
+    15.07"), not the raw line with its clock and users (QA R3-19)."""
+    if not uptime:
+        return "load not recorded"
+    return f"load average {uptime.split('load average:')[-1].strip()}"
+
+
 def kinetics_chart(c: dict) -> alt.Chart:
     k = c["kinetics"]
     df = pd.DataFrame({"phase": k["labels"], "order": range(len(k["labels"])),
                        "enhancement (% over pre-contrast)": k["relative"]})
     line = alt.Chart(df).mark_line(point=True, color=HEX.get(c["id"], "#888")).encode(
-        x=alt.X("phase:N", sort=list(df["phase"]), title=None),
-        y=alt.Y("enhancement (% over pre-contrast):Q"),
+        # labels on the slant and a short title: upright labels and the column's name as title
+        # left the plot a few px tall and the title cut (QA R3-10)
+        x=alt.X("phase:N", sort=list(df["phase"]), title=None, axis=alt.Axis(labelAngle=-35)),
+        y=alt.Y("enhancement (% over pre-contrast):Q", title="% over pre-contrast"),
         tooltip=["phase:N", "enhancement (% over pre-contrast):Q"])
     rules = alt.Chart(pd.DataFrame({"y": [rad.CUTOFFS["initial_slow_below"][0],
                                           rad.CUTOFFS["initial_fast_above"][0]],
@@ -583,7 +593,9 @@ def spot(pf: PatientFile, study: dict, c: dict, changes: dict | None = None) -> 
     chips(IMPLEMENTED, INFERENCE, "literature, placeholder until calibrated")
     k, d, seed = c["kinetics"], study["display"], c["seed"]
     plane = c.get("ld_plane", "axial")
-    a, b = st.columns([3, 2])
+    # the words, then the curve and the mark: in a 2-of-5 column the curve's axis and the mark's
+    # options were cut at 800 px (QA R3-10)
+    a, b = st.container(), st.container()
     with a:
         st.markdown(
             f"**Size** (model inference, from MedSAM's contour): longest diameter "
@@ -627,10 +639,11 @@ def spot(pf: PatientFile, study: dict, c: dict, changes: dict | None = None) -> 
             "than modality-wise specialist models. **Not validated on breast MRI here**; this "
             "checkpoint (uploaded May 2023) may predate the paper's final model. "
             f"{m.get('seconds_per_slice', '?')} CPU seconds per slice here ({m.get('threads')} "
-            f"threads; {m.get('uptime', '')}).")
+            f"threads; {load(m.get('uptime'))}).")
     with b:
-        st.altair_chart(kinetics_chart(c), width="stretch")
-        st.caption(f"Phase times: {study['phases'][1]['time_source']}.")
+        with st.container(width=VIEW_PX):
+            st.altair_chart(kinetics_chart(c), width="stretch")
+            st.caption(f"Phase times: {study['phases'][1]['time_source']}.")
         key = finding_key(pf, "imaging", study["barcode"], study["study"]["date"], c["id"])
         review(key, f"{study['barcode']} {study['study']['date']} {c['id']}: "
                     f"{c['longest_diameter_mm']:g} mm, {k.get('delayed')} (model inference)")
@@ -927,7 +940,7 @@ def screening_text(score: dict) -> str:
             "cancer (BI-RADS 6) without its side, so the score cannot be checked against the "
             "record here and adds nothing to a known diagnosis. Not validated here; "
             f"{score['how']}; {score['seconds_inference']:.0f} CPU seconds ({score['threads']} "
-            f"threads; {score['uptime'].split('load average:')[-1].strip()} load).")
+            f"threads; {load(score.get('uptime'))}).")
 
 
 def view_density(study: dict, view: dict) -> str:
@@ -1155,7 +1168,7 @@ def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
                                    "in the record: nothing to check the score against"),
                 ("Reproducibility", f"{score['model']} revision {score['revision']}; "
                                     f"{score['seconds_inference']:.0f} CPU seconds, "
-                                    f"{score['threads']} threads; {score['uptime']}"),
+                                    f"{score['threads']} threads; {load(score.get('uptime'))}"),
             ], columns=["field", "what it records"]), hide_index=True, width="stretch")
         else:
             st.markdown(screening_text(score))
@@ -1174,8 +1187,9 @@ def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[
             cannot: list[tuple]) -> None:
     q = st.text_input("Search this test in plain words",
                       key=f"rad-search-{pf.id}-{study['barcode'] if study else 'reports'}",
-                      placeholder="washout · largest · C2 · mutation" if study else
-                                  "liver · progression · month 12 · lesion size")
+                      placeholder="liver · progression · month 12 · lesion size" if not study
+                      else "washout · largest · C2 · mutation" if cands else  # a mammogram:
+                      "mutation · lymph node · change over time")  # no lesion candidates
     if q:
         hit = rad.search(q, reads, cands, cannot)
         (st.markdown if hit["understood"] else st.warning)(hit["answer"])

@@ -547,8 +547,8 @@ def cohort_search():
     with st.container(border=True, key="cohort-search-box"):
         query = st.text_input(
             "Search every file", key="cohort-search",
-            placeholder="Search every file's findings: ESR1 methylated, HER2 disagree, breakaway, "
-                        "washout, level A, basal, stage III PIK3CA",
+            placeholder="Search every file's findings: GSTP1 methylated, HER2 disagree, breakaway, "
+                        "plateau, level A, basal, stage III PIK3CA",  # each finds a file (QA R3-12)
             help="Every word must be in one finding of a file (else, said so, across its "
                  "findings), at a word's start: 'basal' finds Basal-like, 'methylated' not "
                  "unmethylated. 'level A', 'stage III', 'grade 3', 'ER positive' and 'ESR1 "
@@ -836,7 +836,7 @@ def apply_link(pf: workspace.PatientFile, link: dict, last: int) -> tuple | None
     comes with ?view, bound to its control). Returns the test, if the file has it."""
     ss = st.session_state
     version = link.get("version") or ""
-    if version.isdigit() and 0 < int(version) <= last:
+    if version.isdigit() and int(version) <= last:  # 0 too: the first version (QA R3-17)
         ss[f"version-{pf.id}"] = int(version)
     elif link.get("version") is None and last:
         ss[f"version-{pf.id}"] = last
@@ -946,7 +946,9 @@ def report_view(pf: workspace.PatientFile, i: int):
     for t in seq:
         st.markdown(f"- {t.name}" + ("" if t.month is None else f", month {t.month}")
                     + f": {esc(t.result)}")
-    variants = [var for t in seq for var in t.details["variants"]]
+    # once each: a variant found again by a later test (the example MAF's PIK3CA H1047R in
+    # SYNTHETIC-001) drew its CIViC block twice, with the same mark keys (QA R3-16)
+    variants = list(dict.fromkeys(var for t in seq for var in t.details["variants"]))
     quiet = [var for var in variants if civic_items(pf, var) == []]
     for var in variants:
         if var not in quiet:
@@ -1356,11 +1358,17 @@ def case_charts(index: int, source: str) -> tuple[dict, dict, dict]:
             charts.contributions(named).to_dict(), named)
 
 
+CHART_WIDTH = 380  # px: the risk charts side by side at 1280 px, stacked at 800 px (QA R3-7)
+
+
 def case_why(case):
     position, drivers, named = case_charts(case.index, SOURCE)
-    left, right = st.columns(2)
+    with st.container(horizontal=True, gap="medium", key="case-why"):  # wraps when narrow
+        left, right = (st.container(width=CHART_WIDTH) for _ in range(2))
     with left:
-        st.markdown(f"**Where this patient sits among all patients** {tags(INFERENCE)}")
+        # not "Where this patient sits", the cohort lookup's heading above (QA R3-5)
+        st.markdown(f"**This patient's risk among all {len(demo.cohort_risks):,} patients** "
+                    f"{tags(INFERENCE)}")
         st.vega_lite_chart(spec=position, width="stretch",
                            alt=f"This patient's predicted risk against all "
                                f"{len(demo.cohort_risks):,} patients: the "
@@ -1539,9 +1547,11 @@ def tests_view(pf: workspace.PatientFile, i: int):
                 icon="🧪")
         return None
     picked = st.session_state.get(f"picked-{pf.id}")  # the last test opened here or from an alert
-    t = next((t for t in shown if (t.kind, t.month, t.name) == picked), None) or next(
-        (t for w in ("labs", "mutations", "omics", "record") for t in shown if t.workbench == w),
-        shown[0])
+    t = next((t for t in shown if (t.kind, t.month, t.name) == picked), None)
+    if t is None:  # the first workbench's test, the latest of its series (its Spot panel's value)
+        t = next((t for w in ("labs", "mutations", "omics", "record") for t in shown
+                  if t.workbench == w), shown[0])
+        t = [s for s in shown if (s.kind, s.name) == (t.kind, t.name)][-1]
     launcher(pf, i, shown, t)
     all_tests(pf, i, shown, kinds)
     st.session_state["_test_shown"] = nav.test_id(t)
@@ -1734,6 +1744,18 @@ def import_view(pf: workspace.PatientFile, i: int):
 
 
 # --- Methods and validation ------------------------------------------------------------------
+def back_to_file():
+    """Methods or Feedback opened from a file: a link back to the screen left (the browser's
+    Back returns to the patient list, since Streamlit drops the address's parameters; QA R3-14)."""
+    pid, test, pointer, version = st.session_state.get("_link") or (None,) * 4
+    if pid in FILES:
+        q = {"patient": pid, "view": "Tests" if test else "Report", "test": test,
+             "pointer": pointer, "version": version}
+        st.page_link(PATIENTS, label=f"Back to {pid}", icon=":material/arrow_back:",
+                     query_params={k: v for k, v in q.items() if v is not None},
+                     help=f"Back to {pid}, the file open before this page")
+
+
 def methods():
     import methods_page  # a card per model and rule, every known failure and placeholder
 
@@ -1741,6 +1763,7 @@ def methods():
         st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
         st.markdown(nav.SEP, width="content")
         st.markdown("**Methods and validation**", width="content")
+        back_to_file()
         st.space("stretch")
         guide.help_icon("methods")
     safely("The Methods and validation page", methods_page.render, demo, TL, results())
@@ -1768,6 +1791,7 @@ def feedback_view():
         st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
         st.markdown(nav.SEP, width="content")
         st.markdown("**Feedback**", width="content")
+        back_to_file()
         st.space("stretch")
         guide.help_icon("feedback")
     safely("The Feedback page", feedback_page.render, FILES, CODE_DIGEST[:12], open_finding,

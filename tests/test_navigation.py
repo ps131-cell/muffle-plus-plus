@@ -30,9 +30,9 @@ def test_breadcrumbs_and_the_patient_header(app):
     # the sticky header: the patient, the open SOS count, the views
     assert f"**{SYN}**" in shown(at) and ":red-badge[SOS: 7 open]" in shown(at)
     at.segmented_control(key="view").set_value("Tests").run()
-    at.session_state[f"picked-{SYN}"] = ("Lab", 24, "CA 15-3")
-    at.run()
+    # no test picked yet: the latest of the series, the value its Spot panel opens on (QA R3-1)
     assert "Tests › Labs › **CA 15-3, month 24**" in texts(at) and not at.exception
+    assert at.selectbox(key=f"{SYN}_spot").value.startswith("L7 · month 24")
     at.segmented_control(key="view").set_value("Timeline").run()
     assert "Timeline" in texts(at)
     at.button(key="crumb-patients").click().run()  # back to the list
@@ -41,6 +41,23 @@ def test_breadcrumbs_and_the_patient_header(app):
     at._page_hash = pages["methods"]
     at.run()
     assert "**Methods and validation**" in texts(at) and not at.exception
+    assert not [p for p in at.get("page_link") if p.label.startswith("Back to")]  # no file open
+
+
+def test_methods_and_feedback_lead_back_to_the_file_left(app):
+    """QA R3-14: the browser's Back from Methods or Feedback lands on the patient list (Streamlit
+    drops the address's parameters), so both pages link back to the file's screen."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    at.segmented_control(key="view").set_value("Tests").run()
+    pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
+    for name in ("methods", "feedback"):
+        at._page_hash = pages[name]
+        at.run()
+        back = [p for p in at.get("page_link") if p.label == f"Back to {SYN}"]
+        assert len(back) == 1 and not at.exception, name
+        assert back[0].proto.query_string.startswith(
+            "patient=SYNTHETIC-001&view=Tests&test=Lab%7C24%7CCA+15-3"), back[0].proto.query_string
 
 
 def test_the_sticky_header_takes_the_themes_own_background(app):
@@ -108,6 +125,11 @@ def test_a_deep_link_reopens_the_screen_with_the_pointer(app):
                              "pointer": "Z9", "version": "999"})
     odd.run()
     assert not odd.exception and "Blood and lab workbench" in shown(odd)
+    # the first version is 0, and the app writes ?version=0 for it: a link reopens it (R3-17)
+    first = app.new()
+    first.query_params.update({"patient": SYN, "view": "Report", "version": "0"})
+    first.run()
+    assert not first.exception and first.select_slider(key=f"version-{SYN}").value == 0
 
 
 def test_a_dated_test_opens_on_its_own_value(app):

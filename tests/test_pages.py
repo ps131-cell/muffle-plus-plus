@@ -97,3 +97,25 @@ with p.overview():
     pass
 """, default_timeout=60).run()
     assert at.exception and "breaks the page order" in at.exception[0].message
+
+
+def test_the_imaging_search_suggests_what_the_page_can_answer():
+    """QA R3-2: a mammogram page has no lesion candidates, so its search box doesn't suggest
+    the MRI's "washout · largest · C2"; reports alone suggest reads and sites."""
+    at = page("""
+from workbenches import radiology
+from muffle.workbench import radiology as rad
+for study, cands in ((None, []), ({"barcode": "mg"}, []), ({"barcode": "mr"}, [{"id": "C1"}])):
+    radiology._search(SYN, study, [], cands, rad.CANNOT_SEE)
+""")
+    assert [t.placeholder for t in at.text_input] == [
+        "liver · progression · month 12 · lesion size", "mutation · lymph node · change over time",
+        "washout · largest · C2 · mutation"]
+
+
+def test_the_receptor_table_has_no_empty_cells():
+    """QA R3-6: HER2 by ERBB2 copy number is a rule, so it has no AUC and no cutoff; the
+    Methods page's receptor table says so instead of showing "None"."""
+    at = page("from workbenches import omics\nomics.methods_card()")
+    df = next(d.value for d in at.dataframe if "AUC" in d.value.columns)
+    assert not df.isna().any().any() and "— (a rule)" in set(df["Cutoff (cohort percentile)"])
