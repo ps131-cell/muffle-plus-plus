@@ -651,6 +651,20 @@ def _documented(facts: list[dict]) -> dict:
     return out
 
 
+def _tcga_receptors(pf: PatientFile) -> dict:
+    """A TCGA file's recorded status (TCGA clinical data: IHC, HER2 per ASCO/CAP with ISH; the
+    report's "Stage and receptors" card) as hormone-receptor and HER2 status, by the documents'
+    rule: HR positive when ER or PR is, negative when both are. Empty for other files (QA R3-15:
+    the view said "not recorded" beside a report showing it)."""
+    from muffle.workbench import omics  # here: omics loads the model's helpers
+
+    rec = (omics.case_scores(pf) or {}).get("receptors", {})
+    pos = {k: {"positive": True, "negative": False}.get(
+        str((rec.get(k) or {}).get("status")).lower()) for k in ("ER", "PR", "HER2")}
+    hr = True if pos["ER"] or pos["PR"] else False if pos["ER"] is pos["PR"] is False else None
+    return {k: v for k, v in (("HR", hr), ("HER2", pos["HER2"])) if v is not None}
+
+
 def _docs(ids) -> str:
     return ("document " if len(ids) == 1 else "documents ") + ", ".join(ids)
 
@@ -711,6 +725,9 @@ def context(pf: PatientFile, version: int | None = None) -> dict:
     dx = dict(vs[-1].observed).get("Diagnosis", "") + " " + pf.diagnosis
     record = {"HR": _receptor(dx, "HR", "hormone[- ]receptor"),
               "HER2": _receptor(dx, "HER2", "HER2")}
+    for k, v in _tcga_receptors(pf).items():  # the record's IHC and ISH, as the report shows them
+        if record[k] is None:
+            record[k] = v
     said = _documented(documents.facts(documents.file_documents(pf, i)))
     receptors, receptor_from, receptor_notes = _receptor_status(record, said)
     drivers = {}
