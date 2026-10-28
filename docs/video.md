@@ -73,7 +73,8 @@ list was checked again and is unchanged):
       Streamlit dashboard after the freeze and woken. The sidebar's **About this system** is open
       by default, a table: check the rows **Held-out C-index 0.728** (release `demo-bundle-v2`;
       0.730 means a local rebuild: record the hosted app, or start a local one with `--bundle`)
-      and **Case agent live** (a local server without a key reads "saved notes only"). Then fold
+      and **Case agent saved notes only** (the hosted app keeps no Token Factory key; shot 4
+      shows the saved note). Then fold
       it (it is long: Reviewer initials sit below it). Never show the secrets page, `.env` or a
       terminal.
 - [ ] **Sidebar:** open for shot 1 (it shows Patients, Methods and validation, Feedback), then

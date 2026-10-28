@@ -20,6 +20,35 @@ risk model is trained across simulated hospitals with **NVIDIA FLARE**.
 login). It holds 40 held-out TCGA-BRCA patients, each assigned to one of three **simulated**
 hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 
+## For reviewers: a five-minute path
+If the app was asleep, the first load can take a minute (Streamlit wakes it); after that each
+link below opens its screen directly, in the order of the demo video.
+
+1. [Patients](https://cancer-intelligence-platform.streamlit.app/): the worklist. Look at the
+   cohort strip (41 files, risk groups, the three simulated hospitals with their held-out
+   C-indexes), then type PIK3CA in the search box (12 of 41 files).
+2. [Case 299, the report](https://cancer-intelligence-platform.streamlit.app/?patient=Case%20299&view=Report):
+   the cockpit (risk model, driver mutations with their CIViC ladder, what to look at next) and
+   one attention queue; hover a finding for its source, press J and O to walk the queue.
+3. [Case 299, its slide map](https://cancer-intelligence-platform.streamlit.app/?patient=Case%20299&view=Tests&test=Pathology%20slide%7C%7CDiagnostic%20H%26E%20section%28s%29%20%28GDC%2C%20open%20access%29&pointer=T1):
+   the patient's own H&E section with the tissue map on top; switch the view buttons (Tissue,
+   Zones, Risk), search "lymphocytes at the border", then Zoom to the cells.
+4. [Case 299, genomics](https://cancer-intelligence-platform.streamlit.app/?patient=Case%20299&view=Tests&test=Mutation%20panel%7C%7CSomatic%20mutations%2C%2016%20breast%20cancer%20drivers%20%28exome%20sequencing%29):
+   each variant's evidence on its own rung (detected, interpreted, predicted), the copy-number
+   landscape and the pathway map.
+5. [Case 937, the breast MRI scan map](https://cancer-intelligence-platform.streamlit.app/?patient=Case%20937&view=Tests&test=Imaging%7C%7CBreast%20MRI%20%28dynamic%20contrast-enhanced%29%2C%20public%20TCIA%20study%20%282000-08-24%29&pointer=C1):
+   MedSAM contours on the study's own image; switch Lesion, Kinetics and Enhancement and step
+   through the slices.
+6. [SYNTHETIC-001, CA 15-3](https://cancer-intelligence-platform.streamlit.app/?patient=SYNTHETIC-001&view=Tests&test=Lab%7C11%7CCA%2015-3&pointer=L4):
+   a synthetic patient; the marker's rise at month 11, unconfirmed until a second specimen
+   (the EGTM rule).
+7. [SYNTHETIC-001, the Timeline at month 12](https://cancer-intelligence-platform.streamlit.app/?patient=SYNTHETIC-001&view=Timeline&version=11):
+   the file as it stood at month 12 and the version diff: the risk jumps from 37% to 88%, beyond
+   the five models' spread, and the findings that changed are listed.
+8. [Methods and validation](https://cancer-intelligence-platform.streamlit.app/methods): a card
+   per model with its evidence category and known failures, the federated training across
+   simulated hospitals (NVIDIA FLARE), and every placeholder in one table.
+
 ## What is in the app
 - **Patients:** a **Start here** card (the longitudinal example SYNTHETIC-001, and Case 299 with
   its own slide and sequencing); pinned and recently opened files; search by patient, gene,
@@ -136,9 +165,11 @@ make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene 
   literature step), 900 tokens per planner turn, 4,096 for Ultra (its reasoning counts) and 3
   Tavily queries. If Ultra fails or is cut off, Super writes the note. Every call goes through
   a hard $25.50 spending cap (`src/muffle/report/budget.py`). Only derived numbers and gene
-  names are sent, never raw omics. The demo shows each step live, the grounding result and the
-  tool trace. Without `NEBIUS_API_KEY` the same tools run in a fixed order and a template writes
-  the note. Try one TCGA case from the terminal (after `make tcga` and `make fl-tcga`):
+  names are sent, never raw omics. With a key, the app shows each step live, the grounding
+  result and the tool trace. The hosted app keeps no key (its spend ledger would reset on every
+  reboot) and serves the nine notes the agent wrote on Token Factory ("Case agent: saved notes
+  only" in the sidebar); a local run with `NEBIUS_API_KEY` in `.env` writes live notes. Without a
+  key the same tools run in a fixed order and a template writes the note. Try one TCGA case from the terminal (after `make tcga` and `make fl-tcga`):
   `make agent-tcga PATIENT=0`.
   In the app, every note names its models and Token Factory, and the Methods page's case-note
   card shows how a note is made and checked.
