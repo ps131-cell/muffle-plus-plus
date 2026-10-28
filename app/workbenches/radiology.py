@@ -319,11 +319,16 @@ def cine(study: dict, c: dict | None, i: int, level: int, width: int) -> bytes:
 
 
 # --- the scan map (muffle.workbench.radiology_map: the slide map's approach, for a scan) ---------
-MAP_CAPTION = ("The study's own images with the models' results on top. Switch views and fade the "
-               "colour layer with the controls inside the map (the zoom stays, and so does it "
-               "when the slice changes), scroll to zoom, drag to move, hover a square for its "
-               "numbers and click one for its full story in the Spot panel below. Every colour "
-               "is a model inference or a rule on one.")
+MAP_CAPTION = ("The study's own images with the models' results on top. Switch views, fade the "
+               "colour layer and step through the nearby slices with the controls inside the map "
+               "(the zoom stays), scroll to zoom, drag to move, hover a square for its numbers "
+               "and click one for its full story in the Spot panel below. Every colour is a "
+               "model inference or a rule on one.")
+MAP_CAPTION_MG = ("The study's own mammogram, one view at a time, with the models' results on top. "
+                  "Fade the colour layer with the slider inside the map (the zoom stays), scroll "
+                  "to zoom, drag to move, hover a square for its numbers and click one for its "
+                  "full story in the Spot panel below. Every colour is a model inference or a "
+                  "rule on one.")
 MAX_MARKERS = 8
 MAP_WINDOW = 7  # slices on each side of the chosen one that the map carries (about 0.9 MB)
 SEARCH_COLOR = "#2468c0"
@@ -1656,7 +1661,7 @@ def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
         found = scan_search(pf, study, key0, None)
     order = {"R-CC": 0, "L-CC": 1, "R-MLO": 2, "L-MLO": 3}
     views = sorted(study["views"], key=lambda v: order.get(v["key"], 9))
-    with page.picture("Scan map", caption=MAP_CAPTION):
+    with page.picture("Scan map", caption=MAP_CAPTION_MG):
         chips(IMPLEMENTED, INFERENCE, "placeholder")
         vk, level, width, m = mammo_map(pf, study, key0, views, found)
     with page.details("The four views side by side", len(views)):
