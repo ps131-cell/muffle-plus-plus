@@ -262,7 +262,7 @@ def search(index: list[dict], query: str, labels=()) -> dict:
         found = [h for h in hits if h]
         if found:
             span = max(h.end() for h in found) - min(h.start() for h in found)
-            named = all(p.search(e["what"]) for p, h in zip(pats, hits) if h)
+            named = all(p.search(e["what"]) for p, h in zip(pats, hits, strict=True) if h)
             by.setdefault(e["patient"], []).append((len(found), span, e, named))
     full = {pid: [h for h in hs if h[0] == len(ts)] for pid, hs in by.items()}
     full = {pid: hs for pid, hs in full.items() if hs}
