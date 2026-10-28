@@ -1052,7 +1052,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
         # "Open R1 in the Spot panel" at 800 px (as the Spot panel's label, QA R3-11)
         with st.container(horizontal=True, gap="medium"):
             r1 = st.container(width=SPOT_PICTURES)
-            r2 = st.container(width=SPOT_WORDS)
+            r2 = st.container(width=2 * RISK_CARD + 20)  # two cards: beside the table at 1280 px
         with r1:
             st.dataframe(pd.DataFrame(res["risk"]["table"]), hide_index=True, width="stretch")
             st.caption(f"Level 2 at {CUTOFFS_INV['risk_level_2'][0]} points, level 3 at "
