@@ -20,7 +20,9 @@ from pathlib import Path
 
 import pandas as pd
 
-URL = "https://civicdb.org/downloads/nightly/nightly-ClinicalEvidenceSummaries.tsv"
+from muffle import prefetch
+
+URL ="https://civicdb.org/downloads/nightly/nightly-ClinicalEvidenceSummaries.tsv"
 CACHE = Path("data/raw/civic/nightly-ClinicalEvidenceSummaries.tsv")
 LEVELS = {"A": "validated association", "B": "clinical evidence", "C": "case study",
           "D": "preclinical", "E": "inferential"}
@@ -31,6 +33,7 @@ GENE_LEVEL = ("Mutation", "Oncogenic Mutation")
 def load_table(path: str = str(CACHE), download: bool = True) -> pd.DataFrame | None:
     """Accepted Predictive evidence items, or None if not cached and ``download`` is False."""
     p = Path(path)
+    prefetch.wait(p)  # the app may have started it while its libraries imported
     if not p.exists():
         if not download:
             return None

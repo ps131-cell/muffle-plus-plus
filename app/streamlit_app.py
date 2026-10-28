@@ -30,7 +30,6 @@ import json
 import logging
 import os
 import sys
-import tempfile
 import threading
 from collections import Counter
 from datetime import datetime
@@ -43,6 +42,22 @@ if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-instal
 
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
+
+from muffle import prefetch  # noqa: E402
+from muffle.lazy import module  # noqa: E402
+from muffle.report import civic  # noqa: E402
+
+REPO = "https://github.com/ps131-cell/muffle-plus-plus"
+BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
+BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
+# The hosted setup (no bundle given, no checkpoint here: load() below) starts in a fresh container
+# without the release bundle or CIViC's table: fetch both while torch and the app's modules
+# import, not one after the other before the patient list (docs/qa.md, "Cold-start pass")
+if not (os.getenv("MUFFLE_BUNDLE") or any(a.startswith("--bundle") for a in sys.argv)
+        or Path("outputs/tcga_fedavg.pt").exists()):
+    prefetch.start(BUNDLE_URL, prefetch.bundle_path(BUNDLE_URL))
+    prefetch.start(civic.URL, civic.CACHE)
+
 import torch  # noqa: E402
 
 # The app scores one patient at a time; torch's thread pool only adds contention on a shared
@@ -64,10 +79,11 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:  # every module of 
     st.cache_data.clear()
     sys._muffle_code_digest = CODE_DIGEST
 
-import charts  # noqa: E402
-import timeline_page  # noqa: E402
-from workbenches import evolution as evolution_page  # noqa: E402
-from workbenches import genomics, labs, omics  # noqa: E402
+# The chart and workbench page modules (and Altair with them) load on first use: the patient
+# list draws no chart. The app's last lines load them in the background once it is drawn.
+charts, timeline_page = module("charts"), module("timeline_page")
+evolution_page = module("workbenches.evolution")
+genomics, labs, omics = (module(f"workbenches.{name}") for name in ("genomics", "labs", "omics"))
 from workbenches._page import dated_focus, land, line_and_action, strict  # noqa: E402
 
 import guide  # noqa: E402
@@ -83,7 +99,6 @@ from muffle.demo import (  # noqa: E402
 )
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
-from muffle.report import civic  # noqa: E402
 from muffle.report.evidence_chain import note_chain  # noqa: E402
 from muffle.workbench.radiology import load_index  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
@@ -99,10 +114,7 @@ from muffle.workbench.documents import case_documents  # noqa: E402
 from muffle.workbench.grammar import WORKBENCHES as WORKBENCH_NAMES  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
 
-REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 LOG = logging.getLogger("muffle.app")
-BUNDLE_RELEASE = "demo-bundle-v2"  # bump once the next release exists (scripts/make_demo_bundle.py)
-BUNDLE_URL = f"{REPO}/releases/download/{BUNDLE_RELEASE}/demo_bundle.pt"
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
                "methylation": "Methylation", "protein": "Protein"}
 PLANNED_WORKBENCHES: dict[str, str] = {}  # workbench -> what it will show, for planned ones
@@ -126,11 +138,8 @@ def load(ckpt: str, data: str, n_clients: int, config: str | None, cancer: str, 
         demo = build_demo(ckpt, data, n_clients, config, cancer)
     else:
         source = bundle or BUNDLE_URL
-        if source.startswith("https://"):
-            # one file per URL, so a new release isn't masked by the previous release's file
-            name = f"muffle_bundle_{hashlib.sha1(source.encode()).hexdigest()[:12]}.pt"
-            source = fetch_bundle(source, Path(tempfile.gettempdir()) / name,
-                                  os.getenv("GITHUB_TOKEN"))
+        if source.startswith("https://"):  # one file per URL (prefetch.bundle_path)
+            source = fetch_bundle(source, prefetch.bundle_path(source), os.getenv("GITHUB_TOKEN"))
         demo = load_bundle(source)
     if Path(notes).exists():
         demo.notes = {int(k): v for k, v in json.loads(Path(notes).read_text()).items()}
@@ -1810,8 +1819,10 @@ if LIVE:
                          text=f"Live notes left this session: {notes_left} of {CAP}")
 session_marks(marks_slot)
 
-# scipy (the slide maths, the omics immune picture) is not needed for the first screen: it loads
-# once that screen is drawn, while the reader looks at it, so the first file need not wait for it
+# The chart and workbench page modules (Altair), then scipy (the slide maths, the omics immune
+# picture) are not needed for the first screen: they load once that screen is drawn, while the
+# reader looks at it, so the first file need not wait for them
 if "scipy.spatial" not in sys.modules:
-    threading.Thread(target=lambda: (__import__("scipy.ndimage"), __import__("scipy.spatial")),
-                     daemon=True).start()
+    threading.Thread(target=lambda: [__import__(m) for m in (
+        "charts", "timeline_page", "workbenches.labs", "workbenches.genomics", "workbenches.omics",
+        "workbenches.evolution", "scipy.ndimage", "scipy.spatial")], daemon=True).start()

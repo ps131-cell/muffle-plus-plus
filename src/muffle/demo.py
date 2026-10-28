@@ -25,6 +25,7 @@ import torch
 from muffle.config import DATA_DEFAULTS
 from muffle.data.dataset import MultiOmicDataset, feature_names, split_positions
 from muffle.data.partition import split_indices
+from muffle import prefetch
 from muffle.explain import cohort_offsets, risk_group, risk_percentile
 from muffle.models import MuffleNet
 from muffle.report import civic
@@ -244,6 +245,7 @@ def fetch_bundle(url: str, dest: str | Path, token: str | None = None) -> Path:
     """Download a bundle once (kept at ``dest``). A GitHub release asset of a private repo needs a
     token with read access to the repo's contents; a public one needs none."""
     dest = Path(dest)
+    prefetch.wait(dest)  # the app may have started it while its libraries imported
     if dest.exists():
         return dest
     m = RELEASE_URL.fullmatch(url)
