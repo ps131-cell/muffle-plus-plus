@@ -582,7 +582,8 @@ def tile_story(t, classes: list[str], meta: dict, data: tile_map.MapData | None)
 
 
 SPOT_PICTURES = 260  # px: the Spot panel's crop and neighbourhood pictures
-SPOT_WORDS = 600  # px: beside the pictures at 1280 px, under them at 800 px (QA R3-11)
+SPOT_WORDS = 520  # px: beside the pictures at 1280 px (as wide as the old 2/3 column), under
+# them at 800 px (QA R3-11)
 
 
 def zoom_to_cells(k: str, slide: str, r: int, c: int) -> None:
