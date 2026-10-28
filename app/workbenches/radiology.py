@@ -58,6 +58,7 @@ from muffle.workbench import radiology as rad  # noqa: E402
 from muffle.workbench import radiology_export as rx  # noqa: E402
 from muffle.workbench import radiology_map as rm  # noqa: E402
 from muffle.workbench import radiology_search as rs  # noqa: E402
+from muffle.workbench import tile_map  # noqa: E402
 from muffle.workbench.grammar import chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 from workbenches._page import Page, land, queue_items  # noqa: E402
@@ -430,12 +431,14 @@ _fig_lock = threading.Lock()
 def figure_once(shape: tuple, build):
     """The map's figure for one state of the map (study, slice or view, series, window,
     views, search, outline, zoom, pointers): a click elsewhere on the page reruns it without
-    rebuilding the figure. A few figures only."""
+    rebuilding the figure. A few figures only, each kept as its plain dict
+    (``tile_map.frozen``)."""
     with _fig_lock:
         if shape not in _figures:
             if len(_figures) >= 3:
                 _figures.pop(next(iter(_figures)))
-            _figures[shape] = build()
+            fig, first = build()
+            _figures[shape] = tile_map.frozen(fig), first
         return _figures[shape]
 
 

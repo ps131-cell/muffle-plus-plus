@@ -440,12 +440,13 @@ _fig_lock = threading.Lock()
 def figure_once(shape: tuple, build):
     """The map's figure for one state of the map (section, views, highlight, selection, zoom,
     pointers): a click elsewhere on the page reruns it without rebuilding the figure (0.2–0.5 s).
-    A few figures only: each holds its section's arrays."""
+    A few figures only, each kept as its plain dict (``tile_map.frozen``)."""
     with _fig_lock:
         if shape not in _figures:
             if len(_figures) >= 6:
                 _figures.pop(next(iter(_figures)))
-            _figures[shape] = build()
+            fig, first_hover = build()
+            _figures[shape] = tile_map.frozen(fig), first_hover
         return _figures[shape]
 
 
