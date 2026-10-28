@@ -127,16 +127,38 @@ def survival_by_group(km: dict[str, tuple[np.ndarray, np.ndarray, int]]) -> alt.
 
 TONES = {"from the record": BLUE, "imported in this session": ORANGE, "SOS alert": RED}
 MARKS = {"version": ("circle", 150), "test": ("circle", 60), "treatment": ("triangle-right", 70),
-         "alert": ("triangle-down", 120)}
+         "alert": ("diamond", 110)}
+# a report version's marker by how the risk moved since the one before
+# (muffle.version_diff.SHIFTS): shape and colour both say it, the hover says it in words
+VERSION_SHIFTS = {"up": ("▲ risk up", "triangle-up", RED),
+                  "down": ("▼ risk down", "triangle-down", "#137a33")}
+VERSION_OTHER = ("● risk within spread", "circle", "#8a8f98")
+LANE_HEIGHT = 28  # px a lane: compact, the version markers still apart
+LEGEND_ROW = 18  # px a row of the two-column legend
 
 
-def event_lanes(data: dict, viewing: int) -> alt.LayerChart:
+def event_lanes(data: dict, viewing: int, pair: tuple[int, int] | None = None) -> alt.LayerChart:
     """The record in lanes on one month axis (``muffle.timeline_view.lanes``): report versions on
-    top, tests, treatment starts and their bars, SOS alerts in red on the lane of the test that
-    raised them. Points after version ``viewing`` are faded behind a rule at its month. A click
+    top, each marked by how the risk moved since the one before (VERSION_SHIFTS), the latest
+    ringed; then tests, treatment starts and their bars, SOS alerts as red diamonds on the lane
+    of the test that raised them. Points after version ``viewing`` are faded behind a rule at its
+    month; the span between the versions of ``pair`` (the two compared) is shaded. A click
     selects a point's report version (the selection "node")."""
     pts = pd.DataFrame(data["points"])
     pts["alpha"] = np.where(pts["version"] > viewing, 0.3, 1.0)
+    is_version = pts["mark"] == "version"
+    shifts = pts["shift"] if "shift" in pts else pd.Series("none", index=pts.index)
+    look = [VERSION_SHIFTS.get(s, VERSION_OTHER) if v else None
+            for v, s in zip(is_version, shifts, strict=True)]
+    pts["key"] = [w[0] if w else t for w, t in zip(look, pts["tone"], strict=True)]
+    pts["glyph"] = [w[1] if w else MARKS[m][0] for w, m in zip(look, pts["mark"], strict=True)]
+    pts["size"] = [MARKS[m][1] for m in pts["mark"]]
+    if "delta" not in pts:
+        pts["delta"] = ""
+    pts["delta"] = pts["delta"].fillna("")
+    keys = [t for t in TONES if t in set(pts["key"])] + [
+        w[0] for w in (*VERSION_SHIFTS.values(), VERSION_OTHER) if w[0] in set(pts["key"])]
+    colors = {**TONES, **{w[0]: w[2] for w in (*VERSION_SHIFTS.values(), VERSION_OTHER)}}
     lo, hi = pts["x"].min() - 1, pts["x"].max() + 1
     head, _, tail = data["axis"].partition(" (")  # two lines: one is cut at 800 px (QA R3-9)
     x = alt.X("x:Q", title=[head, f"({tail}"] if tail else head,
@@ -144,24 +166,25 @@ def event_lanes(data: dict, viewing: int) -> alt.LayerChart:
     y = alt.Y("lane:N", title=None, scale=alt.Scale(domain=data["lanes"]),
               axis=alt.Axis(labelLimit=200, labelOverlap=False))
     node = alt.selection_point(name="node", fields=["version"], on="click")
-    tones = [t for t in TONES if t in set(pts["tone"])]
     points = alt.Chart(pts).mark_point(filled=True, opacity=1).encode(
-        x=x, y=y,
-        shape=alt.Shape("mark:N", scale=alt.Scale(domain=list(MARKS),
-                                                  range=[s for s, _ in MARKS.values()]),
-                        legend=None),
-        size=alt.Size("mark:N", scale=alt.Scale(domain=list(MARKS),
-                                                range=[z for _, z in MARKS.values()]),
-                      legend=None),
-        color=alt.Color("tone:N", scale=alt.Scale(domain=tones, range=[TONES[t] for t in tones]),
-                        legend=alt.Legend(orient="bottom", title=None)),
+        x=x, y=y, shape=alt.Shape("glyph:N", scale=None, legend=None),
+        size=alt.Size("size:Q", scale=None, legend=None),
+        color=alt.Color("key:N", scale=alt.Scale(domain=keys, range=[colors[k] for k in keys]),
+                        legend=alt.Legend(orient="bottom", title=None, columns=2,
+                                          labelLimit=320)),
         opacity=alt.Opacity("alpha:Q", scale=None),
         tooltip=[alt.Tooltip("lane:N"), alt.Tooltip("when:N"), alt.Tooltip("what:N"),
+                 alt.Tooltip("delta:N", title="risk since the version before"),
                  alt.Tooltip("result:N"), alt.Tooltip("evidence:N"),
                  alt.Tooltip("version_label:N", title="report version"),
                  alt.Tooltip("entry:N", title="the version's entry"),
                  alt.Tooltip("source:N")]).add_params(node)
-    layers = []
+    zebra = pd.DataFrame({"lane": data["lanes"][1::2]})  # every other lane on a gray band
+    layers = [alt.Chart(zebra).mark_rect(color="#f2f3f5").encode(y=y)] if len(zebra) else []
+    nodes = pts[is_version].set_index("version")["x"]
+    if pair and pair[0] != pair[1] and {*pair} <= set(nodes.index):
+        layers.append(alt.Chart(pd.DataFrame({"x": [nodes[pair[0]]], "x2": [nodes[pair[1]]]}))
+                      .mark_rect(color=BLUE, opacity=0.12).encode(x="x:Q", x2="x2:Q"))
     if data["spans"]:
         bars = pd.DataFrame(data["spans"])
         bars["lane"], bars["alpha"] = "Treatments", np.where(bars["version"] > viewing, 0.3, 1.0)
@@ -174,13 +197,21 @@ def event_lanes(data: dict, viewing: int) -> alt.LayerChart:
         layers.append(base.transform_filter("datum.end - datum.start >= 6").mark_text(
             align="left", dx=8, fontSize=10, clip=True).encode(x="start:Q", text="drug:N",
                                                                tooltip=tip))  # room for a name
-    now = pts.loc[(pts["mark"] == "version") & (pts["version"] == viewing), "x"].min()
+    now = pts.loc[is_version & (pts["version"] == viewing), "x"].min()
     layers.append(alt.Chart(pd.DataFrame({"x": [now]})).mark_rule(
         strokeDash=[4, 3], opacity=0.6).encode(x="x:Q"))
-    # Streamlit fits the whole chart, month axis and legend included (about 100 px), into this
-    # height: with +50 a two- or three-lane TCGA file got lanes 8 px apart, labels overprinted
+    latest = pts[is_version & (pts["version"] == pts["version"].max())].assign(
+        tag=lambda df: "latest · v" + (df["version"] + 1).astype(str))
+    ring = alt.Chart(latest).encode(x=x, y=y)
+    layers += [ring.mark_point(shape="circle", filled=False, size=380, strokeWidth=2,
+                               color="#0e1117"),
+               ring.mark_text(align="right", baseline="bottom", dx=-7, dy=-7, fontSize=10,
+                              fontWeight="bold", color="#0e1117").encode(text="tag:N")]
+    # Streamlit fits the whole chart, month axis and legend included, into this height: with +50
+    # a two- or three-lane TCGA file got lanes 8 px apart, labels overprinted
     return alt.layer(*layers, points).properties(
-        height=34 * len(data["lanes"]) + 110).configure_axis(**GRID)
+        height=LANE_HEIGHT * len(data["lanes"]) + 92 + LEGEND_ROW * -(-len(keys) // 2)
+    ).configure_axis(**GRID)
 
 
 OVERLAYS = ("CA 15-3", "ctDNA", "Treatments", "Imaging reads")
