@@ -18,17 +18,25 @@ MUFFLE_STRICT_PAGES=1 (the tests set it) and is otherwise drawn as asked, so a p
 in front of a clinician. The parts drawn are recorded in ``st.session_state["page_parts"]``
 (workbench -> [(part, heading)]) for the heading-order test. ``land`` points a workbench's own
 widgets at a finding (the report's "Open", a look-here item's "Spot"), so both share one rule.
+
+The instrument's pieces (docs/ux.md §8), one look on every page: ``table`` (a finding list:
+dense rows, values, ids, dates and variants in monospace, labels as chips, its provenance
+under it; a grid that sorts when the list is long or a row click opens it), ``strip`` (a row of
+numbers instead of metric tiles) and ``empty`` (what is missing and what would fill it).
 """
 
 from __future__ import annotations
 
 import hashlib
+import html
 import os
+import re
 import sys
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 APP = Path(__file__).resolve().parents[1]
@@ -38,6 +46,7 @@ if str(APP) not in sys.path:  # a page run on its own still finds the app's modu
 from guide import chip_row  # noqa: E402
 from navigation import PAGES  # noqa: E402
 from muffle.workbench.grammar import (  # noqa: E402
+    COLORS,
     DETAILS,
     HEADINGS,
     LOOK_HERE,
@@ -48,6 +57,7 @@ from muffle.workbench.grammar import (  # noqa: E402
     esc,
     title,
 )
+from muffle.overview import IMPACT_COLORS, LEVEL_COLORS  # noqa: E402
 from muffle.workspace import TRUST  # noqa: E402
 
 TRUST_COLORS = {"strong": "green", "moderate": "orange", "weak": "red"}
@@ -84,10 +94,152 @@ def chips(*labels: str, colors: dict | None = None) -> None:
     st.caption(" ".join(chip(label, (colors or {}).get(label)) for label in labels if label))
 
 
+# --- the instrument's pieces: finding tables, number strips, empty states ---------------------
+
+# columns set in monospace by their name (any numeric column too): values, ids, dates, variants
+MONO = {"pointer", "month", "months", "value", "values", "variant", "vaf", "z", "z-score", "id",
+        "eid", "date", "when", "copies", "beta", "previous", "due_by", "due by", "started",
+        "months_after", "per month", "change from previous", "change from nadir", "pmid", "nct",
+        "cohort percentile", "percentile"}
+CHIPS = {"evidence", "status", "label", "labels", "evidence label"}  # columns of label chips
+GRID_ROWS, GRID_COLUMNS = 25, 8  # a longer or wider list is a grid: it scrolls and sorts
+MD_LEAD = re.compile(r"^(\s*)([#>+*-]|\d+[.)])(?=\s|$)")  # a cell that would open a list
+NO_DATA = {"", "nan", "NaT", "<NA>"}  # a missing value: an empty cell
+
+
+def _chip_color(text: str, colors: dict | None = None) -> str | None:
+    """A chip's colour: the page's own (``colors``), else the grammar's by the label the text
+    starts with, a CIViC level's (A–B green, C–E orange) or an Ensembl VEP severity's."""
+    if colors and text in colors:
+        return colors[text]
+    if text.startswith("synthetic"):
+        return "red"
+    return next((c for k, c in COLORS.items() if text.startswith(k)), None) or \
+        LEVEL_COLORS.get(text) or IMPACT_COLORS.get(text.upper())
+
+
+def _labels(text) -> list[str]:
+    """A cell's labels: "observed (mutation), hypothesis (evidence)" is two, "implemented, not
+    validated" one (it is split only where every part starts with a known label)."""
+    text = "" if text is None or str(text) in NO_DATA else str(text).strip()
+    parts = [p.strip() for p in re.split(r"[;,] ", text) if p.strip()]
+    if len(parts) > 1 and all(_chip_color(p) or "placeholder" in p for p in parts):
+        return parts
+    return [text] if text else []
+
+
+def _cell(v, mono: bool, chips: bool, link: str | None = None,
+          colors: dict | None = None, percent: bool = False) -> str:
+    """A value for a static table's Markdown cell: chips as badges, mono as code, a link as its
+    ``link`` text, a share as a percent, the rest with the characters Markdown would read as
+    emphasis, math or a list escaped."""
+    if chips:
+        return " ".join(chip(x, _chip_color(x, colors)) for x in _labels(v))
+    if v is None or isinstance(v, float) and v != v:
+        return ""
+    if link is not None:  # a link's text, or a pattern whose group names it (as LinkColumn's)
+        found = re.search(link, str(v)) if "(" in link else None
+        text = found.group(1) if found else link
+        return f"[{text}]({v})" if str(v).startswith("http") else ""
+    if percent and isinstance(v, (int, float)) and not isinstance(v, bool):
+        text = f"{v:.1%}"
+    elif isinstance(v, bool):
+        text = "yes" if v else "no"
+    elif isinstance(v, float):  # up to 4 decimals as the grid shows them; tiny ones in e-notation
+        text = (f"{v:.2g}" if 0 < abs(v) < 1e-3 else f"{v:.6g}" if abs(v) >= 1e6
+                else f"{v:.4f}".rstrip("0").rstrip("."))
+    else:
+        text = str(v)
+    if text in NO_DATA:
+        return ""
+    if mono:
+        tick = "``" if "`" in text else "`"
+        return f"{tick}{text}{tick}"
+    return MD_LEAD.sub(r"\1\\\2", esc(text).replace("$", "\\$").replace("~", "\\~"))
+
+
+def table(data, *, mono=(), chips=(), caption: str | None = None, empty: str | None = None,
+          grid: bool = False, key: str | None = None, on_select=None,
+          column_config: dict | None = None, height: int | None = None, plain=(),
+          links: dict | None = None, colors: dict | None = None, percent=()):
+    """A finding list, densely (docs/ux.md §8.1): no index, compact rows, the values, pointers,
+    months, ids and variants in monospace (``MONO`` by column name, every numeric column, and
+    ``mono``), the evidence and status columns as chips (``CHIPS`` and ``chips``; the grammar's
+    colours, CIViC levels' and VEP severities', or the page's ``colors``), ``links`` as
+    {column: the link's text}, ``percent`` columns (shares) as percents, ``plain`` columns left
+    as text, and its one-line provenance ``caption`` under it. A short, narrow list is a static
+    table (its text wraps); with ``grid`` (it sorts), a row click (``on_select``, ``key``), more
+    than ``GRID_ROWS`` rows or more than ``GRID_COLUMNS`` columns it is Streamlit's grid (one
+    line a row, it scrolls), its chips as coloured pills. ``empty`` is said when there is no
+    row. Returns the grid's selection state, else None."""
+    df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
+    if df.empty:
+        if empty:
+            st.caption(empty)
+        return None
+    links = links or {}
+    names = {c: str(c).lower() for c in df.columns}
+    chip_cols = {c for c in df.columns if names[c] in CHIPS or c in chips} - {*plain, *links}
+    mono_cols = {c for c in df.columns if c not in chip_cols and c not in plain and (
+        names[c] in MONO or c in mono or (pd.api.types.is_numeric_dtype(df[c])
+                                          and not pd.api.types.is_bool_dtype(df[c])))}
+    out = None
+    if grid or on_select is not None or len(df) > GRID_ROWS or len(df.columns) > GRID_COLUMNS:
+        shown, cfg = df.copy(), {}
+        for c in chip_cols:  # pills in the labels' colours
+            shown[c] = [_labels(v) for v in shown[c]]
+            options = sorted({x for v in shown[c] for x in v})
+            cfg[c] = st.column_config.MultiselectColumn(
+                str(c), options=options, color=[_chip_color(x, colors) or (
+                    "orange" if "placeholder" in x else "gray") for x in options])
+        cfg.update({c: st.column_config.LinkColumn(str(c), display_text=t)
+                    for c, t in links.items()})
+        cfg.update({c: st.column_config.NumberColumn(str(c), format="percent") for c in percent})
+        cfg.update(column_config or {})
+        kw = {"key": key, "on_select": on_select, "selection_mode": "single-row"} \
+            if on_select is not None else {"key": key}
+        out = st.dataframe(shown, hide_index=True, width="stretch", row_height=30,
+                           column_config=cfg, height=height or "auto", **kw)
+    else:
+        shown = pd.DataFrame({str(c): [_cell(v, c in mono_cols, c in chip_cols, links.get(c),
+                                             colors, c in percent) for v in df[c]]
+                              for c in df.columns})
+        st.table(shown, hide_index=True, border="horizontal", height=height or "content")
+    if caption:
+        st.caption(caption)
+    return out
+
+
+def strip(*stats) -> None:
+    """A row of numbers instead of metric tiles: each stat ``(label, value[, note[, help]])``,
+    the label small, the value in monospace with its note (a unit, a z-score) after it, the help
+    (its source or method) on hover. It wraps on a narrow screen. A number whose change carries
+    meaning (an arrow, a colour) stays Streamlit's own ``st.metric``."""
+    def h(x) -> str:
+        return html.escape(str(x), quote=True).replace("$", "&#36;")
+
+    cells = []
+    for s in stats:
+        label, value, note, tip = (*s, "", "")[:4]
+        tip = f' title="{h(tip)}"' if tip else ""
+        note = f'<span class="mf-stat-note">{h(note)}</span>' if note else ""
+        cells.append(f'<div class="mf-stat"{tip}><div class="mf-stat-label">{h(label)}</div>'
+                     f'<div class="mf-stat-value">{h(value)}{note}</div></div>')
+    st.markdown('<div class="mf-strip">' + "".join(cells) + "</div>", unsafe_allow_html=True)
+
+
+def empty(text: str, icon: str = ":material/inbox:") -> None:
+    """A workbench or a part with nothing to show: what is missing and what would fill it, in
+    one quiet card, the same on every page."""
+    st.info(text, icon=icon)
+
+
 class Page:
     """One workbench page: ``Page("labs", pf, test, version)``, then its parts in order."""
 
     def __init__(self, workbench: str, pf, test=None, version: int | None = None):
+        import charts  # noqa: F401 - the app's chart theme, enabled before this page draws one
+
         self.workbench, self.pf = workbench, pf
         last = len(pf.versions) - 1
         self.version = last if version is None else version

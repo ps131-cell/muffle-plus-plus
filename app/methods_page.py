@@ -32,6 +32,7 @@ from muffle.workbench import labs as lab_rules
 from muffle.workbench import omics as omics_rules
 from muffle.workbench import radiology as radiology_rules
 from muffle.workbench.grammar import chip
+from workbenches._page import table
 
 APP = Path(__file__).parent
 LAYER_NAMES = {"clinical": "Clinical", "rna": "RNA expression", "genomic": "Copy number",
@@ -284,8 +285,8 @@ def survival_card(demo, res: dict | None) -> None:
         st.caption(res["protocol"] + ".")
         with st.expander("Each omic layer on its own"):
             single = [m for m in res["methods"] if m["group"] == "single layer"]
-            st.dataframe(pd.DataFrame(single)[["label", "mean", "sd"]].rename(
-                columns={"label": "Layer", "mean": "C-index", "sd": "sd"}), hide_index=True)
+            table(pd.DataFrame(single)[["label", "mean", "sd"]].rename(
+                columns={"label": "Layer", "mean": "C-index", "sd": "sd"}))
             st.caption("Copy number alone ranks patients worse than chance across hospitals "
                        "(below 0.5): a sign of site and batch effects.")
     left, right = st.columns([3, 2])
@@ -304,16 +305,14 @@ def landmark_card(tl: dict | None) -> None:
         return
     card("MSK-CHORD landmark models", workspace.VALIDATED,
          f"{tl['task']} · the synthetic patient's file")
-    st.dataframe(pd.DataFrame([{
-        "From month": int(k), "Patients": m["n"], "Event rate": m["event_rate"],
-        "AUROC, record so far": f"{m['auroc'][0]:.3f} ± {m['auroc'][1]:.3f}",
-        "AUROC, diagnosis only": f"{m['baseline_auroc'][0]:.3f} ± {m['baseline_auroc'][1]:.3f}"}
-        for k, m in sorted(tl["models"].items(), key=lambda kv: int(kv[0]))]),
-        hide_index=True, column_config={
-            "From month": st.column_config.NumberColumn(
-                help="Landmark: months after the first tumor sequencing"),
-            "Event rate": st.column_config.NumberColumn(format="percent")})
+    table([{"From month": int(k), "Patients": m["n"], "Event rate": m["event_rate"],
+            "AUROC, record so far": f"{m['auroc'][0]:.3f} ± {m['auroc'][1]:.3f}",
+            "AUROC, diagnosis only": f"{m['baseline_auroc'][0]:.3f} ± "
+                                     f"{m['baseline_auroc'][1]:.3f}"}
+           for k, m in sorted(tl["models"].items(), key=lambda kv: int(kv[0]))],
+          mono=("AUROC, record so far", "AUROC, diagnosis only"), percent=("Event rate",))
     st.caption(
+        "From month: the landmark, months after the first tumor sequencing. "
         "Gradient boosting on the record so far, against the same learner on the diagnosis "
         "alone (stage, HR, HER2); held-out AUROC, mean ± sd over 5 seeds, patient-level 80/20 "
         "splits, nothing tuned. " + tl["model_note"] + " Aggregate results only: the models and "
@@ -488,7 +487,7 @@ def cohort_card() -> None:
 def alert_card() -> None:
     card("SOS alerts and their order", workspace.IMPLEMENTED,
          "the report's SOS tile · rules on the record, one model estimate")
-    st.dataframe(pd.DataFrame([
+    table(pd.DataFrame([
         ("Progression on imaging", OBSERVED, "the imaging report reads progression; an "
          "imported report: a clause states it, not negated or hedged (trust moderate)",
          "recorded; an imported report: its words"),
@@ -504,8 +503,7 @@ def alert_card() -> None:
          "placeholder, not validated"),
         ("Newly sequenced driver", f"{OBSERVED} (mutation), {HYPOTHESIS} (evidence)",
          "level A or B CIViC treatment evidence", "CIViC evidence levels"),
-    ], columns=["Alert", "Evidence", "Rule", "Threshold source"]), hide_index=True,
-        width="stretch")
+    ], columns=["Alert", "Evidence", "Rule", "Threshold source"]))
     st.markdown(
         "**Order of the queue** " + chip("placeholder weights") + ": consequence (3 changes the "
         "picture of the disease, 2 may change care, 1 worth a look) × trust (" + ", ".join(
@@ -522,7 +520,7 @@ def lab_card() -> None:
     card("Lab result rules", workspace.IMPLEMENTED,
          "flags, kinetics and quality checks · the blood and lab workbench")
     st.markdown(f"{c['kind']}. **Inputs:** {c['inputs']}. **Validation:** {c['validation']}.")
-    st.dataframe(pd.DataFrame(c["thresholds"]), hide_index=True, width="stretch")
+    table(c["thresholds"])
     st.caption(f"Kinetics: a log-linear fit over the last {lab_rules.KINETICS_POINTS} values "
                "(model inference, placeholder method), drawn as an extrapolation with its band; "
                "within-person baseline, therapy caution window and the hook-effect check are "
@@ -537,7 +535,7 @@ def ctdna_card() -> None:
                 "The only series in the app is SYNTHETIC-001's, written by hand and labeled "
                 f"synthetic; the ESR1 rule is {chip(HYPOTHESIS)}, evidence for clinician review, "
                 "never a recommendation to switch.")
-    st.dataframe(pd.DataFrame(c["thresholds"]), hide_index=True, width="stretch")
+    table(c["thresholds"])
 
 
 def slide_rule_card() -> None:
@@ -558,9 +556,8 @@ def slide_rule_card() -> None:
         "0.785 mm² field, the TILs Working Group's zones, a tumor–stroma ratio of 50% from "
         "colorectal cancer). Not reviewed by a pathologist.")
     with st.expander("Every slide cutoff and its source"):
-        st.dataframe(pd.DataFrame([{"cutoff": k, "value": v, "source": tag, "note": note}
-                                   for k, (v, tag, note) in both.items()]),
-                     hide_index=True, width="stretch")
+        table([{"cutoff": k, "value": v, "source": tag, "note": note}
+               for k, (v, tag, note) in both.items()], chips=("source",), mono=("cutoff",))
 
 
 def genomics_card() -> None:
@@ -584,13 +581,13 @@ def federation(demo) -> None:
     st.markdown(f"FedAvg on NVIDIA FLARE's simulator: each of {len(demo.sites)} simulated "
                 "hospitals trains on its own patients and sends only model weights to the "
                 "server, which averages them each round; no patient data leaves a site.")
-    table = pd.DataFrame([{
+    sites = pd.DataFrame([{
         "Site (simulated)": s.name, "Patients": s.patients, "Deaths": s.deaths,
         "Held out": s.heldout, "Held-out C-index": demo.c_index_by_site.get(s.name),
         **{LAYER_NAMES.get(m, m): 100 * s.coverage[m] for m in demo.model.names
            if m != "clinical"},
     } for s in demo.sites])
-    st.dataframe(table, hide_index=True, width="stretch", column_config={
+    table(sites, grid=True, column_config={  # a grid: its coverage bars
         "Held-out C-index": st.column_config.NumberColumn(format="%.3f"),
         **{LAYER_NAMES.get(m, m): st.column_config.ProgressColumn(
             LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
@@ -666,8 +663,7 @@ SOURCES = [  # docs/registry.md: (source, used for, license or terms)
 
 def sources() -> None:
     st.header("Data sources and licenses")
-    st.dataframe(pd.DataFrame(SOURCES, columns=["Source", "Used for", "License or terms"]),
-                 hide_index=True, width="stretch")
+    table(pd.DataFrame(SOURCES, columns=["Source", "Used for", "License or terms"]))
     st.caption("SYNTHETIC-001's record is written by hand and labeled synthetic; it is not a "
                "real person and was not taken from any dataset. Every source, its access tier "
                "and what leaves this machine: the project's [data registry](https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/registry.md).")
@@ -730,8 +726,7 @@ def known_failures() -> None:
     st.header("Known failures")
     st.caption("What each module gets wrong, as far as it has been measured or seen. Each "
                "workbench repeats its own in its model and validation card.")
-    st.dataframe(pd.DataFrame(rows, columns=["Module", "Known failure"]), hide_index=True,
-                 width="stretch")
+    table(pd.DataFrame(rows, columns=["Module", "Known failure"]))
 
 
 def clinician_disagreements() -> list[tuple[str, str]]:
@@ -786,5 +781,4 @@ def placeholders() -> None:
     st.caption(f"{len(rows)} values nobody has validated yet. Each workbench marks its own "
                f"{chip('placeholder')} where it is used; the report export lists the ones its "
                "alerts use.")
-    st.dataframe(pd.DataFrame(rows, columns=["Where", "Placeholder", "Value"]),
-                 hide_index=True, width="stretch")
+    table(pd.DataFrame(rows, columns=["Where", "Placeholder", "Value"]), mono=("Value",))

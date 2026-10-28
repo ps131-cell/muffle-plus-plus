@@ -39,7 +39,7 @@ from muffle.workbench import omics as wb
 from muffle.workbench.genomics import add_mark, mark_text
 from muffle.workbench.grammar import chip, count_label, esc
 from workbenches._howto import how_to, instruct
-from workbenches._page import Page, land, queue_items
+from workbenches._page import Page, empty, land, queue_items, strip, table
 
 APP = Path(__file__).resolve().parents[1]
 STATUS_COLORS = {wb.AGREE: "green", wb.DISAGREE: "red", wb.NO_COMPARISON: "gray"}
@@ -224,9 +224,9 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
     if case is None or demo is None:
         page.title(wb.IMPLEMENTED)
         with page.overview():
-            st.info("No expression, methylation or protein data in this file. RNA-seq, a "
-                    "methylation array or a protein array (RPPA) of the tumor would open this "
-                    "workbench; the TCGA cases carry them.", icon="🧫")
+            empty("No expression, methylation or protein data in this file. RNA-seq, a "
+                  "methylation array or a protein array (RPPA) of the tumor would open this "
+                  "workbench; the TCGA cases carry them.", icon=":material/biotech:")
         with page.details("Stroma: the ECM3 score", "not measured"):
             ecm3_section(pf)
         with page.card():
@@ -466,16 +466,15 @@ def _table(df: pd.DataFrame, keys: list[str], key: str, spot: str) -> None:
         if rows:
             st.session_state[spot] = keys[rows[0]]
 
-    st.dataframe(df, hide_index=True, width="stretch", on_select=pick,
-                 selection_mode="single-row", key=key)
+    table(df, on_select=pick, key=key)
 
 
 def subtype_card(sub: dict, data: dict) -> None:
     val = data["validation"]["pam50"]
     left, right = st.columns([2, 3])
     with left:
-        st.metric("Call", wb.SUBTYPES[sub["call"]], width="content",
-                  help="Nearest of the five PAM50 centroids by Spearman correlation.")
+        strip(("Call", wb.SUBTYPES[sub["call"]], "",
+               "Nearest of the five PAM50 centroids by Spearman correlation (model inference)."))
         st.markdown(f"Margin to the runner-up: **{sub['margin']:.2f}** "
                     + (chip("borderline", "orange") if sub["margin"] < wb.LOW_MARGIN else "")
                     + f"  \nTCGA's published call: **{_published(sub)}**  \n"
@@ -486,7 +485,9 @@ def subtype_card(sub: dict, data: dict) -> None:
                    "page.")
     with right:
         df = pd.DataFrame([{"subtype": wb.SUBTYPES[k], "correlation": r,
-                            "call": "this call" if k == sub["call"] else "other centroid"}
+                            "call": "this call" if k == sub["call"] else "other centroid",
+                            "evidence": "model inference: Spearman correlation with the "
+                                        "Parker et al. 2009 centroid (genefu)"}
                            for k, r in sub["cor"].items()])
         st.altair_chart(alt.Chart(df).mark_bar().encode(
             x=alt.X("correlation:Q", scale=alt.Scale(domain=[-1, 1]),
@@ -494,7 +495,8 @@ def subtype_card(sub: dict, data: dict) -> None:
             y=alt.Y("subtype:N", sort="-x", title=None, axis=alt.Axis(labelOverlap=False)),
             color=alt.Color("call:N", legend=None, scale=alt.Scale(
                 domain=["this call", "other centroid"], range=[charts.BLUE, "#9aa5b1"])),
-            tooltip=["subtype", alt.Tooltip("correlation:Q", format=".3f")]
+            tooltip=["subtype", alt.Tooltip("correlation:Q", format=".3f"), "call",
+                     alt.Tooltip("evidence:N")]
         ).properties(height=34 * len(df)), width="stretch")
     st.caption("Normalization: log2(TPM + 1), each gene centered on its median over an ER-balanced "
                f"subset of this cohort ({val['reference_tumors']} tumors: every ER-negative one "
@@ -555,13 +557,11 @@ def score_bars(df: pd.DataFrame, label: str, what: str, extra: list, spot: str, 
 
 def pathway_chart(cs: dict, data: dict, pf, spot: str) -> None:
     s = cs["scores"]
-    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-    row.metric("Proliferation, cohort percentile", ordinal(s["proliferation"][1]),
-               f"z {s['proliferation'][0]:+.2f}", delta_color="off", width="content",
-               help="The 11 PAM50 proliferation genes (Parker et al. 2009), cohort z-score.")
-    row.metric("Immune cytolytic activity, cohort percentile", ordinal(s["immune"][1]),
-               f"z {s['immune'][0]:+.2f}", delta_color="off", width="content",
-               help="GZMA and PRF1 (Rooney et al. 2015), cohort z-score.")
+    strip(("Proliferation, cohort percentile", ordinal(s["proliferation"][1]),
+           f"z {s['proliferation'][0]:+.2f}",
+           "The 11 PAM50 proliferation genes (Parker et al. 2009), cohort z-score."),
+          ("Immune cytolytic activity, cohort percentile", ordinal(s["immune"][1]),
+           f"z {s['immune'][0]:+.2f}", "GZMA and PRF1 (Rooney et al. 2015), cohort z-score."))
     df = pd.DataFrame([{"set": k.replace("_", " ").lower(), "z": z, "percentile": p,
                         "genes": f"{data['sets'][k]['measured']} of {data['sets'][k]['size']}",
                         "key": workspace.finding_key(pf, "omics", "score" if k in (
@@ -600,8 +600,8 @@ def rppa_section(pf, cs: dict, data: dict, reviews: dict, spot: str,
                         key=f"omics-rppa-{pf.id}")
     r = next(x for x in rows if x["pathway"] == name)
     also = [a for a in wb.RPPA_PATHWAYS[name]["also"] if a in cs["rppa"]["antibodies"]]
-    table = [*((m["antibody"], m["sign"]) for m in r["members"]), *((a, None) for a in also)]
-    keys = [workspace.finding_key(pf, "omics", "protein", a) for a, _ in table]
+    abs_ = [*((m["antibody"], m["sign"]) for m in r["members"]), *((a, None) for a in also)]
+    keys = [workspace.finding_key(pf, "omics", "protein", a) for a, _ in abs_]
     _table(pd.DataFrame([{
         "Antibody": a, "In the score": {1: "+", -1: "− (negative regulator)"}.get(s, "no (shown)"),
         "z": (cs["rppa"]["antibodies"].get(a) or [None])[0],
@@ -610,7 +610,7 @@ def rppa_section(pf, cs: dict, data: dict, reviews: dict, spot: str,
         "Gene": wb.ANTIBODY_GENES[a],
         "Gene RNA percentile": (cs.get("rna_pct") or {}).get(wb.ANTIBODY_GENES[a]),
         "Protein vs RNA (Spearman)": val.get(a, {}).get("spearman"),
-        "Mark": (reviews.get(k) or {}).get("mark", "")} for (a, s), k in zip(table, keys,
+        "Mark": (reviews.get(k) or {}).get("mark", "")} for (a, s), k in zip(abs_, keys,
                                                                              strict=True)]),
         keys, f"omics-rppa-table-{pf.id}-{name}", spot)
     g = gmap.get(r["map"]) if r["map"] else None
@@ -641,7 +641,9 @@ def methylation_section(cs: dict, data: dict) -> None:
     q = mm["quantiles"]
     df = pd.DataFrame([{"gene": g, "q05": q[g][1], "q25": q[g][5], "median": q[g][10],
                         "q75": q[g][15], "q95": q[g][19], "beta": b, "percentile": p,
-                        "probes": n} for g, (b, p, n) in cs["methylation"]["genes"].items()])
+                        "probes": n, "evidence": "observed beta; the call at a placeholder "
+                                                 f"cutoff (mean β {wb.METHYLATED})"}
+                       for g, (b, p, n) in cs["methylation"]["genes"].items()])
     base = alt.Chart(df).encode(y=alt.Y("gene:N", title=None))
     st.altair_chart(alt.layer(
         base.mark_rule(color="#9aa5b1").encode(x=alt.X("q05:Q", title="mean promoter beta (0 "
@@ -655,13 +657,14 @@ def methylation_section(cs: dict, data: dict) -> None:
         base.mark_point(filled=True, size=90, color=charts.BLUE).encode(
             x="beta:Q", tooltip=["gene", alt.Tooltip("beta:Q", format=".2f"),
                                  alt.Tooltip("percentile:Q", format=".0f",
-                                             title="cohort percentile"), "probes"]),
+                                             title="cohort percentile"), "probes",
+                                 alt.Tooltip("median:Q", format=".2f", title="cohort median"),
+                                 alt.Tooltip("evidence:N")]),
     ).properties(height=34 * len(df) + 40), width="stretch")
     beta, p = cs["methylation"]["index"]
-    st.metric("CpG island hypermethylation index, cohort percentile", ordinal(p),
-              f"mean β {beta:.3f}", delta_color="off", width="content",
-              help="Mean beta over the autosomal CpG-island promoter probes unmethylated in "
-                   "normal breast (hypothesis).")
+    strip(("CpG island hypermethylation index, cohort percentile", ordinal(p),
+           f"mean β {beta:.3f}", "Mean beta over the autosomal CpG-island promoter probes "
+                                 "unmethylated in normal breast (hypothesis)."))
     st.caption(f"{chip(HYPOTHESIS)} The index averages {mm['index_probes']:,} CpG-island promoter "
                f"probes unmethylated in normal breast. A high index is read as a CpG island "
                "methylator phenotype in the sense of Fang et al. 2011 (B-CIMP, linked there to "
@@ -696,13 +699,12 @@ def ecm3_section(pf) -> None:
                f"{chip(HYPOTHESIS)}")
     if e3["measured"]:
         place = ordinal(e3["percentile"])
-        st.metric("ECM3 score, cohort percentile", place, width="content",
-                  help="Mean of the four genes' cohort z-scores (log2 TPM + 1), placed among "
-                       f"{data['reference']['rna_tumors']:,} TCGA-BRCA tumors. No high or low: "
-                       "the paper's classifier was fitted on its own cohorts.")
-        st.dataframe(pd.DataFrame([{"Gene": g, "Cohort percentile": e3["genes"].get(g),
-                                    "Measured": "yes" if g in e3["genes"] else "no"}
-                                   for g in wb.ECM3_GENES]), hide_index=True, width=420)
+        strip(("ECM3 score, cohort percentile", place, "",
+               "Mean of the four genes' cohort z-scores (log2 TPM + 1), placed among "
+               f"{data['reference']['rna_tumors']:,} TCGA-BRCA tumors. No high or low: the "
+               "paper's classifier was fitted on its own cohorts."))
+        table([{"Gene": g, "Cohort percentile": e3["genes"].get(g),
+                "Measured": "yes" if g in e3["genes"] else "no"} for g in wb.ECM3_GENES])
         if e3["missing"]:
             st.warning("Not measured in this file: " + ", ".join(e3["missing"])
                        + "; the score averages the genes measured.")
@@ -722,22 +724,18 @@ def ecm3_section(pf) -> None:
 def immune_section(cs: dict, data: dict, pic: dict | None, secs: list[dict]) -> None:
     est, cyt, prot = cs["estimate"], cs["scores"]["immune"], (cs.get("rppa") or {}).get("immune")
     sets = data.get("immune_sets", {})
-    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-    row.metric("Immune signature, cohort percentile", ordinal(est["immune"][1]),
-               f"z {est['immune'][0]:+.2f}", delta_color="off", width="content",
-               help=f"ESTIMATE's 141 immune genes ({sets.get('immune', {}).get('measured')} "
-                    "measured), z-score averaging (Yoshihara et al. 2013).")
-    row.metric("Stromal signature, cohort percentile", ordinal(est["stromal"][1]),
-               f"z {est['stromal'][0]:+.2f}", delta_color="off", width="content",
-               help=f"ESTIMATE's 141 stromal genes ({sets.get('stromal', {}).get('measured')}"
-                    " measured), z-score averaging.")
-    row.metric("Cytolytic activity, cohort percentile", ordinal(cyt[1]), f"z {cyt[0]:+.2f}",
-               delta_color="off", width="content", help="GZMA and PRF1 (Rooney et al. 2015).")
-    if prot:
-        row.metric("Immune-cell proteins (RPPA), cohort percentile", ordinal(prot[1]),
-                   f"z {prot[0]:+.2f}", delta_color="off", width="content",
-                   help=", ".join(data["rppa"]["immune_markers"]) + ": grouped here, not "
-                        "from a paper.")
+    strip(("Immune signature, cohort percentile", ordinal(est["immune"][1]),
+           f"z {est['immune'][0]:+.2f}", f"ESTIMATE's 141 immune genes "
+           f"({sets.get('immune', {}).get('measured')} measured), z-score averaging (Yoshihara "
+           "et al. 2013)."),
+          ("Stromal signature, cohort percentile", ordinal(est["stromal"][1]),
+           f"z {est['stromal'][0]:+.2f}", f"ESTIMATE's 141 stromal genes "
+           f"({sets.get('stromal', {}).get('measured')} measured), z-score averaging."),
+          ("Cytolytic activity, cohort percentile", ordinal(cyt[1]), f"z {cyt[0]:+.2f}",
+           "GZMA and PRF1 (Rooney et al. 2015)."),
+          *((("Immune-cell proteins (RPPA), cohort percentile", ordinal(prot[1]),
+              f"z {prot[0]:+.2f}", ", ".join(data["rppa"]["immune_markers"])
+              + ": grouped here, not from a paper."),) if prot else ()))
     if pic:
         color = STATUS_COLORS[pic["status"]]
         st.markdown(f"{chip(pic['status'], color)} {pic['text']}")
@@ -745,12 +743,14 @@ def immune_section(cs: dict, data: dict, pic: dict | None, secs: list[dict]) -> 
             " The report's tests-that-disagree list carries the slide-against-RNA discrepancy."
             if pic["crosstest"] else ""))
     if secs:
-        st.dataframe(pd.DataFrame([{
-            "Section": s["slide"], "Zone read": s["zone"] or "no front",
-            "Lymphocyte tiles, second model": _share(s["til_share"]),
-            "Lymphocyte tiles, tile head": _share(s["head_share"]),
-            "Lymphocyte-like nuclei per mm²": s["nuclei_per_mm2"],
-            "Slide pattern": s["pattern"]} for s in secs]), hide_index=True, width="stretch")
+        table([{"Section": s["slide"], "Zone read": s["zone"] or "no front",
+                "Lymphocyte tiles, second model": _share(s["til_share"]),
+                "Lymphocyte tiles, tile head": _share(s["head_share"]),
+                "Lymphocyte-like nuclei per mm²": s["nuclei_per_mm2"],
+                "Slide pattern": s["pattern"]} for s in secs],
+              mono=("Lymphocyte tiles, second model", "Lymphocyte tiles, tile head"),
+              caption="From the slide workbench (model inference): tile classes and the second "
+                      "lymphocyte model, not validated on breast by a pathologist.")
     val = data.get("validation", {}).get("immune", {})
     st.caption("Bulk RNA and the protein lysate mix tumor, stroma and immune cells; a high immune "
                "score is not a TILs count, and the stromal score reads stroma content. Across "
@@ -781,16 +781,16 @@ def layer_card(pf, v, m: str, case, contrib: dict, feats: list[dict], cs: dict |
             st.markdown("- **Receptor status (IHC, TCGA clinical data):** " + ", ".join(
                 f"{n} {(r.get('ihc') or 'not recorded').lower()}"
                 for n, r in cs["receptors"].items()))
-    row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
+    stats = []
     if m in contrib:
-        row.metric("Effect on log-risk vs a typical patient", f"{contrib[m]:+.3f}",
-                   width="content",
-                   help="The predicted log-risk with this layer minus without it, compared with "
-                        "the same difference for a typical patient (model inference).")
+        stats.append(("Effect on log-risk vs a typical patient", f"{contrib[m]:+.3f}", "",
+                      "The predicted log-risk with this layer minus without it, compared with "
+                      "the same difference for a typical patient (model inference)."))
     if res:
-        row.metric("This layer alone, C-index", f"{res['mean']:.3f} ± {res['sd']:.3f}",
-                   width="content", help="Leave one hospital out, 5 seeds (Methods and "
-                                         "validation).")
+        stats.append(("This layer alone, C-index", f"{res['mean']:.3f} ± {res['sd']:.3f}", "",
+                      "Leave one hospital out, 5 seeds (Methods and validation)."))
+    if stats:
+        strip(*stats)
     if info["failure"]:
         st.warning(info["failure"] + (f" (C-index {res['mean']:.3f}, below 0.5)" if res else ""))
     top = sorted(feats, key=lambda f: -abs(f["score"]))[:TOP]
@@ -1079,7 +1079,7 @@ def methods_card() -> None:
         "is not an independent test.")
     conf = pd.DataFrame(p["confusion"]).T.fillna(0).astype(int)
     conf = conf.rename(index=wb.SUBTYPES, columns=wb.SUBTYPES)
-    st.dataframe(conf.rename_axis("published ↓ / this call →"), width="stretch")
+    st.table(conf.rename_axis("published ↓ / this call →"))  # a confusion matrix: its index
     rows = []
     for name, kinds in val["receptors"].items():
         for kind, c in kinds.items():
@@ -1091,7 +1091,7 @@ def methods_card() -> None:
                          else str(round(c["cutoff_pct"])),
                          "Sensitivity": c["sensitivity"], "Specificity": c["specificity"]})
     st.markdown("**Receptor levels against recorded status** (IHC; HER2 per ASCO/CAP with ISH)")
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    table(rows)
     st.caption("Cutoffs maximize sensitivity + specificity on this cohort (in-sample, Youden): "
                "calibrated here, not validated elsewhere. ERBB2 amplification = at least twice the "
                "tumor ploidy, a placeholder. RPPA against RNA, Spearman: " + ", ".join(
@@ -1113,11 +1113,10 @@ def methods_card() -> None:
         + "Not validated as pathway activity: what can be checked is below.")
     st.markdown(f"**Protein versus RNA agreement** · each antibody against its gene's RNA over "
                 f"the cohort (Spearman; {len(pv)} antibodies)")
-    st.dataframe(pd.DataFrame([{"Antibody": a, "Gene": r["gene"], "Spearman": r["spearman"],
-                                "Tumors": r["n"],
-                                "Agreement": "weak" if r["spearman"] < wb.WEAK_RHO else ""}
-                               for a, r in sorted(pv.items(), key=lambda x: -x[1]["spearman"])]),
-                 hide_index=True, width="stretch", height=280)
+    table([{"Antibody": a, "Gene": r["gene"], "Spearman": r["spearman"], "Tumors": r["n"],
+            "Agreement": "weak" if r["spearman"] < wb.WEAK_RHO else ""}
+           for a, r in sorted(pv.items(), key=lambda x: -x[1]["spearman"])], mono=("Antibody",),
+          grid=True, height=280)
     st.caption(f"Weak (under {wb.WEAK_RHO}, placeholder): {len(phospho)} phospho-site antibodies, "
                "expected, since a phosphorylation is not in the RNA, and "
                f"{len(total)} total-protein antibodies: {', '.join(total)}. Ki-67 is not on the "
@@ -1133,14 +1132,13 @@ def methods_card() -> None:
         f"normal breast samples is under {wb.NORMAL_MAX} (placeholder), averaged per tumor; "
         f"methylated from a mean of {wb.METHYLATED} (placeholder). The check: does a methylated "
         "promoter go with low RNA across the cohort?")
-    st.dataframe(pd.DataFrame([{
-        "Gene": g, "CpGs kept / core promoter": f"{len(mm['probes'][g])} / "
-                                                f"{len(mm['candidates'][g])}",
-        "Tumors": r["n"], "Methylated": r["methylated"],
-        "RNA percentile, methylated (median)": r["rna_pct_median_methylated"],
-        "RNA percentile, unmethylated (median)": r["rna_pct_median_unmethylated"],
-        "Spearman, beta vs RNA": r["spearman"]} for g, r in mv.items()]),
-        hide_index=True, width="stretch")
+    table([{"Gene": g, "CpGs kept / core promoter": f"{len(mm['probes'][g])} / "
+                                                    f"{len(mm['candidates'][g])}",
+            "Tumors": r["n"], "Methylated": r["methylated"],
+            "RNA percentile, methylated (median)": r["rna_pct_median_methylated"],
+            "RNA percentile, unmethylated (median)": r["rna_pct_median_unmethylated"],
+            "Spearman, beta vs RNA": r["spearman"]} for g, r in mv.items()],
+          mono=("CpGs kept / core promoter",))
     st.caption(f"{chip(HYPOTHESIS)} Hypermethylation index: mean beta over "
                f"{mm['index_probes']:,} of {mm['index_candidates']:,} autosomal CpG-island "
                "promoter probes, those unmethylated in normal breast; a CIMP reading in the sense "

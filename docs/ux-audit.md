@@ -119,3 +119,53 @@ screen of each other: the cockpit spans y = 1,277–2,340 on Case 299 and 1,472�
   **Show the saved note** is still there for Case 299. Re-walk after the freeze.
 - **`CLAUDE.md`** still says "freeze Oct 28"; the decision of 2026-10-28 moves it to Oct 29
   10:00 CDT.
+
+## Round 15: workbenches (2026-10-28)
+
+The user, after round 14: "I really don't want the app to look ugly and generic streamlit app
+... but functionalities take precedence." The seven non-map workbenches (labs, ctDNA, genomics,
+omics, documents, Evolution, Imports), Feedback and Methods still read as default Streamlit:
+71 `st.dataframe` grids (one-line cells cut mid-word, no monospace, no chips), 26 `st.metric`
+tiles (36 px values; omics' showed an up arrow beside a negative z-score), default Altair axes
+with vertical gridlines, and an empty file announced in a blue alert. The pieces that replace
+them are in `docs/ux.md` §8.1; done in this order, which was also the cut order:
+
+| | Step | What happened |
+|---|---|---|
+| 1 | One chart theme | **Done.** `app/charts.py` `THEME` (`alt.theme.register`, Altair 6.3.0), enabled when `charts` is imported; every workbench `Page` imports it before drawing. IBM Plex Sans, muted 12–13 px labels, hairline axes, no frame, no vertical gridlines, compact legends, the validated categorical order; the per-chart `configure_axis` overrides are gone. The slide, radiology, report and Timeline charts take it too: checked before and after (the MRI kinetics chart's labels a little darker and its plot unframed; the Timeline lanes and the report unchanged in height) |
+| 2 | Finding tables | **Done.** `_page.table`: no direct `st.dataframe` call is left in the nine files. Short, narrow lists (at most 25 rows, 8 columns) are `st.table` with Markdown cells: values, pointers, months, ids and variants in monospace, evidence and status as the grammar's chips, CIViC levels and VEP severities in their colours, links as their text, a sticky header and a 28 rem cap; long, wide, sortable or row-click lists stay Streamlit's grid (30 px rows, chips as coloured pills). Every row click into a Spot panel is still a grid row click |
+| 3 | Number strips | **Done.** `_page.strip` replaces the metric tiles of genomics (overview, gene Spot, burden), omics (subtype call, scores, methylation index, ECM3, immune signatures, layer cards) and Feedback; omics' what-if risk percentile stays `st.metric` (its delta, in percentile points, means a change) |
+| 4 | Hover provenance | **Done** on each main chart: labs' trends add where the reference interval comes from; ctDNA the rule with its status and the synthetic label; the copy-number landscape its ASCAT3 source and label; burden, allele fractions, the pathway map, the subtype bars, promoter methylation, the clonal panel and Feedback's chart their label or source; the Evolution record grows the pointed event. Tooltips are a small bordered card |
+| 5 | Empty states and labels | **Done.** `_page.empty` for the no-labs, no-ctDNA, not-sequenced, no-copy-number, no-expression, no-driver and no-marks cards (a Material icon instead of an emoji); every `st.info` is drawn as a quiet card. An evidence column joined the lists that had none (caution windows, variant calls, CIViC items, allele fractions, what to watch next, clonal pairs, an import's documented facts) |
+| R4-1 | Captions fade their chips (QA round 4, handed over) | **Done.** Captions at full opacity in the muted ink (#4d5260, 7.6:1): their chips and links keep their own AA colours; `tests/test_states.py` reads the rule |
+
+**Left, on purpose:** the grid can't be monospace or hold Markdown (it draws on a canvas in the
+body font), so long lists keep the sans face; the slide and radiology pages' own tables and
+metrics (perf-memory's files) and the shell's report and Patients tables are their owners'; the
+Imports page's typed-values editor stays `st.data_editor`.
+
+Page height in px (headless Chromium; main at dbf9d29, then this branch):
+
+| Screen | 1280 px | 800 px |
+|---|---|---|
+| SYNTHETIC-001 · labs | 5,952 → 5,928 | 7,921 → 7,897 |
+| SYNTHETIC-001 · ctDNA | 5,193 → 5,160 | 6,773 → 6,740 |
+| Case 299 · genomics | 5,569 → 5,432 | 7,415 → 7,238 |
+| Case 299 · omics | 5,588 → 5,525 | 7,574 → 7,512 |
+| Case 299 · documents | 5,324 → 5,373 | 7,101 → 7,415 |
+| Case 299 · Evolution | 2,943 → 3,203 | 3,869 → 4,170 |
+| SYNTHETIC-001 · Import tests | 1,741 → 1,741 | 2,252 → 2,252 |
+| Feedback (no marks yet) | 1,008 → 1,012 | 1,260 → 1,262 |
+| Methods and validation | 16,544 → 16,613 | 23,372 → 24,034 |
+| Case 299 · slides (not changed) | 6,110 → 6,110 | 8,643 → 8,643 |
+| Case 563 · radiology (not changed) | 5,249 → 5,249 | 6,867 → 6,867 |
+| Feedback with two marks | 1,916 → 1,881 | 2,251 → 2,245 |
+
+The reports (Case 299 4,781 / 7,764, SYNTHETIC-001 4,100 / 6,119) and the Timeline (3,362 /
+4,053), whose charts take the theme, kept their heights.
+
+Where a page grew, it is a static table showing text the grid had cut; a first try that put a
+13-column lab history in `st.table` wrapped its rows four lines deep, hence the column limit.
+No exception, error box, cut text or sideways scroll of the page on any of them; at 800 px a
+wide static table (the documents' validation, eight columns) scrolls sideways inside its own
+box, as the grid does.
