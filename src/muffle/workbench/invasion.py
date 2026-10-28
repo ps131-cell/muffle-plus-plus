@@ -18,9 +18,8 @@ import math
 
 import numpy as np
 import pandas as pd
-from scipy import ndimage
-from scipy.spatial import cKDTree
 
+from muffle.lazy import module
 from muffle.workbench.slides import (
     CLASSES,
     DOC,
@@ -32,6 +31,16 @@ from muffle.workbench.slides import (
     TILE_UM,
     analyze,
 )
+
+# scipy loads on first use: the report reads only CUTOFFS and the compass from this module
+ndimage = module("scipy.ndimage")
+
+
+def cKDTree(*args, **kwargs):  # noqa: N802 (scipy's name)
+    from scipy.spatial import cKDTree as tree
+
+    return tree(*args, **kwargs)
+
 
 INFERENCE, HYPOTHESIS, OBSERVED = "model inference", "hypothesis", "observed"
 
