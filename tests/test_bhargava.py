@@ -15,7 +15,7 @@ import pytest
 from muffle import literature
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE
 from muffle.workbench import invasion, omics
-from tests.appfixture import shown
+from tests.appfixture import shown, stats
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
@@ -144,11 +144,11 @@ page.ecm3_section(pf)
     assert HYPOTHESIS in text and "Triulzi" in text and "COL1A2" in text
     if rec is None:
         assert "not measured" in text and "synthetic" in text
-        assert not at.metric
+        assert not stats(at) and not at.metric
     else:
-        assert at.metric[0].label == "ECM3 score, cohort percentile"
-        assert "high" not in at.metric[0].value.lower()  # no cutoff
-        assert list(at.dataframe[0].value["Gene"]) == list(omics.ECM3_GENES)
+        assert list(stats(at)) == ["ECM3 score, cohort percentile"]
+        assert "high" not in stats(at)["ECM3 score, cohort percentile"].lower()  # no cutoff
+        assert list(at.table[0].value["Gene"]) == list(omics.ECM3_GENES)
 
 
 # ------------------------------------------------------------------------------ the slides

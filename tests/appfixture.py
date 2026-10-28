@@ -4,6 +4,8 @@ for a TCGA patient with a processed public MRI. The ``app`` fixture (tests/conft
 ``make_app``'s namespace: ``app.new()`` is a fresh AppTest, ``app.demo`` the loaded cases,
 ``app.case`` that first case's file id and ``app.shipped`` the MRI studies it borrows."""
 
+import html
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -59,6 +61,15 @@ def shown(at) -> str:
     """The page's text: titles, headings, Markdown, captions and info boxes."""
     return " ".join(e.value for kind in ("title", "header", "subheader", "markdown", "caption",
                                          "info") for e in getattr(at, kind))
+
+
+STAT = re.compile(r'mf-stat-label">([^<]*)</div><div class="mf-stat-value">([^<]*)')
+
+
+def stats(at) -> dict[str, str]:
+    """Every number strip's stats (``workbenches._page.strip``): label -> value."""
+    return {html.unescape(k): html.unescape(v) for m in at.markdown
+            for k, v in STAT.findall(str(m.value))}
 
 
 def button(at, label: str):

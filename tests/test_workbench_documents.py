@@ -619,10 +619,10 @@ def test_the_two_readers_side_by_side_and_a_jump_from_the_spot_panel():
     pid = f"Case {json.loads((DOCS / 'TCGA-AO-A03R.json').read_text())['case_index']}"
     assert any(m.value.startswith(":material/lightbulb: **How to use this page:** **Documents**")
                for m in at.markdown)
-    tables = len(at.dataframe)
+    tables = len(at.table)  # the comparison is a static finding table
     at.toggle(key=f"docs-compare-{pid}").set_value(True).run()
-    assert not at.exception and len(at.dataframe) == tables + 1
-    both = next(d.value for d in at.dataframe if list(d.value.columns)[:3] == [
+    assert not at.exception and len(at.table) == tables + 1
+    both = next(d.value for d in at.table if list(d.value.columns)[:3] == [
         "Field", "Readings", "Rules"])
     assert not both.empty
     assert any(m.value.startswith("##### ") for m in at.markdown)  # the Spot panel's finding

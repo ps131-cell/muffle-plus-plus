@@ -115,20 +115,32 @@ def test_cards_open_their_evidence_and_empty_ones_say_what_would_fill_them(app):
     assert "Genomics workbench" in shown(at)
 
 
-def test_metric_tiles_wrap_instead_of_cutting_their_values():
+def test_metric_tiles_and_number_strips_wrap_instead_of_cutting_their_values():
     """Every metric tile takes its content's width in a row that wraps on a narrow screen
     (st.container(horizontal=True)), never a fixed column that cuts "75th percentile" to "75th
-    perc…"; its unit goes in the label ("…, cohort percentile"), not the value (docs/ux.md §4)."""
-    calls = [(p.name, n) for p in sorted(APP.parent.rglob("*.py"))
-             for n in ast.walk(ast.parse(p.read_text(encoding="utf-8")))
-             if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "metric"]
-    assert len(calls) > 30
+    perc…"; a number strip (``workbenches._page.strip``) wraps by itself (app/theme.css). Either
+    way the unit goes in the label ("…, cohort percentile") or the note, not the value
+    (docs/ux.md §4, §8.1)."""
+    calls, stats = [], []
+    for p in sorted(APP.parent.rglob("*.py")):
+        for n in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
+            name = getattr(getattr(n, "func", None), "attr", None) or getattr(
+                getattr(n, "func", None), "id", None)
+            if isinstance(n, ast.Call) and name == "metric":
+                calls.append((p.name, n))
+            elif isinstance(n, ast.Call) and name in ("strip", "stat_strip"):
+                stats += [(p.name, t) for t in n.args if isinstance(t, ast.Tuple)]
+    assert len(calls) + len(stats) > 30 and stats
     for name, n in calls:
         width = {k.arg: k.value for k in n.keywords}.get("width")
         assert isinstance(width, ast.Constant) and width.value == "content", f"{name}:{n.lineno}"
         words = [c.value for c in ast.walk(n.args[1]) if isinstance(c, ast.Constant)
                  and isinstance(c.value, str)] if len(n.args) > 1 else []  # the value's text
         assert not any("percentile" in w for w in words), f"{name}:{n.lineno}: unit in the label"
+    for name, t in stats:  # (label, value, note, help): the value's text
+        words = [c.value for c in ast.walk(t.elts[1]) if isinstance(c, ast.Constant)
+                 and isinstance(c.value, str)]
+        assert not any("percentile" in w for w in words), f"{name}:{t.lineno}: unit in the label"
 
 
 CONTROLS = {"button", "download_button", "popover", "selectbox", "multiselect", "pills",
@@ -295,7 +307,16 @@ def test_the_theme_passes_wcag_aa_contrast():
         assert ratio(rgb(theme[f"{color}TextColor"]), tint) >= 4.5, color
     assert ratio((255, 255, 255), rgb(theme["primaryColor"])) >= 4.5  # primary buttons, chips
     caption = tuple(255 - 0.6 * (255 - v) for v in rgb(theme["textColor"]))
-    assert ratio(caption, (255, 255, 255)) >= 4.5
+    assert ratio(caption, (255, 255, 255)) >= 4.5  # a caption as Streamlit fades it (no sheet)
+    # QA R4-1: the sheet draws captions at full opacity in the muted ink, so the chips and links
+    # inside a caption keep their own contrast (the badge checks above), and the text 7.6:1
+    import re
+
+    sheet = (APP.parent / "theme.css").read_text(encoding="utf-8")
+    rule = re.search(r'\[data-testid="stCaptionContainer"\]\s*\{([^}]*)\}', sheet).group(1)
+    assert "opacity: 1" in rule and "var(--mf-muted)" in rule
+    muted = re.search(r"--mf-muted:\s*(#[0-9a-fA-F]{6})", sheet).group(1)
+    assert ratio(rgb(muted), (255, 255, 255)) >= 4.5
 
 
 def test_no_file_path_on_a_clinician_screen(app):

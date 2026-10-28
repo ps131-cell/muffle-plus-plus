@@ -35,7 +35,7 @@ from muffle.workbench import labs_reference as ref  # noqa: E402
 from muffle.workbench.grammar import chip, esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, PatientFile, Test  # noqa: E402
 from workbenches._howto import how_to, instruct  # noqa: E402
-from workbenches._page import Page  # noqa: E402
+from workbenches._page import Page, table  # noqa: E402
 
 LABS, REPORT, SEQUENCING, IMAGING = ("Lab results (CSV)", "Report (text or PDF)",
                                      "Sequencing (VCF or MAF)", "Imaging report (text or PDF)")
@@ -152,13 +152,12 @@ def render_view(file: PatientFile) -> None:
                 for v, r in zip(versions, records, strict=False) for x in r["rejected"]]
     with page.details("Rejected on intake", len(rejected)):
         if rejected:
-            st.dataframe(pd.DataFrame(rejected), hide_index=True, width="stretch")
+            table(rejected)
         else:
             st.caption("No row rejected in this session.")
     with page.details("What each adapter accepts", len(ADAPTERS)):
-        st.dataframe(pd.DataFrame(ADAPTERS, columns=["Adapter", "Accepts", "Checked on intake",
-                                                     "Joins the file as"]),
-                     hide_index=True, width="stretch")
+        table(pd.DataFrame(ADAPTERS, columns=["Adapter", "Accepts", "Checked on intake",
+                                              "Joins the file as"]))
     with page.card():
         st.caption(chip(IMPLEMENTED))
         st.markdown("**Intake rules** · rules, no model. Each adapter checks the file's form "
@@ -303,12 +302,12 @@ def _labs(file: PatientFile, when: str, prefill: dict | None = None) -> dict | N
         shown[["low", "limit"]] = shown[["low", "limit"]].map(  # "—", not "None", where none
             lambda v: "—" if pd.isna(v) else f"{v:g}")
         shown["reported"] = shown["reported"].fillna("—")
-        st.dataframe(shown.rename(columns={"low": "lower limit", "limit": "upper limit",
-                                           "reported": "as reported (converted)"}),
-                     hide_index=True, width="stretch")
+        table(shown.rename(columns={"low": "lower limit", "limit": "upper limit",
+                                    "reported": "as reported (converted)"}),
+              mono=("lower limit", "upper limit", "as reported (converted)"))
     if bad:
         st.markdown(f"**Rejected** · {len(bad)} row(s), with the reason")
-        st.dataframe(pd.DataFrame(bad), hide_index=True, width="stretch")
+        table(bad)
     if not ok:
         st.error("No row was accepted: nothing to add.")
         return None
@@ -328,9 +327,9 @@ def _labs(file: PatientFile, when: str, prefill: dict | None = None) -> dict | N
 def _facts_preview(text: str) -> None:
     facts = extract(text)
     if facts:
-        st.dataframe(pd.DataFrame([{"Fact": FIELDS[f["field"]], "Value": f["value"],
-                                    "Source sentence": f["quote"][:120]} for f in facts]),
-                     hide_index=True, width="stretch")
+        table([{"Fact": FIELDS[f["field"]], "Value": f["value"],
+                "Source sentence": f["quote"][:120], "Status": "documented"} for f in facts],
+              colors={"documented": "blue"})
     st.caption(f"{len(facts)} documented facts found by the rules; the documents workbench "
                "shows each at its sentence.")
 
@@ -393,11 +392,11 @@ def _sequencing(file: PatientFile, month: int, source: str) -> dict | None:
     if ok:
         st.markdown(f"**Accepted** · {len(ok)} variant(s) · {meta['format']}, sample "
                     f"{meta['sample'] or 'not named in the file'}")
-        st.dataframe(pd.DataFrame(ok)[["row", "variant", "consequence", "allele_fraction"]],
-                     hide_index=True, width="stretch")
+        table(pd.DataFrame(ok)[["row", "variant", "consequence", "allele_fraction"]],
+              mono=("allele_fraction",))
     if bad:
         st.markdown(f"**Rejected** · {len(bad)} row(s), with the reason (row = line in the file)")
-        st.dataframe(pd.DataFrame(bad), hide_index=True, width="stretch")
+        table(bad)
     if not ok:
         st.error("No panel variant was accepted: nothing to add. A variant file lists calls, "
                  "not coverage, so it can't show that the panel's genes are unmutated.")
@@ -431,9 +430,8 @@ def read_details(d: dict) -> None:
     st.markdown(f"**Read** {chip(OBSERVED)}: {d['read']}{words}  \n**New distant sites named:** "
                 + (", ".join(d["new_sites"]) or "none"))
     if d["set_aside"]:
-        st.dataframe(pd.DataFrame(d["set_aside"]).rename(
-            columns={"clause": "Clause set aside", "why": "Why"}), hide_index=True,
-            width="stretch")
+        table(pd.DataFrame(d["set_aside"]).rename(
+            columns={"clause": "Clause set aside", "why": "Why"}))
     st.caption(f"Rule: {d['rule']}. It raises progression on imaging when the read is "
                "progression, and a new metastatic site for a named site not in the record "
                "before. Tested on sample sentences, not validated on a set of real reports: the "
@@ -481,8 +479,7 @@ def _details(t: Test) -> None:
                     f"{'s' if d['pages'] != 1 else ''}, {d['bytes'] / 1024:,.0f} KB, no text "
                     "layer")
     if "header" in d:
-        st.dataframe(pd.DataFrame(list(d["header"].items()), columns=["Header field", "Value"]),
-                     hide_index=True, width="stretch")
+        table(pd.DataFrame(list(d["header"].items()), columns=["Header field", "Value"]))
         if d["identifiers_present"]:
             st.warning("This header carries identifying fields (" + ", ".join(
                 d["identifiers_present"]) + "). They were not read into the file. Only public "

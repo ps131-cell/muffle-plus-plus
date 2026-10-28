@@ -41,7 +41,7 @@ from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E4
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 from workbenches._howto import how_to, instruct  # noqa: E402
-from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
+from workbenches._page import Page, empty, land, line_and_action, queue_items, table  # noqa: E402
 
 HOW_TO = ("**The record over time**: every dated event of the file (hover a point for its "
           "text). **Look here**: what to watch next, and why, from a cited table. **Spot "
@@ -50,7 +50,6 @@ HOW_TO = ("**The record over time**: every dated event of the file (hover a poin
 DOCS = "https://github.com/ps131-cell/muffle-plus-plus/blob/main/docs/evolution.md"
 KIND_COLORS = {"diagnosis": "#8a8f98", "treatment": "#eb6834", "imaging": "#2a78d6",
                "sequencing": "#7b4fd6", "marker": "#1a9e8f", "alert": "#e34948"}
-GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
 REVIEW_MARKS = MARKS[1:]  # agree, disagree, second look; "reviewed" belongs to the SOS queue
 PROVENANCE = ("Data: this file's record and its documents (observed). Method: a table of "
               f"{len(evolution.TABLE)} rows from {len(evolution.SOURCES)} papers, each PMID and "
@@ -112,8 +111,11 @@ def events_chart(ev: list[dict], now: int | None) -> alt.Chart:
     tip = [alt.Tooltip("month:Q", title="month"), alt.Tooltip("what:N", title="observed"),
            alt.Tooltip("flag:N", title="flag or class"), alt.Tooltip("source:N", title="version"),
            alt.Tooltip("evidence:N", title="evidence")]
-    points = alt.Chart(df).mark_point(filled=True, size=120, opacity=0.9).encode(
-        x=x, y=y, color=color, tooltip=tip)
+    hover = alt.selection_point(name="hover", on="pointerover", nearest=True, empty=False,
+                                fields=["month", "lane"])  # the pointed event grows
+    points = alt.Chart(df).mark_point(filled=True, opacity=0.9).encode(
+        x=x, y=y, color=color, tooltip=tip,
+        size=alt.condition(hover, alt.value(260), alt.value(120))).add_params(hover)
     # labels only where they carry the story (treatments, alerts, the sequenced driver), slanted
     # so that starts a few months apart don't overwrite each other; the rest is in the tooltip
     told = df[df["kind"].isin(["treatment", "alert", "sequencing"]) & (df["label"] != "")]
@@ -123,7 +125,7 @@ def events_chart(ev: list[dict], now: int | None) -> alt.Chart:
     if now is not None:
         layers.append(alt.Chart(pd.DataFrame({"month": [now]})).mark_rule(
             strokeDash=[4, 4], color="#8a8f98").encode(x="month:Q"))
-    return alt.layer(*layers).properties(height=320).configure_axis(**GRID)
+    return alt.layer(*layers).properties(height=320)
 
 
 def vaf_chart(variants: list[dict]) -> alt.Chart:
@@ -131,16 +133,19 @@ def vaf_chart(variants: list[dict]) -> alt.Chart:
                         "reads": f"{v['alt']} of {v['depth']}",
                         "copies": f"{v['copies_used']:g}" + ("" if v.get("copies") else
                                                              " (assumed)"),
-                        "cells": f"at least {v['cells_at_least']:.0%} if on one copy"}
+                        "cells": f"at least {v['cells_at_least']:.0%} if on one copy",
+                        "evidence": "observed reads (GDC open access); the cell share is "
+                                    "model inference"}
                        for v in variants])
     y = alt.Y("variant:N", sort=None, title=None)
     x = alt.X("lo:Q", title="allele fraction (95% interval)", scale=alt.Scale(domain=[0, 1]))
-    tip = [alt.Tooltip("vaf:Q", title="allele fraction", format=".2f"),
+    tip = [alt.Tooltip("variant:N"), alt.Tooltip("vaf:Q", title="allele fraction", format=".2f"),
            alt.Tooltip("lo:Q", title="95% low", format=".2f"),
            alt.Tooltip("hi:Q", title="95% high", format=".2f"),
            alt.Tooltip("reads:N", title="alt reads of depth"),
            alt.Tooltip("copies:N", title="copies of the gene (ASCAT3)"),
-           alt.Tooltip("cells:N", title="tumor cells carrying it")]
+           alt.Tooltip("cells:N", title="tumor cells carrying it"),
+           alt.Tooltip("evidence:N")]
     ref = alt.Chart(pd.DataFrame({"x": [0.5]})).mark_rule(strokeDash=[4, 4], color="#8a8f98")
     return alt.layer(
         alt.Chart(df).mark_rule(strokeWidth=3, color="#7b4fd6").encode(x=x, x2="hi:Q", y=y,
@@ -148,7 +153,7 @@ def vaf_chart(variants: list[dict]) -> alt.Chart:
         alt.Chart(df).mark_point(filled=True, size=110, color="#7b4fd6").encode(
             x="vaf:Q", y=y, tooltip=tip),
         ref.encode(x="x:Q"),
-    ).properties(height=40 + 36 * len(df)).configure_axis(**GRID)
+    ).properties(height=40 + 36 * len(df))
 
 
 def _matches(item: dict, q: str) -> bool:
@@ -176,14 +181,13 @@ def watch_table(hs: dict, items: list[dict], spot: str) -> None:
         if sel:
             st.session_state[spot] = items[sel[0]]["key"]
 
-    st.dataframe(pd.DataFrame([{
-        "#": n, "What to watch": it["event"],
-        "Why this file raises it": "; ".join(it["why"]), "Status": it["status"],
-        "Reported frequency": it["frequency"], "Would be detected by": it["detect"],
-        "Strongest evidence": it["strength"],
-        "Mark": (reviews.get(it["key"]) or {}).get("mark", "")}
-        for n, it in enumerate(items, 1)]), hide_index=True, width="stretch", on_select=pick,
-        selection_mode="single-row", key=key)
+    table([{"#": n, "What to watch": it["event"],
+            "Why this file raises it": "; ".join(it["why"]), "Status": it["status"],
+            "Reported frequency": it["frequency"], "Would be detected by": it["detect"],
+            "Strongest evidence": it["strength"], "Evidence": HYPOTHESIS,
+            "Mark": (reviews.get(it["key"]) or {}).get("mark", "")}
+           for n, it in enumerate(items, 1)], on_select=pick, key=key,
+          colors={"already observed": "blue"})
 
 
 def watch_what(it: dict) -> str:
@@ -226,12 +230,13 @@ def item_spot(it: dict, rows: list[dict] = ()) -> None:
                 f"**When it would matter:** {it['matters']}.")
     st.markdown(f"**Evidence:** {len(it['support'])} for, {len(it['against'])} against or "
                 f"limits · strongest: {it['strength']}")
-    st.dataframe(pd.DataFrame([{
-        "Source": f"{e['source']['cite']}, {e['source']['journal']}",
-        "What the abstract reports": e["says"], "Cohort": e["cohort"],
-        "Frequency": e["frequency"], "PubMed": e["source"]["url"]}
-        for e in it["support"]]), hide_index=True, width="stretch",
-        column_config={"PubMed": st.column_config.LinkColumn(display_text=r"PMID (\d+)")})
+    table([{"Source": f"{e['source']['cite']}, {e['source']['journal']}",
+            "What the abstract reports": e["says"], "Cohort": e["cohort"],
+            "Frequency": e["frequency"],
+            "PubMed": f"[PMID {e['source']['pmid']}]({e['source']['url']})"}
+           for e in it["support"]],
+          caption="What each abstract reports (hypothesis, for clinician review); every PMID "
+                  f"checked against PubMed on {evolution.VERIFIED}.")
     for e in it["against"]:
         st.markdown(f"- **Against or a limit** ({e['source']['cite']}, "
                     f"[PMID {e['source']['pmid']}]({e['source']['url']})): "
@@ -245,12 +250,11 @@ def item_spot(it: dict, rows: list[dict] = ()) -> None:
     elif civ["items"]:
         st.markdown(f"**CIViC items for this event** ({civ['total']} in breast cancer; the "
                     "strongest shown) · treatment evidence for clinician review")
-        st.dataframe(pd.DataFrame(civ["items"]).rename(columns={
+        table(pd.DataFrame(civ["items"]).rename(columns={
             "molecular_profile": "Profile", "therapies": "Therapies",
             "evidence_level": "Level", "significance": "Significance",
-            "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
-            hide_index=True, width="stretch", column_config={
-                "CIViC": st.column_config.LinkColumn(display_text="item")})
+            "direction": "Direction", "citation": "Citation", "url": "CIViC"}).assign(
+            Evidence=HYPOTHESIS), chips=("Level",), links={"CIViC": "item"})
     else:
         st.caption("CIViC: no accepted item for this event in breast cancer.")
     named = item_trials(it, list(rows))
@@ -266,8 +270,9 @@ def item_spot(it: dict, rows: list[dict] = ()) -> None:
 def clonal(panel: dict) -> None:
     st.caption(" ".join([badge(INFERENCE), badge(IMPLEMENTED)]))
     if "variants" not in panel:
-        st.info(f"{panel['status'][0].upper()}{panel['status'][1:]}. Clonal order needs allele "
-                "fractions; repeated samples over time would make it far more reliable.")
+        empty(f"{panel['status'][0].upper()}{panel['status'][1:]}. Clonal order needs allele "
+              "fractions; repeated samples over time would make it far more reliable.",
+              icon=":material/account_tree:")
         return
     st.markdown(f"**{panel['status'].capitalize()}.** One tumor sample: each driver's share of "
                 "reads, with its 95% interval. A higher fraction suggests more cells, so an "
@@ -279,10 +284,9 @@ def clonal(panel: dict) -> None:
     st.caption("Dashed line: 0.5, a heterozygous mutation in every cell of a pure tumor with "
                "two copies of the gene. Purity is unknown here, so no variant is called clonal.")
     if panel["pairs"]:
-        st.dataframe(pd.DataFrame([{
-            "Higher": p["a"], "Lower": p["b"], "Relation": p["relation"], "Why": p["why"],
-            "Consistent alternatives": " | ".join(p["alternatives"])} for p in panel["pairs"]]),
-            hide_index=True, width="stretch")
+        table([{"Higher": p["a"], "Lower": p["b"], "Relation": p["relation"], "Why": p["why"],
+                "Consistent alternatives": " | ".join(p["alternatives"]),
+                "Evidence": INFERENCE} for p in panel["pairs"]], mono=("Higher", "Lower"))
         st.markdown("**Orderings consistent with these numbers** (alternatives, not a tree)\n"
                     + "\n".join(f"- {esc(o)}" for o in panel["orderings"]))
     else:
@@ -311,8 +315,9 @@ def trials_section(pf: PatientFile, genes: list[str], rows: list[dict], results:
                          badge("for clinician review; eligibility is not assessed here",
                                "gray")]))
     if not genes:
-        st.info("No observed driver in this file: no trial query is made (queries use observed "
-                "gene names only). Tumor sequencing would give the genes to search.")
+        empty("No observed driver in this file: no trial query is made (queries use observed "
+              "gene names only). Tumor sequencing would give the genes to search.",
+              icon=":material/clinical_notes:")
         return
     for r in results:
         found = ("count unknown" if r["total"] is None else
@@ -323,15 +328,14 @@ def trials_section(pf: PatientFile, genes: list[str], rows: list[dict], results:
         st.markdown(f"- **{r['term']}**: {found} · {r['note']} · [the same search on "
                     f"ClinicalTrials.gov]({trials.search_url(r['gene'])})")
     if rows:
-        st.dataframe(pd.DataFrame([{
-            "Trial": f"https://clinicaltrials.gov/study/{t['nct']}", "Title": t["title"],
-            "Phase": t["phase"], "Status": t["status"], "Mentions": t["mentions"],
-            "Interventions": ", ".join(t["interventions"][:4])
-            + (" …" if len(t["interventions"]) > 4 else ""),
-            "Countries": ", ".join(t["countries"][:4])
-            + (f" +{len(t['countries']) - 4}" if len(t["countries"]) > 4 else ""),
-            "Last update": t["updated"]} for t in rows]), hide_index=True, width="stretch",
-            column_config={"Trial": st.column_config.LinkColumn(display_text=r"(NCT\d+)")})
+        table([{"Trial": f"https://clinicaltrials.gov/study/{t['nct']}", "Title": t["title"],
+                "Phase": t["phase"], "Status": t["status"], "Mentions": t["mentions"],
+                "Interventions": ", ".join(t["interventions"][:4])
+                + (" …" if len(t["interventions"]) > 4 else ""),
+                "Countries": ", ".join(t["countries"][:4])
+                + (f" +{len(t['countries']) - 4}" if len(t["countries"]) > 4 else ""),
+                "Last update": t["updated"]} for t in rows], grid=True,
+              links={"Trial": r"(NCT\d+)"}, plain=("Status",))
         pick = st.selectbox("Mark or pin a trial", [f"{t['nct']} · {t['title']}" for t in rows],
                             index=None, key=f"{key}-trial", placeholder="Choose a trial")
         if pick:
@@ -453,9 +457,9 @@ def render(pf: PatientFile, version: int | None = None, lookup=None) -> None:
         else:
             st.caption("Nothing to watch matches." if query else "Nothing raised.")
     with page.details("Not raised for this file, and why", len(hs["not_raised"])):
-        st.dataframe(pd.DataFrame(hs["not_raised"]).rename(
+        table(pd.DataFrame(hs["not_raised"]).rename(
             columns={"id": "Row", "event": "Event", "reason": "Why not raised"}),
-            hide_index=True, width="stretch")
+            mono=("Row",))
     with page.details("Clonal order from allele fractions",
                       len(panel["variants"]) if "variants" in panel else "not computed"):
         clonal(panel)

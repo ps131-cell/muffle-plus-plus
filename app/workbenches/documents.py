@@ -42,7 +42,10 @@ from muffle.workbench import documents as wb  # noqa: E402
 from muffle.workbench.grammar import esc  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 from workbenches._howto import how_to, instruct  # noqa: E402
-from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
+from workbenches._page import Page, land, line_and_action, queue_items, table  # noqa: E402
+
+READINGS = {"agree": "green", "disagree": "red", "model only": "violet",
+            "rules only": "blue"}  # the two readers of a field, as chips
 
 FACT, FOCUS, HIT, MODEL = "#fde68a", "#bfdbfe", "#bbf7d0", "#7c3aed"
 NO_MARK = "no mark"
@@ -280,12 +283,11 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                 st.markdown(f"**The two readers of this document** · rules "
                             f"{':blue-badge[documented]'} against the model "
                             f"{':violet-badge[model inference]'}, {len(mine_rows)} fields")
-                st.dataframe(pd.DataFrame([{
-                    "Field": r["label"], "Readings": r["kind"],
-                    "Rules": "" if r["rules"] is None else str(r["rules"]),
-                    "Model": "" if r["model"] is None else str(r["model"]),
-                    "In words": r["line"]} for r in mine_rows]), hide_index=True,
-                    width="stretch")
+                table([{"Field": r["label"], "Readings": r["kind"],
+                        "Rules": "" if r["rules"] is None else str(r["rules"]),
+                        "Model": "" if r["model"] is None else str(r["model"]),
+                        "In words": r["line"]} for r in mine_rows],
+                      mono=("Rules", "Model"), chips=("Readings",), colors=READINGS)
             st.caption(f"{len(own)} facts highlighted in yellow ({wb.DOCUMENTED}: the "
                        "characters each rule matched)"
                        + (f"; {len(tips)} spans underlined in violet ({INFERENCE}: the "
@@ -300,15 +302,15 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                                 key=f"docs-fields-{file.id}", placeholder="All fields")
         shown = [(f, k) for f, k in zip(facts, keys, strict=True)
                  if not fields or f["label"] in fields]
-        table = pd.DataFrame([{
+        listed = pd.DataFrame([{
             "Field": f["label"], "Value": f["value"], "Document": titles[f["doc"]],
             "Source sentence": f["quote"][:160] + ("…" if len(f["quote"]) > 160 else ""),
             "Characters": f"{f['start']}–{f['end']}", "Status": f["status"],
             "Mark": (reviews.get(k) or {}).get("mark", ""),
             "Pinned": "📌" if k in st.session_state.get("pins", {}) else ""} for f, k in shown])
-        sel = st.dataframe(table, hide_index=True, on_select="rerun", selection_mode="single-row",
-                           key=f"docs-facts-{file.id}-{i}-{'.'.join(fields)}",
-                           width="stretch").selection.rows if shown else []
+        sel = table(listed, on_select="rerun", mono=("Characters",), colors={wb.DOCUMENTED: "blue"},
+                    key=f"docs-facts-{file.id}-{i}-{'.'.join(fields)}").selection.rows \
+            if shown else []
         st.caption("Click a row to jump to its sentence in Documents above and open it in the "
                    "Spot panel. Status documented: the document says it; nothing is derived (a % "
                    "is not turned into a status, a pT into a stage).")
@@ -323,11 +325,12 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
                        "machine, outside this app: the bundled TCGA reports carry "
                        "its spans; an imported document is queued for the local pipeline.")
         elif rows:
-            st.dataframe(pd.DataFrame([{
-                "Document": titles[r["doc"]], "Field": r["label"], "Readings": r["kind"],
-                "Rules (documented)": "" if r["rules"] is None else str(r["rules"]),
-                "Model (model inference)": "" if r["model"] is None else str(r["model"]),
-                "In words": r["line"]} for r in rows]), hide_index=True, width="stretch")
+            table([{"Document": titles[r["doc"]], "Field": r["label"], "Readings": r["kind"],
+                    "Rules (documented)": "" if r["rules"] is None else str(r["rules"]),
+                    "Model (model inference)": "" if r["model"] is None else str(r["model"]),
+                    "In words": r["line"]} for r in rows],
+                  mono=("Rules (documented)", "Model (model inference)"), chips=("Readings",),
+                  colors=READINGS)
         if read:
             st.caption("Per field and document, the first value each reader gives, on the scales "
                        "they were measured on (HER2: ISH, else the status word, else the IHC "
@@ -340,13 +343,12 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
 
     if model:
         with page.details("The model's spans", len(model), key=f"docs-d-spans-{file.id}"):
-            ms = st.dataframe(pd.DataFrame([{
+            ms = table([{
                 "Label given": f["model_label"], "Characters marked": f["span"][:80],
                 "Value in them": f["value"] or "(mention)", "Score": round(f["score"], 2),
                 "Document": titles[f["doc"]], "Characters": f"{f['start']}–{f['end']}"}
-                for f in model]), hide_index=True, on_select="rerun",
-                selection_mode="single-row", key=f"docs-spans-{file.id}-{i}",
-                width="stretch").selection.rows
+                for f in model], on_select="rerun", mono=("Characters",),
+                key=f"docs-spans-{file.id}-{i}").selection.rows
             if ms:
                 _jump(file, model[ms[0]])
 
@@ -399,17 +401,17 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
     hist = wb.history(docs, facts)
     with page.details("The documents over time", f"{len(dated)} dated, {len(changed)} change"
                       f"{'' if len(changed) == 1 else 's'}", key=f"docs-d-time-{file.id}"):
-        st.dataframe(pd.DataFrame(wb.timeline(docs))[["when", "title", "kind", "dates_in_text"]]
-                     .rename(columns={"when": "When", "title": "Document", "kind": "Kind",
-                                      "dates_in_text": "Dates written in it"}),
-                     hide_index=True, width="stretch")
+        table(pd.DataFrame(wb.timeline(docs))[["when", "title", "kind", "dates_in_text"]]
+              .rename(columns={"when": "When", "title": "Document", "kind": "Kind",
+                               "dates_in_text": "Dates written in it"}),
+              mono=("Dates written in it",))
         if any(h["facts"] for h in hist):
             grid = {}
             for h in hist:
                 col = f"month {h['month']} · {h['title']}"
                 for k, f in h["facts"].items():
                     grid.setdefault(wb.FIELDS[k], {})[col] = f["value"]
-            st.dataframe(pd.DataFrame(grid).T.fillna(""), width="stretch")
+            st.table(pd.DataFrame(grid).T.fillna(""))  # fields by document: its index
             st.caption("Each dated document's receptor, stage, grade and type facts on the "
                        "file's time axis (empty: the document does not state it, unknown, not "
                        "negative).")
@@ -430,8 +432,8 @@ def render(file: PatientFile, version: int | None = None, focus: str | None = No
 
     with page.card():
         st.markdown(f"**The rules** · {wb.RULES_VERSION}")
-        st.dataframe(pd.DataFrame(list(wb.RULES.items()), columns=["Fact", "Rule"]),
-                     hide_index=True, width="stretch")
+        table(pd.DataFrame(list(wb.RULES.items()), columns=["Fact", "Rule"]),
+              mono=("Rule",))
         st.markdown(f"**The model** · {wb.NER_METHOD}")
         methods_card(compact=True)
 
@@ -472,13 +474,13 @@ def search(file: PatientFile, i: int, docs: list[dict], facts: list[dict], model
     found = wb.search_findings(facts + model, q)
     if found:
         st.markdown(f"**Findings** · {len(found)} (documented facts and the model's spans)")
-        fs = st.dataframe(pd.DataFrame([{
+        fs = table([{
             "Layer": f["status"], "Field": f["label"], "Value": f["value"] or "(mention)",
             "Characters marked": (f.get("span") or "")[:60],
             "Score": round(f["score"], 2) if f["rule"] == "model" else None,
-            "Document": titles[f["doc"]]} for f in found]), hide_index=True,
-            on_select="rerun", selection_mode="single-row",
-            key=f"docs-found-{file.id}-{i}-{q}", width="stretch").selection.rows
+            "Document": titles[f["doc"]]} for f in found], on_select="rerun",
+            chips=("Layer",), colors={wb.DOCUMENTED: "blue"},
+            key=f"docs-found-{file.id}-{i}-{q}").selection.rows
         if fs:
             _jump(file, found[fs[0]])
     hits = wb.search(docs, q)
@@ -572,7 +574,6 @@ def methods_card(compact: bool = False) -> None:
         return
     v = json.loads(VALIDATION.read_text())
     sets, ner = v["sets"], v.get("model")
-    pct = st.column_config.NumberColumn(format="percent")
     for name, title in (("test", "Held-out half"), ("bundled", "Bundled cases")):
         mine = {r["field"]: r for r in ner["sets"][name]["fields"]} if ner else {}
         rows = [{"Field": r["compared"], "Patients with a TCGA value": r["with_value"],
@@ -583,9 +584,8 @@ def methods_card(compact: bool = False) -> None:
                      "Model: recall": mine[r["field"]]["recall"]} if r["field"] in mine else {})}
                 for r in sets[name]["fields"]]
         st.markdown(f"**{title}** ({sets[name]['patients']} patients)")
-        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
-                     column_config={c: pct for c in ("Rules: precision", "Rules: recall",
-                                                     "Model: precision", "Model: recall")})
+        table(rows, percent=("Rules: precision", "Rules: recall", "Model: precision",
+                             "Model: recall"))
     st.caption(
         f"{v['rules']}, measured {v['measured']}: {sets['test']['patients']} TCGA-BRCA reports "
         f"the rules were not written on (the held-out half), and the "
@@ -608,13 +608,11 @@ def methods_card(compact: bool = False) -> None:
             f"{run['load_after']}). Known failures: " + " ".join(wb.NER_FAILURES))
     scan = v.get("scan")
     if scan:
-        st.dataframe(pd.DataFrame([{
-            "Scan": r["what"], "Pages": r["pages"], "Character accuracy": r["char_accuracy"],
-            "Word accuracy": r["word_accuracy"],
-            "Rules' facts kept": f"{r['facts_same']} of {r['facts_reference']}",
-            "Reader looped": "yes" if r.get("looped") else "", "Seconds": r["seconds"]}
-            for r in scan["rows"]]), hide_index=True, width="stretch",
-            column_config={c: pct for c in ("Character accuracy", "Word accuracy")})
+        table([{"Scan": r["what"], "Pages": r["pages"], "Character accuracy": r["char_accuracy"],
+                "Word accuracy": r["word_accuracy"],
+                "Rules' facts kept": f"{r['facts_same']} of {r['facts_reference']}",
+                "Reader looped": "yes" if r.get("looped") else "", "Seconds": r["seconds"]}
+               for r in scan["rows"]], percent=("Character accuracy", "Word accuracy"))
         st.caption(scan["note"])
 
 

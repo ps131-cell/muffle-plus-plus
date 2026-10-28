@@ -386,6 +386,59 @@ The two-pass audit behind this section is `docs/ux-audit.md`.
   status, placeholder (always orange), trust, SOS, CIViC levels, variant severity, risk change.
   Colour is never the only signal: every chip keeps its word.
 
+### 8.1 The workbench pages as one instrument (2026-10-28, round 15)
+
+The seven non-map workbenches (labs, ctDNA, genomics, omics, documents, Evolution, Imports),
+Feedback and Methods share four pieces, so a finding looks the same wherever it is shown. The
+slide and radiology pages keep their own maps and take the chart theme and the table and empty
+styles; their tables are theirs.
+
+- **The chart theme** (`app/charts.py`, `THEME`, registered with `alt.theme.register` and
+  enabled when `charts` is imported; every workbench `Page` imports it before it draws, the
+  shell's charts import it themselves). IBM Plex Sans; axis titles and legend titles 12–13 px
+  and tick labels 12 px in the muted ink (#4d5260, 7.6:1); hairline axes (#c3c9d2) with no
+  frame around the plot; no vertical gridlines, horizontal hairlines (#e6e9ee) only where a
+  value is read off a vertical quantitative axis, none on a category axis; compact legends
+  (12 px labels, 64 px² symbols, no padding); 2 px round lines; the categorical order of the
+  validated palette (blue, orange, aqua, yellow, magenta, green, violet, red). A chart's own
+  colours for a meaning stay its own: risk red/blue, a flag's colour, the label colours
+  (`EVIDENCE_COLORS` observed blue, model inference violet, hypothesis orange; `LEVEL_HEX`,
+  `IMPACT_HEX` from the Colour code). Streamlit's chart theme fills in only what the theme
+  leaves unset. Tooltips open as a small bordered card in IBM Plex Sans: the key muted, the
+  value in ink with tabular figures (many values are sentences: a source, a rule).
+- **Finding tables** (`workbenches._page.table`). A list of findings is one call: no index,
+  rows over hairlines, small capital headers, the values, pointers, months, ids and variants
+  in monospace (by column name, every numeric column, or `mono=`), the evidence and status
+  columns as the grammar's chips (`chips=`; CIViC levels and VEP severities take their
+  colours; `colors=` a page's own), links as their text (`links=`), shares as percents
+  (`percent=`), and the table's one-line provenance under it (`caption=`). A short, narrow
+  list (at most 25 rows and 8 columns) is a static table whose text wraps; a long or wide one,
+  one that sorts (`grid=True`) or one whose row click opens the Spot panel (`on_select=`) is
+  Streamlit's grid with 30 px rows, its chips as coloured pills and its links as link columns.
+  An empty list says why (`empty=`). A matrix with row labels (a confusion matrix, fields by
+  document) stays `st.table` with its index.
+- **Number strips** (`workbenches._page.strip`) instead of rows of metric tiles: one row per
+  group, each number a small label over its monospace value with a note after it (a unit, a
+  z-score), its source or method on hover (the label is dotted-underlined when it has one); the
+  strip wraps at 800 px. Streamlit's `st.metric` stays only where its delta arrow carries a
+  meaning: the what-if risk percentile (a change in percentile points, red up) and the report's
+  risk tiles.
+- **Empty states** (`workbenches._page.empty`): a workbench with nothing for this file (no labs
+  in a TCGA file, no ctDNA, not sequenced, no copy number, no expression data, no marks yet)
+  says what is missing and which test or import would fill it, in one quiet card: a light grey
+  ground, a 3 px blue rule, a monochrome Material icon. Every `st.info` note takes the same
+  card.
+- **Labels on every finding row**: the tables that list findings carry their evidence label as
+  a chip (observed, model inference or hypothesis; a placeholder always orange), adding the
+  column where a list had none (the caution windows, the variant calls, what to watch next, the
+  clonal pairs, the documented facts of an import).
+- **Hover provenance on each workbench's main chart**: the value with its unit, the month, the
+  threshold or interval and where it comes from, and the evidence label (labs' trends add the
+  reference interval's source; the ctDNA chart the rule with its status and the synthetic
+  label; the copy-number landscape the ASCAT3 source and the label; burden, allele fractions,
+  the pathway map, the subtype bars, promoter methylation and the clonal panel their label and
+  source). The record over time (Evolution) grows the pointed event.
+
 ## How it is tested
 
 `tests/skeleton.py` reads the parts a page recorded (`st.session_state["page_parts"]`) and the
