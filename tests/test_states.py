@@ -248,6 +248,8 @@ def test_the_reports_charts_keep_room_for_their_axes(app):
     for pid in (app.case, SYN):
         at.selectbox(key="patient").select(pid).run()
         assert not at.exception and not charts_in_columns(at), (pid, charts_in_columns(at))
+    at.selectbox(key="patient").select(app.case).run()  # R3-5: one "Where this patient sits"
+    assert "risk among all" in shown(at) and "sits among all patients" not in shown(at)
     if app.shipped:  # the test case borrows a processed public MRI
         at.selectbox(key="patient").select(app.case).run()
         at.session_state[f"picked-{app.case}"] = ("Imaging", None, app.shipped[0]["name"])

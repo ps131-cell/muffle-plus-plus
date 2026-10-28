@@ -1366,7 +1366,9 @@ def case_why(case):
     with st.container(horizontal=True, gap="medium", key="case-why"):  # wraps when narrow
         left, right = (st.container(width=CHART_WIDTH) for _ in range(2))
     with left:
-        st.markdown(f"**Where this patient sits among all patients** {tags(INFERENCE)}")
+        # not "Where this patient sits", the cohort lookup's heading above (QA R3-5)
+        st.markdown(f"**This patient's risk among all {len(demo.cohort_risks):,} patients** "
+                    f"{tags(INFERENCE)}")
         st.vega_lite_chart(spec=position, width="stretch",
                            alt=f"This patient's predicted risk against all "
                                f"{len(demo.cohort_risks):,} patients: the "
