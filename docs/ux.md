@@ -389,10 +389,10 @@ The two-pass audit behind this section is `docs/ux-audit.md`.
 
 ### 8.1 The workbench pages as one instrument (2026-10-28, round 15)
 
-The seven non-map workbenches (labs, ctDNA, genomics, omics, documents, Evolution, Imports),
-Feedback and Methods share four pieces, so a finding looks the same wherever it is shown. The
-slide and radiology pages keep their own maps and take the chart theme and the table and empty
-styles; their tables are theirs.
+Every workbench (labs, ctDNA, genomics, omics, documents, Evolution, Imports, and since the
+round's second PR the slide and radiology pages around their maps), Feedback and Methods share
+four pieces, so a finding looks the same wherever it is shown. The maps, their views, hover,
+Spot panels, search and exports are untouched.
 
 - **The chart theme** (`app/charts.py`, `THEME`, registered with `alt.theme.register` and
   enabled when `charts` is imported; every workbench `Page` imports it before it draws, the
@@ -412,18 +412,33 @@ styles; their tables are theirs.
   in monospace (by column name, every numeric column, or `mono=`), the evidence and status
   columns as the grammar's chips (`chips=`; CIViC levels and VEP severities take their
   colours; `colors=` a page's own), links as their text (`links=`), shares as percents
-  (`percent=`), and the table's one-line provenance under it (`caption=`). A short, narrow
-  list (at most 25 rows and 8 columns) is a static table whose text wraps; a long or wide one,
-  one that sorts (`grid=True`) or one whose row click opens the Spot panel (`on_select=`) is
-  Streamlit's grid with 30 px rows, its chips as coloured pills and its links as link columns.
-  An empty list says why (`empty=`). A matrix with row labels (a confusion matrix, fields by
-  document) stays `st.table` with its index.
+  (`percent=`, shown as the grid's "percent" preset shows them), and the table's one-line
+  provenance under it (`caption=`). A list of at most 25 rows and 12 columns is a static table
+  whose cells wrap: sentences between words, a long token (a DOI, a chain of units) at its
+  slashes, dots, colons and commas, links wherever they must, and a field name shows with
+  spaces (`due_by` as "due by"). No word breaks inside except by hyphenation: a number,
+  pointer, id or variant (the monospace cells) stays on one line, since split over two lines
+  it reads as two, and a hyphen between digits never ends a line ("CA 15-3", a range, a date). A table of nine columns or more takes denser type and padding at any width;
+  in a narrow box (the 800 px page, a half-width column at 1280 px: a container query on the
+  table) headers are a size smaller (two at eight columns or more) and long words hyphenate.
+  No cell is cut and the page never scrolls sideways; a table whose whole words cannot fit a
+  narrow box scrolls inside its own box, its first column held and a shadow on the edge that
+  has more (none at 1280 px; at 800 px, where the open sidebar leaves 457 px, 24 of the 180
+  table views walked on 2026-10-28). A long list scrolls down inside a 28 rem box, its header
+  held. A longer or wider one, one that sorts (`grid=True`) or one whose row click
+  opens the Spot panel (`on_select=`) is Streamlit's grid with 30 px rows, its chips as
+  coloured pills and its links as link columns; the grid shows one line a row, so its long
+  cells are cut and their full text is in the Spot panel the row opens. An empty list says why
+  (`empty=`). A matrix with row labels (a confusion matrix, fields by document) stays
+  `st.table` with its index.
 - **Number strips** (`workbenches._page.strip`) instead of rows of metric tiles: one row per
   group, each number a small label over its monospace value with a note after it (a unit, a
   z-score), its source or method on hover (the label is dotted-underlined when it has one); the
-  strip wraps at 800 px. Streamlit's `st.metric` stays only where its delta arrow carries a
-  meaning: the what-if risk percentile (a change in percentile points, red up) and the report's
-  risk tiles.
+  strip wraps at 800 px. The slide page's overview (tumor area, front length, infiltrative
+  arcs, breakaway in the field, unsure share) and its cells' line (tumor–stroma ratio,
+  necrosis, nuclear-area variation) are strips too. Streamlit's `st.metric` stays only where
+  its delta arrow carries a meaning: the what-if risk percentile (a change in percentile
+  points, red up) and the report's risk tiles.
 - **Empty states** (`workbenches._page.empty`): a workbench with nothing for this file (no labs
   in a TCGA file, no ctDNA, not sequenced, no copy number, no expression data, no marks yet)
   says what is missing and which test or import would fill it, in one quiet card: a light grey

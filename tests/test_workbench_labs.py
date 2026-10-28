@@ -325,6 +325,19 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     assert "Synthetic patient" in at.warning[0].value
     details = [e.label for e in at.expander]
     assert {"Results (8)", "Rise confirmation, EGTM (1)", "Planned panels (4)"} <= set(details)
+    # the EGTM tracker (10 columns) is a static table whose sentence wraps, not a grid that cut
+    # it at 1280 px (the orchestrator's round 15 follow-up); app/theme.css wraps every cell
+    tracker = next(t.value for t in at.table if "due by" in t.value.columns)  # due_by, shown
+    assert "too late to confirm it" in tracker["detail"].iloc[0]
+    assert "CA 15-⁠3" in tracker["marker"].iloc[0]  # a word joiner: never "15-" over "3"
+    sheet = (root / "app" / "theme.css").read_text(encoding="utf-8")
+    assert '[data-testid="stTable"] [data-testid="stMarkdownContainer"] p' in sheet
+    assert "overflow-wrap: anywhere" in sheet and "min-width: 4.5rem" not in sheet
+    # a value (a number, a pointer) never splits: "anywhere" on a squeezed cell showed 213 tiles
+    # as "21" over "3"; a narrow box hyphenates and a table still too wide scrolls in its box
+    assert '[data-testid="stTable"] td code { overflow-wrap: normal' in sheet
+    narrow = sheet.split("@container (max-width: 40rem) {")[1].split("\n}\n")[0]
+    assert "hyphens: auto" in narrow and "anywhere" not in narrow
     assert len(results_of(at)) == 8
     at.checkbox[0].check().run()
     assert len(results_of(at)) == 7  # the month-7 value within the limit drops out

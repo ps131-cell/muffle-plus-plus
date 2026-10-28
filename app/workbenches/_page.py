@@ -102,9 +102,18 @@ MONO = {"pointer", "month", "months", "value", "values", "variant", "vaf", "z", 
         "months_after", "per month", "change from previous", "change from nadir", "pmid", "nct",
         "cohort percentile", "percentile"}
 CHIPS = {"evidence", "status", "label", "labels", "evidence label"}  # columns of label chips
-GRID_ROWS, GRID_COLUMNS = 25, 8  # a longer or wider list is a grid: it scrolls and sorts
+GRID_ROWS, GRID_COLUMNS = 25, 12  # a longer or wider list is a grid: it scrolls and sorts
 MD_LEAD = re.compile(r"^(\s*)([#>+*-]|\d+[.)])(?=\s|$)")  # a cell that would open a list
 NO_DATA = {"", "nan", "NaT", "<NA>"}  # a missing value: an empty cell
+LONG = re.compile(r"\S{22,}")  # a token too long for a column: a DOI, a chain of units
+DIGIT_HYPHEN = re.compile(r"(?<=\d)-(?=\d)")  # a range, a marker's name, a date: one piece
+
+
+def _breakable(text: str) -> str:
+    """A long token may break after / . : _ = ; , or - (a zero-width space there), so a DOI or a
+    list of drugs does not push its column wider than the table's box; links are left whole."""
+    return LONG.sub(lambda m: m.group(0) if "http" in m.group(0) or "](" in m.group(0)
+                    else re.sub(r"(?<=[/.:_=;,-])", "​", m.group(0)), text)
 
 
 def _chip_color(text: str, colors: dict | None = None) -> str | None:
@@ -142,7 +151,7 @@ def _cell(v, mono: bool, chips: bool, link: str | None = None,
         text = found.group(1) if found else link
         return f"[{text}]({v})" if str(v).startswith("http") else ""
     if percent and isinstance(v, (int, float)) and not isinstance(v, bool):
-        text = f"{v:.1%}"
+        text = f"{100 * v:.2f}".rstrip("0").rstrip(".") + "%"  # as the grid's "percent" shows it
     elif isinstance(v, bool):
         text = "yes" if v else "no"
     elif isinstance(v, float):  # up to 4 decimals as the grid shows them; tiny ones in e-notation
@@ -152,10 +161,11 @@ def _cell(v, mono: bool, chips: bool, link: str | None = None,
         text = str(v)
     if text in NO_DATA:
         return ""
+    text = DIGIT_HYPHEN.sub("-⁠", text)  # a word joiner: "CA 15-3" never ends a line at "15-"
     if mono:
         tick = "``" if "`" in text else "`"
         return f"{tick}{text}{tick}"
-    return MD_LEAD.sub(r"\1\\\2", esc(text).replace("$", "\\$").replace("~", "\\~"))
+    return _breakable(MD_LEAD.sub(r"\1\\\2", esc(text).replace("$", "\\$").replace("~", "\\~")))
 
 
 def table(data, *, mono=(), chips=(), caption: str | None = None, empty: str | None = None,
@@ -201,8 +211,9 @@ def table(data, *, mono=(), chips=(), caption: str | None = None, empty: str | N
         out = st.dataframe(shown, hide_index=True, width="stretch", row_height=30,
                            column_config=cfg, height=height or "auto", **kw)
     else:
-        shown = pd.DataFrame({str(c): [_cell(v, c in mono_cols, c in chip_cols, links.get(c),
-                                             colors, c in percent) for v in df[c]]
+        shown = pd.DataFrame({str(c).replace("_", " "):  # a field name wraps like words
+                              [_cell(v, c in mono_cols, c in chip_cols, links.get(c), colors,
+                                     c in percent) for v in df[c]]
                               for c in df.columns})
         st.table(shown, hide_index=True, border="horizontal", height=height or "content")
     if caption:
