@@ -15,7 +15,7 @@ def test_a_lazy_module_imports_on_first_use_and_follows_a_purge(tmp_path, monkey
     assert "zzlazy" not in sys.modules  # nothing imported yet
     assert m.LOADS == 1 and "zzlazy" in sys.modules
     # the hot-update guard drops a module; the next read imports the new source
-    (tmp_path / "zzlazy.py").write_text("LOADS = 2\n")
+    (tmp_path / "zzlazy.py").write_text("LOADS = 22\n")  # another size: no stale bytecode
     del sys.modules["zzlazy"]
     sys.path_importer_cache.clear()
     assert m.LOADS == 22
