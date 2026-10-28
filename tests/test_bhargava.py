@@ -59,7 +59,8 @@ def test_the_infrared_modules_are_planned_with_their_reason_and_citations():
     planned = literature.planned_modules()
     assert len(planned) == 3
     for p in planned:
-        assert p["status"] == literature.PLANNED and p["reason"] == "no infrared data in this project"
+        assert p["status"] == literature.PLANNED
+        assert p["reason"] == "no infrared data in this project"
         assert p["citations"] and all("doi:10." in c for c in p["citations"])
     assert all(k in literature.CITATIONS for p in literature.PLANNED_MODULES
                for k in p["citations"])

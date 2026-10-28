@@ -200,7 +200,7 @@ PLANNED_REASON = "no infrared data in this project"
 def cite(key: str) -> str:
     """Short citation: first author et al., year, journal, doi."""
     c = CITATIONS[key]
-    first = c["authors"].split(",")[0]
+    first = c["authors"].split(",")[0].rsplit(" ", 1)[0]  # the surname, without initials
     etal = " et al." if "," in c["authors"] else ""
     return f"{first}{etal} {c['year']}, {c['journal']}, doi:{c['doi']}"
 
