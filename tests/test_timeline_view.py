@@ -98,8 +98,11 @@ def test_imports_grow_the_timeline_its_change_card_context_and_export():
     data = tv.lanes(pf)
     assert data["empty"] == []
     nodes = [p for p in data["points"] if p["mark"] == "version"][-2:]
-    assert [p["what"] for p in nodes] == ["month 27 · imported by AB at 14:03",
-                                          "month 27 · imported by AB at 14:05"]
+    assert [p["what"] for p in nodes] == ["v17 · month 27 · imported by AB at 14:03",
+                                          "v18 · month 27 · imported by AB at 14:05"]
+    assert [p["shift"] for p in nodes] == ["none", "none"] and nodes[1]["latest"]
+    assert nodes[0]["delta"].startswith("no new risk estimate at month 27 (the risk models are "
+                                        "not run on imported results); the last estimate, 60%")
     assert nodes[1]["x"] > nodes[0]["x"] == 27  # two versions in one month: both clickable
     assert {p["tone"] for p in data["points"] if p["version"] >= 16} == {
         "imported in this session", "SOS alert"}
@@ -167,3 +170,28 @@ def test_the_lane_charts_month_axis_title_is_two_lines():
               if "x" in lay.get("encoding", {}) and "title" in lay["encoding"]["x"]]
     assert titles[0] == ["months from the first tumor sequencing",
                          "(month 0; diagnosis at month -40)"]
+
+
+def test_version_points_carry_the_risk_shift_and_the_chart_marks_it():
+    """The top lane: each version marked by how the risk moved since the one before (beyond the
+    5 models' spread or within it), the latest ringed, the compared pair shaded."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "app"))
+    import charts
+
+    pf = synthetic()
+    nodes = {p["month"]: p for p in tv.lanes(pf)["points"] if p["mark"] == "version"}
+    assert nodes[12]["shift"] == "up" and "+51 points" in nodes[12]["delta"]
+    assert nodes[4]["shift"] == "within" and nodes[7]["shift"] == "down"
+    assert nodes[-40]["delta"] == "the first version" and nodes[24]["latest"]
+    assert nodes[12]["what"] == "v12 · month 12 · Imaging"
+    spec = charts.event_lanes(tv.lanes(pf), 15, (14, 15)).to_dict()
+    data = {name: rows for name, rows in spec["datasets"].items()}
+    points = max((rows for rows in data.values() if rows and "glyph" in rows[0]), key=len)
+    glyphs = {(r["month"], r["glyph"]) for r in points if r["mark"] == "version"}
+    assert {(12, "triangle-up"), (7, "triangle-down"), (4, "circle")} <= glyphs
+    assert {r["glyph"] for r in points if r["mark"] == "alert"} == {"diamond"}
+    assert any(rows and rows[0].get("tag") == "latest · v16" for rows in data.values())
+    assert any(rows and set(rows[0]) == {"x", "x2"} and rows[0]["x"] == 19 for rows in
+               data.values())  # the compared span, v15 (month 19) to v16

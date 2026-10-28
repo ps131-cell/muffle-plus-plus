@@ -867,8 +867,9 @@ def action_row(pf: workspace.PatientFile, i: int, screen: str):
               help="Lab results, a report, sequencing (VCF or MAF), an imaging report, a slide "
                    "image or a DICOM file: each is checked on intake and adds a report version")
     st.button("Compare versions", key="act-compare", icon=VIEW_ICONS["Timeline"],
-              disabled=i == 0, on_click=lambda: ss.update(view="Timeline"),
-              help="The Timeline compares any two report versions: what changed and why" if i
+              disabled=i == 0, on_click=timeline_page.open_compare, args=(pf, i),
+              help="This version against the one before, on the Timeline: the risk delta, "
+                   "then the findings, tests, queue and note that changed" if i
               else "One report version so far: each import adds the next")
     v = pf.versions[i]
     st.download_button("Export this report (Markdown)",
@@ -1980,7 +1981,7 @@ def draw_test(pf: workspace.PatientFile, i: int, t: workspace.Test):
 
 
 def timeline_view(pf: workspace.PatientFile, i: int):
-    timeline_page.render(pf, i, TL, lambda j: overview_data(pf, j)["sums"], open_evidence)
+    timeline_page.render(pf, i, TL, partial(overview_data, pf), open_evidence)
 
 
 def evolution_view(pf: workspace.PatientFile, i: int):
