@@ -334,8 +334,10 @@ The two-pass audit behind this section is `docs/ux-audit.md`.
   green read as "normal".
 - **Density.** 1.5 rem side gutters and a small gap under the toolbar (not 5 and 6 rem); 30 px
   buttons (28 px in the file's action row) with 4 px corners; compact chips, metric tiles, tabs, expanders and alerts. The
-  file's action row is quiet (grey, no border until hover): one line and a half at 1280 px,
-  three lines at 800 px (four before). The report's cards and the Tests launcher's tiles keep
+  file's action row is quiet (grey, no border until hover): two lines at 1280 px and at
+  800 px (four lines, about 180 px, before; QA R3-8). Under 1024 px its Methods and validation
+  link and How to read this are hidden: the sidebar's navigation and the breadcrumb's "?" hold
+  them. The report's cards and the Tests launcher's tiles keep
   their 220 px minimum and fill the row (four a row at 1280 px, two at 800 px).
 - **The cockpit.** Under the summary and the cards (the SOS tile first), three columns side by
   side at 1280 px and stacked at 800 px (`app/theme.css` grids keyed containers; without the
