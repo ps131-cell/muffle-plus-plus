@@ -21,47 +21,22 @@ import altair as alt
 import numpy as np
 import pandas as pd
 
+# the palette and the theme as plain data (``chart_theme``), shared with the patient list's chart
+from chart_theme import (  # noqa: F401 - the palette is read as charts.BLUE … by the pages
+    AQUA, BLUE, CATEGORY, GRAY, GREEN, HAIRLINE, INK, MUTED, ORANGE, RAMP, RED, RULE, SANS,
+    VIOLET, config,
+)
 from muffle.overview import IMPACT_COLORS, LEVEL_COLORS
 
-BLUE, ORANGE, AQUA, RED = "#2a78d6", "#eb6834", "#1baf7a", "#e34948"
-GRAY, VIOLET, GREEN = "#8a8f98", "#6250d6", "#137a33"
-RAMP = {"low": "#6da7ec", "medium": "#2a78d6", "high": "#184f95"}  # blue 300 / 450 / 600
-# the categorical slots in their validated order (docs/ux.md §8); a ninth series folds into "other"
-CATEGORY = [BLUE, ORANGE, AQUA, "#eda100", "#e87ba4", "#008300", VIOLET, RED]
 HEX = {"blue": BLUE, "violet": VIOLET, "orange": ORANGE, "green": GREEN, "red": RED, "gray": GRAY}
 EVIDENCE_COLORS = {"observed": BLUE, "model inference": VIOLET, "hypothesis": ORANGE}
 LEVEL_HEX = {k: HEX[v] for k, v in LEVEL_COLORS.items()}
 IMPACT_HEX = {k: HEX[v] for k, v in IMPACT_COLORS.items()}
-INK, MUTED, RULE, HAIRLINE = "#0e1117", "#4d5260", "#c3c9d2", "#e6e9ee"  # muted: 7.6:1 on white
-SANS = "IBM Plex Sans, sans-serif"
 
 
 @alt.theme.register("muffle", enable=True)
 def THEME() -> alt.theme.ThemeConfig:  # noqa: N802 - the app's one chart theme
-    axis = {"labelFont": SANS, "titleFont": SANS, "labelFontSize": 12, "titleFontSize": 13,
-            "labelColor": MUTED, "titleColor": MUTED, "titleFontWeight": 500,
-            "domainColor": RULE, "tickColor": RULE, "domainWidth": 1, "tickWidth": 1,
-            "tickSize": 4, "gridColor": HAIRLINE, "gridWidth": 1, "labelPadding": 4,
-            "titlePadding": 8}
-    legend = {"labelFont": SANS, "titleFont": SANS, "labelFontSize": 12, "titleFontSize": 12,
-              "labelColor": MUTED, "titleColor": MUTED, "titleFontWeight": 500,
-              "symbolSize": 64, "symbolStrokeWidth": 0, "rowPadding": 3, "columnPadding": 12,
-              "padding": 0, "offset": 10, "labelLimit": 320}
-    return {"config": {
-        "font": SANS,
-        "view": {"stroke": "transparent"},  # no box around the plot
-        "axis": axis,
-        "axisX": {"grid": False},  # values are read across, so only horizontal hairlines
-        "axisY": {"domain": False, "ticks": False},
-        "axisBand": {"domain": False, "ticks": False, "labelPadding": 6},
-        "legend": legend,
-        "title": {"font": SANS, "fontSize": 13, "fontWeight": 600, "color": INK,
-                  "anchor": "start", "offset": 8},
-        "header": {"labelFont": SANS, "titleFont": SANS, "labelColor": MUTED},
-        "text": {"font": SANS, "fontSize": 12, "color": INK},
-        "line": {"strokeWidth": 2, "strokeCap": "round", "strokeJoin": "round"},
-        "range": {"category": CATEGORY},
-    }}
+    return {"config": config()}
 
 
 def risk_position(cohort_risks: np.ndarray, patient_risk: float, label: str) -> alt.Chart:
@@ -371,32 +346,4 @@ def cohort_strip(values: dict[str, float], patient: str, axis: str, fmt: str = "
     me = alt.Chart(df[df["who"] == "this patient"]).mark_point(
         filled=True, size=140, color=BLUE, opacity=1).encode(x="value:Q", tooltip=tip)
     return (others + me).properties(height=44).configure_view(
-        strokeWidth=0)
-
-
-def risk_bands(counts: dict[str, int], shown: dict[str, int] | None = None) -> alt.Chart:
-    """The patient list's cohort strip: how many TCGA files sit in each risk group (cohort
-    tertiles, model inference), low to high in the ordinal ramp, each bar labeled with its
-    count; ``shown``, the files of each group the list's filters keep, as a darker overlay."""
-    order = [g for g in ("low", "medium", "high") if g in counts]
-    df = pd.DataFrame({"group": order, "files": [int(counts[g]) for g in order],
-                       "shown": [int((shown or counts).get(g, 0)) for g in order]})
-    x = alt.X("group:N", sort=order, title=None,
-              axis=alt.Axis(labelAngle=0, labelFontSize=11, ticks=False, domainOpacity=0.4))
-    y = alt.Y("files:Q", title=None, axis=None, scale=alt.Scale(domainMax=max(df["files"]) * 1.3))
-    tip = [alt.Tooltip("group:N", title="risk group"), alt.Tooltip("files:Q", title="files"),
-           alt.Tooltip("shown:Q", title="in the list now")]
-    base = alt.Chart(df).encode(x=x, tooltip=tip)
-    bars = base.mark_bar(cornerRadiusTopLeft=2, cornerRadiusTopRight=2, opacity=0.35).encode(
-        y=y, color=alt.Color("group:N", scale=alt.Scale(domain=order,
-                                                      range=[RAMP[g] for g in order]),
-                             legend=None))
-    kept = base.mark_bar(cornerRadiusTopLeft=2, cornerRadiusTopRight=2).encode(
-        y=alt.Y("shown:Q", title=None, axis=None), color=alt.Color("group:N", legend=None))
-    labels = base.mark_text(dy=-6, baseline="bottom", fontSize=11).encode(
-        y="files:Q", text=alt.Text("files:Q"))
-    # the count labels sit above the bars: padding inside the chart's own box keeps them there
-    return (bars + kept + labels).properties(
-        height=52, padding={"top": 14, "bottom": 0, "left": 2, "right": 2},
-        autosize=alt.AutoSizeParams(type="fit-x", contains="padding")).configure_view(
         strokeWidth=0)
