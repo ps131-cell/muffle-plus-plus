@@ -329,7 +329,7 @@ def versions(pf, i: int) -> None:
             "Version": vid(k) + (" latest" if k == last else " viewing" if k == i else ""),
             "Month": "sample" if v.month is None else str(v.month),
             "12-month risk": f"{v.risk['value']:.0%}" if v.risk and "value" in v.risk else
-            "not scored", "Shift": shift, "What arrived": v.event, "Tests": len(v.tests),
+            "—", "Shift": shift, "What arrived": v.event, "Tests": len(v.tests),
             "SOS": len(v.alerts), "Source": v.imported or "the record",
             "_shift": r and r["shift"]})
     table = pd.DataFrame(rows)
@@ -353,11 +353,13 @@ def versions(pf, i: int) -> None:
             height=35 * (min(len(table), 16) + 1) + 3,  # every version of a long file in view
             on_select=partial(_row_picked, pf, key, shown), selection_mode="single-row",
             column_config={
-                "Version": cfg.TextColumn("Version", width=92, pinned=True),
+                "Version": cfg.TextColumn("Version", width=92),
                 "Month": cfg.TextColumn("Month", width=58),
-                "12-month risk": cfg.TextColumn("Risk", width=50, help="The 12-month risk"),
+                "12-month risk": cfg.TextColumn("Risk", width=50, help="The 12-month risk; — "
+                                                "= not scored (before the first tumor "
+                                                "sequencing, or an import)"),
                 "Shift": cfg.TextColumn(
-                    "Shift", width=86, help="The 12-month risk since the version before, in "
+                    "Shift", width=104, help="The 12-month risk since the version before, in "
                     "points: ▲ up or ▼ down beyond the 5 models' spread, ≈ within it (a model "
                     "inference; a difference between two snapshots, not a trend)"),
                 "What arrived": cfg.TextColumn("What arrived", width="large"),
