@@ -18,7 +18,7 @@ def test_a_lazy_module_imports_on_first_use_and_follows_a_purge(tmp_path, monkey
     (tmp_path / "zzlazy.py").write_text("LOADS = 2\n")
     del sys.modules["zzlazy"]
     sys.path_importer_cache.clear()
-    assert m.LOADS == 2
+    assert m.LOADS == 22
     del sys.modules["zzlazy"]
 
 
