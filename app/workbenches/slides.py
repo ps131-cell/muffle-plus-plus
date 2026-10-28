@@ -581,6 +581,9 @@ def tile_story(t, classes: list[str], meta: dict, data: tile_map.MapData | None)
             "mixup": mixup(meta, top, second) if t["unsure"] or shown != top else None}
 
 
+SPOT_PICTURES = 260  # px: the Spot panel's crop and neighbourhood pictures
+
+
 def zoom_to_cells(k: str, slide: str, r: int, c: int) -> None:
     """Switch the picture to the slide viewer at this tile (a callback)."""
     st.session_state[f"{k}-pic"] = PICTURES[1]
@@ -596,7 +599,11 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
         st.warning("No tile at that position.")
         return
     t = rows.iloc[0]
-    left, right = st.columns([1, 2])
+    # a row that wraps: at 800 px the pictures and "Zoom to the cells" go above the words, never
+    # a third-width column that cut the label and let the pictures cover the words (QA R3-11)
+    with st.container(horizontal=True, gap="medium", key=f"{k}-spot-row"):
+        left = st.container(width=SPOT_PICTURES)
+        right = st.container(width="stretch")
     i = int(data.index_grid[r, c]) if data is not None else -1
     with left:
         img = crop_image(result, r, c)
@@ -614,7 +621,7 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
                                     "blue")
         if can_zoom:
             st.button("Zoom to the cells", key=f"{k}-zoom-{r}-{c}", icon=":material/zoom_in:",
-                      on_click=zoom_to_cells, args=(k, slide, r, c),
+                      on_click=zoom_to_cells, args=(k, slide, r, c), width="stretch",
                       help="Opens the slide viewer at this tile, down to single nuclei")
     with right:
         step, mpp = meta.get("step_base_px", 448), meta.get("base_mpp", 0.25)
@@ -728,8 +735,9 @@ def head_card(meta: dict, classes: list[str]) -> None:
             st.dataframe(pd.DataFrame(conf["rows_true_cols_pred"], index=labels, columns=labels),
                          width="stretch")
     st.caption(f"Encoder: {enc.get('name', '?')}, {enc.get('license', '?')}, "
-               f"{enc.get('access', '?')}; {enc.get('tiles_per_s_cpu', '?')} tiles/s on this "
-               f"PC's CPU ({enc.get('threads', '?')} threads, shared with other work). The "
+               f"{enc.get('access', '?')}; {enc.get('tiles_per_s_cpu', '?')} tiles/s on the "
+               f"computer that scored the sections ({enc.get('threads', '?')} processor threads, "
+               "shared with other work). The "
                "encoder's own benchmarks are not evidence for this task.")
 
 
@@ -813,9 +821,9 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     for note in meta.get("known_failures", []):  # a reviewer's note on this section's map
         st.warning(f"Known failure on this section: {note}")
     if sc.get("skipped_tiles"):
-        st.warning(f"{sc['skipped_tiles']} tissue tiles outside the scored window were skipped "
-                   "(the budget for this PC's CPU): tumor outside the window is not in this "
-                   "map. The whole slide is in the pathology report.")
+        st.warning(f"{sc['skipped_tiles']} tissue tiles outside the scored window were not "
+                   "scored (the time for scoring was limited): tumor outside the window is not "
+                   "in this map. The whole slide is in the pathology report.")
     reviews = st.session_state.setdefault("reviews", {})
 
     # --- overview, look here, search ---------------------------------------------------------
@@ -933,8 +941,8 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
         st.caption(f"{inv.MODEL_CARD['nuclei'][0].upper() + inv.MODEL_CARD['nuclei'][1:]}. "
                    f"Counted on {nuc.get('tiles', 0)} tiles ({nuc.get('nuclei', 0)} nuclei; "
                    f"{nuc.get('s_per_tile', '?')} s per tile), front tiles first, then the band "
-                   "outside, then the rest of the front band and the peritumoral zone, up to the "
-                   "budget. Every flag below is weak until validated.")
+                   "outside, then the rest of the front band and the peritumoral zone, as far as "
+                   "the time for counting allowed. Every flag below is weak until validated.")
         g1, g2 = st.columns(2)
         with g1:
             st.markdown("**Breakaway (budding) candidates**")
@@ -1124,14 +1132,15 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
         if til:
             st.markdown(f"**Second lymphocyte model.** {inv.TIL_SECOND}; normalization "
                         f"{til.get('model', {}).get('normalization', '?')}; "
-                        f"{til.get('s_per_tile', '?')} s per tile at {til.get('threads', '?')} "
-                        f"threads ({til.get('uptime', '')}). "
+                        f"{til.get('s_per_tile', '?')} s per tile on {til.get('threads', '?')} "
+                        f"processor threads ({til.get('uptime', '')}). "
                         "Its disagreement with the head is a queue item, never a verdict.")
         tm = meta.get("timings", {})
-        st.caption("Timings on this PC's CPU: " + ", ".join(
-            f"{k.replace('_s', '')} {v} s" for k, v in tm.items() if k.endswith("_s"))
-            + f"; {tm.get('uptime_at_start', '')} at the start, {tm.get('uptime_at_end', '')} "
-            "at the end (shared machine).")
+        st.caption("Timings on the computer that scored this section, shared with other work: "
+                   + ", ".join(f"{k.replace('_s', '')} {v} s" for k, v in tm.items()
+                               if k.endswith("_s"))
+                   + f"; {tm.get('uptime_at_start', '')} at the start, "
+                   f"{tm.get('uptime_at_end', '')} at the end.")
         st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in inv.KNOWN_FAILURES))
     cannot_see(page, CUTOFFS_INV)
 

@@ -103,7 +103,7 @@ def report_markdown(patient: str, slide: str, meta: dict, res: dict, *, marks: d
              f"{date.today():%Y-%m-%d}", "",
              f"Scored: {sc.get('mode', '?')}, {sc.get('scored_tiles', '?')} of "
              f"{sc.get('tissue_tiles_total', '?')} tissue tiles of 112 µm"
-             + (f"; {sc['skipped_tiles']} tiles outside the scored window were skipped"
+             + (f"; {sc['skipped_tiles']} tiles outside the scored window were not scored"
                 if sc.get("skipped_tiles") else "") + ". "
              f"Tissue head: {head.get('kind', '?')} on {enc.get('name', '?')} embeddings, "
              f"held-out accuracy {head.get('accuracy', float('nan')):.1%} on "
