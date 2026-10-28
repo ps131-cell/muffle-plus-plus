@@ -340,4 +340,5 @@ def test_the_methods_page_lists_every_card_in_its_contents(app):
     assert cards == [s.value for s in at.subheader], "a new card joins methods_page.CONTENTS"
     toc = " ".join(m.value for m in at.markdown if "](#" in m.value)
     assert all(f"[{t}](#{anchor(t)})" in toc for t in [*CONTENTS, *cards])
-    assert anchor("Lesion contours (MedSAM, breast MRI)") == "lesion-contours-medsam-breast-mri"
+    # the id Chromium gives it: Streamlit splits words at a case change (QA R4-6)
+    assert anchor("Lesion contours (MedSAM, breast MRI)") == "lesion-contours-med-sam-breast-mri"

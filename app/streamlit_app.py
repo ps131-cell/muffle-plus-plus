@@ -29,6 +29,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -199,9 +200,10 @@ st.set_page_config(page_title="MuFFLe++ · breast cancer intelligence", page_ico
 # What the theme in .streamlit/config.toml can't set (docs/ux.md §8), as a <style> in Markdown:
 # st.html's element is a script chunk of its own, so a first visit showed Streamlit's default
 # gutters for 1.5–4.6 s before the sheet applied (QA R4-4); Markdown draws with the first text.
-# The sheet's last rule hides the element that carries it, so it takes no space.
-st.markdown(f"<style>{(APP / 'theme.css').read_text(encoding='utf-8')}\n{THEME_CARRIER}</style>",
-            unsafe_allow_html=True)
+# The sheet's last rule hides the element that carries it, so it takes no space; its comments
+# (file paths and notes for us) stay out of the page.
+st.markdown("<style>" + re.sub(r"/\*.*?\*/", "", (APP / "theme.css").read_text(encoding="utf-8"),
+                               flags=re.S) + f"\n{THEME_CARRIER}</style>", unsafe_allow_html=True)
 DISCLAIMER = workspace.DISCLAIMER
 secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
