@@ -109,14 +109,22 @@
    token (a regular expression, a variant) wherever it must, and at 800 px any word as a last
    resort (the column fits the box). The page never scrolls sideways. */
 [data-testid="stTable"] > div { max-height: 28rem; overflow-y: auto; overflow-x: auto; }
-[data-testid="stTable"] td, [data-testid="stTable"] th {
+/* Streamlit's Markdown container in each cell sets overflow-wrap back to normal and its chips to
+   nowrap: the rules go on the container, its paragraphs and the chips themselves */
+[data-testid="stTable"] td, [data-testid="stTable"] th,
+[data-testid="stTable"] [data-testid="stMarkdownContainer"],
+[data-testid="stTable"] [data-testid="stMarkdownContainer"] p {
   white-space: normal; overflow-wrap: break-word; word-break: normal;
 }
 [data-testid="stTable"] td code { overflow-wrap: anywhere; }
-[data-testid="stTable"] .stMarkdownBadge { white-space: normal; }
+[data-testid="stTable"] [data-testid="stMarkdownContainer"] .stMarkdownBadge {
+  white-space: normal !important; overflow-wrap: inherit;
+}
 @media (max-width: 1023px) {
   [data-testid="stTable"] table { font-size: 0.75rem; }
-  [data-testid="stTable"] td, [data-testid="stTable"] th { overflow-wrap: anywhere; }
+  [data-testid="stTable"] td, [data-testid="stTable"] th,
+  [data-testid="stTable"] [data-testid="stMarkdownContainer"],
+  [data-testid="stTable"] [data-testid="stMarkdownContainer"] p { overflow-wrap: anywhere; }
   [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
   [data-testid="stTable"] thead th { padding-left: 0.3125rem; padding-right: 0.3125rem; }
   [data-testid="stTable"] thead th { letter-spacing: 0.02em; }

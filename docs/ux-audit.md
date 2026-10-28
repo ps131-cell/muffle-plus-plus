@@ -164,6 +164,26 @@ Page height in px (headless Chromium; main at dbf9d29, then this branch):
 The reports (Case 299 4,781 / 7,764, SYNTHETIC-001 4,100 / 6,119) and the Timeline (3,362 /
 4,053), whose charts take the theme, kept their heights.
 
+### The round's second PR (the orchestrator's follow-up)
+
+- **Cut cells.** A list with more than 8 columns had fallen back to the grid, which draws one line
+  a row: the labs page's Rise confirmation and caution windows cut their sentences and clipped
+  their last column at 1280 px. A static table now takes up to 12 columns and always fits its
+  box: its cells wrap (sentences between words, code spans anywhere, any word at 800 px as a last
+  resort), the 4.5 rem column minimum is gone and nothing scrolls sideways. Every static table on
+  twelve pages was walked with every section and tab open, at 1280 and 800 px (the list is in
+  the PR). Shares now show as the grid's "percent" preset did.
+- **The slide and radiology pages** take the tables, strips, empty cards and chips around their
+  maps (which are untouched): slides 12 metric tiles → 3 strips and 13 grids → finding tables
+  (the Spot panel's class scores keep their bars in a grid, the confusion matrix its row labels);
+  radiology 10 grids → finding tables, three empty cards.
+
+| Screen | 1280 px | 800 px |
+|---|---|---|
+| Case 299 · slides (main 543c135 → branch) | 6,110 → SLA1 | 8,643 → SLA8 |
+| Case 563 · radiology | 5,249 → RAA1 | 6,867 → RAA8 |
+| SYNTHETIC-001 · labs | 5,928 → LAA1 | 7,897 → LAA8 |
+
 Where a page grew, it is a static table showing text the grid had cut; a first try that put a
 13-column lab history in `st.table` wrapped its rows four lines deep, hence the column limit.
 No exception, error box, cut text or sideways scroll of the page on any of them; at 800 px a
