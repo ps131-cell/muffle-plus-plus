@@ -4,8 +4,10 @@ The final text for the Devpost form, in the form's order: the project's fields, 
 (Inspiration → What's next), Built with, the links, then the hackathon's own questions (how
 NVIDIA and Nebius are used, feedback, testing, data and licenses, prior work). Final numbers pass
 2026-10-27, brought up to `main` at 1c2a7d1 the same evening (the slide re-score, the Tests
-launcher and action row, cohort search, the performance pass, the slide map port): every figure is listed with its
-source in the **Numbers** appendix, and the **Submission checklist** at the end is what is left
+launcher and action row, cohort search, the performance pass, the slide map port) and at
+dbf9d29 on Oct 28 (the version diff, the report's cockpit and clinical theme, the radiology scan
+map, the Bhargava lab's stroma work): every figure is listed with its source in the
+**Numbers** appendix, and the **Submission checklist** at the end is what is left
 to fill on Oct 29.
 
 | Field | Value |
@@ -77,7 +79,14 @@ patient's scores among the 40 TCGA files, and **Similar patients** lists the fiv
 files on eight recorded and derived fields (equal weights, marked placeholder): lookups over
 what the files hold, never a prognosis. **Tests** opens on a launcher, a tile per test with what
 it holds and its look-here count (a dated series is one tile with a pill per month). Every
-report exports as one page.
+report exports as one page. Between the cards and the queue, the report's cockpit sets three
+columns side by side: the risk model, the driver mutations with their CIViC evidence ladder, and
+what to look at next; every finding there shows its source, method, version and evidence item on
+hover and opens its workbench (or civicdb.org) on click. The app has its own clinical light
+theme (IBM Plex Sans and Mono, compact controls, AA colours, every chip keeping its word so colour
+is never the only signal), and the sidebar's **About this system** shows the system's status: the
+release, each simulated site's held-out C-index, the planner and writer models, the case-note
+spend against the hard cap, and the code's version.
 
 **Eight workbenches**, each with its own viewer, measurements, look-here queue, quality checks,
 "what this test cannot see", a model and validation card, and export:
@@ -101,10 +110,12 @@ report exports as one page.
   landscape with ABSOLUTE purity and ploidy, mutation burden and allele fractions, a cited
   pathway map and variants over time.
 - **Radiology:** the synthetic patient's imaging reports read as text; for five TCGA cases with
-  public TCIA studies, DCE-MRI viewers in three planes with a cine, MedSAM contours of
-  rule-seeded candidates, size, volume and contrast kinetics; mammography with mammoscreen and
-  MONAI density; change over time on a labeled public example pair (none of the bundled patients
-  has two study dates).
+  public TCIA studies, a scan map on the study's own image (see-through layers: lesions with
+  their MedSAM contours, kinetics by curve type, enhancement, change, density; a slice slider
+  inside the map; search in plain words; click a square for its full story), with a cine, MedSAM
+  contours of rule-seeded candidates, size, volume and contrast kinetics; mammography with
+  mammoscreen and MONAI density; change over time on a labeled public example pair (none of the
+  bundled patients has two study dates).
 - **Clinical documents:** pathology reports (TCGA-Reports) and imported documents; breast
   pathology facts read by rules and shown at their source sentence, documented kept apart from
   inferred, conflicts side by side; an open oncology named-entity model's reading drawn as a
@@ -130,9 +141,14 @@ imported.
 
 **Timeline:** the record on one month axis, a lane per kind (report versions, treatments,
 imaging, labs, ctDNA, sequencing, pathology, clinic visits, imports), SOS alerts marked where they
-were raised. **Time travel:** click any point and the whole file opens as it stood at the report
-version that point created; a "new in this version" card says what arrived; any two versions
-compared side by side (added, removed, changed) with why the risk moved.
+were raised; each report version is marked by how the risk moved since the one before. **Time
+travel:** click any point, or a row of the versions table (newest first), and the whole file
+opens as it stood at the report version that point created. **Compare two versions** comes first
+on the page: the risk delta as a chip, red or green only when it goes beyond the spread of the
+five models (otherwise "within the model's uncertainty"), why the risk moved one change at a time,
+then the findings, tests, attention items and note sentences that were added, changed or removed,
+each opening its evidence as of its version. A delta is the difference between two snapshots of
+the record, not a forecast, and the page says so.
 
 **Feedback:** every review mark (agree, disagree, second look, reviewed) becomes a ledger
 record naming the model or rule behind its finding, with its version and evidence label; the
@@ -389,8 +405,10 @@ Each item: what happened, why it mattered, and a suggestion.
 
 ## Testing instructions
 
-- Open the demo URL; no login. If Streamlit has put the app to sleep, click to wake it (about a
-  minute). A four-step walk-through opens on the first visit (**Skip the tour** closes it); the
+- Open the demo URL; no login. A scheduled visit every four hours keeps it awake; if Streamlit
+  shows its sleep page anyway, click to wake it: the container restarts, which can take a minute
+  or two, then the patient list draws in a few seconds. A four-step walk-through opens on the
+  first visit (**Skip the tour** closes it); the
   "?" on every screen explains it.
 - **Patients** is the home page. **Start here** opens the two files that show the most. Search
   **PIK3CA**, or switch on **Open SOS alerts only**; click a row to open a file. **Search every

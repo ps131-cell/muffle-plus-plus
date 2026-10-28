@@ -5,7 +5,7 @@ for breast cancer (vision and milestone map: `docs/VISION.md`). Milestone 1 = an
 patient profile (multi-omic risk model, observed driver mutations, CIViC evidence, literature)
 that updates along a patient timeline, written up by a Nemotron case agent on Nebius Token
 Factory, plus federated training across simulated hospitals with NVIDIA FLARE. Entry for the
-Nebius × NVIDIA Global AI Hackathon — **deadline Fri Oct 30 2026, 10:00 am PT; freeze Oct 28**.
+Nebius × NVIDIA Global AI Hackathon — **deadline Fri Oct 30 2026, 10:00 am PT; freeze Oct 29 10:00 CDT**.
 Requirements + plan: `docs/HACKATHON.md`. Product spec (patient files, report timeline, a
 workbench per test type): `docs/WORKSPACE.md`. Decisions: `docs/decisions.md`. Datasets and
 models: `docs/registry.md`. Original research plan: `docs/plan/`.
