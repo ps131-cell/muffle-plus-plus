@@ -12,6 +12,7 @@ documents, radiology, evolution).
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 
 from muffle import crosstest, evolution
@@ -294,38 +295,108 @@ def unsure(items: list[dict], reviews: dict) -> list[dict]:
 
 # ------------------------------------------------------------------------- the patient list
 
+# the worklist's tests column: one letter per workbench, in this order (docs/WORKSPACE.md)
+LETTERS = {"labs": "L", "ctdna": "C", "genomics": "G", "omics": "O", "slides": "P",
+           "radiology": "R", "documents": "D"}
+LETTER_WORDS = {"L": "labs", "C": "ctDNA", "G": "genomics", "O": "omics (expression)",
+                "P": "pathology slides", "R": "radiology (imaging)", "D": "documents"}
+BANDS = ("high", "medium", "low", "12-month")  # a TCGA file's risk group, or the synthetic's
+STAGE_RANK = {"I": 1, "II": 2, "III": 3, "IV": 4}
+RECEPTOR_SIGNS = {"positive": "+", "negative": "−", "equivocal": " eq"}
+
+
+def _receptors(pf: PatientFile, cs: dict | None) -> str:
+    """The recorded receptor status in short ("ER+ PR+ HER2−"): a TCGA file's clinical data
+    (IHC and ISH), the synthetic record's diagnosis entry ("HR+, HER2−"); "" when neither."""
+    if cs:
+        return " ".join(f"{name}{RECEPTOR_SIGNS.get((r.get('status') or '').lower(), '?')}"
+                        for name, r in cs["receptors"].items())
+    rec = _recorded(pf, len(pf.versions) - 1)
+    return " ".join(m.group(0).replace("-", "−") for m in
+                    re.finditer(r"\b(?:HR|ER|PR|HER2)[+−-](?![A-Za-z])", rec[0] if rec else ""))
+
+
+def _tested(pf: PatientFile, cs: dict | None) -> dict[str, list[str]]:
+    """Each workbench that holds this patient's own data, with the names of its tests (a
+    document's title, a section count), in ``LETTERS``' order; absent workbenches left out."""
+    def names(keep) -> list[str]:
+        return list(dict.fromkeys(t.name for t in pf.tests if keep(t)))
+    sections = slides.sections(pf)
+    held = {
+        "labs": names(lambda t: t.kind == "Lab"),
+        "ctdna": names(lambda t: t.workbench == "ctdna"),
+        "genomics": names(lambda t: t.workbench == "mutations"),
+        "omics": names(lambda t: t.workbench == "omics") or (
+            ["RNA, copy number, protein scores"] if cs is not None else []),
+        "slides": [f"{len(sections)} H&E section{'' if len(sections) == 1 else 's'}"]
+        if sections else [],
+        "radiology": names(lambda t: t.kind == "Imaging" or t.details.get("pipeline")
+                           == "imaging"),
+        "documents": list(dict.fromkeys(d["title"] for d in documents.file_documents(pf))),
+    }
+    return {k: v for k, v in held.items() if v}
+
+
+def list_risk(pf: PatientFile) -> dict:
+    """The list's risk, model inference: a TCGA file's risk group (cohort tertile) and
+    percentile, ranked by one federated model, so no spread between models; the synthetic
+    patient's latest 12-month risk, the mean of 5 models with their range (another model and
+    another measure, MSK-CHORD)."""
+    r = next((v.risk for v in reversed(pf.versions) if v.risk
+              and ("value" in v.risk or "percentile" in v.risk)), None)
+    if r is None:
+        return {"band": None, "percentile": None, "risk": "not estimated", "spread": ""}
+    if "percentile" in r:
+        return {"band": r["group"], "percentile": r["percentile"],
+                "risk": f"{r['group'].capitalize()} · {ordinal(r['percentile'])}",
+                "spread": "one model"}
+    lo, hi = r["range"]
+    return {"band": "12-month", "percentile": None, "risk": f"{r['value']:.0%} 12-mo",
+            "spread": f"{lo:.0%}–{hi:.0%}, 5 models"}
+
+
 def list_row(pf: PatientFile) -> dict:
-    """What the patient list filters and searches on, for one file: subtype, mutated genes,
-    stage, alerts, and which workbenches hold this patient's data."""
+    """What the patient list shows, filters and searches on, for one file, all read from the
+    file: subtype (model inference) and recorded receptors, mutated genes, stage, alerts, the
+    workbenches that hold this patient's data and their tests, the versions, the latest
+    update and the risk (``list_risk``, model inference)."""
     cs = omics.case_scores(pf)
     genes = sorted({var.split()[0] for t in pf.tests if t.workbench == "mutations"
                     for var in t.details.get("variants", [])})
-    holds = {
-        "labs": any(t.kind == "Lab" for t in pf.tests),
-        "ctdna": any(t.workbench == "ctdna" for t in pf.tests),
-        "genomics": any(t.workbench == "mutations" for t in pf.tests),
-        "slides": bool(slides.sections(pf)),
-        "omics": cs is not None or any(t.workbench == "omics" for t in pf.tests),
-        "documents": bool(documents.file_documents(pf)),
-        "radiology": any(t.kind == "Imaging" or t.details.get("pipeline") == "imaging"
-                         for t in pf.tests),
-    }
+    tested = _tested(pf, cs)
     return {"id": pf.id, "subtype": omics.SUBTYPES[cs["pam50"]["call"]] if cs else "not called",
+            "receptors": _receptors(pf, cs),
             "genes": genes, "stage": crosstest._recorded_stage(pf, len(pf.versions) - 1)
             or "not recorded", "alerts": [alert_key(pf, a) for v in pf.versions
                                           for a in v.alerts],
-            "holds": [NAMES[k] for k, held in holds.items() if held]}
+            "holds": [NAMES[k] for k in tested], "tested": tested,
+            "versions": len(pf.versions), "latest": pf.latest.label, "updated": pf.latest.month,
+            "imported": bool(pf.versions[-1].imported), **list_risk(pf)}
+
+
+def letters(row: dict) -> str:
+    """The tests column: a letter per workbench holding data, "·" where it holds none."""
+    return " ".join(LETTERS[k] if k in row["tested"] else "·" for k in LETTERS)
+
+
+def tests_named(row: dict, most: int = 3) -> list[str]:
+    """The tests behind the letters, one entry a letter: "L: CA 15-3 · CEA · ALP +4"."""
+    return [f"{LETTERS[k]}: " + " · ".join(v[:most]) + (f" +{len(v) - most}" if len(v) > most
+                                                      else "")
+            for k, v in row["tested"].items()]
 
 
 def matches(row: dict, query: str) -> bool:
-    """Every word of ``query`` appears in the row's patient ID, diagnosis, subtype, stage, genes
-    or workbenches (case-insensitive): "PIK3CA", "luminal", "case 299 slides"."""
-    hay = " ".join([row["id"], row.get("diagnosis", ""), row["subtype"], f"stage {row['stage']}",
+    """Every word of ``query`` appears in the row's patient ID, diagnosis, subtype, receptors,
+    stage, risk group, genes or workbenches (case-insensitive): "PIK3CA", "luminal", "case 299
+    slides", "her2+"."""
+    hay = " ".join([row["id"], row.get("diagnosis", ""), row["subtype"],
+                    row.get("receptors", ""), f"stage {row['stage']}", row.get("band") or "",
                     *row["genes"], *row["holds"]]).lower()
     return all(w in hay for w in query.lower().split())
 
 
-SORTS = ("Last update", "Risk", "Open SOS")
+SORTS = ("Last update", "Risk", "Open SOS", "Stage", "ID", "Versions")
 
 
 def open_alerts(row: dict, reviews: dict | None = None) -> int:
@@ -333,30 +404,136 @@ def open_alerts(row: dict, reviews: dict | None = None) -> int:
     return sum(k not in (reviews or {}) for k in row["alerts"])
 
 
-def sort_rows(rows: list[dict], by: str = "Last update", reviews: dict | None = None) -> list[dict]:
-    """The list in the order asked for (``SORTS``): the latest update first (a file imported
-    into this session, then the record's latest month; a TCGA file's single sample has none),
-    the highest cohort risk percentile first (files without one, the synthetic patient's
-    12-month risk being another measure, after them), or the most open SOS alerts first. Ties
-    keep the list's own order. Rows carry "updated" (a month or None), "imported" and
-    "percentile" (None without one)."""
-    if by == "Risk":
-        return sorted(rows, key=lambda r: (r.get("percentile") is None,
-                                           -(r.get("percentile") or 0)))
-    if by == "Open SOS":
-        return sorted(rows, key=lambda r: -open_alerts(r, reviews))
-    return sorted(rows, key=lambda r: (not r.get("imported"),
-                                       r.get("updated") is None, -(r.get("updated") or 0)))
+def _natural(text: str) -> tuple:
+    """"Case 47" before "Case 299": numbers compared as numbers."""
+    return tuple((0, int(p), "") if p.isdigit() else (1, 0, p.lower())
+                 for p in re.split(r"(\d+)", text) if p)
+
+
+def sort_rows(rows: list[dict], by: str = "Last update", reviews: dict | None = None,
+              reverse: bool = False) -> list[dict]:
+    """The list in the order asked for (``SORTS``), each in its natural direction, which
+    ``reverse`` flips: the latest update first (a file imported into this session, then the
+    record's latest month), the highest cohort risk percentile first, the most open SOS alerts
+    first, the highest stage first, IDs in order ("Case 47" before "Case 299"), the most report
+    versions first. Rows without the value (a TCGA file's single sample has no month; the
+    synthetic patient's 12-month risk is another measure; a stage not recorded) stay last
+    either way, and ties keep the list's own order. Rows carry "updated" (a month or None),
+    "imported", "percentile" (None without one), "stage", "id" and "versions"."""
+    value = {
+        "Risk": lambda r: r.get("percentile"),
+        "Open SOS": lambda r: open_alerts(r, reviews),
+        "Stage": lambda r: STAGE_RANK.get(r.get("stage")),
+        "ID": lambda r: _natural(r["id"]),
+        "Versions": lambda r: r.get("versions", 1),
+    }.get(by, lambda r: (True, r.get("updated") or 0) if r.get("imported") else
+          None if r.get("updated") is None else (False, r["updated"]))
+    have = [r for r in rows if value(r) is not None]
+    first = by != "ID"  # IDs read up; every other column puts its largest first
+    return (sorted(have, key=value, reverse=first != reverse)
+            + [r for r in rows if value(r) is None])
 
 
 def filter_rows(rows: list[dict], query: str = "", subtypes=(), genes=(), stages=(),
-                open_sos: bool = False, holds=(), reviews: dict | None = None) -> list[dict]:
+                open_sos: bool = False, holds=(), reviews: dict | None = None, bands=(),
+                pinned=None) -> list[dict]:
     """The rows that match the search and every filter: subtype, any of the genes, stage, an
-    open (unreviewed) SOS alert, and each workbench in ``holds`` ("Slides", "Imaging", ...)."""
+    open (unreviewed) SOS alert, each workbench in ``holds`` ("Slides", "Imaging", ...), any of
+    the risk ``bands`` (``BANDS``) and, when ``pinned`` is a collection of IDs, those files."""
     reviews = reviews or {}
     return [r for r in rows if matches(r, query)
             and (not subtypes or r["subtype"] in subtypes)
             and (not genes or set(genes) & set(r["genes"]))
             and (not stages or r["stage"] in stages)
             and (not open_sos or any(k not in reviews for k in r["alerts"]))
-            and all(h in r["holds"] for h in holds)]
+            and all(h in r["holds"] for h in holds)
+            and (not bands or r.get("band") in bands)
+            and (pinned is None or r["id"] in pinned)]
+
+
+def review_state(row: dict, reviews: dict | None = None) -> str:
+    """The file's review: its SOS alerts marked so far ("done", "open"), and the reviewer's
+    marks on any of its findings in this session."""
+    reviews = reviews or {}
+    n, still = len(row["alerts"]), open_alerts(row, reviews)
+    marks = sum(k.startswith(row["id"] + "|") for k in reviews)
+    state = ("no alerts" if not n else f"✓ done, {n} of {n}" if not still
+             else f"open, {n - still} of {n}")
+    return state + (f" · {marks} mark{'' if marks == 1 else 's'}" if marks else "")
+
+
+# --------------------------------------------------- the list's state: the address and "seen"
+
+# the address's names for the list's controls (``list_address``), and the sort's
+SORT_WORDS = dict(zip(SORTS, ("update", "risk", "open", "stage", "id", "versions"),
+                      strict=True))
+LIST_DEFAULTS = {"query": "", "open_sos": False, "pinned": False, "bands": [], "holds": [],
+                 "subtypes": [], "genes": [], "stages": [], "sort": SORTS[0], "reverse": False}
+LIST_ADDRESS = {"query": "q", "open_sos": "sos", "pinned": "pinned", "bands": "band",
+            "holds": "tests", "subtypes": "subtype", "genes": "gene", "stages": "stage",
+            "sort": "sort", "reverse": "rev"}
+_LETTER_NAME = {LETTERS[k]: NAMES[k] for k in LETTERS}
+
+
+def list_address(state: dict) -> dict[str, str]:
+    """The list's state as address parameters, only those not at their default: q=pik3ca,
+    sos=1, pinned=1, band=high,medium, tests=P,R (the letters), subtype=…, gene=…, stage=…,
+    sort=risk, rev=1."""
+    out = {}
+    for k, name in LIST_ADDRESS.items():
+        v = state.get(k, LIST_DEFAULTS[k])
+        if v == LIST_DEFAULTS[k] or v in (None, ""):
+            continue
+        if k == "holds":
+            v = [letter for letter, n in _LETTER_NAME.items() if n in v]
+        if not v:
+            continue
+        out[name] = (SORT_WORDS[v] if k == "sort" else "1" if isinstance(v, bool)
+                     else ",".join(v) if isinstance(v, list) else str(v).strip())
+    return out
+
+
+def from_address(params: dict, options: dict | None = None) -> dict:
+    """``list_address``'s inverse: the list's state from an address (a link someone shared),
+    every value it does not know dropped; ``options`` holds the values each list filter
+    offers ({"subtypes": [...], "genes": [...], "stages": [...]})."""
+    options = options or {}
+    state = {**LIST_DEFAULTS}
+    for k, name in LIST_ADDRESS.items():
+        raw = (params.get(name) or "").strip()
+        if not raw:
+            continue
+        if k in ("open_sos", "pinned", "reverse"):
+            state[k] = raw.lower() in ("1", "true", "yes")
+        elif k == "query":
+            state[k] = raw
+        elif k == "sort":
+            state[k] = next((s for s, w in SORT_WORDS.items() if w == raw.lower()), SORTS[0])
+        else:
+            parts = [p.strip() for p in raw.split(",") if p.strip()]
+            if k == "holds":
+                parts = [_LETTER_NAME[p.upper()] for p in parts if p.upper() in _LETTER_NAME]
+            allowed = {"bands": BANDS, "holds": NAMES.values()}.get(k, options.get(k))
+            state[k] = list(dict.fromkeys(p for p in parts
+                                          if allowed is None or p in allowed))
+    return state
+
+
+def seen(row: dict, reviews: dict | None = None) -> dict:
+    """What a file held when it was opened: its report versions and open SOS alerts."""
+    return {"versions": row["versions"], "open": open_alerts(row, reviews)}
+
+
+def changed_since(row: dict, before: dict | None, reviews: dict | None = None) -> str:
+    """What a file gained since it was last opened in this session ("+1 version (…); +2 open
+    alerts"), "" when nothing was gained or it was never opened (``before`` None)."""
+    if not before:
+        return ""
+    bits = []
+    more = row["versions"] - before["versions"]
+    if more > 0:
+        bits.append(f"+{more} version{'' if more == 1 else 's'} ({row['latest']})")
+    opened = open_alerts(row, reviews) - before["open"]
+    if opened > 0:
+        bits.append(f"+{opened} open alert{'' if opened == 1 else 's'}")
+    return "; ".join(bits)

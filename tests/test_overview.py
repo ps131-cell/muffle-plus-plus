@@ -413,9 +413,9 @@ def test_list_rows_search_and_filters():
     by = {r["id"]: r for r in rows}
     assert by["Case 299"]["subtype"] == "Luminal A" and by["Case 864"]["subtype"] == "Basal-like"
     assert by["SYNTHETIC-001"]["subtype"] == "not called" and by["SYNTHETIC-001"]["stage"] == "II"
-    assert by["Case 299"]["holds"] == ["Genomics", "Slides", "Expression", "Documents"]
-    assert by["SYNTHETIC-001"]["holds"] == ["Labs", "ctDNA", "Genomics", "Documents",
-                                            "Imaging"]
+    assert by["Case 299"]["holds"] == ["Genomics", "Expression", "Slides", "Documents"]
+    assert by["SYNTHETIC-001"]["holds"] == ["Labs", "ctDNA", "Genomics", "Imaging",
+                                            "Documents"]
 
     def ids(**kw):
         return [r["id"] for r in overview.filter_rows(rows, **kw)]
@@ -433,6 +433,74 @@ def test_list_rows_search_and_filters():
     assert finding_key(syn, "lab", "ca153", 11) in by["SYNTHETIC-001"]["alerts"]
     seen = {k: {"mark": "reviewed"} for k in by["SYNTHETIC-001"]["alerts"]}
     assert ids(open_sos=True, reviews=seen) == []
+
+
+def test_the_worklist_columns_filters_sorts_address_and_changed_since():
+    syn = synthetic()
+    case = tcga(299, stage="II", slides=["TCGA-AN-A0AS-DX1"], mutations=["PIK3CA p.E545K"])
+    other = tcga(864, stage="III", docs=[], mutations=[])
+    rows = [{**overview.list_row(pf), "diagnosis": pf.diagnosis} for pf in (syn, case, other)]
+    by = {r["id"]: r for r in rows}
+    s, c = by["SYNTHETIC-001"], by["Case 299"]
+    # the columns, read from the file: tests as letters, receptors recorded, the risk and spread
+    assert overview.letters(s) == "L C G · · R D" and overview.letters(c) == "· · G O P · D"
+    assert overview.letters(by["Case 864"]) == "· · G O · · ·"  # sequenced, none mutated
+    assert overview.tests_named(c)[2] == "P: 1 H&E section"
+    assert overview.tests_named(s)[0].startswith("L: CA 15-3")
+    assert s["receptors"] == "HR+ HER2−" and c["receptors"].startswith("ER")
+    assert (c["band"], c["risk"], c["spread"]) == ("medium", "Medium · 60th", "one model")
+    r = next(v.risk for v in reversed(syn.versions) if v.risk and "value" in v.risk)
+    assert s["band"] == "12-month" and s["percentile"] is None
+    assert s["risk"] == f"{r['value']:.0%} 12-mo" and s["spread"].endswith(", 5 models")
+    assert (s["versions"], c["versions"], c["updated"]) == (len(syn.versions), 1, None)
+
+    def ids(**kw):
+        return [x["id"] for x in overview.filter_rows(rows, **kw)]
+
+    assert ids(bands=["12-month"]) == ["SYNTHETIC-001"]
+    assert ids(bands=["medium", "high"]) == ["Case 299", "Case 864"]
+    assert ids(pinned=["Case 864"]) == ["Case 864"] and ids(pinned=[]) == []
+    assert ids(query="hr+") == ["SYNTHETIC-001"] and ids(query="medium slides") == ["Case 299"]
+    assert ids(bands=["medium"], holds=["Slides"], query="pik3ca") == ["Case 299"]
+    # the review column: the file's alerts marked so far, and the marks on any finding
+    assert overview.review_state(s, {}) == f"open, 0 of {len(s['alerts'])}"
+    done = {k: {"mark": "reviewed"} for k in s["alerts"]}
+    assert overview.review_state(s, done).startswith(f"✓ done, {len(s['alerts'])} of")
+    assert overview.review_state(c, done) == "no alerts"
+    # IDs in natural order, every other column largest first; reverse keeps the empty ones last
+    named = [{**c, "id": i} for i in ("SYNTHETIC-001", "Case 1043", "Case 47", "Case 299")]
+    assert [x["id"] for x in overview.sort_rows(named, "ID")] == [
+        "Case 47", "Case 299", "Case 1043", "SYNTHETIC-001"]
+    assert [x["id"] for x in overview.sort_rows(rows, "Stage")] == [
+        "Case 864", "SYNTHETIC-001", "Case 299"]  # III, then the two stage II files in order
+    assert [x["id"] for x in overview.sort_rows(rows, "Versions")][0] == "SYNTHETIC-001"
+    assert [x["id"] for x in overview.sort_rows(rows, "Risk", reverse=True)] == [
+        "Case 299", "Case 864", "SYNTHETIC-001"]  # ties keep order; another measure stays last
+    # the address: only what differs from the defaults, and back; unknown values dropped
+    state = {**overview.LIST_DEFAULTS, "query": "pik3ca", "open_sos": True, "bands": ["high"],
+             "holds": ["Slides", "Imaging"], "genes": ["PIK3CA"], "sort": "Risk",
+             "reverse": True}
+    address = overview.list_address(state)
+    assert address == {"q": "pik3ca", "sos": "1", "band": "high", "tests": "P,R",
+                       "gene": "PIK3CA", "sort": "risk", "rev": "1"}
+    assert overview.from_address(address, {"genes": ["PIK3CA"]}) == state
+    assert overview.list_address(overview.LIST_DEFAULTS) == {}
+    odd = overview.from_address({"band": "high,huge", "tests": "p,X", "gene": "PIK3CA,FAKE1",
+                                 "sort": "bogus", "sos": "yes"}, {"genes": ["PIK3CA"]})
+    assert (odd["bands"], odd["holds"], odd["genes"], odd["sort"], odd["open_sos"]) == (
+        ["high"], ["Slides"], ["PIK3CA"], "Last update", True)
+    # changed since the file was last opened: nothing for a file never opened or unchanged
+    before = overview.seen(s, {})
+    assert overview.changed_since(s, None) == "" and overview.changed_since(s, before) == ""
+    ok, _ = parse_labs(b"month,marker,value,unit\n27,CA 15-3,45,U/mL\n", after=24)
+    tests, observed = lab_tests(ok)
+    later = overview.list_row(add_version(syn, tests, 27, "Imported lab results", "AB", "14:03",
+                                          observed))
+    assert overview.changed_since(later, before) == (
+        "+1 version (month 27 · imported by AB at 14:03); +1 open alert")
+    assert overview.changed_since(later, before, {k: {} for k in later["alerts"]}) == (
+        "+1 version (month 27 · imported by AB at 14:03)")  # marked: no open alert gained
+    assert later["imported"] and overview.sort_rows(rows + [later])[0] is later
 
 
 def test_the_export_keeps_variant_names_out_of_italics():

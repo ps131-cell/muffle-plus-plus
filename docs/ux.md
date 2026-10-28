@@ -236,6 +236,21 @@ bound to the address would put the icon into `?view` and break every link. An ad
   measure, listed after them) or open SOS; the open SOS count as the second column, "🔴 3 open"
   or "none" (the count is in words, never color alone); a Risk column; the recently opened
   files (§2).
+- **Patients page as a worklist (2026-10-28):** under Start here, the tour and Search every
+  file, a cohort strip of four small cards (files and open SOS alerts; the TCGA files' risk
+  groups as a histogram, model inference, drawn after the table so the chart library never
+  delays the list; the three simulated hospitals; the release), then the filters in three
+  lines that wrap (search and Open SOS alerts only; Risk, Tests present as letters, Pinned only
+  and a "Subtype, gene, stage" popover that counts what it holds; Sort by, Reverse, "12 of 41
+  files", Clear filters), then the table, 15 rows high before it scrolls. Column order puts the
+  five a clinician scans first (Patient, Open SOS, Risk, Tests, Last update): at 800 px with
+  the sidebar open they fill the table's 489 px beside the row's box. Everything the list
+  shows comes from the file (observed) or the bundle's risk (model inference, said in the
+  headers and the legend under the table); nothing new is computed. The list's state lives in
+  the address (`overview.list_address`, `from_address`): a widget not on the page starts from
+  the address, so the list survives opening a file. A page-local style-only `st.html` lays the
+  strip out as a grid (`app/theme.css` belongs to the workbench pages' session). Details:
+  [`WORKSPACE.md`](WORKSPACE.md) §1.
 
 ## 6. Speed and feel
 

@@ -15,6 +15,57 @@ pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails 
 VIEWS = ("Tests", "Timeline", "Evolution", "Import tests", "Report")
 
 
+def test_the_worklist_keeps_its_filters_in_the_address_and_marks_changed_files(app):
+    """A shared address opens the list filtered and sorted (values it does not know dropped);
+    the filters survive opening a file; a file that gained a version since it was last opened
+    carries the marker, until it is opened again."""
+    at = app.new()
+    at.query_params.update(band="12-month", gene="PIK3CA,NOTAGENE", sort="risk")
+    at.run()
+    assert not at.exception
+    assert at.pills(key="list-band").value == ["12-month"]
+    assert at.multiselect(key="list-gene").value == ["PIK3CA"]
+    assert at.segmented_control(key="list-sort").value == "Risk"
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    assert at.query_params == {"band": "12-month", "gene": "PIK3CA", "sort": "risk"}
+    at.button(key="list-clear").click().run()  # the filters go, the sort stays
+    n = len(at.dataframe[0].value)
+    assert n > 1 and at.query_params == {"sort": "risk"} and f"**{n} of {n} files**" in shown(at)
+    at.pills(key="list-band").set_value(["12-month"]).run()
+    assert f"**1 of {n} files**" in shown(at)
+    at.pills(key="list-band").set_value([]).run()
+    at.toggle(key="list-reverse").set_value(True).run()
+    assert at.dataframe[0].value["Patient"].tolist()[-1] == "SYNTHETIC-001"  # another measure
+    at.pills(key="list-holds").set_value(["Imaging", "Labs"]).run()
+    assert at.query_params == {"tests": "L,R", "sort": "risk", "rev": "1"}
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    # open the file, pin it, import a test into it, back to the list: filters kept, marker on
+    at.selectbox(key="patient").select("SYNTHETIC-001").run()
+    at.button(key="act-pin").click().run()
+    ok, _ = parse_labs(b"month,marker,value,unit\n27,CA 15-3,45,U/mL\n", after=24)
+    tests, observed = lab_tests(ok)
+    at.session_state["imports"] = {"SYNTHETIC-001": [{"kind": "Lab results", "rejected": [],
+                                                      "version": {
+        "tests": tests, "month": 27, "event": "Imported lab results", "observed": observed,
+        "by": "AB", "at": "14:03"}}]}
+    at.run()
+    at.button(key="crumb-patients").click().run()
+    assert not at.exception and sorted(at.pills(key="list-holds").value) == ["Imaging", "Labs"]
+    row = at.dataframe[0].value.set_index("Patient").loc["SYNTHETIC-001"]
+    assert row["Last update"] == "● month 27" and row["Pinned"] == "📌"
+    assert row["Since you last opened"] == ("+1 version (month 27 · imported by AB at 14:03); "
+                                            "+1 open alert")
+    assert row["Open SOS"] == "🔴 8 open"
+    assert "Changed since you last opened it: **SYNTHETIC-001** +1 version" in shown(at)
+    at.toggle(key="list-pinned").set_value(True).run()
+    assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
+    at.selectbox(key="patient").select("SYNTHETIC-001").run()  # seen again: no marker
+    at.button(key="crumb-patients").click().run()
+    row = at.dataframe[0].value.set_index("Patient").loc["SYNTHETIC-001"]
+    assert row["Last update"] == "month 27" and row["Since you last opened"] == ""
+    assert not at.exception
+
+
 def test_patient_files_render_in_every_view(app):
     demo, shipped = app.demo, app.shipped
     at = app.new().run()
@@ -33,6 +84,11 @@ def test_patient_files_render_in_every_view(app):
     assert at.dataframe[0].value["Patient"].tolist() == ["SYNTHETIC-001"]
     assert at.dataframe[0].value["Open SOS"].tolist() == ["🔴 7 open"]
     at.toggle(key="list-sos").set_value(False).run()
+    table = at.dataframe[0].value  # the worklist's key columns come first
+    assert table.columns.tolist()[:5] == ["Patient", "Open SOS", "Risk", "Tests", "Last update"]
+    row = table.set_index("Patient").loc["SYNTHETIC-001"]
+    assert row["Tests"] == "L C G · · R D" and row["Spread"].endswith(", 5 models")
+    assert row["Review"] == "open, 0 of 7" and row["Last update"] == "month 24"
 
     at.selectbox(key="patient").select("SYNTHETIC-001").run()
     assert not at.exception and "Synthetic patient" in at.warning[0].value
