@@ -946,7 +946,9 @@ def report_view(pf: workspace.PatientFile, i: int):
     for t in seq:
         st.markdown(f"- {t.name}" + ("" if t.month is None else f", month {t.month}")
                     + f": {esc(t.result)}")
-    variants = [var for t in seq for var in t.details["variants"]]
+    # once each: a variant found again by a later test (the example MAF's PIK3CA H1047R in
+    # SYNTHETIC-001) drew its CIViC block twice, with the same mark keys (QA R3-16)
+    variants = list(dict.fromkeys(var for t in seq for var in t.details["variants"]))
     quiet = [var for var in variants if civic_items(pf, var) == []]
     for var in variants:
         if var not in quiet:

@@ -69,7 +69,8 @@ CONTENTS = {
               "Slide geometry, invasion and breakaway rules",
               "Genomics: detection, interpretation and evidence",
               "Clinical documents: the rules and a named-entity model, side by side",
-              "Tumor evolution and treatment evidence"],
+              "Tumor evolution and treatment evidence",
+              "Across the files: search, similar patients, where a patient sits"],
     "Federated training across simulated hospitals": [], "Data sources and licenses": [],
     "Known failures": [], "Every placeholder in the app": [], "Limits": [],
 }
@@ -155,6 +156,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     reviewed(feedback.DOCUMENTS)
     evolution_page.methods_card()
     reviewed(feedback.EVOLUTION)
+    cohort_card()
 
     federation(demo)
     sources()
@@ -336,6 +338,36 @@ def case_note_card(demo) -> None:
 
 
 # --- rules ------------------------------------------------------------------------------------
+
+def cohort_card() -> None:
+    """Search every file, Similar patients and Where this patient sits (muffle.cohort): lookups
+    over what the files already hold, not models (QA round 3)."""
+    card("Across the files: search, similar patients, where a patient sits",
+         workspace.IMPLEMENTED, f"{cohort.LOOKUP} · the Patients page's search, each report's "
+                                "Similar patients and Where this patient sits")
+    st.markdown(
+        "- **What they read:** what the files already hold, as of each file's latest report: "
+        "every workbench's finding cards and attention items, the tests that disagree, the "
+        "documented facts, the variants, the promoter methylation calls, the evolution "
+        "hypotheses and each file's recorded and derived profile. Each entry keeps its evidence "
+        f"label ({chip(OBSERVED)}, {chip(INFERENCE)} or {chip(HYPOTHESIS)}). No model is "
+        "trained or run here; nothing is a prognosis.\n"
+        "- **Search every file:** every word must start a word of one finding (else, said so, "
+        "across a file's findings); files rank by how many findings match, how close the words "
+        "sit, then evidence. A text lookup, not a model.\n"
+        f"- **Similar patients:** the five TCGA files nearest on {len(cohort.FIELDS)} fields ("
+        + ", ".join(name for name, _ in cohort.FIELDS.values()) + "), every field weighing the "
+        f"same ({chip('placeholder')}: not tuned on outcomes); a field either file lacks counts "
+        "as not shared. Candidates are the TCGA files only.\n"
+        f"- **Where this patient sits:** {cohort.POSITION}: the share of the other TCGA files "
+        "with a lower value. The workbenches' percentiles are against the whole TCGA cohort, so "
+        "the two differ.\n"
+        "- **Never compared:** the synthetic patient, whose 12-month risk comes from the "
+        "MSK-CHORD models; nothing from MSK-CHORD enters a similarity or a distribution.\n"
+        "- **Known failures:** a search lands on its best finding's own target, so a card that "
+        "names two sites opens at the one it points to; a file's findings are the latest "
+        "report's, not earlier versions'.")
+
 
 def alert_card() -> None:
     card("SOS alerts and their order", workspace.IMPLEMENTED,

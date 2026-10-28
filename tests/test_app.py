@@ -169,8 +169,11 @@ def test_patient_files_render_in_every_view(app):
     assert "Imported tests" in spec and '"node"' in spec
     # imported sequencing joins the genomics workbench; an imported imaging report raises its
     # alerts and opens on its text and what the rule read, above the radiology report page
-    seq = sequencing_test([{"variant": "ESR1 Y537S", "allele_fraction": "not read"}],
-                          {"format": "VCF", "sample": "T"}, 27, "s.vcf", ["ESR1"], "")
+    # PIK3CA H1047R is in the record already (month 0): found again, the report keeps one CIViC
+    # block for it (two drew the same mark keys and the report failed, QA R3-16)
+    seq = sequencing_test([{"variant": "ESR1 Y537S", "allele_fraction": "not read"},
+                           {"variant": "PIK3CA H1047R", "allele_fraction": "not read"}],
+                          {"format": "VCF", "sample": "T"}, 27, "s.vcf", ["ESR1", "PIK3CA"], "")
     scan = imaging_test("CT CAP", "New pulmonary nodules, consistent with progression.", 27,
                         "import-3", "")
     imports = at.session_state["imports"]
@@ -185,12 +188,14 @@ def test_patient_files_render_in_every_view(app):
     at.session_state["picked-SYNTHETIC-001"] = ("Sequencing", 27, seq.name)
     at.run()
     assert "Genomics workbench" in shown(at) and "ESR1 Y537S" in shown(at) and not at.exception
+    assert not [w.value for w in at.warning if "could not be drawn" in w.value]
     assert_skeleton(at, "genomics")
     at.session_state["picked-SYNTHETIC-001"] = ("Imaging", 27, "Imaging report")
     at.run()
     assert "New distant sites named:** Lung" in shown(at) and "Radiology workbench" in shown(at)
     assert not at.exception
     at.segmented_control(key="view").set_value("Report").run()
+    assert not [w.value for w in at.warning if "could not be drawn" in w.value]
     assert 'Progression on imaging: "New pulmonary nodules' in shown(at)
     # the new-site alert and the radiology workbench's item for that site are one finding, both
     # trust moderate (the import's text rule read the site): the alert is kept, on the item's
@@ -250,10 +255,12 @@ def test_patient_files_render_in_every_view(app):
                  "Slide geometry", "Genomics", "Clinical documents", "Tumor evolution",
                  "Lesion contours (MedSAM", "Screening score (mammoscreen", "Radiology: report",
                  "Change over time (rigid alignment", "Multiplanar views and cine",
-                 "Mammography geometry"):
+                 "Mammography geometry", "Across the files: search, similar patients"):
         assert card in cards, card
+    assert "a lookup on recorded and derived fields, not a model" in shown(at)  # QA round 3
     placeholders = next(d.value for d in at.dataframe if "Placeholder" in d.value.columns)
     assert f"{workspace.RISK_JUMP} points of 12-month risk" in placeholders["Value"].tolist()
+    assert "similar patients: field weights" in placeholders["Placeholder"].tolist()
     # each card carries this session's review marks; a disagreement joins the known failures
     assert "Clinician review · 0 findings reviewed, 0 disagreed this session" in shown(at)
     reviews = at.session_state["reviews"]
