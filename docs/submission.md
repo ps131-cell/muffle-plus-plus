@@ -583,6 +583,26 @@ a report states (receptors are often in an earlier biopsy report not in the data
 
 ## Submission checklist (fill on Oct 29)
 
+**Your clicks on Oct 29, in this order** (after the 10:00 CDT freeze and the last walk of
+`docs/video.md`):
+
+1. **Reboot the hosted app:** share.streamlit.io → the app's ⋮ menu → **Reboot app**; wait until
+   https://cancer-intelligence-platform.streamlit.app draws the patient list.
+2. **Check About this system** (open in the sidebar): the **Code** row shows `main`'s short hash
+   (the first seven characters of the latest commit on GitHub's `main`), **Held-out C-index
+   0.728** and **Case agent live**. If the hash is older, reboot again.
+3. **Record** the take from `docs/video.md` on the hosted app, then **upload it to YouTube as
+   public**, with the title, description, tags and thumbnail in `docs/youtube.md`.
+4. **Paste the video link into README.md**: one line under **Live app**
+   (`**Video:** https://youtu.be/…`), as a one-line PR, merged on your word; also into the
+   checklist below.
+5. **Fill the Devpost form** from this file (the list below), save it as a draft, re-read it on
+   the page; then put the Devpost link into the YouTube description's placeholder.
+6. **Protect `main`:** GitHub → Settings → Branches → a rule for `main`: require a pull request,
+   require the `tests` check, no force pushes.
+7. **Submit** on Devpost before **Oct 30, 10:00 am PT** (12:00 pm Central); then open the public
+   project page and check its links.
+
 - [ ] **Video URL** (YouTube, public, ≤ 3:00): `______________________`; also in README.md
 - [ ] **Repository URL:** https://github.com/ps131-cell/muffle-plus-plus (public, MIT in About)
 - [ ] **Hosted app URL:** https://cancer-intelligence-platform.streamlit.app (rebooted after the
