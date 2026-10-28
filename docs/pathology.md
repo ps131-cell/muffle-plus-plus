@@ -489,6 +489,11 @@ turn (299, 926, 730, 563, 1043, 299 again; release bundle, tile downloads off, W
 first map costs about 1 s on this PC (analysis 0.3–0.7 s, scan 0.2 s, views 0.1–0.2 s, figure
 0.2–0.5 s), and the figure is kept for reruns that do not change it. A chart sends 0.36–0.47 MB:
 the scan (80–125 kB JPEG), seven views of 10–30 kB in all, the hover layers.
+Since the memory pass (2026-10-28, `docs/qa.md`): the hosted app is guaranteed 690 MB, not 1 GB.
+The kept figure is plotly's plain dict, drawn byte for byte the same (`tile_map.frozen`). A
+section's scored tiles, analysis and tile table are kept as a compressed pickle (zlib level 1,
+7.7 → 1.0 MB for a 9,000-tile section) instead of `st.cache_data`'s pickle. Each call still
+gets its own copy, 40–80 ms a rerun.
 
 ## 11. What is left
 

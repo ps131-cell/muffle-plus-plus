@@ -22,9 +22,11 @@ import datetime as dt
 import hashlib
 import json
 import math
+import pickle
 import sys
 import threading
 import time
+import zlib
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
@@ -438,12 +440,13 @@ _fig_lock = threading.Lock()
 def figure_once(shape: tuple, build):
     """The map's figure for one state of the map (section, views, highlight, selection, zoom,
     pointers): a click elsewhere on the page reruns it without rebuilding the figure (0.2–0.5 s).
-    A few figures only: each holds its section's arrays."""
+    A few figures only, each kept as its plain dict (``tile_map.frozen``)."""
     with _fig_lock:
         if shape not in _figures:
             if len(_figures) >= 6:
                 _figures.pop(next(iter(_figures)))
-            _figures[shape] = build()
+            fig, first_hover = build()
+            _figures[shape] = tile_map.frozen(fig), first_hover
         return _figures[shape]
 
 
@@ -773,10 +776,10 @@ def section_numbers(slide: str) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8")).get("numbers", {})
 
 
-@st.cache_data(max_entries=8, show_spinner="Reading the scored section…")
-def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
-    """A scored section, its analysis and its tile frame: they depend on the slide only, so
-    they are computed once per process, not on every click in the workbench."""
+@st.cache_resource(max_entries=8, show_spinner="Reading the scored section…")
+def _scored_packed(slide: str) -> bytes | None:
+    """``scored``'s value, pickled and compressed once per process: a 9,000-tile section keeps
+    1.0 MB instead of its 7.7 MB pickle (zlib level 1; docs/qa.md, "Memory pass")."""
     result = load_slide(RESULTS / slide)
     if result is None:
         return None
@@ -785,7 +788,16 @@ def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
     res = inv.analyze_slide(result["tiles"], classes, til_cutoff=til["cutoff"] if til else None,
                             til_calibrated=bool(til and "calibrated" in til.get(
                                 "cutoff_source", "")))
-    return result, res, frame(res, classes)
+    return zlib.compress(pickle.dumps((result, res, frame(res, classes)),
+                                      pickle.HIGHEST_PROTOCOL), 1)
+
+
+def scored(slide: str) -> tuple[dict, dict, pd.DataFrame] | None:
+    """A scored section, its analysis and its tile frame: they depend on the slide only, so
+    they are computed once per process, not on every click in the workbench. Each call gets its
+    own copy (as from st.cache_data), 40-80 ms."""
+    packed = _scored_packed(slide)
+    return None if packed is None else pickle.loads(zlib.decompress(packed))
 
 
 def look_items(pf: PatientFile, slide: str, version: int | None, res: dict) -> list[dict]:

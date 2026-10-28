@@ -518,7 +518,11 @@ on both sides as in use: main (1c07626) 435 MB at the first screen and 613 MB af
 branch 436 and 616 MB. An MRI page took 4.3–5.4 s against 3.1–4.3 s with the Altair viewer (the
 window's first build); a window's figure is kept for reruns (three kept) and its slices' map data
 in a shared cache of 16. Each slice map stores its hover wordings once (an int16 index per square):
-storing them per square had cost about 50 MB over the same walk.
+storing them per square had cost about 50 MB over the same walk. Since the memory pass
+(2026-10-28, `docs/qa.md`): the kept figures are plotly's plain dicts (`tile_map.frozen`). The
+candidates' masks are kept packed eight voxels to a byte (3–4.5 MB → 0.4–0.6 MB each, unpacked
+for the run that needs them). A slice map holds its own copy of its subtraction slice, so it no
+longer keeps the whole volume alive.
 
 **Where the Change view shows.** On the later study of a file that holds two dates (no bundled
 file does; the public example pair opened as a file on the workbench's standalone page), and in
