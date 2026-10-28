@@ -100,6 +100,11 @@ CUTOFFS = {
                           "breasts counted as one organ here"),
     "asymmetry_points": (10, PLACEHOLDER, "mammography: a left-right difference in dense-pixel "
                          "share above 10 points is shown as asymmetric"),
+    # the scan map (docs/radiology.md §8)
+    "margin_band_mm": (3, PLACEHOLDER, "the map's Lesion view draws a margin band up to 3 mm "
+                       "outside each contour, where a margin's shape is judged by eye"),
+    "map_square_mm": (4.5, DESIGN, "the map's hover squares are about 4.5 mm across: about the "
+                      "smallest candidate the seed rule keeps (30 mm³, a 4 mm sphere)"),
 }
 
 # every value nobody has validated yet, as (what, value) for the Methods page's one table
