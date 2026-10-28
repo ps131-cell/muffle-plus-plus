@@ -209,8 +209,9 @@ def table(data, *, mono=(), chips=(), caption: str | None = None, empty: str | N
         out = st.dataframe(shown, hide_index=True, width="stretch", row_height=30,
                            column_config=cfg, height=height or "auto", **kw)
     else:
-        shown = pd.DataFrame({str(c): [_cell(v, c in mono_cols, c in chip_cols, links.get(c),
-                                             colors, c in percent) for v in df[c]]
+        shown = pd.DataFrame({str(c).replace("_", " "):  # a field name wraps like words
+                              [_cell(v, c in mono_cols, c in chip_cols, links.get(c), colors,
+                                     c in percent) for v in df[c]]
                               for c in df.columns})
         st.table(shown, hide_index=True, border="horizontal", height=height or "content")
     if caption:

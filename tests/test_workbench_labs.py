@@ -327,7 +327,7 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     assert {"Results (8)", "Rise confirmation, EGTM (1)", "Planned panels (4)"} <= set(details)
     # the EGTM tracker (10 columns) is a static table whose sentence wraps, not a grid that cut
     # it at 1280 px (the orchestrator's round 15 follow-up); app/theme.css wraps every cell
-    tracker = next(t.value for t in at.table if "due_by" in t.value.columns)
+    tracker = next(t.value for t in at.table if "due by" in t.value.columns)  # due_by, shown
     assert "too late to confirm it" in tracker["detail"].iloc[0]
     sheet = (root / "app" / "theme.css").read_text(encoding="utf-8")
     assert '[data-testid="stTable"] [data-testid="stMarkdownContainer"] p' in sheet

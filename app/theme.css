@@ -156,6 +156,10 @@
   [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
   [data-testid="stTable"] thead th { padding-left: 0.25rem; padding-right: 0.25rem; }
   [data-testid="stTable"] thead th { font-size: 0.625rem; letter-spacing: 0.01em; z-index: 2; }
+  [data-testid="stTable"]:has(thead th:nth-child(9)) thead th { font-size: 0.5625rem; }
+  [data-testid="stTable"]:has(thead th:nth-child(9)) :is(tbody td, tbody th, thead th) {
+    padding-left: 0.1875rem; padding-right: 0.1875rem;
+  }
   [data-testid="stTable"] tr > :first-child {
     position: sticky; left: 0; z-index: 1; background-color: #ffffff;
   }
