@@ -695,7 +695,8 @@ def ecm3_section(pf) -> None:
     st.caption(f"{tag(INFERENCE)} {chip(wb.IMPLEMENTED)} {chip('no cutoff')} · the prognosis "
                f"{chip(HYPOTHESIS)}")
     if e3["measured"]:
-        st.metric("ECM3 score, cohort percentile", ordinal(e3["percentile"]), width="content",
+        place = ordinal(e3["percentile"])
+        st.metric("ECM3 score, cohort percentile", place, width="content",
                   help="Mean of the four genes' cohort z-scores (log2 TPM + 1), placed among "
                        f"{data['reference']['rna_tumors']:,} TCGA-BRCA tumors. No high or low: "
                        "the paper's classifier was fitted on its own cohorts.")
