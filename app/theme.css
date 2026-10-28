@@ -103,12 +103,24 @@
 
 /* --- finding tables (workbenches._page.table): dense rows over hairlines, small capital
    headers, values in monospace without the code tint, chips as everywhere -------------------- */
-[data-testid="stTable"] table { font-size: 0.8125rem; border-collapse: collapse; }
-/* a long list scrolls inside its box like the grid (the header stays), a wide one sideways: no
-   column is squeezed under 4.5 rem at 800 px, and the page itself never scrolls sideways */
-[data-testid="stTable"] > div { max-height: 28rem; overflow: auto; }
-[data-testid="stTable"] td [data-testid="stMarkdownContainer"],
-[data-testid="stTable"] th [data-testid="stMarkdownContainer"] { min-width: 4.5rem; }
+[data-testid="stTable"] table { font-size: 0.8125rem; border-collapse: collapse; width: 100%; }
+/* a long list scrolls inside its box like the grid (the header stays); a wide one wraps inside
+   its box instead of scrolling sideways or cutting a cell: sentences wrap between words, a long
+   token (a regular expression, a variant) wherever it must, and at 800 px any word as a last
+   resort (the column fits the box). The page never scrolls sideways. */
+[data-testid="stTable"] > div { max-height: 28rem; overflow-y: auto; overflow-x: auto; }
+[data-testid="stTable"] td, [data-testid="stTable"] th {
+  white-space: normal; overflow-wrap: break-word; word-break: normal;
+}
+[data-testid="stTable"] td code { overflow-wrap: anywhere; }
+[data-testid="stTable"] .stMarkdownBadge { white-space: normal; }
+@media (max-width: 1023px) {
+  [data-testid="stTable"] table { font-size: 0.75rem; }
+  [data-testid="stTable"] td, [data-testid="stTable"] th { overflow-wrap: anywhere; }
+  [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
+  [data-testid="stTable"] thead th { padding-left: 0.3125rem; padding-right: 0.3125rem; }
+  [data-testid="stTable"] thead th { letter-spacing: 0.02em; }
+}
 [data-testid="stTable"] thead th {
   position: sticky; top: 0; z-index: 1; background-color: #ffffff;
   padding: 0.3125rem 0.5rem 0.25rem; vertical-align: bottom; border-bottom: 0;

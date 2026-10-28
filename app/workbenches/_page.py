@@ -102,7 +102,7 @@ MONO = {"pointer", "month", "months", "value", "values", "variant", "vaf", "z", 
         "months_after", "per month", "change from previous", "change from nadir", "pmid", "nct",
         "cohort percentile", "percentile"}
 CHIPS = {"evidence", "status", "label", "labels", "evidence label"}  # columns of label chips
-GRID_ROWS, GRID_COLUMNS = 25, 8  # a longer or wider list is a grid: it scrolls and sorts
+GRID_ROWS, GRID_COLUMNS = 25, 12  # a longer or wider list is a grid: it scrolls and sorts
 MD_LEAD = re.compile(r"^(\s*)([#>+*-]|\d+[.)])(?=\s|$)")  # a cell that would open a list
 NO_DATA = {"", "nan", "NaT", "<NA>"}  # a missing value: an empty cell
 
@@ -142,7 +142,7 @@ def _cell(v, mono: bool, chips: bool, link: str | None = None,
         text = found.group(1) if found else link
         return f"[{text}]({v})" if str(v).startswith("http") else ""
     if percent and isinstance(v, (int, float)) and not isinstance(v, bool):
-        text = f"{v:.1%}"
+        text = f"{100 * v:.2f}".rstrip("0").rstrip(".") + "%"  # as the grid's "percent" shows it
     elif isinstance(v, bool):
         text = "yes" if v else "no"
     elif isinstance(v, float):  # up to 4 decimals as the grid shows them; tiny ones in e-notation

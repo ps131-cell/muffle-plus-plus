@@ -61,7 +61,8 @@ from muffle.workbench import radiology_search as rs  # noqa: E402
 from muffle.workbench import tile_map  # noqa: E402
 from muffle.workbench.grammar import chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
-from workbenches._page import Page, land, queue_items  # noqa: E402
+from workbenches._page import Page, empty, land, queue_items  # noqa: E402
+from workbenches._page import table as finding_table  # noqa: E402 - pages keep a `table` list
 
 RESULTS = APP / "workbenches" / "radiology_results"
 COLORS = {"C1": (230, 73, 72), "C2": (235, 160, 52), "C3": (64, 160, 230)}
@@ -842,7 +843,7 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
     table = lesion_rows(study)
     with page.details("Candidates", len(cands)):
         chips(IMPLEMENTED, INFERENCE, "placeholder")
-        st.dataframe(pd.DataFrame(table), hide_index=True, width="stretch")
+        finding_table(table)
         st.caption(f"Seed rule ({rad.CUTOFFS['seed_percentile'][1]}): {seed['rule']}. "
                    f"{seed['groups']} seed groups, {seed['proposed']} kept after the size and "
                    "shape rules; the top three are shown. The breast region: "
@@ -1173,7 +1174,7 @@ def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -
     d = later["display"]
     chips(*([EXAMPLE_CHIP] if ch["label"] else []), IMPLEMENTED, INFERENCE, "placeholder")
     if ch["label"]:
-        st.info(ch["label"], icon="🧭")
+        st.info(ch["label"], icon=":material/explore:")
     if ch["protocol"]:
         st.warning("Before any 'larger' or 'smaller', the two studies differ: "
                    + "; ".join(ch["protocol"]) + ".")
@@ -1239,7 +1240,7 @@ def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -
     st.caption("Both views show the same place after alignment; black where the earlier study "
                "has no data. " + rad.anisotropy(d) + ".")
     rows = change_rows(ch)
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    finding_table(rows)
     total = ch["sum"]
     st.markdown("**Sum of longest diameters (computed, not a response call)**: " + (
         f"{', '.join(total['targets'])}: {total['sum_mm'][0]:g} → {total['sum_mm'][1]:g} mm "
@@ -1354,9 +1355,8 @@ def since_last(page: Page, pf: PatientFile, study: dict, changes: dict | None) -
 
 def _cannot_see(page: Page, rows: list[tuple], note: str | None = None) -> None:
     with page.cannot_see():
-        st.dataframe(pd.DataFrame([{"not shown here": w, "why": why, "what can": how}
-                                   for w, why, how, _ in rows]), hide_index=True,
-                     width="stretch")
+        finding_table([{"not shown here": w, "why": why, "what can": how}
+                       for w, why, how, _ in rows])
         if note:
             st.caption(note)
 
@@ -1394,8 +1394,7 @@ def model_card(page: Page, study: dict) -> None:
                 ("Acquisition", f"{study['display'].get('acquisition', {}).get('plane', 'axial')} "
                  "acquisition; MedSAM and the longest diameter run on the acquisition plane, the "
                  "viewer shows the axial frame")]
-        st.dataframe(pd.DataFrame(rows, columns=["field", "what it records"]), hide_index=True,
-                     width="stretch")
+        finding_table(pd.DataFrame(rows, columns=["field", "what it records"]))
         _cutoffs()
 
 
@@ -1403,9 +1402,9 @@ def _cutoffs() -> None:
     n_ph = sum(1 for v in rad.CUTOFFS.values() if v[1] == rad.PLACEHOLDER)
     with st.expander(f"Every radiology cutoff and its source ({n_ph} of {len(rad.CUTOFFS)} "
                      "placeholders)"):
-        st.dataframe(pd.DataFrame([{"cutoff": k, "value": str(v), "source": tag, "what": note}
-                                   for k, (v, tag, note) in rad.CUTOFFS.items()]),
-                     hide_index=True, width="stretch")
+        finding_table([{"cutoff": k, "value": str(v), "source": tag, "what": note}
+                       for k, (v, tag, note) in rad.CUTOFFS.items()], chips=("source",),
+                      mono=("cutoff",))
         st.caption(f"{n_ph} of {len(rad.CUTOFFS)} cutoffs are placeholders; the kinetics "
                    "cutoffs are literature values used as placeholders until calibrated here.")
 
@@ -1696,7 +1695,7 @@ def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
         if score.get("status") == "implemented":
             card = score["card"]
             st.markdown("**mammoscreen** (screening score and density per breast)")
-            st.dataframe(pd.DataFrame([
+            finding_table(pd.DataFrame([
                 ("Training data", card["training"]),
                 ("Design", "an ensemble of three EfficientNetV2-S nets (2048×1024, 1920×1280, "
                            "1536×1536), CC and MLO averaged per breast; outputs a cancer score "
@@ -1713,7 +1712,7 @@ def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
                 ("Reproducibility", f"{score['model']} revision {score['revision']}; "
                                     f"{score['seconds_inference']:.0f} CPU seconds, "
                                     f"{score['threads']} threads; {load(score.get('uptime'))}"),
-            ], columns=["field", "what it records"]), hide_index=True, width="stretch")
+            ], columns=["field", "what it records"]))
         else:
             st.markdown(screening_text(score))
         st.caption("The dense-pixel share is a placeholder rule (an Otsu threshold inside the "
@@ -1745,7 +1744,7 @@ def _search(pf: PatientFile, reads: list[dict], cannot: list[tuple]) -> None:
         hit = rad.search(q, reads, [], cannot)
         (st.markdown if hit["understood"] else st.warning)(hit["answer"])
         if hit["reads"]:
-            st.dataframe(pd.DataFrame(read_rows(hit["reads"])), hide_index=True, width="stretch")
+            finding_table(read_rows(hit["reads"]))
 
 
 def _export(page: Page, pf: PatientFile, study: dict | None, table: list[dict],
@@ -1834,8 +1833,8 @@ def report_page(page: Page, pf: PatientFile, version: int | None) -> None:
     picked = st.session_state.get(f"picked-{pf.id}")
     if not reads:
         with page.overview():
-            st.info("No imaging read in the record up to this version. An imaging report (text "
-                    "or PDF, through Import tests) would be read here.", icon="🩻")
+            empty("No imaging read in the record up to this version. An imaging report (text "
+                  "or PDF, through Import tests) would be read here.", icon=":material/radiology:")
         report_card(page)
         _cannot_see(page, rad.REPORT_CANNOT_SEE)
         with page.export(empty="Nothing to export: no imaging read up to this version."):
@@ -1886,8 +1885,7 @@ def report_page(page: Page, pf: PatientFile, version: int | None) -> None:
 
     with page.details("Lesion table", f"{len(table)} site{'' if len(table) == 1 else 's'}"):
         chips(IMPLEMENTED, OBSERVED)
-        if rows:
-            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        finding_table(rows)
         st.caption("One row per site a report names; a cell says what that read says about the "
                    "site. A read that does not name a site is not a statement about it: "
                    "\"not named; overall read: stable\" is never \"stable\" for that site. Pick a "
@@ -1905,10 +1903,8 @@ def report_page(page: Page, pf: PatientFile, version: int | None) -> None:
             st.markdown(f"**What changed** (observed: the reports' own words): "
                         f"{change['what_changed']}")
             if change["rows"]:
-                st.dataframe(pd.DataFrame([{k: r[k] for k in ("lesion", "earlier", "later",
-                                                              "change", "measurements")}
-                                           for r in change["rows"]]), hide_index=True,
-                             width="stretch")
+                finding_table([{k: r[k] for k in ("lesion", "earlier", "later", "change",
+                                                  "measurements")} for r in change["rows"]])
             st.caption("The image workbench's change view where only text exists: each named "
                        "site on the two reads, no size and so no change in size and no sum of "
                        f"diameters ({change['sum']['note']}).")
@@ -2045,9 +2041,8 @@ def methods_card() -> None:
         "values used as placeholders until calibrated. Known failures: "
         + " ".join(rad.KNOWN_FAILURES) + " Method: docs/radiology.md.")
     with st.expander("Every radiology cutoff and its source"):
-        st.dataframe(pd.DataFrame([{"cutoff": k, "value": str(v), "source": tag, "note": note}
-                                   for k, (v, tag, note) in c.items()]),
-                     hide_index=True, width="stretch")
+        finding_table([{"cutoff": k, "value": str(v), "source": tag, "note": note}
+                       for k, (v, tag, note) in c.items()], chips=("source",), mono=("cutoff",))
 
 
 # --- entry point ----------------------------------------------------------------------------------
@@ -2064,9 +2059,9 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
         else:
             page.title(IMPLEMENTED)
             with page.overview():
-                st.info("No imaging in this file. An imaging report (text or PDF, brought in "
-                        "through Import tests) or a processed scan series would open this "
-                        "workbench.", icon="🩻")
+                empty("No imaging in this file. An imaging report (text or PDF, brought in "
+                      "through Import tests) or a processed scan series would open this "
+                      "workbench.", icon=":material/radiology:")
             report_card(page)
             _cannot_see(page, rad.REPORT_CANNOT_SEE)
             with page.export(empty="Nothing to export: this file holds no imaging."):
@@ -2081,9 +2076,9 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
                    "images and measurements can't be shown.")
     if not kept:
         with page.overview():
-            st.info("The file's imaging studies are not installed on this server: nothing to "
-                    "show. The study's processed images and contours would open this "
-                    "workbench.", icon="🩻")
+            empty("The file's imaging studies are not installed on this server: nothing to "
+                  "show. The study's processed images and contours would open this "
+                  "workbench.", icon=":material/radiology:")
         report_card(page)
         _cannot_see(page, rad.CANNOT_SEE)
         with page.export(empty="Nothing to export: no study is installed."):
