@@ -547,8 +547,8 @@ def cohort_search():
     with st.container(border=True, key="cohort-search-box"):
         query = st.text_input(
             "Search every file", key="cohort-search",
-            placeholder="Search every file's findings: ESR1 methylated, HER2 disagree, breakaway, "
-                        "washout, level A, basal, stage III PIK3CA",
+            placeholder="Search every file's findings: GSTP1 methylated, HER2 disagree, breakaway, "
+                        "plateau, level A, basal, stage III PIK3CA",  # each finds a file (QA R3-12)
             help="Every word must be in one finding of a file (else, said so, across its "
                  "findings), at a word's start: 'basal' finds Basal-like, 'methylated' not "
                  "unmethylated. 'level A', 'stage III', 'grade 3', 'ER positive' and 'ESR1 "
@@ -1740,6 +1740,18 @@ def import_view(pf: workspace.PatientFile, i: int):
 
 
 # --- Methods and validation ------------------------------------------------------------------
+def back_to_file():
+    """Methods or Feedback opened from a file: a link back to the screen left (the browser's
+    Back returns to the patient list, since Streamlit drops the address's parameters; QA R3-14)."""
+    pid, test, pointer, version = st.session_state.get("_link") or (None,) * 4
+    if pid in FILES:
+        q = {"patient": pid, "view": "Tests" if test else "Report", "test": test,
+             "pointer": pointer, "version": version}
+        st.page_link(PATIENTS, label=f"Back to {pid}", icon=":material/arrow_back:",
+                     query_params={k: v for k, v in q.items() if v is not None},
+                     help=f"Back to {pid}, the file open before this page")
+
+
 def methods():
     import methods_page  # a card per model and rule, every known failure and placeholder
 
@@ -1747,6 +1759,7 @@ def methods():
         st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
         st.markdown(nav.SEP, width="content")
         st.markdown("**Methods and validation**", width="content")
+        back_to_file()
         st.space("stretch")
         guide.help_icon("methods")
     safely("The Methods and validation page", methods_page.render, demo, TL, results())
@@ -1774,6 +1787,7 @@ def feedback_view():
         st.page_link(PATIENTS, label="Patients", help="Back to the patient list")
         st.markdown(nav.SEP, width="content")
         st.markdown("**Feedback**", width="content")
+        back_to_file()
         st.space("stretch")
         guide.help_icon("feedback")
     safely("The Feedback page", feedback_page.render, FILES, CODE_DIGEST[:12], open_finding,

@@ -242,11 +242,18 @@ def charts_in_columns(at) -> list[str]:
 def test_the_reports_charts_keep_room_for_their_axes(app):
     """QA R3-7: a TCGA file's risk histogram and layer contributions sat in two fixed columns,
     so at 800 px the histogram's plot was about 30 px wide and both axis titles were cut; they
-    now share a row that wraps, a fixed width each."""
+    now share a row that wraps, a fixed width each. R3-10: the MRI Spot panel's curve sat in a
+    2-of-5 column (its axis and the mark's options cut); it sits under the panel's words."""
     at = app.new().run()
     for pid in (app.case, SYN):
         at.selectbox(key="patient").select(pid).run()
         assert not at.exception and not charts_in_columns(at), (pid, charts_in_columns(at))
+    if app.shipped:  # the test case borrows a processed public MRI
+        at.selectbox(key="patient").select(app.case).run()
+        at.session_state[f"picked-{app.case}"] = ("Imaging", None, app.shipped[0]["name"])
+        at.segmented_control(key="view").set_value("Tests").run()
+        assert "Spot panel" in shown(at) and not at.exception
+        assert not charts_in_columns(at), charts_in_columns(at)
 
 
 def test_the_theme_passes_wcag_aa_contrast():

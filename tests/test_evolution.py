@@ -351,3 +351,23 @@ def test_the_page_watches_a_hypothesis_with_its_source_and_opens_a_trial():
         trial.select(trial.options[0]).run()
         assert any(b.proto.label == "Open the trial on ClinicalTrials.gov"
                    for b in at.get("link_button"))
+
+
+def test_a_tcga_files_recorded_receptors_are_the_records_status(monkeypatch):
+    """QA R3-15: the report shows a TCGA file's recorded ER, PR and HER2 (TCGA clinical data,
+    IHC and ISH); the Evolution view said "not recorded in this file" beside it."""
+    from muffle.workbench import omics
+
+    rec = {"ER": {"status": "Positive"}, "PR": {"status": "Negative"},
+           "HER2": {"status": "Negative"}}
+    monkeypatch.setattr(omics, "case_scores", lambda pf: {"receptors": rec})
+    hs = ev.hypothesis_set(case_file(SimpleNamespace(**CASE)))
+    by = {it["id"]: it for it in hs["items"]}
+    assert any("hormone-receptor-positive in the record" in w for w in by["er-loss"]["why"])
+    assert any("HER2-negative in the record" in w for w in by["metastatic-drivers"]["why"])
+    assert not any("not recorded" in w for it in hs["items"] for w in it["why"])
+    skipped = {s["id"] for s in hs["not_raised"]}
+    assert "pik3ca-her2" in skipped  # HER2-positive only
+    monkeypatch.setattr(omics, "case_scores", lambda pf: {"receptors": {
+        "ER": {"status": "Negative"}, "PR": {"status": None}, "HER2": {"status": "Equivocal"}}})
+    assert ev._tcga_receptors(case_file(SimpleNamespace(**CASE))) == {}  # neither settles
