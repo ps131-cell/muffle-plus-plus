@@ -341,7 +341,15 @@ def test_the_page_draws_the_map_for_every_file_with_imaging(idx):
     assert not at.exception, at.exception
     spec = json.loads(at.get("plotly_chart")[0].proto.spec)
     answer = " ".join(e.value for e in at.caption)
-    assert "matched" in answer and not spec["layout"].get("updatemenus")  # one view: by match
+    assert "matched" in answer
+    if "Nothing reaches 15%" in answer:  # said, and the usual views stay (QA R4-8)
+        assert "The map colours every square" not in answer
+        if study["modality"] == "MR":
+            views = [b["label"] for b in spec["layout"]["updatemenus"][0]["buttons"]]
+            assert views[:3] == ["Lesion", "Kinetics", "Enhancement"]
+        assert "Match over 50%" not in json.dumps(spec["data"])
+    else:
+        assert not spec["layout"].get("updatemenus")  # one view: by match
     if study["modality"] == "MR" and not any(c["kinetics"].get("delayed") == "washout"
                                              for c in study["candidates"]):
         assert "Nothing reaches 15%" in answer  # said, not hidden

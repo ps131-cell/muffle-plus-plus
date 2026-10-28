@@ -232,6 +232,16 @@ def load_slide(folder: Path) -> dict | None:
             else None, "crops": folder / "crops", "folder": folder}
 
 
+def front_words(um) -> str:
+    """A tile's signed distance to the invasive front (negative inside the main tumor) in
+    words: a bare minus sign read as neither inside nor outside (QA R4-9)."""
+    if pd.isna(um):
+        return "no front"
+    um = round(float(um))
+    return "on the front" if um == 0 else \
+        f"{abs(um)} µm {'inside' if um < 0 else 'outside'} the front"
+
+
 def frame(res: dict, classes: list[str]) -> pd.DataFrame:
     """The per-tile frame the charts and tables use, with readable columns."""
     df = res["tiles"].copy()
@@ -263,9 +273,8 @@ def frame(res: dict, classes: list[str]) -> pd.DataFrame:
         df.loc[df["disagree"].fillna(False).astype(bool), "second model"] += " (disagrees)"
     else:
         df["second model"] = "not scored"
-    df["dist"] = df["dist_to_front_um"].map(lambda v: f"{v + 0.0:+.0f} µm from the front"
-                                            if pd.notna(v) else "no front") \
-        if "dist_to_front_um" in df else "no front"
+    df["dist"] = df["dist_to_front_um"].map(front_words) if "dist_to_front_um" in df \
+        else "no front"
     df["where"] = df["tile"] + " · " + df["zone"].replace("", "no zone") + " · " + df["dist"]
     return df
 
@@ -361,8 +370,8 @@ def search_answer(found: dict | None) -> None:
             + (f" · {found['message'].strip()}" if found.get("message") else ""))
     (st.caption if found.get("understood") else st.warning)(
         text + (f" The map below colours every square that matches {slide_search.MIN_SCORE:.0%} "
-                "or more (model inference); Q1… mark the best spots." if found.get("values")
-                is not None else ""))
+                "or more (model inference); Q1… mark the best spots." if found.get("spots")
+                else ""))
 
 
 def map_markers(k: str, res: dict | None, found: dict | None) -> list[dict]:
@@ -396,7 +405,9 @@ def map_area(k: str, slide: str, data: tile_map.MapData, thumb, res: dict | None
     if row.button("Whole section", key=f"{k}-fit", icon=":material/fit_screen:",
                   help="Shows the whole section again and clears the selected square"):
         reset_view(k)
-    matching = found is not None and found.get("values") is not None and mem.get("match_on")
+    # nothing reaching the cutoff colours nothing: the usual views stay (as on the scan map, R4-8)
+    matching = bool(found and found.get("spots") and found.get("values") is not None
+                    and mem.get("match_on"))
     if matching:   # a search is on: one view, coloured by how well each square matches it
         overlays = {"match": tile_map.overlay_png(data, "match", None, found["values"],
                                                   found["query"])}
@@ -1238,9 +1249,9 @@ def map_export(row, k: str, slide: str, data: tile_map.MapData, thumb, res: dict
     """The map picture of one view (title, map, colour key), made when clicked (the analyzer's
     "Map picture")."""
     views = tile_map.modes(data, res)
-    with row.popover("Download the map (PNG)", icon=":material/image:",
-                     help="A labelled picture of the map in one view, for a report or a "
-                          "tumor board"):
+    # no tooltip on the trigger: it stayed over the popover's own button (QA R4-2)
+    with row.popover("Download the map (PNG)", icon=":material/image:"):
+        st.caption("A labelled picture of the map in one view, for a report or a tumor board.")
         mode = st.selectbox("View", views, format_func=tile_map.MODES.get, key=f"{k}-pngview")
         enc = meta.get("encoder", {}).get("name", "?")
         st.download_button(

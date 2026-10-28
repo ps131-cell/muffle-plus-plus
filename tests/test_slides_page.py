@@ -93,6 +93,17 @@ def test_stored_numbers_are_what_the_page_computes():
         assert got["immune_pattern"] == want["immune_pattern"], name
 
 
+def test_the_distance_to_the_front_says_inside_or_outside(monkeypatch):
+    """A tile's signed distance (negative inside the main tumor) in words, not a bare minus sign
+    (QA R4-9)."""
+    monkeypatch.syspath_prepend(str(ROOT / "app"))
+    from workbenches.slides import front_words
+
+    assert front_words(-560.0) == "560 µm inside the front"
+    assert front_words(112) == "112 µm outside the front"
+    assert front_words(-0.4) == "on the front" and front_words(float("nan")) == "no front"
+
+
 def test_slides_page_renders_the_patients_own_section():
     from streamlit.testing.v1 import AppTest
 
@@ -119,6 +130,9 @@ render(case_file(SimpleNamespace(index={idx}, site="site-0", percentile=50.0, gr
     assert not any(w in text for w in ("demo", "hackathon"))
     labels = [b.label for b in at.get("download_button")]
     assert any("JSON" in lab for lab in labels) and any("PNG" in lab for lab in labels)
+    # the PNG popover has no tooltip over its own button (QA R4-2); its sentence is inside
+    png = next(p for p in at.get("popover") if "PNG" in p.proto.popover.label)
+    assert not png.proto.popover.help and "a labelled picture of the map" in text
     if len(names) > 1:
         assert "the sections compared" in text
     if (RESULTS / names[0] / "til.json").exists():  # the second lymphocyte model scored it
