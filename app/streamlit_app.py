@@ -80,7 +80,7 @@ if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:  # every module of 
     sys._muffle_code_digest = CODE_DIGEST
 
 # The chart and workbench page modules (and Altair with them) load on first use: the patient
-# list draws no chart. The app's last lines load them in the background once it is drawn.
+# list draws no chart. The app's last lines load Altair in the background once it is drawn.
 charts, timeline_page = module("charts"), module("timeline_page")
 evolution_page = module("workbenches.evolution")
 genomics, labs, omics = (module(f"workbenches.{name}") for name in ("genomics", "labs", "omics"))
@@ -1819,10 +1819,10 @@ if LIVE:
                          text=f"Live notes left this session: {notes_left} of {CAP}")
 session_marks(marks_slot)
 
-# The chart and workbench page modules (Altair), then scipy (the slide maths, the omics immune
-# picture) are not needed for the first screen: they load once that screen is drawn, while the
-# reader looks at it, so the first file need not wait for them
+# Altair (the charts) and scipy (the slide maths, the omics immune picture) are not needed for the
+# first screen: they load once that screen is drawn, while the reader looks at it, so the first
+# file need not wait for them. Only libraries: the app's own modules import from this folder,
+# which Streamlit puts on the path during a run only.
 if "scipy.spatial" not in sys.modules:
     threading.Thread(target=lambda: [__import__(m) for m in (
-        "charts", "timeline_page", "workbenches.labs", "workbenches.genomics", "workbenches.omics",
-        "workbenches.evolution", "scipy.ndimage", "scipy.spatial")], daemon=True).start()
+        "altair", "scipy.ndimage", "scipy.spatial")], daemon=True).start()
