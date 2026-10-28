@@ -10,19 +10,91 @@
 # charts' fixed dark label colours fixed first (docs/qa.md, R2-14).
 base = "light"
 primaryColor = "#2468c0"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f2f4f7"
 textColor = "#0e1117"
+borderColor = "#d3d8df"
 dataframeHeaderTextColor = "#5c5f6a"
 orangeTextColor = "#b45309"
 grayTextColor = "#5c5f6a"
 greenTextColor = "#137a33"
+# Inline code carries pointers (L4, T2), variants and ids: near-black on a light grey, not
+# Streamlit's default green text (green reads as "normal" in a clinical file). 15:1.
+codeTextColor = "#1b1f27"
+codeBackgroundColor = "#eceff3"
+# Type (docs/ux.md §8): IBM Plex Sans for text, IBM Plex Mono for variants, ids, dates, money
+# and counts (SIL OFL 1.1, served from app/static/fonts; docs/registry.md), the browser's own
+# sans-serif and monospace if a file fails to load. A 15 px base and a compact heading scale:
+# a dense clinical file, not a landing page.
+font = "IBM Plex Sans, sans-serif"
+codeFont = "IBM Plex Mono, monospace"
+baseFontSize = 15
+# h4 is a workbench part's label (Overview, Details, Spot panel …), set small in capitals
+headingFontSizes = ["1.75rem", "1.375rem", "1.125rem", "0.8125rem", "0.8125rem", "0.75rem"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+metricValueFontSize = "1.375rem"
+metricValueFontWeight = 500
+baseRadius = "0.25rem"
+buttonRadius = "0.25rem"
+# the gap after the last element (10rem by default); the top gap is in app/theme.css, since a
+# paddingTop here moves the page under the patient header's sticky offset
+paddingBottom = "3rem"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/IBMPlexSans-Regular.woff2"
+weight = "400"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/IBMPlexSans-Italic.woff2"
+weight = "400"
+style = "italic"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/IBMPlexSans-Medium.woff2"
+weight = "500"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/IBMPlexSans-SemiBold.woff2"
+weight = "600"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Sans"
+url = "app/static/fonts/IBMPlexSans-Bold.woff2"
+weight = "700"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fonts/IBMPlexMono-Regular.woff2"
+weight = "400"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fonts/IBMPlexMono-Medium.woff2"
+weight = "500"
+style = "normal"
+
+[[theme.fontFaces]]
+family = "IBM Plex Mono"
+url = "app/static/fonts/IBMPlexMono-SemiBold.woff2"
+weight = "600"
+style = "normal"
 
 [client]
 toolbarMode = "minimal"
 
 [server]
 headless = true
-# app/static/ is served at /app/static/: the slide viewer's tile pyramids, unzipped there on
-# first use (app/workbenches/slide_viewer.py; the folder's content is git-ignored)
+# app/static/ is served at /app/static/: the type faces (fonts/) and the slide viewer's tile
+# pyramids, unzipped there on first use (app/workbenches/slide_viewer.py; git-ignored)
 enableStaticServing = true
 
 [browser]

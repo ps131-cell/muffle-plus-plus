@@ -1,0 +1,101 @@
+/* MuFFLe++ on a light page: density and precision (docs/ux.md §8). Colours, the type faces and
+   the heading scale are in .streamlit/config.toml; this sheet sets what the theme cannot: the
+   page's side gutters, compact controls, chips, metric tiles, tabs, section labels, and the grids
+   of the report's cards, the Tests launcher and the report's cockpit. Loaded on every page by
+   app/streamlit_app.py (a style-only st.html takes no space). No colour here may drop text below
+   4.5:1 (tests/test_states.py reads the theme's). */
+
+:root {
+  --mf-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --mf-rule: #d3d8df;
+  --mf-muted: #4d5260;  /* 7.6:1 on white */
+}
+
+/* --- the page ------------------------------------------------------------------------------ */
+/* under the toolbar (3.75rem) a small gap, not 6rem; Streamlit keeps 5rem side gutters when wide */
+[data-testid="stMainBlockContainer"] { padding-top: 4.5rem; }
+@media (min-width: 1024px) {
+  [data-testid="stMainBlockContainer"] { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+[data-testid="stMain"], [data-testid="stSidebar"] { font-variant-numeric: tabular-nums; }
+[data-testid="stMain"] h1 { padding: 0.25rem 0 0.375rem; }
+[data-testid="stMain"] h2 { padding: 0.75rem 0 0.25rem; }
+[data-testid="stMain"] h3 { padding: 0.375rem 0 0.125rem; }
+/* a workbench part's heading (Overview, Details, Spot panel, …): a label over a hairline */
+[data-testid="stMain"] h4 {
+  padding: 0.625rem 0 0.125rem; border-top: 1px solid var(--mf-rule);
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--mf-muted);
+}
+
+/* --- text ---------------------------------------------------------------------------------- */
+/* pointers, variants and ids: monospace on a light grey, never broken inside */
+[data-testid="stMarkdownContainer"] code {
+  font-family: var(--mf-mono); font-size: 0.86em; padding: 0.05em 0.3em; border-radius: 0.2rem;
+}
+/* status chips (observed, model inference, trust: strong, placeholder, …): small and square */
+.stMarkdownBadge {
+  font-size: 0.75rem !important; font-weight: 500; letter-spacing: 0.01em;
+  padding: 0.0625rem 0.3rem !important; border-radius: 0.1875rem !important;
+}
+[data-testid="stCaptionContainer"] { line-height: 1.45; }
+
+/* --- controls ------------------------------------------------------------------------------ */
+[data-testid="stBaseButton-secondary"], [data-testid="stBaseButton-primary"],
+[data-testid="stBaseButton-tertiary"], [data-testid="stPopoverButton"] {
+  min-height: 2rem; padding: 0.125rem 0.625rem; font-size: 0.875rem;
+}
+[data-testid^="stBaseButton-"] p, [data-testid="stPopoverButton"] p { font-size: inherit; }
+/* a chip that explains itself (guide.chip_row) is a popover: no button's height around it */
+[data-testid="stPopoverButton"][kind="tertiary"] { min-height: 1.5rem; padding: 0 0.125rem; }
+[data-testid="stExpander"] summary { min-height: 2rem; padding: 0.125rem 0.625rem; }
+[data-testid="stExpander"] summary p { font-size: 0.875rem; }
+[data-baseweb="tab-list"] { gap: 0.25rem; }
+[data-baseweb="tab"] { height: 2.125rem; padding: 0 0.5rem; }
+[data-baseweb="tab"] p { font-size: 0.875rem; }
+[data-testid="stAlertContainer"] { padding: 0.5rem 0.75rem; }
+[data-testid="stAlertContainer"] p { font-size: 0.875rem; }
+
+/* --- metric tiles: a small label, the value in monospace ------------------------------------ */
+[data-testid="stMetricLabel"] { min-height: 1.25rem; }
+[data-testid="stMetricLabel"] p { font-size: 0.75rem; color: var(--mf-muted); }
+[data-testid="stMetricValue"] { font-family: var(--mf-mono); letter-spacing: -0.01em; }
+[data-testid="stMetricDelta"] { font-size: 0.8125rem; }
+
+/* --- grids: cards and tiles of one width that fill the row, then wrap ----------------------- */
+.st-key-report-cards, .st-key-launcher {
+  display: grid !important; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
+  gap: 0.5rem !important; align-items: stretch;
+}
+.st-key-report-cards [data-testid="stMarkdownContainer"] p { font-size: 0.875rem; }
+.st-key-cockpit, .st-key-record {
+  display: grid !important; grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
+  gap: 0.75rem !important; align-items: start;
+}
+.st-key-report-cards > *, .st-key-launcher > *, .st-key-cockpit > *, .st-key-record > * {
+  width: auto !important; max-width: none !important; min-width: 0 !important;
+}
+
+/* --- the file's action row: small, quiet buttons ------------------------------------------- */
+.st-key-file-actions { gap: 0.375rem !important; }
+.st-key-file-actions [data-testid="stBaseButton-secondary"],
+.st-key-file-actions [data-testid="stPopoverButton"],
+.st-key-file-actions [data-testid="stPageLink-NavLink"] {
+  background-color: #f2f4f7; border-color: transparent;
+}
+.st-key-file-actions [data-testid="stBaseButton-secondary"]:hover,
+.st-key-file-actions [data-testid="stPopoverButton"]:hover,
+.st-key-file-actions [data-testid="stPageLink-NavLink"]:hover { border-color: #b7bec9; }
+.st-key-file-actions [data-testid^="stBaseButton-"], .st-key-file-actions [data-testid="stPopoverButton"],
+.st-key-file-actions [data-testid="stPageLink-NavLink"] {
+  min-height: 1.875rem; padding: 0 0.5rem; font-size: 0.8125rem;
+}
+
+/* --- the sidebar's system status ----------------------------------------------------------- */
+.st-key-system-status table { width: 100%; font-size: 0.75rem; margin: 0 0 0.375rem; border: 0; }
+.st-key-system-status thead { display: none; }
+.st-key-system-status td {
+  padding: 0.125rem 0.25rem; border: 0; border-bottom: 1px solid var(--mf-rule);
+}
+.st-key-system-status td:first-child { color: var(--mf-muted); padding-left: 0; width: 48%; }
+.st-key-system-status td:last-child { font-family: var(--mf-mono); padding-right: 0; }
+[data-testid="stExpanderDetails"]:has(.st-key-system-status) { padding: 0.25rem 0.625rem 0.5rem; }
