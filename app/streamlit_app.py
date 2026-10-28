@@ -303,7 +303,7 @@ def system_status(slot):
             ("Held-out C-index", f"{demo.c_index:.3f}"),
             *((f"{site.replace('-', ' ').capitalize()}, simulated", f"{c:.3f}")
               for site, c in demo.c_index_by_site.items()),
-            ("Case notes", "live" if LIVE else "saved only"),
+            ("Case agent", "live" if LIVE else "saved notes only"),  # docs/video.md checklist
             ("Planner", model_name(DEFAULT_MODEL)), ("Writer", model_name(WRITER_MODEL)),
             ("Spend, this server", "unreadable" if spent is None else  # \$: not math
              f"\\${spent[0]:.2f} / \\${spent[1]:.2f}"),

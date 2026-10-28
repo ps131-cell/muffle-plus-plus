@@ -2,6 +2,44 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-28 — Building continues past the planned Oct 28 freeze, under new gates
+- **What:** on the user's word (00:20 CDT: "keep working, keep optimizing, also keep building
+  ... think like a UI/UX designer ... parallel sessions"), building goes on through Oct 28
+  instead of freezing. The land-whole rule stays: a PR lands whole, with CI green and its
+  screenshots looked at, or not at all. New gates: UI and feature PRs merged by **Oct 29,
+  10:00 CDT** (the real code freeze); after it only the final QA walk, the video re-walk of
+  `docs/video.md` and submission material; the submission on **Oct 30 before 10:00 am PT**.
+- **Why:** the user wants more of the product done; the briefs asked for a clinical-trust
+  provenance layer, a version diff, a visible budget and federated status, and a dense
+  clinical look.
+- **Risks taken:** the video is recorded from an app that changes until Oct 29 morning, so
+  the script is re-walked once more after the freeze; several sessions share one CPU (two
+  workers each, CI is the gate). If a PR misses its gate, it is dropped whole (the cut order).
+
+## 2026-10-28 — A clinical light theme and the report's cockpit
+- **What:** the app keeps its light theme and AA colours and gets its own type: IBM Plex Sans
+  for text, IBM Plex Mono for variants, pointers, ids and amounts (SIL OFL 1.1, self-hosted in
+  `app/static/fonts`), a 15 px base, a compact heading scale, near-black inline code instead
+  of Streamlit's green, small radii, 1.5 rem gutters, compact controls and chips
+  (`.streamlit/config.toml`, `app/theme.css`). The report keeps its summary and cards (the SOS
+  tile first), then three columns side by side at 1280 px, stacked at 800 px: the risk model,
+  the driver mutations with their CIViC ladder, what to look at next; each finding's source,
+  method, version and evidence item on hover, and its workbench or civicdb.org on click. The
+  sidebar's About this system shows the system's status (release, each simulated site's
+  held-out C-index, planner and writer, the case-note spend on this server's ledger against
+  the hard cap, live notes left, the code's version); Methods gains a colour code, a Case note
+  service card and the federated training as a status table. `docs/ux-audit.md` has the
+  two-pass audit behind it, `docs/ux.md` §8 the rules.
+- **Why:** on a laptop the SOS tile sat below the fold and the risk model, the mutations and
+  their CIViC evidence were 1,500–3,000 px apart; Streamlit's defaults (16 px Source Sans,
+  36 px metric values, 40 px rounded buttons, 5 rem gutters, green code) read as a generic
+  dashboard, not a clinical instrument.
+- **Rejected:** a dark "clinical terminal" theme (the charts' label colours are fixed for
+  light, docs/qa.md R2-14); fonts from Google at run time (an outside request on every page);
+  a family without a monospace sibling; colour as the only signal (every chip keeps its word).
+- **Severity colours** come from Ensembl VEP's consequence table (HIGH red, MODERATE orange,
+  LOW and MODIFIER grey); CIViC levels A–B green and C–E orange, as the genomics queue's trust.
+
 ## 2026-10-27 — The slide map and functions ported from the team's colon analyzer
 - **What:** the user asked for the analyzer's map and functions ported rather than rebuilt (the
   slide workbench's tile map was "really really ugly"; "no need to redevelop, if it has already
