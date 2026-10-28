@@ -584,7 +584,7 @@ def cohort_strip(rows: list[dict], reviews: dict):
     sites = Counter(r["site"] for r in rows if r["site"])
     with st.container(horizontal=True, gap="small", key="cohort-strip"):
         with st.container(border=True, gap="xsmall"):
-            st.metric("Patient files", len(rows),
+            st.metric("Patient files", len(rows), width="content",
                       help="Every file on this server: the public TCGA-BRCA cases the risk model "
                            "never trained on, and the synthetic patient")
             st.markdown(f"{tcga} TCGA-BRCA · {len(rows) - tcga} synthetic  \n"
