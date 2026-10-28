@@ -66,7 +66,8 @@
   display: grid !important; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
   gap: 0.5rem !important; align-items: stretch;
 }
-.st-key-report-cards [data-testid="stMarkdownContainer"] p { font-size: 0.875rem; }
+.st-key-report-cards [data-testid="stMarkdownContainer"] p,
+.st-key-launcher [data-testid="stMarkdownContainer"] p { font-size: 0.875rem; }
 .st-key-cockpit, .st-key-record {
   display: grid !important; grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
   gap: 0.75rem !important; align-items: start;
