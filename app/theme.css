@@ -37,7 +37,9 @@
   font-size: 0.75rem !important; font-weight: 500; letter-spacing: 0.01em;
   padding: 0.0625rem 0.3rem !important; border-radius: 0.1875rem !important;
 }
-[data-testid="stCaptionContainer"] { line-height: 1.45; }
+/* QA R4-1: Streamlit fades a caption to 60% opacity, which took its chips and links to 2.4–3.0:1;
+   the muted ink at full opacity keeps the text at 7.6:1 and the chips at their own contrast */
+[data-testid="stCaptionContainer"] { line-height: 1.45; opacity: 1; color: var(--mf-muted); }
 
 /* --- controls ------------------------------------------------------------------------------ */
 [data-testid="stBaseButton-secondary"], [data-testid="stBaseButton-primary"],
@@ -102,9 +104,15 @@
 /* --- finding tables (workbenches._page.table): dense rows over hairlines, small capital
    headers, values in monospace without the code tint, chips as everywhere -------------------- */
 [data-testid="stTable"] table { font-size: 0.8125rem; border-collapse: collapse; }
+/* a long list scrolls inside its box like the grid (the header stays), a wide one sideways: no
+   column is squeezed under 4.5 rem at 800 px, and the page itself never scrolls sideways */
+[data-testid="stTable"] > div { max-height: 28rem; overflow: auto; }
+[data-testid="stTable"] td [data-testid="stMarkdownContainer"],
+[data-testid="stTable"] th [data-testid="stMarkdownContainer"] { min-width: 4.5rem; }
 [data-testid="stTable"] thead th {
-  padding: 0.3125rem 0.5rem 0.25rem; vertical-align: bottom; background: transparent;
-  border-bottom: 1px solid #b7bec9; font-size: 0.6875rem; font-weight: 600;
+  position: sticky; top: 0; z-index: 1; background-color: #ffffff;
+  padding: 0.3125rem 0.5rem 0.25rem; vertical-align: bottom; border-bottom: 0;
+  box-shadow: inset 0 -1px 0 #b7bec9; font-size: 0.6875rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.05em; color: var(--mf-muted);
 }
 [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th {

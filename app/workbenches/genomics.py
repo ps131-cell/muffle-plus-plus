@@ -99,7 +99,9 @@ def _level_text(level: str | None) -> str:
 def _items_table(items: list[dict]) -> None:
     df = pd.DataFrame(items).reindex(columns=list(ITEM_COLUMNS)).fillna("")
     df["level_meaning"] = df["evidence_level"].map(lambda v: LEVELS.get(v, "unknown"))
-    finding_table(df.rename(columns=ITEM_COLUMNS), chips=("Level",), links=LINK,
+    df["evidence"] = HYPOTHESIS  # an item is evidence for review, not a finding about the tumor
+    finding_table(df.rename(columns={**ITEM_COLUMNS, "evidence": "Evidence"}), chips=("Level",),
+                  links=LINK,
                   caption="CIViC (civicdb.org, CC0): each item's level, therapies, direction and "
                           "citation; hypothesis, for clinician review.")
 
@@ -428,7 +430,7 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
         df = pd.DataFrame(items["items"]).rename(columns={
             "molecular_profile": "Profile", "therapies": "Therapies", "evidence_level": "Level",
             "significance": "Significance", "direction": "Direction", "citation": "Citation",
-            "url": "CIViC", "matches_call": "Matches this call"})
+            "url": "CIViC", "matches_call": "Matches this call"}).assign(Evidence=HYPOTHESIS)
         finding_table(df, chips=("Level",), links=LINK)
         if items["total"] > len(items["items"]):
             st.caption(f"{items['total']} items in all; the strongest levels first.")
@@ -648,7 +650,8 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
                      "Gene copies": a.get("copies"),
                      "Purity (ABSOLUTE)": None if not a["purity"] else round(a["purity"], 2),
                      "Clonal range": "" if rng is None else f"{rng[0]:.1%}–{rng[1]:.1%}",
-                     "Fit (model inference)": a["fit"]})
+                     "Fit (model inference)": a["fit"],
+                     "Evidence": f"{OBSERVED} (reads), {INFERENCE} (fit)"})
     finding_table(rows, mono=("Reads (alt / depth)", "95% interval", "Clonal range"))
     df = pd.DataFrame([{"variant": a["variant"], "vaf": a["vaf"], "lo": a["lo"], "hi": a["hi"],
                         "c_lo": (a["clonal_range"] or (None, None))[0],
@@ -785,8 +788,8 @@ def _pathway_view(file, nodes, table, reviews, key) -> None:
         finding_table(pd.DataFrame(items["items"]).rename(columns={
             "molecular_profile": "Profile", "therapies": "Therapies",
             "evidence_level": "Level", "significance": "Significance",
-            "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
-            chips=("Level",), links=LINK)
+            "direction": "Direction", "citation": "Citation", "url": "CIViC"}).assign(
+            Evidence=HYPOTHESIS), chips=("Level",), links=LINK)
         st.caption(f"{items['total']} items name a gene of this pathway; the strongest "
                    "levels first. An item for a gene is not an item for this tumor's change.")
     else:
@@ -987,7 +990,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
             finding_table(pd.DataFrame(watch["rows"]).rename(columns={
                 "under": "Under", "alteration": "What to watch", "finding": "Known from",
                 "source": "Source", "url": "Source link", "level": "Evidence level",
-                "detect": "Would be detected by"}), chips=("Evidence level",), links=LINK)
+                "detect": "Would be detected by"}).assign(Evidence=watch["evidence"]),
+                chips=("Evidence level",), links=LINK)
         if watch["note"]:
             st.caption(watch["note"].capitalize() + ".")
         st.caption("Sources: CIViC resistance items (civicdb.org, CC0) whose therapies include a "

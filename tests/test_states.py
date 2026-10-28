@@ -307,7 +307,16 @@ def test_the_theme_passes_wcag_aa_contrast():
         assert ratio(rgb(theme[f"{color}TextColor"]), tint) >= 4.5, color
     assert ratio((255, 255, 255), rgb(theme["primaryColor"])) >= 4.5  # primary buttons, chips
     caption = tuple(255 - 0.6 * (255 - v) for v in rgb(theme["textColor"]))
-    assert ratio(caption, (255, 255, 255)) >= 4.5
+    assert ratio(caption, (255, 255, 255)) >= 4.5  # a caption as Streamlit fades it (no sheet)
+    # QA R4-1: the sheet draws captions at full opacity in the muted ink, so the chips and links
+    # inside a caption keep their own contrast (the badge checks above), and the text 7.6:1
+    import re
+
+    sheet = (APP.parent / "theme.css").read_text(encoding="utf-8")
+    rule = re.search(r'\[data-testid="stCaptionContainer"\]\s*\{([^}]*)\}', sheet).group(1)
+    assert "opacity: 1" in rule and "var(--mf-muted)" in rule
+    muted = re.search(r"--mf-muted:\s*(#[0-9a-fA-F]{6})", sheet).group(1)
+    assert ratio(rgb(muted), (255, 255, 255)) >= 4.5
 
 
 def test_no_file_path_on_a_clinician_screen(app):

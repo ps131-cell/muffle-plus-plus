@@ -406,7 +406,8 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
             or "none"))
         st.markdown("**Check by eye:**\n" + "\n".join(f"- {c}" for c in s["check_by_eye"]))
         table([{"month": h["month"], "VAF": _vaf(h), "call": h["call"],
-                "pointer": h["pointer"]} for h in s["history"]])
+                "pointer": h["pointer"], "evidence": "observed (synthetic series)"}
+               for h in s["history"]], mono=("VAF",))
         key = next((_key(pf, f["variant"], f["month"]) for f in findings
                     if f["variant"] == r["variant"] and f["month"] == r["month"]), None)
         with st.container(horizontal=True, vertical_alignment="bottom", gap="medium"):

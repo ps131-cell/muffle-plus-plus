@@ -253,8 +253,8 @@ def item_spot(it: dict, rows: list[dict] = ()) -> None:
         table(pd.DataFrame(civ["items"]).rename(columns={
             "molecular_profile": "Profile", "therapies": "Therapies",
             "evidence_level": "Level", "significance": "Significance",
-            "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
-            chips=("Level",), links={"CIViC": "item"})
+            "direction": "Direction", "citation": "Citation", "url": "CIViC"}).assign(
+            Evidence=HYPOTHESIS), chips=("Level",), links={"CIViC": "item"})
     else:
         st.caption("CIViC: no accepted item for this event in breast cancer.")
     named = item_trials(it, list(rows))
