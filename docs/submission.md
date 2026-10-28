@@ -14,7 +14,7 @@ appendix, and the **Submission checklist** at the end is what is left to fill on
 | Team | a team of two (names in the checklist at the end) |
 | Try it out | https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud; no login) · https://github.com/ps131-cell/muffle-plus-plus (MIT) |
 | Video | the YouTube URL from the checklist (≤ 3 min) |
-| New or existing? | New: the repository was created on Oct 17, 2026, after the Submission Period opened (Aug 26). The slide workbench follows the design of the team's earlier colon project; see the prior-work disclosure under **Data, licenses and prior work**. |
+| New or existing? | New: the repository was created on Oct 17, 2026, after the Submission Period opened (Aug 26). The slide workbench builds on the team's earlier colon project: its design, and since Oct 27 its slide map, search and export code adapted to breast (files listed); see the prior-work disclosure under **Data, licenses and prior work**. |
 
 ---
 
@@ -383,15 +383,24 @@ Each item: what happened, why it mattered, and a suggestion.
 
 ## Data, licenses and prior work
 
-**Prior work disclosure.** The slide workbench follows the design of the team's own Colon Tumor
-Front Analyzer, built for the Ashby Prize Hackathon (Oct 17–18, 2026), and that analyzer sets
-the depth we aimed for in every workbench. What carries over is the design grammar: 224 px tiles
-at 0.5 µm/px, a small head on frozen embeddings, smoothing, tumor mask → front → core, front band
-and peritumoral zones, an "unsure here" cutoff, quality rules, and cutoffs tagged by source. The
-breast implementation is new code in this repository: no file, model weight or colon-trained head
-is reused; the breast tissue head was trained during this hackathon on BCSS (CC0) tiles from
-public TCGA-BRCA slides; every cutoff carried over from colon slides is marked placeholder. We
-checked both hackathons' rules before reusing the design.
+**Prior work disclosure.** The slide workbench builds on the team's own Colon Tumor Front
+Analyzer, built for the Ashby Prize Hackathon (Oct 17–18, 2026), which sets the depth we aimed
+for in every workbench. Its design grammar (224 px tiles at 0.5 µm/px, a small head on frozen
+embeddings, smoothing, tumor mask → front → core, front band and peritumoral zones, an "unsure
+here" cutoff, quality rules, cutoffs tagged by source) was re-implemented for breast in this
+repository. On Oct 27 we also ported the analyzer's slide map and app functions, copying its code
+and adapting it to breast: `src/muffle/workbench/tile_map.py` (from its `app/tile_map.py`),
+`src/muffle/workbench/slide_search.py` (from `app/search.py`),
+`src/muffle/workbench/slide_export.py` (from `app/export.py`), and the map, Spot-panel and
+class-highlight code in `app/workbenches/slides.py` (from `app/page_slide.py`, `app/report.py` and
+`app/view_slide.py`); each adapted file names its source in its first line. Not used: the
+analyzer's colon-trained heads, their cutoff values and its colon classes. The breast tissue head
+(trained on BCSS, CC0, tiles from public TCGA-BRCA slides), the GigaPath-Flash re-score, the
+invasion analysis on breast sections and every result shown were made during this hackathon;
+every cutoff carried over from colon slides is marked placeholder. We checked both hackathons'
+rules: the Nebius × NVIDIA rules allow pre-existing work that is significantly updated during
+the submission period and disclosed; the analyzer is the team's own code, and the Ashby Prize
+Hackathon's published terms set no intellectual-property or exclusivity conditions.
 
 - TCGA-BRCA open-access data (GDC, UCSC Xena GDC hub): multi-omic data, masked somatic mutations,
   ASCAT3 copy number, diagnostic slides. The results here are in whole or part based upon data

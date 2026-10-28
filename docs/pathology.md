@@ -421,7 +421,76 @@ timings and one StarDist timing were taken from the log's awake stretches (their
 s per tile. The TIL top-up scored up to 1,500 tiles per section on the first three sections and
 600 on the other five, to make the day's deadline; the coverage table shows what that left.
 
-## 10. What is left
+## 10. The slide map, from the team's Colon Tumor Front Analyzer (2026-10-27)
+
+The page's first picture is now the analyzer's slide map, its code copied and adapted to breast
+rather than rebuilt (the user's request, `docs/decisions.md` 2026-10-27): the section's own
+thumbnail underneath, a see-through coloured layer on top (opacity slider in the chart, 45% to
+start), seven views switched by buttons in the chart (Tissue, Zones, Risk, Flags, Certainty,
+Quality, Immune), a fixed-size hover box on every square, a click that opens the square in the
+Spot panel, scroll to zoom, drag to move, double-click or **Whole section** to fit, the
+look-here pointers T1…Tn on the map and Q1…Q5 for a search. The plotly chart keeps its view
+buttons and slider in the browser (no rerun, so the zoom stays); each view is a PNG of one pixel
+per tile that the browser draws unsmoothed, so a square stays a crisp 112 µm square at any zoom.
+The OpenSeadragon viewer (§7) stays, one click away (**Map | Slide viewer**, and **Zoom to the
+cells** in the Spot panel), and now downloads a section's pyramid only when it is opened.
+
+Modules (each says in its first line which analyzer file it adapts): `src/muffle/workbench/
+tile_map.py` (from its `app/tile_map.py`), `slide_search.py` (`app/search.py`),
+`slide_export.py` (`app/export.py`); the map's page code in `app/workbenches/slides.py` (from
+its `app/page_slide.py` map area and Spot tab, `app/report.py`'s per-square explanation and the
+class highlight of its earlier `app/view_slide.py`). Colours: the analyzer's figure palette
+(its `src/viz.py`) for the classes both heads share, now also on the viewer and in the exports.
+Nothing colon-specific is used: no colon-trained head, no cutoff value set on colon (the
+"unsure here" cutoff stays this workbench's placeholder 0.8, not the analyzer's calibrated 0.9),
+no colon class; mix-ups between two classes come from the breast head's own held-out confusion
+matrix, not the analyzer's hand-written colon list.
+
+What every analyzer feature became here (the analyzer's `app/README.md` on its latest app
+branch, its code, and its earlier app for the five-view map and the clickable key):
+
+| Analyzer feature | In MuFFLe++ |
+|---|---|
+| Scan underneath, see-through coloured layer, opacity slider in the chart | **Ported** (`tile_map.figure`, `scan_jpeg`, `overlay_png`), light page |
+| Empty glass tinted grey around the tissue | **Ported** (`_scan`); a window's part beyond the slide's edge is painted as glass too |
+| Tissue view | **Ported** for the head's five BCSS classes (invasive carcinoma, stroma, lymphocytes, necrosis or debris, fat) |
+| Zones & front: core, front band, peritumoral, other tissue; the front in black; blue arrows on infiltrative arcs; rings on satellites; the main direction of invasion | **Ported** on this workbench's zones, arcs and islands (`invasion.py`); arrows and the main direction are a hypothesis in the hover text |
+| Risk view (points, white to dark red) | **Ported** as Risk levels 1–3 in the same reds, risk regions R1… marked; every point value stays a placeholder |
+| Flags view (marker shapes per flag, unsure areas circled) | **Ported** with breast's flags: breakaway candidates (star), the models' disagreement on lymphocytes (diamond), satellite islands (ring), the three largest unsure areas (grey ring, its uncertainty regions), the counting field (dashed circle) |
+| Certainty view (unsure squares in amber) | **Ported**, on this workbench's placeholder cutoff |
+| — | **Added**: Quality view (glass, pen ink, blur, unlike training tissue) and Immune view (lymphocyte-like nuclei per counted tile) |
+| Clickable key that highlights one class | **Ported** as "Highlight a class" above the map (its earlier app's pills); other classes fade to 12% |
+| Fixed-size hover box on every square (grouped hover layers) | **Ported**: class with its 3×3 mean, certainty, zone, risk points (placeholder), tile, "model inference" |
+| Click a square to open it in the panel | **Ported**: opens it in the Spot panel below; plotly marks the square without redrawing |
+| Scroll to zoom, drag to move, double-click or fit to reset, zoom limits | **Ported** ("Whole section") |
+| Pointers on the map (search S1–S5, worklist F/R/U…) | **Ported** with this page's scheme: T1…Tn (the look-here queue the text and Spot panel share) and Q1…Q5 for a search (S1… already names the satellite islands here) |
+| Search within a slide: known words to classes, zones and flag phrases, "what matched", spots to zoom to, colour by match, clear | **Ported** (`slide_search.py`) with breast words, flags, pointer names and the direction of invasion; things a tile map cannot see (grade, receptors, margins, vessels, single cells) get "this map can't see that" |
+| Live CONCH text search | **Not applicable**: needs CONCH (non-commercial, local only here) and per-slide CONCH embeddings, which the app does not ship |
+| Spot: tile picture, where it sits, class and score, why, certainty and why, zone and distance to the front, the second model, what to check by eye, all scores | **Already there** (crop with nuclei, position, zone, distance, nuclei, risk, what to check, review mark) and **ported**: where it sits, why (closest and next class, neighbours, what the class looks like), how sure and why, the check-by-eye prompt when unsure, the second model's answer (the WSInfer TIL model, not MUSK), all scores as bars |
+| Known mix-ups between two classes | **Adapted**: measured on the breast head's held-out tiles (its confusion matrix) |
+| Report tab (high-risk features, findings) and Details (every number) | **Already there**: the overview paragraph, metrics and look-here queue; the Details sections |
+| Check tab: the worklist with reviewed ticks | **Already there**: the look-here queue, review marks and pins (kept in the browser session and the exports; the Feedback ledger collects them) |
+| Notes per slide, added to the report | **Ported**: "Your notes on this section" (session), in the slide report and the JSON |
+| Map picture (PNG: title, map, colour key, footer) per view | **Ported** (`slide_export.map_png`; a view picker in "Download the map (PNG)") |
+| PDF report | **Adapted** to Markdown like the file's "Export this report (Markdown)": `slide_export.report_markdown` (what was scored, tissue mix, key findings with evidence labels, the pointers with your marks, notes, arcs, islands, risk regions, every cutoff and its source, known failures); a PDF would add a dependency |
+| Slide list with hover stats; rename, duplicate, hide | **Already there** in shape (the Patients page; the Tests launcher's tiles with look-here counts); rename, duplicate and hide **not applicable** (a file's tests are records) |
+| Model-results page | **Already there** (Methods and validation) |
+| Back / forward | **Already there** (the address carries the file, view and test) |
+| Plain-language summary from an LLM (NCSA Lumen) | **Not applicable**: the slide page sends nothing to an LLM; the case agent (Nemotron) has its own budget-capped path |
+| Background warm-up of every slide | **Left out**: each section is read once per process and cached; the hosted app's 1 GB favours loading on demand |
+| Colon analysis: depth hint (pT from muscle and fat), mucin pools, outer edge, lymph nodes on the slide, perineural / venous / lymphatic phrase flags, stroma maturity, adenoma remnants, MUSK blood check | **Not applicable to breast**: colon wall anatomy and CONCH phrase scores on colon; breast's own analysis (front, arcs, islands, breakaway, immune pattern, tumor–stroma ratio, risk) has been in `invasion.py` since Oct 20 |
+| Colon-trained heads (eight colon classes, immune, structures) and their cutoffs | **Not used**: colon classes; the breast head is trained here on BCSS |
+| Dark glass and the near-black theme of its first app | **Not applicable**: this app is light-only (its latest app is light too) |
+
+Memory and size: plotly 7.1.0 is a new dependency (`requirements.txt`, `app/requirements.txt`).
+Server memory (RSS) while headless Chromium opened SYNTHETIC-001 and every case's slide page in
+turn (299, 926, 730, 563, 1043, 299 again; release bundle, tile downloads off, WSL): **main
+435 → 554 MB, this map 437 → 556 MB**, so the hosted app's 1 GB holds as before. A section's
+first map costs about 1 s on this PC (analysis 0.3–0.7 s, scan 0.2 s, views 0.1–0.2 s, figure
+0.2–0.5 s), and the figure is kept for reruns that do not change it. A chart sends 0.36–0.47 MB:
+the scan (80–125 kB JPEG), seven views of 10–30 kB in all, the hover layers.
+
+## 11. What is left
 
 - A pathologist's review of one scored slide, and a measured error for StarDist on breast
   tiles (a few hand-counted tiles would do).

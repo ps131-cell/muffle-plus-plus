@@ -14,7 +14,6 @@ its source and the placeholders are tagged; the page must never show one as vali
 
 from __future__ import annotations
 
-import io
 import math
 
 import numpy as np
@@ -24,7 +23,6 @@ from scipy.spatial import cKDTree
 
 from muffle.workbench.slides import (
     CLASSES,
-    COLORS,
     DOC,
     LABELS,
     LITERATURE,
@@ -719,36 +717,7 @@ def compare(a: dict, b: dict) -> list[dict]:
     return rows
 
 
-# --- the map as a picture --------------------------------------------------------------------
-
-def map_png(tiles: pd.DataFrame, front: np.ndarray | None = None, scale: int = 6,
-            queue: list[dict] | None = None) -> bytes:
-    """A PNG of the tissue map (class colours, excluded tiles grey, the front black, pointer
-    tiles outlined) for export; no chart library needed."""
-    from PIL import Image, ImageDraw
-
-    h, w = int(tiles["row"].max()) + 1, int(tiles["col"].max()) + 1
-    img = Image.new("RGB", (w * scale, h * scale), "white")
-    d = ImageDraw.Draw(img)
-    colors = {k: COLORS[k] for k in CLASSES}
-    for r, c, lab, qc in tiles[["row", "col", "label", "qc"]].itertuples(index=False):
-        color = "#bbbbbb" if qc != QC_OK else colors.get(lab, "white")
-        d.rectangle([c * scale, r * scale, (c + 1) * scale - 1, (r + 1) * scale - 1], fill=color)
-    if front is not None:
-        for r, c in zip(*np.nonzero(front), strict=True):
-            d.rectangle([c * scale, r * scale, (c + 1) * scale - 1, (r + 1) * scale - 1],
-                        fill="black")
-    for p in queue or []:
-        r, c = p["row"], p["col"]
-        d.rectangle([(c - 2) * scale, (r - 2) * scale, (c + 3) * scale, (r + 3) * scale],
-                    outline="#00bcd4", width=2)
-        d.text(((c + 3) * scale + 2, (r - 2) * scale), p["pointer"], fill="#006064")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-
-# --- everything --------------------------------------------------------------------------
+# --- everything (the map as a picture: muffle.workbench.slide_export.map_png) ----------
 
 def analyze_slide(tiles: pd.DataFrame, classes: list[str] = CLASSES,
                   til_cutoff: float | None = None, til_calibrated: bool = False) -> dict:

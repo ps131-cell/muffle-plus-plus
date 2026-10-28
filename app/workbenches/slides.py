@@ -6,11 +6,13 @@ streamlit run app/workbenches/slides.py        # standalone page on the example 
 The workspace pages call ``render(file, version=None)`` with a ``muffle.workspace.PatientFile``;
 it draws inside the current container only. When ``slides_results/<slide>/`` holds the
 patient's own scored diagnostic section(s) (``scripts/slide_pipeline.py``), the page shows
-them: the tissue map with layers, the direction of invasion (arrows and a rose), breakaway
+them: the slide map (the section's scan with the analysis on top in seven views, the team's
+Colon Tumor Front Analyzer's map adapted to breast: ``muffle.workbench.tile_map``), the slide
+viewer down to single cells, the direction of invasion (arrows and a rose), breakaway
 candidates with the counting field, immune pattern, satellite islands, the risk map with its
-cards, a Spot panel per tile, search, review marks, a comparison of two sections, the model
-and validation card and export. Otherwise it shows the pipeline on a public example region and
-says so. Every class is a model inference; every cutoff names its source; nothing here is a
+cards, a Spot panel per tile, search, review marks and notes, a comparison of two sections, the
+model and validation card and export. Otherwise it shows the pipeline on a public example region
+and says so. Every class is a model inference; every cutoff names its source; nothing here is a
 diagnosis.
 """
 
@@ -21,6 +23,7 @@ import hashlib
 import json
 import math
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -38,16 +41,15 @@ import streamlit as st  # noqa: E402
 from muffle.report.case_tools import INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench import invasion as inv  # noqa: E402
 from muffle.workbench.slides import (  # noqa: E402
-    COLORS,
     CUTOFFS,
     LABELS,
     PLACEHOLDER,
     QC_OK,
-    QC_UNLIKE,
     TILE_UM,
     analyze,
     load_result,
 )
+from muffle.workbench import slide_export, slide_search, tile_map  # noqa: E402
 from muffle.workbench.grammar import chip  # noqa: E402
 from muffle.workbench.slides import queue as slide_queue  # noqa: E402
 from muffle.workspace import MARKS, PLANNED, PatientFile, finding_key  # noqa: E402
@@ -56,13 +58,27 @@ from workbenches._page import Page, land, queue_items  # noqa: E402
 
 EXAMPLE = APP / "workbenches" / "slides_example"
 RESULTS = APP / "workbenches" / "slides_results"
-ZONE_COLORS = {"core": "#8e1b1b", "front band": "#f39c12", "peritumoral": "#f9e79f",
-               "outside": "#dfe6e9", "": "#ffffff"}
-RISK_COLORS = ["#f4f6f7", "#fde9c9", "#f5b041", "#c0392b"]
-GRID = {"gridOpacity": 0, "domainOpacity": 0, "tickOpacity": 0, "labels": False, "title": None}
-LAYERS = ["tissue", "certainty", "QC", "zones", "immune", "lymphocytes (second model)", "risk"]
-OVERLAYS = ["front", "arrows", "breakaway", "pointers"]
 NO_MARK = "no mark"
+MAX_MARKERS = 15
+PICTURES = ["Map", "Slide viewer"]
+MAP_CAPTION = (
+    "The section's own scan with the analysis on top. The buttons in the map switch the view "
+    "(tissue class, zones with the front and growth arrows, risk, flags, certainty, quality "
+    "control, lymphocyte-like nuclei); the slider sets how see-through the colours are. Hover a "
+    "square for its scores, click it for its full story in the Spot panel, scroll to zoom, drag "
+    "to move, double-click or Whole section to see it all again. Each square is one score for "
+    "112 µm of tissue; classes are model inferences smoothed over 3×3 squares.")
+# What each class looks like on H&E, so a reader knows what to check by eye (general histology,
+# not model output; the analyzer's LOOKS_LIKE, written for breast)
+LOOKS_LIKE = {
+    "tumor": "nests, cords or sheets of crowded cells with large, irregular, dark nuclei",
+    "stroma": "pink collagen fibres with few thin, elongated nuclei",
+    "lymphocytes": "sheets or clusters of small round cells with dark round nuclei",
+    "necrosis": "pink, structureless debris with nuclear fragments, often inside a tumor nest",
+    "fat": "large, empty-looking round cells with thin walls",
+    "normal_breast": "ducts and lobules lined by two cell layers",
+    "dcis": "atypical cells filling ducts, inside an intact basement membrane",
+}
 
 
 CHIP_COLORS = {"example slide": "violet",  # statuses, evidence, placeholders: the shared grammar
@@ -81,19 +97,6 @@ def own_slides(index) -> list[str]:
         return []
     names = json.loads(path.read_text(encoding="utf-8")).get(str(index), [])
     return [n for n in names if (RESULTS / n / "tiles.json").exists()]
-
-
-def tile_chart(tiles: pd.DataFrame, color_field: str, scale: alt.Scale, title: str,
-               tooltip: list, grid_shape: list[int], height: int = 360) -> alt.Chart:
-    """One square per tile on ordinal axes; hover shows the tooltip fields (example page)."""
-    h, w = grid_shape
-    step = max(4, int(height / h))
-    return (alt.Chart(tiles).mark_rect(stroke="white", strokeWidth=0.3)
-            .encode(x=alt.X("col:O", axis=alt.Axis(**GRID)),
-                    y=alt.Y("row:O", axis=alt.Axis(**GRID)),
-                    color=alt.Color(f"{color_field}:N", scale=scale, title=title),
-                    tooltip=tooltip)
-            .properties(width=alt.Step(step), height=alt.Step(step)))
 
 
 # --- review marks (the workspace's store, kind "slide") --------------------------------------
@@ -159,9 +162,46 @@ def viewer_event(pid: str, key: str) -> None:
     ev = st.session_state.get(key) or {}
     if ev.get("failed"):
         st.session_state[f"{pid}|{ev['slide']}-viewer-failed"] = ev["failed"]
+        st.session_state[f"{pid}|{ev['slide']}-pic"] = PICTURES[0]  # back to the map
     elif ev.get("tile"):
         st.session_state[f"{pid}-section"] = ev["slide"]
         st.session_state[f"{pid}|{ev['slide']}-spot"] = ev["tile"]
+
+
+def viewer_unavailable(k: str, slide: str) -> str:
+    """'' when the slide viewer can open this section here (its pyramid unpacked, or fetched on
+    first use), else why not, in words that read as part of the page's sentence; never
+    downloads."""
+    why = (st.session_state.get(f"{k}-viewer-failed") or slide_viewer.unavailable(slide))
+    why = why.rstrip(".")  # the browser's reason is a sentence of its own
+    return why[:1].lower() + why[1:]
+
+
+def show_viewer(pf: PatientFile, k: str, slide: str, res: dict, meta: dict) -> None:
+    """The slide viewer (OpenSeadragon) on the section's own pyramid, fetched on first use."""
+    src = slide_viewer.source(slide)
+    if not isinstance(src, dict):
+        st.info(f"The slide viewer is not available here: {src.rstrip('.')}. The map shows the "
+                "same analysis on the section's overview image.", icon="🔬")
+        return
+    st.caption(
+        f"The patient's own section (H&E) at {src['mpp']:.2f} µm per pixel, the scan's own level "
+        "nearest 1 µm. Scroll or double-click to zoom from the whole section down to single "
+        "nuclei, drag to pan; the minimap (top right) shows where you are. Colour the tiles by "
+        "tissue class, certainty, quality control, zones, lymphocyte-like nuclei or risk level, "
+        "and draw the front line, the arcs with their arrows, breakaway candidates with the "
+        "counting field, islands, risk regions, the pointers and, zoomed in, every nucleus "
+        "StarDist found on the counted tiles. Hover a tile for its scores; click it to open it "
+        "in the Spot panel; n and p step through the pointers."
+        + (" Only the tumor-centred window (dashed) was scored: the rest of the section is "
+           "shown, not analysed." if src["window"] else ""))
+    slide_viewer.show([src], key=f"{k}-viewer", goto=st.session_state.get(f"{k}-goto"),
+                      on_change=lambda: viewer_event(pf.id, f"{k}-viewer"),
+                      spot={"slide": slide, "tile": spot_tile(k, res, meta)})
+    st.caption(f"Tiles: a Deep Zoom pyramid of {slide} (GDC open access; JPEG, cut with "
+               "OpenSlide); viewer: OpenSeadragon 6.1.1. Each coloured tile is one score for "
+               f"{TILE_UM:.0f} µm of tissue; classes are model inferences smoothed over 3×3 "
+               "tiles, so their edges are a tile's width, not a cell's.")
 
 
 # --- the patient's own slide -------------------------------------------------------------
@@ -228,93 +268,241 @@ def frame(res: dict, classes: list[str]) -> pd.DataFrame:
     return df
 
 
-def slide_map(df: pd.DataFrame, res: dict, layer: str, overlays: list[str], classes: list[str],
-              px: int) -> alt.Chart:
-    """The map on quantitative axes so arrows, markers and labels can be layered on it."""
-    h, w = res["grid_shape"]
-    tooltip = ["where:N", "class:N", "top:N", "scores:N", "certainty:N", "nuclei:N",
-               alt.Tooltip("second model:N", title="lymphocytes (second model)"),
-               alt.Tooltip("risk_points:Q", title="risk points")]
-    cls_domain = [LABELS[k] for k in classes] + sorted(
-        v for v in df["class"].unique() if v.startswith("excluded"))
-    cls_range = [COLORS[k] for k in classes] + ["#bbbbbb"] * (len(cls_domain) - len(classes))
-    scales = {
-        "tissue": ("class", alt.Scale(domain=cls_domain, range=cls_range), "Tissue class"),
-        "certainty": ("certainty", alt.Scale(domain=["confident", "unsure here", "excluded"],
-                                             range=["#2a78d6", "#f39c12", "#bbbbbb"]),
-                      "Certainty"),
-        "QC": ("qc", alt.Scale(domain=[QC_OK, "glass", "pen ink", "blur", QC_UNLIKE],
-                               range=["#dfe6e9", "#74b9ff", "#6c5ce7", "#d63031", "#e17055"]),
-               "Quality"),
-        "zones": ("zone_shown", alt.Scale(
-            domain=["core", "front line", "front band", "peritumoral", "outside",
-                    "no tissue zone"],
-            range=[ZONE_COLORS["core"], "#000000", ZONE_COLORS["front band"],
-                   ZONE_COLORS["peritumoral"], ZONE_COLORS["outside"], "#ffffff"]), "Zone"),
-        "immune": ("immune", alt.Scale(domain=["many lymphocytes", "some", "few", "not counted"],
-                                       range=["#1b4f72", "#5dade2", "#d6eaf8", "#f4f6f7"]),
-                   "Lymphocyte-like nuclei"),
-        "risk": ("risk", alt.Scale(domain=["none", "level 1", "level 2", "level 3"],
-                                   range=RISK_COLORS), "Risk level (placeholder points)"),
-        "lymphocytes (second model)": ("second model", alt.Scale(
-            domain=["lymphocytes", "lymphocytes (disagrees)", "not lymphocytes",
-                    "not lymphocytes (disagrees)", "not scored"],
-            range=["#1b4f72", "#e67e22", "#d6eaf8", "#f5b7b1", "#f4f6f7"]),
-            "Second model (orange and red: the head disagrees)"),
-    }
-    field, scale, title = scales[layer]
-    x = alt.X("col:Q", scale=alt.Scale(domain=[0, w], nice=False), axis=None)
-    y = alt.Y("row:Q", scale=alt.Scale(domain=[h, 0], nice=False), axis=None)
-    base = (alt.Chart(df.assign(col2=df["col"] + 1, row2=df["row"] + 1))
-            .mark_rect(stroke="white", strokeWidth=0.2)
-            .encode(x=x, y=y, x2="col2:Q", y2="row2:Q",
-                    color=alt.Color(f"{field}:N", scale=scale, title=title), tooltip=tooltip))
-    layers = [base]
-    if "front" in overlays and df["front"].any():
-        f = df[df["front"]]
-        layers.append(alt.Chart(f.assign(col2=f["col"] + 1, row2=f["row"] + 1))
-                      .mark_rect(fill="black", fillOpacity=0.55)
-                      .encode(x=x, y=y, x2="col2:Q", y2="row2:Q"))
-    if "arrows" in overlays and res["arcs"]:
-        a = pd.DataFrame(res["arcs"])
-        a["x"], a["y"] = a["col"] + 0.5, a["row"] + 0.5
-        length = 4 + 14 * a["push"]
-        rad = np.radians(a["direction_deg"])
-        a["x2"], a["y2"] = a["x"] + length * np.cos(rad), a["y"] - length * np.sin(rad)
-        a["tip"] = (90 - a["direction_deg"]) % 360
-        a["text"] = a["arc"] + " " + a["pattern"]
-        shaft = alt.Chart(a).mark_rule(strokeWidth=3, color="#111").encode(
-            x="x:Q", y="y:Q", x2="x2:Q", y2="y2:Q",
-            tooltip=["arc:N", "pattern:N", alt.Tooltip("direction_deg:Q", title="direction °"),
-                     "push:Q", "roughness:Q", "faces_top:N", "length_mm:Q"])
-        tip = alt.Chart(a).mark_point(shape="triangle", size=160, filled=True, color="#111")\
-            .encode(x="x2:Q", y="y2:Q", angle=alt.Angle("tip:Q", scale=alt.Scale(domain=[0, 360],
-                                                                                 range=[0, 360])))
-        label = alt.Chart(a).mark_text(dx=8, dy=-8, fontSize=10, color="#111").encode(
-            x="x2:Q", y="y2:Q", text="arc:N")
-        layers += [shaft, tip, label]
-    if "breakaway" in overlays and "buds" in df and df["buds"].fillna(0).gt(0).any():
-        b = df[df["buds"].fillna(0) > 0]
-        layers.append(alt.Chart(b.assign(x=b["col"] + 0.5, y=b["row"] + 0.5))
-                      .mark_point(shape="diamond", color="#8e44ad", filled=True)
-                      .encode(x="x:Q", y="y:Q", size=alt.Size("buds:Q", legend=None),
-                              tooltip=["where:N", "nuclei:N"]))
-        hs = res["hotspot"]
-        if hs:
-            circle = pd.DataFrame({"x": [hs["col"] + 0.5], "y": [hs["row"] + 0.5]})
-            layers.append(alt.Chart(circle).mark_point(
-                size=(2 * hs["radius_tiles"] * px) ** 2, color="#8e44ad", strokeWidth=2,
-                strokeDash=[4, 3]).encode(x="x:Q", y="y:Q"))
-    if "pointers" in overlays and res["queue"]:
-        q = pd.DataFrame(res["queue"])
-        q["x"], q["y"] = q["col"] + 0.5, q["row"] + 0.5
-        layers.append(alt.Chart(q).mark_point(shape="square", size=220, color="#00bcd4",
-                                              strokeWidth=2).encode(
-            x="x:Q", y="y:Q", tooltip=["pointer:N", "what:N", "check:N"]))
-        layers.append(alt.Chart(q).mark_text(dx=12, dy=-10, fontSize=11, fontWeight="bold",
-                                             color="#006064").encode(x="x:Q", y="y:Q",
-                                                                     text="pointer:N"))
-    return alt.layer(*layers).properties(width=w * px, height=h * px)
+# --- the slide map (adapted from the analyzer's app/page_slide.py: map_area, handle_click,
+# focus_on, reset_view, search_results) -------------------------------------------------------
+
+def memory(k: str) -> dict:
+    """What a section's map remembers between clicks."""
+    store = st.session_state.setdefault("slide_map_memory", {})
+    return store.setdefault(k, {"selected": None, "outline": None, "zoom": None, "zoom_rev": 0,
+                                "last_click": None, "search": None, "match_on": True,
+                                "goto_nonce": None})
+
+
+def focus_on(k: str, loc: tuple[int, int], data: tile_map.MapData, select: bool = True) -> None:
+    """Zoom the map around tile loc = (r, c) and outline it."""
+    mem = memory(k)
+    r, c = loc
+    mem["zoom"] = tile_map.zoom_box(r, c, data)
+    mem["zoom_rev"] += 1
+    g = data.geom
+    i = int(data.index_grid[r, c]) if 0 <= r < g["rows"] and 0 <= c < g["cols"] else -1
+    if select and i >= 0:
+        mem["selected"] = mem["outline"] = i
+
+
+def reset_view(k: str) -> None:
+    """The whole section, nothing selected."""
+    mem = memory(k)
+    mem["zoom"], mem["selected"], mem["outline"] = None, None, None
+    mem["zoom_rev"] += 1
+
+
+def files_stamp(folder: Path) -> str:
+    return "-".join(str((folder / f).stat().st_mtime_ns) for f in
+                    ("tiles.json", "nuclei.json", "summary.json", "til.json", "thumbnail.jpg")
+                    if (folder / f).exists())
+
+
+@st.cache_resource(max_entries=2, show_spinner=False)
+def example_map(stamp: str):
+    """The public example region's map data and scan (shared, read-only)."""
+    from PIL import Image
+
+    result = load_result(EXAMPLE)
+    meta = result["meta"]
+    classes = meta["head"]["classes"]
+    res = analyze(result["tiles"], classes)
+    thumb = Image.open(result["thumbnail"]).convert("RGB") if result["thumbnail"] else None
+    data = tile_map.build(res["tiles"], classes, res["grid_shape"],
+                          thumb.size if thumb else None, meta, key=f"example-{stamp}")
+    return data, thumb
+
+
+@st.cache_resource(max_entries=8, show_spinner=False)
+def section_map(slide: str, stamp: str):
+    """A scored section's map data and its scan (shared, read-only), once per version of its
+    result files."""
+    from PIL import Image
+
+    got = scored(slide)
+    if got is None:
+        return None
+    result, res, _ = got
+    meta = result["meta"]
+    thumb = Image.open(result["thumbnail"]).convert("RGB") if result["thumbnail"] else None
+    data = tile_map.build(res["tiles"], meta["head"]["classes"], res["grid_shape"],
+                          thumb.size if thumb else None, meta, key=f"{slide}-{stamp}")
+    return data, thumb
+
+
+def run_search(k: str, data: tile_map.MapData, res: dict | None) -> dict | None:
+    """The search box's query, matched once per change: the map shows the whole section with
+    every match coloured."""
+    mem = memory(k)
+    query = (st.session_state.get(f"{k}-search") or "").strip()
+    if query != (mem.get("search") or {}).get("query", ""):
+        mem["search"] = slide_search.search(data, query, res) if query else None
+        mem["match_on"] = True
+        mem["zoom"], mem["outline"] = None, None
+        mem["zoom_rev"] += 1
+    return mem.get("search")
+
+
+def search_answer(found: dict | None) -> None:
+    """What the search matched, under the search box."""
+    if not found:
+        return
+    used = ", ".join(found.get("used") or []) or "nothing"
+    zone = slide_search.ZONE_NAMES.get(found.get("zone"), "")
+    text = (f"“{found['query']}” · matched {used}" + (f" · limited to the {zone}" if zone else "")
+            + (f" · {found['message'].strip()}" if found.get("message") else ""))
+    (st.caption if found.get("understood") else st.warning)(
+        text + (" The map below colours every match (model inference); the best spots are "
+                "marked Q1…" if found.get("values") is not None else ""))
+
+
+def map_markers(k: str, res: dict | None, found: dict | None) -> list[dict]:
+    """The pointers on the map: the search's best spots while a search is on, else the
+    look-here pointers T1…Tn (the scheme the text and the Spot panel use)."""
+    if found and found.get("spots"):
+        color = tile_map.POINTER_COLORS["search"]
+        return [{"r": s["r"], "c": s["c"], "label": s["label"], "color": color,
+                 "hover": f"{s['label']}: match {s['score']:.0%}"} for s in found["spots"]]
+    return [{"r": q["row"], "c": q["col"], "label": q["pointer"],
+             "color": tile_map.POINTER_COLORS.get(q.get("kind"), tile_map.POINTER_COLORS["other"]),
+             "hover": f"{q['pointer']} · {q['what']}"} for q in (res or {}).get("queue", [])]
+
+
+def map_area(k: str, slide: str, data: tile_map.MapData, thumb, res: dict | None,
+             found: dict | None, spot: bool = True) -> None:
+    """The map: the class highlight and Whole section above it, the chart, a line saying what a
+    square is and what was clicked, and the search's spots under it. The view buttons and the
+    opacity slider are INSIDE the chart (plotly handles them in the browser, no rerun, so the
+    zoom is kept). A click on a square opens it in the Spot panel below."""
+    mem, ss = memory(k), st.session_state
+    goto = ss.get(f"{k}-goto")  # a pointer picked elsewhere (queue, Spot panel, viewer) moves it
+    if goto and goto.get("nonce") != mem["goto_nonce"] and goto.get("slide", slide) == slide:
+        mem["goto_nonce"] = goto.get("nonce")
+        focus_on(k, (int(goto["row"]), int(goto["col"])), data)
+    row = st.container(horizontal=True, vertical_alignment="center", gap="small")
+    names = {LABELS.get(c, c): c for c in data.classes}
+    focus = row.pills("Highlight a class", list(names), key=f"{k}-focus",
+                      help="Picks one tissue class to stand out in the Tissue view; the other "
+                           "classes fade (the analyzer's clickable key).")
+    if row.button("Whole section", key=f"{k}-fit", icon=":material/fit_screen:",
+                  help="Shows the whole section again and clears the selected square"):
+        reset_view(k)
+    matching = found is not None and found.get("values") is not None and mem.get("match_on")
+    if matching:   # a search is on: one view, coloured by how well each square matches it
+        overlays = {"match": tile_map.overlay_png(data, "match", None, found["values"],
+                                                  found["query"])}
+    else:
+        focus_key = names.get(focus) if focus else None
+        overlays = {m: tile_map.overlay_png(data, m, focus_key if m == "tissue" else None)
+                    for m in tile_map.modes(data, res)}
+    markers = map_markers(k, res, found)[:MAX_MARKERS]
+    shape = (data.key, tuple(overlays), focus, mem["outline"], tuple(mem["zoom"] or ()),
+             mem["zoom_rev"], k, found["query"] if matching else None,
+             tuple((m["r"], m["c"], m["label"]) for m in markers))
+
+    def build():
+        legends = {m: tile_map.legend_items(data, m, res) for m in overlays}
+        return tile_map.figure(
+            data, tile_map.scan_jpeg(thumb, data), overlays, legends, opacity=tile_map.OPACITY,
+            selected=mem["outline"], markers=markers, zoom=mem["zoom"],
+            uirevision=f"{k}-{mem['zoom_rev']}", height=tile_map.height_for(data),
+            res=None if matching else res)
+    fig, first_hover = figure_once(shape, build)
+    event = st.plotly_chart(fig, key=f"{k}-map", on_select="rerun", selection_mode="points",
+                            width="stretch", config={"displayModeBar": False,
+                                                     "scrollZoom": True, "doubleClick": "reset"})
+    handle_click(event, k, data, first_hover)
+    g = data.geom
+    picked = mem.get("selected")
+    where = ": its full story is in the Spot panel below" if spot else ""
+    st.caption(f"One square = {g['tile_um']:.0f} µm, {round(1000 / g['tile_um'])} squares ≈ 1 mm"
+               + (f" · selected {selected_line(data, picked)}{where}" if picked is not None
+                  else " · click a square for its full story in the Spot panel below" if spot
+                  else ""))
+    if found and found.get("spots"):
+        search_spots(k, data, found)
+
+
+_figures: dict = {}
+_fig_lock = threading.Lock()
+
+
+def figure_once(shape: tuple, build):
+    """The map's figure for one state of the map (section, views, highlight, selection, zoom,
+    pointers): a click elsewhere on the page reruns it without rebuilding the figure (0.2–0.5 s).
+    A few figures only: each holds its section's arrays."""
+    with _fig_lock:
+        if shape not in _figures:
+            if len(_figures) >= 6:
+                _figures.pop(next(iter(_figures)))
+            _figures[shape] = build()
+        return _figures[shape]
+
+
+def selected_line(data: tile_map.MapData, i: int) -> str:
+    names = [LABELS.get(c, c) for c in data.classes] + ["no class"]
+    cls = (f"excluded ({data.reason[i]})" if not data.ok[i] else
+           f"{names[data.label[i]].lower()} {data.score[i]:.0%} (3×3 mean)")
+    zone = tile_map.ZONE_SHORT.get(data.zone[i], data.zone[i]).lower()
+    return f"r{int(data.rows[i])}c{int(data.cols[i])}, {cls}, {zone}"
+
+
+def handle_click(event, k: str, data: tile_map.MapData, first_hover: int) -> None:
+    """A click on the map opens that square in the Spot panel (drawn later in this run)."""
+    mem = memory(k)
+    try:
+        points = event["selection"]["points"]
+    except (TypeError, KeyError):
+        return
+    if not points:
+        return
+    p = points[0]
+    sig = (p.get("curve_number"), p.get("point_index"), p.get("x"), p.get("y"))
+    if sig == mem["last_click"]:
+        return
+    mem["last_click"] = sig
+    idx = tile_map.clicked_tile(data, p.get("curve_number"),
+                                p.get("point_index", p.get("point_number")),
+                                p.get("customdata"), first_hover)
+    if idx is not None:
+        mem["selected"] = int(idx)  # plotly marks the square itself; the chart isn't rebuilt
+        st.session_state[f"{k}-spot"] = f"r{int(data.rows[idx])}c{int(data.cols[idx])}"
+
+
+def clear_search(k: str) -> None:
+    st.session_state[f"{k}-search"] = ""
+    mem = memory(k)
+    mem["search"], mem["zoom"], mem["outline"] = None, None, None
+    mem["zoom_rev"] += 1
+
+
+def search_spots(k: str, data: tile_map.MapData, found: dict) -> None:
+    """One strip under the map: the best spots (click one to zoom there), the match colouring
+    switch and Clear."""
+    mem = memory(k)
+    with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        for spot in found["spots"]:
+            if st.button(f"{spot['label']} · {spot['score']:.0%}", key=f"{k}-q-{spot['label']}",
+                         type="tertiary", help="Zooms the map to this spot and opens it in "
+                                               "the Spot panel"):
+                focus_on(k, (spot["r"], spot["c"]), data)
+                st.session_state[f"{k}-spot"] = f"r{spot['r']}c{spot['c']}"
+                st.rerun()
+        if found.get("values") is not None:
+            on = st.toggle("Colour by match", value=mem.get("match_on", True),
+                           key=f"{k}-match", help="Off: the usual views come back, the spots "
+                                                  "stay")
+            if on != mem.get("match_on", True):
+                mem["match_on"] = on
+                st.rerun()
+        st.button("Clear the search", key=f"{k}-clear", icon=":material/close:",
+                  on_click=clear_search, args=(k,), help="Empties the search box")
 
 
 def rose_chart(rose: list[dict]) -> alt.Chart:
@@ -351,14 +539,63 @@ def crop_image(result: dict, row: int, col: int):
     return img
 
 
+def mixup(meta: dict, a: str, b: str) -> str | None:
+    """How often the head confused two classes on its held-out tiles (its confusion matrix):
+    a measured mix-up, where the analyzer named colon's by hand."""
+    conf = meta.get("head", {}).get("confusion")
+    if not conf or a not in conf["labels"] or b not in conf["labels"]:
+        return None
+    m, i, j = conf["rows_true_cols_pred"], conf["labels"].index(a), conf["labels"].index(b)
+    parts = [f"{LABELS.get(x, x).lower()} read as {LABELS.get(y, y).lower()} on {m[p][q]} of "
+             f"{sum(m[p])}" for x, y, p, q in ((a, b, i, j), (b, a, j, i)) if sum(m[p])]
+    return ("On the head's held-out tiles: " + "; ".join(parts) + ".") if parts else None
+
+
+def tile_story(t, classes: list[str], meta: dict, data: tile_map.MapData | None) -> dict:
+    """Why the map gave this class, how sure it is and why, and what to check by eye (the
+    analyzer's per-square explanation, adapted: muffle's smoothed class and measured mix-ups)."""
+    probs = {k: float(t[f"p_{k}"]) for k in classes}
+    order = sorted(probs, key=probs.get, reverse=True)
+    top, second = order[0], order[1]
+    shown = t["label"] if t["label"] in classes else top
+    why = [f"Closest match: {LABELS[top]} ({probs[top]:.0%}); next: {LABELS[second]} "
+           f"({probs[second]:.0%})."]
+    if shown != top:
+        why.append(f"The map shows {LABELS[shown].lower()}: the class with the highest "
+                   "probability averaged over the 3×3 squares around it.")
+    how = [("high" if probs[top] >= 0.9 else "low" if probs[top] < 0.5 else "moderate")
+           + f" top score ({probs[top]:.0%})"]
+    i = int(data.index_grid[int(t["row"]), int(t["col"])]) if data is not None else -1
+    if i >= 0:
+        share = float(data.share[i])
+        why.append(f"{share:.0%} of the squares around it are also {LABELS[shown].lower()}.")
+        how.append("neighbours match" if share >= 0.5 else
+                   "neighbours differ (it may sit on a border)")
+    looks = LOOKS_LIKE.get(shown)
+    advice = (f"Check by eye: {LABELS[top].lower()} ({LOOKS_LIKE.get(top, '')}) or "
+              f"{LABELS[second].lower()} ({LOOKS_LIKE.get(second, '')})?"
+              if t["unsure"] else None)
+    return {"why": why, "how": how, "looks": looks, "advice": advice, "shown": shown,
+            "mixup": mixup(meta, top, second) if t["unsure"] or shown != top else None}
+
+
+def zoom_to_cells(k: str, slide: str, r: int, c: int) -> None:
+    """Switch the picture to the slide viewer at this tile (a callback)."""
+    st.session_state[f"{k}-pic"] = PICTURES[1]
+    st.session_state[f"{k}-goto"] = {"slide": slide, "row": r, "col": c, "nonce": time.time()}
+
+
 def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res: dict,
-               classes: list[str], r: int, c: int, meta: dict) -> None:
+               classes: list[str], r: int, c: int, meta: dict,
+               data: tile_map.MapData | None = None, thumb=None, k: str = "",
+               can_zoom: bool = False) -> None:
     rows = df[(df["row"] == r) & (df["col"] == c)]
     if rows.empty:
         st.warning("No tile at that position.")
         return
     t = rows.iloc[0]
     left, right = st.columns([1, 2])
+    i = int(data.index_grid[r, c]) if data is not None else -1
     with left:
         img = crop_image(result, r, c)
         if img is not None:
@@ -368,6 +605,15 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
         else:
             st.caption("No crop stored for this tile (crops are kept for the queue, the "
                        "counting field, the cards and the roughest front tiles).")
+        near = tile_map.neighborhood(thumb, data, i) if i >= 0 else None
+        if near is not None:
+            st.image(near, caption="Where it sits: the scan around it, the square outlined",
+                     width=260, alt=f"The scan around tile {t['tile']}, the tile outlined in "
+                                    "blue")
+        if can_zoom:
+            st.button("Zoom to the cells", key=f"{k}-zoom-{r}-{c}", icon=":material/zoom_in:",
+                      on_click=zoom_to_cells, args=(k, slide, r, c),
+                      help="Opens the slide viewer at this tile, down to single nuclei")
     with right:
         step, mpp = meta.get("step_base_px", 448), meta.get("base_mpp", 0.25)
         r0, c0 = meta.get("scored", {}).get("origin_tile", [0, 0])
@@ -375,18 +621,35 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
                     f"{(r0 + r) * step * mpp / 1000:.1f} mm from the top of the slide · "
                     f"{t['zone'] or 'no zone'} · {t['dist']}"
                     + (" · on the front" if t["front"] else "")
-                    + (" · finger" if t.get("finger") else ""))
+                    + (" · finger" if t.get("finger") else "")
+                    + (" · in the main tumor" if t.get("main_tumor") else ""))
         st.markdown(f"**Class** {t['class']} ({t['top']}) · **certainty** {t['certainty']}"
                     + (f": top probability below {CUTOFFS['unsure_below'][0]} (placeholder "
                        "cutoff)" if t["unsure"] else "")
                     + f" · {INFERENCE}")
+        if t["qc"] == QC_OK:
+            story = tile_story(t, classes, meta, data)
+            st.markdown(f"**Why** {' '.join(story['why'])} **How sure:** "
+                        + "; ".join(story["how"]) + "."
+                        + (f" {LABELS[story['shown']]} typically looks like {story['looks']} "
+                           "(general histology)." if story["looks"] else ""))
+            if story["advice"]:
+                st.warning(story["advice"] + (f" {story['mixup']}" if story["mixup"] else ""))
+            elif story["mixup"]:
+                st.caption(story["mixup"])
+        if pd.notna(t.get("p_til")):
+            head_l = t["label"] == "lymphocytes"
+            til_l = bool(t.get("til_lymph") == 1)
+            st.markdown(f"**Second model** (lymphocytes, {INFERENCE}): {t['p_til']:.0%} · "
+                        + ("agrees with the head" if head_l == til_l else
+                           "disagrees with the head: a queue item, never a verdict"))
         scores = pd.DataFrame({"class": [LABELS[k] for k in classes],
-                               "probability": [float(t[f"p_{k}"]) for k in classes]})
-        st.altair_chart(alt.Chart(scores).mark_bar().encode(
-            x=alt.X("probability:Q", scale=alt.Scale(domain=[0, 1])), y=alt.Y("class:N", sort=None),
-            color=alt.Color("class:N", legend=None, scale=alt.Scale(
-                domain=[LABELS[k] for k in classes], range=[COLORS[k] for k in classes])))
-            .properties(height=120), width="stretch")
+                               "score": [100 * float(t[f"p_{k}"]) for k in classes]})
+        st.dataframe(scores.sort_values("score", ascending=False), hide_index=True,
+                     width="stretch", column_config={"score": st.column_config.ProgressColumn(
+                         "Score", min_value=0, max_value=100, format="%.0f%%",
+                         help="The head's probability for each class on this tile (raw, not "
+                              "smoothed)")})
         counted = "n_nuclei" in t and pd.notna(t.get("n_nuclei"))
         cv_txt = ("n/a" if not counted or pd.isna(t.get("nuc_area_cv"))
                   else f"{t['nuc_area_cv']:.2f}")
@@ -537,6 +800,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     s, n = res["summary"], res["numbers"]
     sc, nuc, til = meta.get("scored", {}), meta.get("nuclei", {}), result.get("til")
     k = f"{pf.id}|{slide}"
+    data, thumb = section_map(slide, files_stamp(RESULTS / slide))
     st.caption(
         f"Source: {meta.get('source', '')} · slide {slide} · scored: {sc.get('mode', '?')}, "
         f"{sc.get('scored_tiles', '?')} of {sc.get('tissue_tiles_total', '?')} tissue tiles of "
@@ -599,82 +863,45 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
         page.look_here(look_items(pf, slide, version, res),
                        land=lambda focus: land(pf, page.version, focus),
                        more="Details › Every look-here pointer")
-        query = st.text_input("Search inside the slide, in plain words", key=f"{k}-search",
-                              placeholder="budding · lymphocytes at the border · fat · unsure · "
-                                          "satellite · direction · T2 · grade")
-        if query:
-            hit = inv.search(query, res)
-            (st.markdown if hit["understood"] else st.warning)(hit["answer"])
-            if len(hit["rows"]):
-                show = df.merge(hit["rows"][["row", "col"]], on=["row", "col"])
-                st.dataframe(show[["tile", "class", "top", "certainty", "zone", "nuclei",
-                                   "risk_points"]].head(200), hide_index=True, width="stretch")
+        st.text_input("Search inside the slide, in plain words", key=f"{k}-search",
+                      placeholder="lymphocytes at the border · budding · necrosis in the core · "
+                                  "unsure · satellite · direction · T2",
+                      help="Known words: a tissue class, a flag, a place (border, core, "
+                           "around), the direction of invasion or a pointer. The map colours "
+                           "every match; Q1… mark the best spots.")
+        found = run_search(k, data, res)
+        search_answer(found)
 
-    # --- the picture: the viewer, or the tile map when the tiles can't be had ----------------
-    src = slide_viewer.source(slide)
-    failed = st.session_state.get(f"{k}-viewer-failed")
-    has_rose = bool(res["rose"]) and res["normals"] is not None and len(res["normals"]) > 0
-    rose_text = ("Rose of the front normals, push-weighted: the direction the front points and "
-                 "how much tumor probability lies beyond it. A hypothesis about this section.")
-    if isinstance(src, dict) and not failed:
-        with page.picture("Slide viewer", caption=(
-                f"The patient's own section (H&E) at {src['mpp']:.2f} µm per pixel, the scan's "
-                "own level nearest 1 µm. Scroll or double-click to zoom from the whole section "
-                "down to single nuclei, drag to pan; the minimap (top right) shows where you are. "
-                "Colour the tiles by tissue class, certainty, quality control, zones, "
-                "lymphocyte-like nuclei or risk level, and draw the front line, the arcs with "
-                "their arrows, breakaway candidates with the counting field, islands, risk "
-                "regions, the pointers and, zoomed in, every nucleus StarDist found on the "
-                "counted tiles. Hover a tile for its scores; click it to open it in the Spot "
-                "panel; n and p step through the pointers."
-                + (" Only the tumor-centred window (dashed) was scored: the rest of the section "
-                   "is shown, not analysed." if src["window"] else ""))):
-            slide_viewer.show([src], key=f"{k}-viewer", goto=st.session_state.get(f"{k}-goto"),
-                              on_change=lambda: viewer_event(pf.id, f"{k}-viewer"),
-                              spot={"slide": slide, "tile": spot_tile(k, res, meta)})
-            rc, pc = st.columns([1, 3])
-            if has_rose:
-                rc.altair_chart(rose_chart(res["rose"]), width="content")
-                rc.caption(rose_text)
-            pc.caption(f"Tiles: a Deep Zoom pyramid of {slide} (GDC open access; JPEG, cut with "
-                       "OpenSlide); viewer: OpenSeadragon 6.1.1. Each coloured tile is one score "
-                       f"for {TILE_UM:.0f} µm of tissue; classes are model inferences smoothed "
-                       "over 3×3 tiles, so their edges are a tile's width, not a cell's.")
-    else:
-        with page.picture("Tile map", caption=(
-                "Hover a tile for its scores, zone, nuclei and risk points. Each tile is one "
-                "score for 112 µm of tissue; classes are model inferences smoothed over 3×3 "
-                "tiles. Arrows: one per arc, length by push; the dashed circle is the counting "
-                "field; squares are the pointers.")):
-            why = (failed or src).rstrip(".")  # the browser's reason is a sentence of its own
-            st.info(f"The slide viewer is not available here: {why[:1].lower() + why[1:]}. The "
-                    "tile map draws the same analysis on the scored grid, next to a picture of "
-                    "the scored region.", icon="🔬")
-            l1, l2 = st.columns([1, 2])
-            layer = l1.radio("Layer", LAYERS, horizontal=True, key=f"{k}-layer")
-            overlays = l2.pills("Overlays", OVERLAYS, selection_mode="multi",
-                                default=["front", "arrows", "pointers"], key=f"{k}-overlays")
-            h, w = res["grid_shape"]
-            px = max(3, min(8, int(640 / max(h, w))))
-            mc, tc = st.columns([3, 2])
-            with mc:
-                st.altair_chart(slide_map(df, res, layer, overlays or [], classes, px),
-                                width="content",
-                                alt=f"Tile map of slide {slide} coloured by {layer}: "
-                                    + ", ".join(f"{LABELS[k].lower()} {v:.0%}" for k, v in
-                                                top3) + f"; {len(res['queue'])} pointers")
-            with tc:
-                if result["thumbnail"]:
-                    st.image(str(result["thumbnail"]), caption="The scored region (H&E, the "
-                             "patient's own section)", width="stretch",
-                             alt=f"H&E thumbnail of the scored region of slide {slide}")
-                if has_rose:
-                    st.altair_chart(rose_chart(res["rose"]), width="content")
-                    st.caption(rose_text)
+    # --- the picture: the slide map, or the slide viewer down to single cells ----------------
+    why_not = viewer_unavailable(k, slide)
+    with page.picture("Slide map", caption=MAP_CAPTION):
+        shown = PICTURES[0]
+        if not why_not:
+            shown = st.segmented_control(
+                "Picture", PICTURES, key=f"{k}-pic", default=PICTURES[0], required=True,
+                label_visibility="collapsed",
+                help="Map: the whole section with the analysis on top. Slide viewer: the "
+                     "section's own pyramid, from the whole section down to single nuclei "
+                     "(the first opening fetches its tiles).") or PICTURES[0]
+        if shown == PICTURES[1]:
+            show_viewer(pf, k, slide, res, meta)
+        else:
+            map_area(k, slide, data, thumb, res, found)
+            if why_not:
+                st.caption(f"Zooming to single cells needs the slide viewer, which is not "
+                           f"available here: {why_not}.")
+    if meta.get("scored", {}).get("window_side_tiles"):
+        st.caption("Only the tumor-centred window was scored: the map shows that window; the "
+                   "slide viewer shows the whole section with the window dashed.")
 
     # --- details ----------------------------------------------------------------------------
     with page.details("Direction of invasion: arcs of the front", len(res["arcs"])):
         chips("hypothesis", "placeholder cutoffs")
+        if bool(res["rose"]) and res["normals"] is not None and len(res["normals"]) > 0:
+            st.altair_chart(rose_chart(res["rose"]), width="content")
+            st.caption("Rose of the front normals, push-weighted: the direction the front "
+                       "points and how much tumor probability lies beyond it. A hypothesis "
+                       "about this section; the map's Zones view draws the arcs as arrows.")
         st.caption(f"The front is cut into {CUTOFFS_INV['sectors'][0]} arcs around the tumor's "
                    "centroid. Direction = push-weighted mean outward normal; push = mean "
                    "P(invasive) over 3 tiles beyond the front (0 sharp, near 0.5 fading into the "
@@ -760,9 +987,9 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                             f"({ho.get('tiles', '?')} tiles): AUROC "
                             f"{ho.get('auroc', float('nan'))}, recall "
                             f"{at.get('recall_lymphocytes', float('nan')):.0%}, specificity "
-                            f"{at.get('specificity', float('nan')):.0%}. Switch the map's layer "
-                            "to 'lymphocytes (second model)'; disagreeing tiles are in the "
-                            "queue.")
+                            f"{at.get('specificity', float('nan')):.0%}. The map's Flags view "
+                            "marks the tiles where they disagree (orange diamonds); the "
+                            "densest one is in the queue.")
             elif til is None:
                 st.caption("No second lymphocyte model has scored this section.")
             else:
@@ -807,7 +1034,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
             st.dataframe(pd.DataFrame(res["risk"]["table"]), hide_index=True, width="stretch")
             st.caption(f"Level 2 at {CUTOFFS_INV['risk_level_2'][0]} points, level 3 at "
                        f"{CUTOFFS_INV['risk_level_3'][0]}; every value a placeholder, not an "
-                       "outcome model. Switch the map's layer to 'risk'.")
+                       "outcome model. The map's Risk view colours the levels.")
         with r2:
             if cards:
                 cols = st.columns(min(len(cards), 3))
@@ -826,7 +1053,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
         st.caption("Glass, pen ink and blur are checked per tile from texture and colour "
                    "measures; the cutoffs were set by eye on colon slides and not re-checked on "
                    "breast: placeholders. Blood, folds and stain variation are not checked "
-                   "(planned). Switch the map's layer to 'QC' to see where.")
+                   "(planned). The map's Quality view shows where.")
         nov = meta.get("novelty")
         if nov:
             st.caption(f"Unlike training tissue, not scored: the tile's embedding is farther "
@@ -850,27 +1077,38 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                          hide_index=True, width="stretch")
         else:
             st.caption("Nothing in the queue: no tumor front, island or counted candidate.")
+    notes = (st.session_state.get(f"{k}-notes") or "").strip()
+    with page.details("Your notes on this section",
+                      f"{len(notes.split())} words" if notes else "empty"):
+        st.text_area("Your notes on this section", key=f"{k}-notes", height=150,
+                     placeholder="Observations, questions for the sign-out, what to look at under "
+                                 "the microscope…",
+                     help="Kept for this session with your marks and added to the slide report "
+                          "(Export, below); not sent anywhere.")
     if compare is not None:
         compare(page)
 
     # --- Spot panel -------------------------------------------------------------------------
     with page.spot("The full story of one tile: pick a pointer or a stored crop, type a tile, or "
-                   "click one in the viewer."):
+                   "click one in the map or the viewer."):
         options = spot_options(res, meta)
         s1, s2 = st.columns([2, 1])
         pick = s1.selectbox("A pointer or a stored crop", options, key=f"{k}-pick",
                             on_change=lambda: go_to(k, slide, (st.session_state[f"{k}-pick"]
                                                                or "").split("· ")[-1]))
-        typed = s2.text_input("or a tile (r12c34), or click one in the viewer", key=f"{k}-spot",
+        typed = s2.text_input("or a tile (r12c34), or click one in the map", key=f"{k}-spot",
                               placeholder="r12c34",
                               on_change=lambda: go_to(k, slide, st.session_state[f"{k}-spot"])
                               ).strip()
         target = typed or (pick.split("· ")[-1] if pick else "")
         try:
             rr, cc = target[1:].split("c")
-            spot_panel(pf, slide, result, df, res, classes, int(rr), int(cc), meta)
+            rr, cc = int(rr), int(cc)
         except (ValueError, IndexError):
             st.caption("Pick a pointer or type a tile such as r12c34.")
+        else:
+            spot_panel(pf, slide, result, df, res, classes, rr, cc, meta, data, thumb, k,
+                       can_zoom=not why_not)
 
     # --- model and validation card, limits, export -------------------------------------------
     with page.card():
@@ -899,22 +1137,65 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                   "second_lymphocyte_model": {**(til or {}), "disagreement": {
                       kk: v for kk, v in res["til"].items() if kk != "rows"}} if til else None,
                   "your_bud_count": st.session_state.get(f"{k}-budcount"),
+                  "your_notes": notes or None,
                   "review_marks": mine, "pins": {kk: v for kk, v in
                                                  st.session_state.get("pins", {}).items()
                                                  if kk.startswith(f"{pf.id}|slide|{slide}|")}}
+        marks = {}
+        for kk, v in mine.items():  # finding keys end with the tile: "...|slide|<slide>|r3c4"
+            try:
+                rr, cc = (int(x) for x in kk.rsplit("|", 1)[-1][1:].split("c"))
+            except ValueError:
+                continue
+            marks[(rr, cc)] = v
+
+        def report() -> str:
+            return slide_export.report_markdown(
+                pf.id, slide, meta, res, marks=marks, notes=notes,
+                bud_count=st.session_state.get(f"{k}-budcount"), cutoffs=CUTOFFS_INV,
+                known_failures=inv.KNOWN_FAILURES, overview=text)
+
         e = st.container(horizontal=True, gap="small")  # labels whole, wraps
+        e.download_button("Download the slide report (Markdown)", report,
+                          file_name=f"{slide}_report.md", mime="text/markdown", key=f"{k}-md",
+                          on_click="ignore", icon=":material/description:",
+                          help="The section's report, built when you click: what was scored, "
+                               "the tissue mix, the look-here pointers with your marks, your "
+                               "notes, the findings with their evidence labels, every cutoff "
+                               "and its source, the known failures")
         e.download_button("Download the findings (JSON)", json.dumps(export, indent=1,
                                                                       default=str),
                           file_name=f"{slide}_slide.json", mime="application/json",
-                          key=f"{k}-json")
+                          key=f"{k}-json", help="Everything the section's summary holds, with "
+                                                "your marks, pins, notes and bud count")
         cols = ["tile", "row", "col", "class", "top", "certainty", "qc", "zone", "dist", "front",
                 "finger", "risk_points", "risk_level", "nuclei"]
         e.download_button("Download the tiles (CSV)", df[cols].to_csv(index=False),
-                          file_name=f"{slide}_tiles.csv", mime="text/csv", key=f"{k}-csv")
-        e.download_button("Download the map (PNG)",
-                          inv.map_png(res["tiles"], inv.grid(res["tiles"], "front", False, bool),
-                                      queue=res["queue"]),
-                          file_name=f"{slide}_map.png", mime="image/png", key=f"{k}-png")
+                          file_name=f"{slide}_tiles.csv", mime="text/csv", key=f"{k}-csv",
+                          help="One row per 112 µm square: class, certainty, quality, zone, "
+                               "risk points, nuclei")
+        map_export(e, k, slide, data, thumb, res, meta)
+
+
+def map_export(row, k: str, slide: str, data: tile_map.MapData, thumb, res: dict | None,
+               meta: dict) -> None:
+    """The map picture of one view (title, map, colour key), made when clicked (the analyzer's
+    "Map picture")."""
+    views = tile_map.modes(data, res)
+    with row.popover("Download the map (PNG)", icon=":material/image:",
+                     help="A labelled picture of the map in one view, for a report or a "
+                          "tumor board"):
+        mode = st.selectbox("View", views, format_func=tile_map.MODES.get, key=f"{k}-pngview")
+        enc = meta.get("encoder", {}).get("name", "?")
+        st.download_button(
+            "Download the map (PNG)",
+            lambda: slide_export.map_png(
+                thumb, data, mode, 0.55, title=slide,
+                subtitle=f"{int(data.ok.sum()):,} squares of {TILE_UM:.0f} µm · tissue head on "
+                         f"{enc} · model inferences",
+                legend=tile_map.legend_items(data, mode, res)),
+            file_name=f"{slide}_{mode}_map.png", mime="image/png", key=f"{k}-png",
+            on_click="ignore", width="stretch")
 
 
 CUTOFFS_INV = inv.CUTOFFS
@@ -1024,18 +1305,8 @@ def render_example(page: Page, pf: PatientFile, result: dict | None) -> None:
     classes = head.get("classes", [])
     res = analyze(tiles, classes)
     df, s = res["tiles"], res["summary"]
-    df["class"] = df["label"].map(LABELS).fillna("")
-    df["certainty"] = df["unsure"].map({True: "unsure here", False: "confident"})
-    bad = df["qc"] != QC_OK
-    df.loc[bad, "class"] = "excluded: " + df.loc[bad, "qc"]
-    df.loc[bad, "certainty"] = "excluded"
-    for k in classes:
-        df[LABELS[k]] = df[f"p_{k}"].map(lambda v: f"{v:.0%}")
-    df["where"] = df.apply(lambda r: f"tile r{int(r.row)} c{int(r.col)} · {r.zone or 'no zone'}"
-                           + (f" · {r.dist_to_front_um:+.0f} µm from the front"
-                              if "dist_to_front_um" in df and pd.notna(r.get("dist_to_front_um"))
-                              else ""), axis=1)
-    hover = ["where:N", "class:N", "certainty:N"] + [f"{LABELS[k]}:N" for k in classes]
+    data, thumb = example_map(files_stamp(EXAMPLE))
+    k = f"{pf.id}|example"
     enc = meta.get("encoder", {})
     st.caption(f"Source: {meta.get('source', 'public TCGA-BRCA slide region')} · slide "
                f"{meta.get('slide', '')}, region {s['tiles']} tiles of {TILE_UM:.0f} µm · encoder "
@@ -1071,52 +1342,36 @@ def render_example(page: Page, pf: PatientFile, result: dict | None) -> None:
                    width="content")
         page.look_here([], empty="Nothing to look at: this is a public example region, not "
                                  "this patient's tissue.")
+        st.text_input("Search inside the slide, in plain words", key=f"{k}-search",
+                      placeholder="carcinoma at the border · necrosis in the core · unsure",
+                      help="Known words: a tissue class, a flag, a place (border, core, "
+                           "around). The map colours every match; Q1… mark the best spots.")
+        found = run_search(k, data, None)
+        search_answer(found)
 
-    cls_domain = [LABELS[k] for k in classes] + sorted(
-        v for v in df["class"].unique() if v.startswith("excluded"))
-    cls_range = [COLORS[k] for k in classes] + ["#bbbbbb"] * (len(cls_domain) - len(classes))
-    with page.picture("Tissue map", caption="Hover a tile for its class probabilities. Each tile "
-                      "is one score for 112 µm of tissue; the class is a model inference, "
-                      "smoothed over a 3×3 neighbourhood."):
-        left, right = st.columns([3, 2])
-        with left:
-            st.altair_chart(tile_chart(df, "class", alt.Scale(domain=cls_domain,
-                                                              range=cls_range),
-                                       "Tissue class", hover, res["grid_shape"]),
-                            width="content")
-        with right:
-            if result["thumbnail"]:
-                st.image(str(result["thumbnail"]), caption="The region (H&E, public TCGA-BRCA "
-                         "slide)", width="stretch",
-                         alt="H&E thumbnail of a public example region of a TCGA-BRCA slide")
+    with page.picture("Slide map", caption=(
+            "The example region's scan with the analysis on top. The buttons in the map switch "
+            "the view (tissue class, zones with the front, certainty, quality control); the "
+            "slider sets how see-through the colours are. Hover a square for its scores, scroll "
+            "to zoom, drag to move. Each square is one score for 112 µm of tissue; classes are "
+            "model inferences smoothed over 3×3 squares. The region is public TCGA-BRCA data, "
+            "not this patient's tissue.")):
+        map_area(k, "example", data, thumb, None, found, spot=False)
 
-    with page.details("Certainty map", f"{(df['certainty'] == 'unsure here').sum()} unsure "
-                                       "tiles"):
+    with page.details("Certainty", f"{int(df['unsure'].sum())} unsure tiles"):
         chips("placeholder cutoffs")
         nan = float("nan")
         st.caption(f"Unsure here = top probability below {CUTOFFS['unsure_below'][0]} "
                    f"({CUTOFFS['unsure_below'][2]}). On the held-out BCSS tiles the head was "
                    f"right on {head.get('accuracy_below_cutoff', nan):.0%} of tiles below the "
                    f"cutoff and {head.get('accuracy_at_or_above_cutoff', nan):.0%} at or above "
-                   f"it ({head.get('share_below_cutoff', nan):.0%} of tiles below).")
-        st.altair_chart(tile_chart(
-            df, "certainty", alt.Scale(domain=["confident", "unsure here", "excluded"],
-                                       range=["#2a78d6", "#f39c12", "#bbbbbb"]),
-            "Certainty", hover, res["grid_shape"], 300), width="content")
+                   f"it ({head.get('share_below_cutoff', nan):.0%} of tiles below). The map's "
+                   "Certainty view shows where.")
     with page.details("Tumor region, front and zones", f"{s['front_length_mm']} mm of front"):
         st.caption("Tumor = smoothed P(invasive carcinoma) ≥ 0.5 (design); zones by distance to "
                    "the front: core (> 500 µm inside), front band (± 500 µm), peritumoral "
-                   "(0.5–2 mm outside). Geometry on model inferences.")
-        zdf = df.copy()
-        zdf["zone_shown"] = zdf["zone"].where(~zdf["front"], "front line")
-        zdf.loc[zdf["zone_shown"] == "", "zone_shown"] = "no tissue zone"
-        st.altair_chart(tile_chart(
-            zdf, "zone_shown", alt.Scale(
-                domain=["core", "front line", "front band", "peritumoral", "outside",
-                        "no tissue zone"],
-                range=[ZONE_COLORS["core"], "#000000", ZONE_COLORS["front band"],
-                       ZONE_COLORS["peritumoral"], ZONE_COLORS["outside"], "#ffffff"]),
-            "Zone", hover + ["zone:N"], res["grid_shape"], 300), width="content")
+                   "(0.5–2 mm outside). Geometry on model inferences; the map's Zones view "
+                   "draws them with the front in black.")
     excluded = df[df["qc"] != QC_OK]
     with page.details("Quality control", f"{len(excluded)} of {s['tiles']} tiles excluded"):
         chips("placeholder cutoffs")

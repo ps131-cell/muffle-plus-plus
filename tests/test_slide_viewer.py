@@ -1,7 +1,7 @@
 """The slide viewer: Deep Zoom pyramid math, the mapping from the scored tile grid to pyramid
 pixels on the eight shipped sections, the overlay the browser draws, the nucleus table, the
-static-serving setup, and the page's two paths (viewer, and the tile map when the pyramid
-can't be had) under AppTest. No network: conftest switches tile downloads off."""
+static-serving setup, and the page's two pictures (the slide map first, the viewer when its
+pyramid can be had) under AppTest. No network: conftest switches tile downloads off."""
 
 import json
 import math
@@ -184,7 +184,7 @@ render(case_file(SimpleNamespace(index={case}, site="site-0", percentile=50.0, g
 """
 
 
-def test_page_falls_back_to_the_tile_map_without_a_pyramid(tmp_path):
+def test_page_shows_the_map_and_says_why_there_is_no_viewer(tmp_path):
     from streamlit.testing.v1 import AppTest
 
     case, slides = next((k, v) for k, v in CASES.items() if len(v) == 1)
@@ -194,16 +194,18 @@ def test_page_falls_back_to_the_tile_map_without_a_pyramid(tmp_path):
         at.session_state[f"Case {case}|{slides[0]}-spot"] = f"r{hs['row']}c{hs['col']}"
     at.run()
     assert not at.exception, at.exception
-    info = " ".join(e.value for e in at.info).lower()
-    assert "slide viewer is not available here" in info and "switched off" in info
-    assert any(r.label == "Layer" for r in at.radio)  # the tile map's layer control
+    captions = " ".join(e.value for e in at.caption)
+    assert "slide viewer, which is not available here" in captions and "switched off" in captions
+    assert len(at.get("plotly_chart")) == 1           # the map, without the viewer
+    assert not any(r.label == "Layer" for r in at.radio)  # the old tile map's control is gone
     assert not list(tmp_path.iterdir())               # nothing downloaded
     # the browser's own reason (a sentence) reads as part of the page's: no ".." (QA round 2)
     at.session_state[f"Case {case}|{slides[0]}-viewer-failed"] = (
         "The section's tiles are not reachable from here.")
     at.run()
-    info = " ".join(e.value for e in at.info)
-    assert "not available here: the section's tiles are not reachable from here. The tile" in info
+    captions = " ".join(e.value for e in at.caption)
+    assert "not available here: the section's tiles are not reachable from here." in captions
+    assert ".." not in captions
 
 
 def test_page_shows_the_viewer_when_the_pyramid_is_there(tmp_path):
@@ -217,11 +219,16 @@ def test_page_shows_the_viewer_when_the_pyramid_is_there(tmp_path):
     at.session_state[f"Case {case}-side-open"] = True  # the side-by-side section, opened
     at.run()
     assert not at.exception, at.exception
+    k = f"Case {case}|{slides[0]}"
+    assert at.segmented_control(key=f"{k}-pic").value == "Map"  # the map opens first
+    assert len(at.get("plotly_chart")) == 1
+    at.segmented_control(key=f"{k}-pic").set_value("Slide viewer").run()
+    assert not at.exception, at.exception
     text = " ".join(e.value for e in at.caption).lower()
     assert "µm per pixel" in text and "minimap" in text and "openseadragon" in text
     assert "not registered" in text and "linked by physical size" in text  # side by side
     assert "slide viewer is not available" not in " ".join(e.value for e in at.info).lower()
-    assert not any(r.label == "Layer" for r in at.radio)  # no tile map next to the viewer
+    assert not at.get("plotly_chart")  # the viewer instead of the map, not next to it
     for slide in slides:
         written = list((tmp_path / slide).glob("overlay-*.json"))
         assert len(written) == 1, slide
@@ -249,9 +256,10 @@ slide_viewer._component = _record
     script = page(str(tmp_path), case, slides).replace(
         "from workbenches.slides import render", record + "from workbenches.slides import render")
     at = AppTest.from_string(script, default_timeout=180)
+    k = f"Case {case}|{slide}"
+    at.session_state[f"{k}-pic"] = "Slide viewer"  # the viewer, not the map
     at.run()
     assert not at.exception, at.exception
-    k = f"Case {case}|{slide}"
     pick = at.selectbox(key=f"{k}-pick")
     tiles = [o.split("· ")[-1] for o in pick.options]
     assert pick.value == pick.options[0] and pick.options[0].startswith("T1 ")

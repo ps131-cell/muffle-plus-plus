@@ -278,7 +278,7 @@ measurements, flags, risk map, certainty) carries over, re-implemented; its tiss
 - **Slide viewer** [now]: pan and zoom over the patient's own section at about 1 µm/px with
   every layer and mark below drawn on the tissue and the counted nuclei at high zoom; hover,
   click to the Spot panel, jump to and n / p through the pointers; sections side by side with
-  linked zoom; the tile map is the fallback (`pathology.md` §7).
+  linked zoom (`pathology.md` §7). The first picture is the slide map ported from the team's colon analyzer (`pathology.md` §10), which needs no pyramid.
 - **Tissue map** for breast [now: invasive carcinoma, stroma, lymphocytes, necrosis, fat;
   model: DCIS, normal breast, vessels (too few BCSS tiles), a second model's opinion]:
   probabilities on hover; layers for tissue, certainty, QC, zones, immune and risk. Data: BCSS (CC0 region masks on TCGA-BRCA slides) to

@@ -181,7 +181,12 @@ def test_queue_pointers_search_and_comparison():
     by = {r["measure"]: r["differs"] for r in rows}
     assert by["Tumor area in the map (mm²)"] == "yes" and by["Immune pattern"] == "yes"
     assert by["Front length (mm)"] == "no"
-    png = inv.map_png(res["tiles"], inv.grid(res["tiles"], "front", False, bool), queue=q)
+    from muffle.workbench import slide_export, tile_map  # the map picture, no scan behind it
+    from muffle.workbench.slides import CLASSES
+
+    data = tile_map.build(res["tiles"], CLASSES, res["grid_shape"])
+    png = slide_export.map_png(None, data, "zones", title="fake section",
+                               legend=tile_map.legend_items(data, "zones", res))
     assert png[:4] == b"\x89PNG"
 
 
