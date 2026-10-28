@@ -62,6 +62,8 @@ GROWTH_COLOR = "#1F5BFF"         # the figure's blue arrows and rings
 RISK_COLORS = {1: "#FCBBA1", 2: "#EF3B2C", 3: "#A50F15"}
 # Search match: one blue scale (more = darker), so it never looks like risk
 MATCH_RAMP = ["#C6DBEF", "#9ECAE1", "#6BAED6", "#4292C6", "#2171B5", "#084594"]
+MATCH_MIN = 0.15      # a match below this gets no colour (slide_search.MIN_SCORE)
+MATCH_OPACITY = 0.8   # the slider's start while a search colours the map
 UNSURE_COLOR = "#E8A33D"         # only the doubtful tiles get a colour, so they stand out
 NOT_ANALYZED = "#9AA1AA"
 QC_COLORS = {"glass": "#74B9FF", "pen ink": "#6C3483", "blur": "#16A085",
@@ -230,12 +232,14 @@ def tile_rgba(data: MapData, mode: str, focus: str | None = None, values=None) -
         for level, color in RISK_COLORS.items():
             colors[data.risk_level == level] = hex_rgb(color) + (255,)
     elif mode == "match" and values is not None:
+        # only real matches get a colour (the analyzer coloured every tile above zero, faintly,
+        # which hid the matches); darker and more opaque the stronger
         ramp = np.array([hex_rgb(c) for c in MATCH_RAMP], float)
-        v = np.clip(np.asarray(values, float), 0, 1)
-        shown = v > 0
+        v = np.nan_to_num(np.clip(np.asarray(values, float), 0, 1))
+        shown = v >= MATCH_MIN
         step = np.minimum((v * len(MATCH_RAMP)).astype(int), len(MATCH_RAMP) - 1)
         colors[shown, :3] = ramp[step[shown]].astype(np.uint8)
-        colors[shown, 3] = (90 + 165 * v[shown]).astype(np.uint8)
+        colors[shown, 3] = (150 + 105 * v[shown]).astype(np.uint8)
     elif mode == "zones":
         for z, (_, color) in ZONES.items():
             colors[data.zone == z] = hex_rgb(color) + (255,)
@@ -362,7 +366,8 @@ def legend_items(data: MapData, mode: str, res: dict | None = None) -> list[tupl
                  if key in present]
         items = items or [("No flag on this section", "#FFFFFF")]
     elif mode == "match":
-        items = [("Weaker match", MATCH_RAMP[1]), ("Stronger match", MATCH_RAMP[-1])]
+        items = [(f"Match {MATCH_MIN:.0%}–50%", MATCH_RAMP[1]),
+                 ("Match over 50%", MATCH_RAMP[-1])]
     elif mode == "qc":
         counts = {why: int((data.reason == why).sum()) for why in QC_COLORS}
         items = [(f"{why.capitalize()} · {n}", QC_COLORS[why]) for why, n in counts.items() if n]

@@ -134,6 +134,11 @@ def test_search_maps_words_to_classes_zones_flags_and_pointers(s299):
     assert hit["spots"] == [{"r": t2["row"], "c": t2["col"], "score": 1.0, "label": "T2"}]
     hit = slide_search.search(data, "HER2 status", res)
     assert not hit["understood"] and "can't see" in hit["message"]
+    hit = slide_search.search(data, "carcinoma", res)  # absolute: the spot's score is its value
+    assert hit["spots"] and hit["spots"][0]["score"] == pytest.approx(hit["values"].max())
+    alpha = tile_map.tile_rgba(data, "match", values=hit["values"])[data.rows, data.cols, 3]
+    assert (alpha[(hit["values"] < tile_map.MATCH_MIN) & data.ok] == 0).all()
+    assert (alpha[hit["values"] >= tile_map.MATCH_MIN] >= 150).all()
     hit = slide_search.search(data, "unlike training", res)
     assert hit["understood"] and any("unlike training tissue" in u for u in hit["used"])
     assert set(np.flatnonzero(hit["values"] > 0)) <= set(np.flatnonzero(~data.ok))

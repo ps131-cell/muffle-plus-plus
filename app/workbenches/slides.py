@@ -358,8 +358,9 @@ def search_answer(found: dict | None) -> None:
     text = (f"“{found['query']}” · matched {used}" + (f" · limited to the {zone}" if zone else "")
             + (f" · {found['message'].strip()}" if found.get("message") else ""))
     (st.caption if found.get("understood") else st.warning)(
-        text + (" The map below colours every match (model inference); the best spots are "
-                "marked Q1…" if found.get("values") is not None else ""))
+        text + (f" The map below colours every square that matches {slide_search.MIN_SCORE:.0%} "
+                "or more (model inference); Q1… mark the best spots." if found.get("values")
+                is not None else ""))
 
 
 def map_markers(k: str, res: dict | None, found: dict | None) -> list[dict]:
@@ -409,7 +410,8 @@ def map_area(k: str, slide: str, data: tile_map.MapData, thumb, res: dict | None
     def build():
         legends = {m: tile_map.legend_items(data, m, res) for m in overlays}
         return tile_map.figure(
-            data, tile_map.scan_jpeg(thumb, data), overlays, legends, opacity=tile_map.OPACITY,
+            data, tile_map.scan_jpeg(thumb, data), overlays, legends,
+            opacity=tile_map.MATCH_OPACITY if matching else tile_map.OPACITY,
             selected=mem["outline"], markers=markers, zoom=mem["zoom"],
             uirevision=f"{k}-{mem['zoom_rev']}", height=tile_map.height_for(data),
             res=None if matching else res)

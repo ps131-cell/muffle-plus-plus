@@ -62,7 +62,7 @@ CANT = {"receptor": "receptor status", "er": "ER status", "pr": "PR status",
         "margin": "margins", "margins": "margins", "vessel": "lymphovascular invasion",
         "vessels": "lymphovascular invasion", "lymphovascular": "lymphovascular invasion",
         "lvi": "lymphovascular invasion", "dcis": "in-situ carcinoma (not a class of the head)"}
-MIN_SCORE = 0.15          # weaker spots aren't shown as results
+MIN_SCORE = 0.15          # weaker spots aren't shown as results (nor coloured on the map)
 SPACING = 5               # tiles between results, so they point at different places
 
 
@@ -186,10 +186,12 @@ def search(data: MapData, query: str, res: dict | None = None, top: int = 5) -> 
     if zone:
         values = values * (data.zone == zone)
         out["zone"] = zone
-    out["values"] = values / max(float(values.max()), 1e-9)
-    out["spots"] = _spots(data, values, top)
+    # absolute, not scaled to the section's best (the analyzer's phrase scores needed that):
+    # a section without necrosis shows no necrosis match instead of a "100%" one
+    out["values"] = np.clip(values, 0, 1)
+    out["spots"] = _spots(data, out["values"], top)
     if not out["spots"]:
-        out["message"] += "Nothing stands out for this search on this section."
+        out["message"] += (f"Nothing reaches {MIN_SCORE:.0%} for this search on this section.")
     return out
 
 
@@ -197,7 +199,7 @@ def _spots(data: MapData, values: np.ndarray, top: int) -> list[dict]:
     """The best spots, spaced apart: Q1…Q5."""
     g = data.geom
     grid = np.full((g["rows"], g["cols"]), -1.0)
-    grid[data.rows, data.cols] = values / max(float(np.max(values, initial=0)), 1e-9)
+    grid[data.rows, data.cols] = values
     out = []
     for n in range(1, top + 1):
         r, c = np.unravel_index(int(np.argmax(grid)), grid.shape)
