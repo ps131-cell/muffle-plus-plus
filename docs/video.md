@@ -7,7 +7,9 @@ polish #140 and #141, cohort search #138, the performance pass #146, the GigaPat
 re-score #144): every shot below was opened by its address in headless Chromium at 1280 px on
 the release bundle `demo-bundle-v2`, its clicks were driven (tour skipped, initials typed, J×7,
 M, O, Back to the queue, the saved note, Your marks), and the labels and numbers here are the
-ones the screen shows. The screen shows the clinician
+ones the screen shows. The slide rows (shot 5 and where **O** lands in shot 3) were walked again
+the same night (about 22:00) on `main` at 1c2a7d1, after the slide map was ported from the
+team's colon analyzer (#150). The screen shows the clinician
 application as a clinician would walk it: Patients → a patient file's overview → its tests and
 workbenches → Evolution → Timeline → Methods and validation → Feedback (`docs/WORKSPACE.md`). The
 hackathon story (Nemotron on Nebius Token Factory, NVIDIA FLARE) is said in the voice-over only
@@ -16,15 +18,18 @@ sidebar's **About this system** and the Methods page's federated training sectio
 said comes from a method note, the registry or a decisions entry (source in the shot's row); if
 the page shows something else, say what the page shows and fix this file.
 
-## Still changing: the slide workbench (re-walk after the analyzer port lands, Oct 28)
-Everything the Oct 27 work moved is walked and written in below. One piece is still being
-rebuilt: the slide workbench takes over the colon analyzer's map and functions overnight. Until
-that lands and is walked, the rows marked "re-walk after the analyzer port lands (Oct 28)" keep
-their narration but their clicks and on-screen labels may change.
-
-| Work still landing | Shots it touches | What to re-check |
-|---|---|---|
-| Slide workbench: the colon analyzer's map and functions ported (Oct 27–28) | 3 (where **O** lands: the slide workbench on T1), 5 | the viewer and map names, the arrows per arc, the breakaway counting field, the Spot panel, **Details › Cells** and the second opinion's numbers (today 1,980 tiles, 52 disagree, 3%); that queue item 8 is still T1 |
+## The slide workbench after the analyzer port (#150, walked on 1c2a7d1)
+The slide page now opens on the **Slide map**: the section's own scan under a see-through colour
+layer (the **Colour layer** slider), centred on the pointer, with seven view buttons inside the
+chart (**Tissue**, **Zones**, **Risk**, **Flags**, **Certainty**, **Quality**, **Immune**), a
+**Highlight a class** row (Invasive carcinoma, Stroma, Lymphocytes, Necrosis or debris, Fat),
+**Whole section**, the pointers T1… drawn on the map, and **Search inside the slide, in plain
+words** (matches coloured, the best spots marked **Q1**–**Q5**). **Map | Slide viewer** above
+it switches to the OpenSeadragon viewer, which downloads the section's pyramid only when opened;
+**Zoom to the cells** in the Spot panel opens it too. The Spot panel says where the square sits,
+its class and why, how sure, what to check by eye and the second model's answer. Exports: **Download
+the slide report (Markdown)** and **Download the map (PNG)**. The second opinion (WSInfer TIL) is
+still in **Details › Cells**. Shots 3 and 5 below follow this page.
 
 What the Oct 27 merges changed in the script (all walked):
 
@@ -39,6 +44,7 @@ What the Oct 27 merges changed in the script (all walked):
 | Cohort search (#138): **Search every file**, **Where this patient sits**, **Similar patients**, labeled lookups | 2, 3 | shot 2's second half searches every file for "HER2 disagree" (5 files, said as a lookup, not a model) instead of the SOS toggle; the SOS tile gets its line in shot 3 instead (orchestrator, 2026-10-27) |
 | Performance pass (#146) | all | nothing on screen; screens open in 4–8 s on a fresh local server under load, faster click to click |
 | GigaPath-Flash re-score (#144) | 5, 12 | the head reads 91.9% on GigaPath-Flash; Case 299's second opinion is 52 of 1,980 tiles (3%), was 43 of 1,500 |
+| Slide map ported from the colon analyzer (#150) | 3, 5 | the slide page opens on the map, not the viewer: view buttons Tissue/Zones/…, the search inside the slide with Q1–Q5, **Zoom to the cells** to the viewer; O from the queue lands on the map at T1 |
 
 ## Recording checklist (do these first)
 - [ ] **Screen:** 1920×1080, browser zoom 110% (or 1280×720 at 100%: then collapse the sidebar
@@ -63,9 +69,10 @@ What the Oct 27 merges changed in the script (all walked):
       after a reboot builds the bundle's files (about 30 s locally, longer on the hosted app);
       the first **Search every file** builds its index (about 10 s locally, 10–20 s on a shared
       CPU; later searches about 3 s): search any word once.
-- [ ] **Slide tiles:** open the shot 5 address once before recording: the first open of a section
-      on a fresh server downloads its tiles from the release `slide-tiles-v1` (13–175 MB) and
-      waits.
+- [ ] **Slide tiles:** open the shot 5 address once before recording and click **Slide viewer**
+      (or **Zoom to the cells**): the viewer downloads the section's pyramid from the release
+      `slide-tiles-v1` (13–175 MB) only when first opened on a server, and waits; the map itself
+      needs no download. On a warm local server the viewer took about 6 s to draw.
 - [ ] **Scroll position:** a workbench opens below the Tests launcher's tiles (7 tiles for a
       TCGA case, 6 for SYNTHETIC-001), and **O** in the queue lands at the top of Tests: scroll
       down past the tiles to the workbench. A file opened from the Patients page can keep that
@@ -96,7 +103,7 @@ address below opened the right screen on 9eab7b0.
 |---|---|---|
 | 1–2 | Patients | `/` |
 | 3–4 | Case 299, overview | `/?patient=Case%20299&view=Report` |
-| 5 | Case 299, slide workbench on T1 (re-walk after the analyzer port lands, Oct 28) | `/?patient=Case%20299&view=Tests&test=Pathology%20slide%7C%7CDiagnostic%20H%26E%20section%28s%29%20%28GDC%2C%20open%20access%29&pointer=T1` |
+| 5 | Case 299, slide workbench (map) on T1 | `/?patient=Case%20299&view=Tests&test=Pathology%20slide%7C%7CDiagnostic%20H%26E%20section%28s%29%20%28GDC%2C%20open%20access%29&pointer=T1` |
 | 6 | Case 299, genomics | `/?patient=Case%20299&view=Tests&test=Mutation%20panel%7C%7CSomatic%20mutations%2C%2016%20breast%20cancer%20drivers%20%28exome%20sequencing%29` |
 | 7 | Case 937, expression, methylation, protein | `/?patient=Case%20937&view=Tests&test=Data%20layer%7C%7CRNA-seq%20%28STAR%20TPM%29` |
 | 8 | Case 937, breast MRI on C1 | `/?patient=Case%20937&view=Tests&test=Imaging%7C%7CBreast%20MRI%20%28dynamic%20contrast-enhanced%29%2C%20public%20TCIA%20study%20%282000-08-24%29&pointer=C1` |
@@ -119,9 +126,9 @@ Walked: what the 1280 px walk on 9eab7b0 (Oct 27, evening) showed for the shot.
 |---|---|---|---|---|---|
 | 1 | 0:00–0:08 (8 s) | **Patients** (`/`), tour already skipped: the title, the line "Research and decision support for clinicians; not a diagnosis or a prescription.", the **Start here** card (SYNTHETIC-001 and Case 299), the **Search every file** box, then scroll to the list ("41 of 41 files") with the sidebar's Patients, Methods and validation, Feedback. | synthetic (SYNTHETIC-001's Kind "Synthetic (written by hand)"), simulated (each TCGA row's "simulated site-n") | "A breast cancer changes over time, and its evidence is scattered across tests. This is one clinician's patient list." | — · walked on 9eab7b0: title, disclaimer, Start here, Search every file, "41 of 41 files", Kind column as written |
 | 2 | 0:08–0:18 (10 s) | Type **PIK3CA** in the list's search box ("Find by ID, diagnosis, gene (PIK3CA), subtype (luminal), stage (III) or workbench (slides)"): "12 of 41 files". Then type **HER2 disagree** in **Search every file** ("Search every file's findings: …"): "5 files · … · a text lookup, not a model", Case 140 first. | observed (mutated genes), model inference (PAM50 column), "a text lookup, not a model" on the search | "Search by gene or stage, or look up every file's findings at once, a lookup, not a model: here, the five tumors whose HER2 tests disagree. All public TCGA patients the model never trained on." | `docs/cohort.md` (HER2 disagree: five files) · walked: 12 of 41 for PIK3CA, 5 files for HER2 disagree; the first search after a reboot builds the index (warm it, checklist); the **Open SOS alerts only** toggle still works if this half is cut |
-| 3 | 0:18–0:36 (18 s) | **Case 299** (Start here's **Open a case with its own slide and sequencing: Case 299**, or its row): the action row under the header; the **SOS** tile ("nothing alarming in this version or before"; the header beside it reads "SOS: none open"); the finding cards, each ending in **Open · …** (e.g. **Open · RNA-seq (STAR TPM)**); the **PAM50 subtype** card's **Why?** (source test, method and version, threshold, trust, evidence). Scroll to **Attention · 18 items** and its **Next step** line; press **J** seven times to **8/18 · T1 Risk level 3 region (R1)**; **M** (mark reviewed: "reviewed by PS"); **O**: Tests opens with "← Back to the queue, item 8 of 18" and the breadcrumb "Tests › Slides › Pathology slide"; scroll past the tiles to the slide workbench on T1. | each card's own label: observed (stage and receptors), model inference (PAM50, risk), hypothesis (evolution); trust chips; "placeholder weights" on the queue order | "A file opens on an overview: the SOS tile says whether anything alarming is open, and one card per workbench is labeled observed, inferred or hypothesis. Why? names the test, the method and the threshold's source. One queue gathers what needs a look; a mark is signed; Open lands on the evidence." | — · walked: Why? popover, J×7 → 8/18 T1, M → "Your marks (1)", O → `&pointer=T1` with the back link; **re-walk after the analyzer port lands (Oct 28)** for where O lands |
+| 3 | 0:18–0:36 (18 s) | **Case 299** (Start here's **Open a case with its own slide and sequencing: Case 299**, or its row): the action row under the header; the **SOS** tile ("nothing alarming in this version or before"; the header beside it reads "SOS: none open"); the finding cards, each ending in **Open · …** (e.g. **Open · RNA-seq (STAR TPM)**); the **PAM50 subtype** card's **Why?** (source test, method and version, threshold, trust, evidence). Scroll to **Attention · 18 items** and its **Next step** line; press **J** seven times to **8/18 · T1 Risk level 3 region (R1)**; **M** (mark reviewed: "reviewed by PS"); **O**: Tests opens with "← Back to the queue, item 8 of 18" and the breadcrumb "Tests › Slides › Pathology slide"; scroll past the tiles to the slide workbench: the **Slide map** centred on **T1** (its square outlined, the look-here row "T1 Risk level 3 region (R1) · ✓ reviewed"). | each card's own label: observed (stage and receptors), model inference (PAM50, risk), hypothesis (evolution); trust chips; "placeholder weights" on the queue order | "A file opens on an overview: the SOS tile says whether anything alarming is open, and one card per workbench is labeled observed, inferred or hypothesis. Why? names the test, the method and the threshold's source. One queue gathers what needs a look; a mark is signed; Open lands on the evidence." | — · walked: Why? popover, J×7 → 8/18 T1, M → "Your marks (1)", O → `&pointer=T1` with the back link; O lands on the slide map at T1 (walked again on 1c2a7d1) |
 | 4 | 0:36–0:46 (10 s) | **← Back to the queue**, scroll to **Tumor-board note** → **Show the saved note**: bullets tagged [Observed], [Model inference], [Hypothesis]; "Grounding check: every number, gene and link in this note comes from the tool outputs."; open **Show the evidence chain: 42 links from 16 sentences to the tool outputs**; the line "Nemotron 3 Super chose these tool calls; Nemotron 3 Ultra wrote the note, on Nebius Token Factory". | observed / model inference / hypothesis per bullet | "The case note: Nemotron 3 Super gathers the evidence and Nemotron 3 Ultra writes it, on Nebius Token Factory. A plain-code check ties every number and gene to a tool." | `docs/decisions.md` 2026-10-18 (case agent) · walked: saved note of 2026-10-19, 20,526 tokens; the expander label gained its verb (#145) |
-| 5 | 0:46–1:06 (20 s) | Back in the slide workbench (the shot 3 address): the patient's own section in the **Slide viewer**; zoom to the front, the arrows per arc, the breakaway counting field; click a tile → **Spot panel**; open **Details › Cells: breakaway candidates, lymphocytes, stroma and necrosis (57 breakaway in the field)**: **Second opinion**: the WSInfer TIL model scored 1,980 front-band and peritumoral tiles and disagrees with the head on 52 (3%); held-out AUROC 0.955. | model inference (tissue map, nuclei, second model), hypothesis (direction of invasion), placeholder (cutoffs carried over from colon) | "The patient's own slide. A tissue head on an open pathology encoder maps tumor, stroma and lymphocytes; arrows show where the front invades, a hypothesis about this section. Zoom in to the counted nuclei. A second model checks the lymphocytes; where the two disagree, the tile goes to the queue." | `docs/pathology.md` §7–9 (head 91.9% on GigaPath-Flash; 52/1,980 after the re-score, was 43/1,500) · **re-walk after the analyzer port lands (Oct 28)**: on 9eab7b0 the second opinion is in Details › Cells, not a viewer layer |
+| 5 | 0:46–1:06 (20 s) | Back in the slide workbench (the shot 3 address; breadcrumb "Tests › Slides › Pathology slide"): the **Slide map**, the patient's own scan under the colour layer, centred on T1; the map's view buttons **Tissue**, then **Zones** (the front, growth arrows, island rings); type **lymphocytes at the border** in **Search inside the slide, in plain words**: matching squares coloured, **Q1**–**Q5** marked; click T1's square → **Spot panel** (where it sits, class and why, how sure) → **Zoom to the cells**: the **Slide viewer** opens on the nuclei; open **Details › Cells: breakaway candidates, lymphocytes, stroma and necrosis (57 breakaway in the field)**: **Second opinion**: the WSInfer TIL model scored 1,980 front-band and peritumoral tiles and disagrees with the head on 52 (3%); held-out AUROC 0.955. | model inference (tissue map, nuclei, second model, search matches), hypothesis (direction of invasion), placeholder (cutoffs carried over from colon) | "The patient's own slide. A tissue head on an open pathology encoder maps tumor, stroma and lymphocytes; the zones view shows where the front invades, a hypothesis about this section. Search it in plain words, then zoom to the cells. A second model checks the lymphocytes; where the two disagree, the tile goes to the queue." | `docs/pathology.md` §7–10 (head 91.9% on GigaPath-Flash; 52/1,980 after the re-score) · walked on 1c2a7d1: map, Zones, the search (Q1 27% … Q5), the viewer from Zoom to the cells, Details › Cells; the second opinion is not a map view (**Immune** colours lymphocyte-like nuclei) |
 | 6 | 1:06–1:18 (12 s) | **Tests** → the **Mutation panel** tile's **Open** (breadcrumb "Tests › Genomics › Mutation panel"): **Variants and the tumor's genome** → **Copy-number landscape** (MYC, CCND1 amplified), then **Pathway map**; back on **Variants**, click TP53 R110del: the Spot panel's rungs **detected** (observed), **interpreted** (hypothesis, CIViC level C), **predicted effect** (model inference: none for a deletion; AlphaMissense scores missense changes only). | observed (variants, copy numbers), placeholder (copy-number cutoffs), hypothesis (CIViC), model inference (predicted effect) | "The genome: copy number across the chromosomes, the altered pathways, and each variant's evidence on its own rung: what was detected, how it is interpreted, what a model predicts." | `docs/genomics.md` · walked: tabs Variants, Copy-number landscape, Burden and allele fractions, Predicted effect, Pathway map; the Spot panel opens on MAP3K1 until TP53 is clicked |
 | 7 | 1:18–1:28 (10 s) | Case 937 (the shot 7 address; breadcrumb "Tests › Expression › RNA-seq (STAR TPM)"): **PAM50 intrinsic subtype**: Luminal A, margin 0.31, the line "agrees with TCGA's published PAM50 calls for 94.7% of 950 tumors (Cohen's kappa 0.92)"; **Protein pathway activity (RPPA) (10)**; **Promoter methylation (6)**: the ESR1 row. | model inference + experimentally validated (PAM50), model inference (pathways), observed + placeholder cutoffs (methylation) | "Another patient's expression, protein and methylation. The subtype call agrees with TCGA's published calls 94.7 percent of the time on this cohort. A protein pathway, and a methylation call with its cutoff marked placeholder." | `docs/omics.md` (94.7%, κ 0.92, 950 tumors; ER-balanced centering chosen after a first run) · walked |
 | 8 | 1:28–1:46 (18 s) | Case 937 → the **Breast MRI** tile's **Open**: the DCE-MRI **Viewer**, **Candidates (3)** with MedSAM contours, C1 in the Spot panel (26.2 mm, 7.43 mL, medium initial enhancement, plateau); then **Change over time on a public example pair (another TCGA-BRCA patient, not this patient) (2 dates)**: both dates' sizes and the change. | model inference (candidates, contours, kinetics), placeholder (kinetic cutoffs), "not this patient" on the pair | "This patient's breast MRI: candidates contoured by MedSAM, each with size, volume and contrast kinetics; the cutoffs are literature values, marked placeholder. None of these patients has two dates, so change over time runs on a labeled public example pair." | `docs/radiology.md` §2–3 · walked: C1 26.2 mm, 7.43 mL (6.26–8.67), initial medium (71.8%), delayed plateau (2.1%); "Since the last study (one study date)" says why |
@@ -151,12 +158,14 @@ Notes for the edit:
   only and drop "kept with the model behind it".
 
 ## 30-second fallback cuts
-If the take runs long, cut in this order (each saves the time shown; together about 30 s):
+If the take runs long, cut in this order (each saves the time shown; together about 35 s):
 1. Shot 9, documents (10 s): drop it; shot 3's cards already show documented receptors.
 2. Shot 12b, Feedback (6 s): drop it; keep "a mark is signed" in shot 3.
 3. Shot 2's second half (5 s): show the list's gene search only, and say "or search every file" over it.
 4. Shot 6, genomics (to 6 s): copy-number landscape only, no pathway or rungs.
 5. Shot 8's change-over-time half (6 s): candidates and kinetics only.
+6. Shot 5's search inside the slide (4 s): Zones, then Zoom to the cells; drop "Search it in
+   plain words".
 
 Optional swap if there is time to spare or shot 9 is cut: **Import** (10 s) on SYNTHETIC-001:
 **Import tests** (or the action row's **Import a test**) → **Lab results (CSV)** →

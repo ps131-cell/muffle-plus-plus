@@ -3,8 +3,8 @@
 The final text for the Devpost form, in the form's order: the project's fields, the story
 (Inspiration → What's next), Built with, the links, then the hackathon's own questions (how
 NVIDIA and Nebius are used, feedback, testing, data and licenses, prior work). Final numbers pass
-2026-10-27, brought up to `main` at 9eab7b0 the same evening (the slide re-score, the Tests
-launcher and action row, cohort search, the performance pass): every figure is listed with its
+2026-10-27, brought up to `main` at 1c2a7d1 the same evening (the slide re-score, the Tests
+launcher and action row, cohort search, the performance pass, the slide map port): every figure is listed with its
 source in the **Numbers** appendix, and the **Submission checklist** at the end is what is left
 to fill on Oct 29.
 
@@ -81,11 +81,14 @@ report exports as one page.
 
 **Eight workbenches**, each with its own viewer, measurements, look-here queue, quality checks,
 "what this test cannot see", a model and validation card, and export:
-- **Pathology** (five TCGA cases, eight of their own diagnostic sections): a pan-and-zoom viewer
-  on the patient's slide; a tissue map from a breast tissue head trained on BCSS on a frozen
-  open encoder (GigaPath-Flash; tiles unlike its training tissue are not scored); the invasive
-  front, its zones and the direction of invasion per arc (a hypothesis about the section); StarDist nuclei, breakaway (budding) candidates in the
-  ITBCC counting field and lymphocytes by TILs zone; a second opinion on lymphocytes from the
+- **Pathology** (five TCGA cases, eight of their own diagnostic sections): a slide map on the
+  patient's own scan, a see-through colour layer in seven views (tissue, zones, risk, flags,
+  certainty, quality, immune), with search inside the slide in plain words, a section report
+  and a pan-and-zoom viewer down to single nuclei one click away; a tissue map from a breast
+  tissue head trained on BCSS on a frozen open encoder (GigaPath-Flash; tiles unlike its
+  training tissue are not scored); the invasive front, its zones and the direction of invasion
+  per arc (a hypothesis about the section); StarDist nuclei, breakaway (budding) candidates in
+  the ITBCC counting field and lymphocytes by TILs zone; a second opinion on lymphocytes from the
   WSInfer TIL model, whose disagreements with the head go to the queue. Seven tile encoders were
   compared with the same head on the same held-out slides (accuracy: GigaPath-Flash 0.919,
   QuiltNet-B-32 0.877), and the sections were re-scored with the winner.
@@ -397,8 +400,9 @@ Each item: what happened, why it mattered, and a suggestion.
 - **Case 299** (`?patient=Case%20299`): the overview cards (click **Why?**, or **Open ·** to land
   on the evidence), the attention queue (J / K to move, M to mark reviewed, O to open), the saved
   case note (**Show the saved note**), and **Similar patients** further down. In **Tests**, the
-  slide tile's **Open** opens the slide viewer (the first open of a section downloads its
-  tiles), and the mutation panel tile's opens the genomics workbench.
+  slide tile's **Open** opens the slide map (try the view buttons, or search "lymphocytes at
+  the border"; **Slide viewer** above it zooms to single cells, and its first open downloads the
+  section's tiles), and the mutation panel tile's opens the genomics workbench.
 - **Case 937** (`?patient=Case%20937&view=Tests`): the RNA-seq tile for PAM50, pathways and
   methylation; the breast MRI tile for the MRI viewer and the public example pair.
 - **Case 563** (`?patient=Case%20563&view=Tests`): the pathology report tile for the rules'
@@ -498,7 +502,7 @@ quantities name each. If a source changes, change the figure everywhere it is qu
 | "Unlike training tissue" quality rule (slides) | cutoff **0.507**, mean cosine distance to the 5 nearest of the head's 1,052 training tiles; calibrated leave-one-slide-out (99th percentile); flags 1 of the 357 held-out tiles (0.3%) | the head's 8 training and 3 held-out BCSS slides | `docs/pathology.md` §9; decisions 2026-10-27 |
 | Encoder comparison (same head, same held-out slides) | GigaPath-Flash **0.919** (balanced 0.917) against QuiltNet-B-32 **0.877** (0.854): +4.2 points, 95% interval +0.3 to +8.1; Hibou-B 0.880, Hibou-L 0.810; local only: CONCH 0.896, UNI2-h 0.838, GPFM 0.863 | 357 held-out tiles (correlated) | `docs/encoders.md`; decisions 2026-10-22 |
 | WSInfer TIL second opinion, lymphocytes vs rest | **AUROC 0.955**; cutoff **0.667**, calibrated on the 8 training slides (Youden's J; training AUROC 0.971) and applied unchanged: recall 97%, specificity 79%, accuracy 83% | the head's 3 held-out BCSS slides (357 tiles); the model was trained on TCGA, so an upper bound, not an independent validation | `docs/pathology.md` §8; decisions 2026-10-21 |
-| Second opinion on Case 299's section | disagrees with the head on 52 of 1,980 scored tiles (3%); 43 of 1,500 before the GigaPath-Flash re-score | front-band and peritumoral tiles of the re-scored map | `docs/pathology.md` §9; the slide workbench, Details › Cells (video shot 5, walked 2026-10-27 on 9eab7b0) |
+| Second opinion on Case 299's section | disagrees with the head on 52 of 1,980 scored tiles (3%); 43 of 1,500 before the GigaPath-Flash re-score | front-band and peritumoral tiles of the re-scored map | `docs/pathology.md` §9; the slide workbench, Details › Cells (video shot 5, walked 2026-10-27 on 9eab7b0 and again on 1c2a7d1) |
 | WSInfer screening check | tumor vs rest AUROC 0.921, lymphocytes vs rest 0.980 | 516 BCSS-labelled tiles from 11 TCGA-BRCA slides | `docs/model_access.md` |
 
 **Clinical documents** (481 held-out TCGA-BRCA reports against TCGA's clinical fields; precision
@@ -566,6 +570,6 @@ a report states (receptors are often in an earlier biopsy report not in the data
 - [ ] **Story fields** pasted from this file (Inspiration … What's next), then How we used NVIDIA
       and Nebius, Feedback, Testing instructions, and Data, licenses and prior work
 - [ ] **Prior-work disclosure** kept word for word
-- [ ] **Images:** two or three screenshots (Patients, a patient overview, the slide viewer) from
+- [ ] **Images:** two or three screenshots (Patients, a patient overview, the slide map) from
       the hosted app; no MSK-CHORD patient; the synthetic and simulated labels visible
 - [ ] Re-read the Devpost rules page; submit before **Oct 30, 10:00 am PT** (12:00 pm Central)

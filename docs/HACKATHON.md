@@ -20,7 +20,7 @@ Re-check the Devpost page before submitting — rules can be updated.
 | Public repo, OSI license visible in the About section | MIT `LICENSE` | **Met**: https://github.com/ps131-cell/muffle-plus-plus (public, MIT; checked 2026-10-19) |
 | README: setup/run + how NVIDIA models, Token Factory, other Nebius tools are used | README "Quick start" and "Hackathon: how NVIDIA and Nebius are used" | **Met**: README (status and numbers checked 2026-10-27); add the video link on Oct 28 |
 | Working demo URL, free to test through Dec 15 | https://cancer-intelligence-platform.streamlit.app (Streamlit Community Cloud, no login; release `demo-bundle-v2`) | **Met**; kept awake by a scheduled browser visit every 4 hours (#148, `docs/qa.md`); reboot after the freeze (Oct 28) and check About this system (0.728, live) |
-| Public YouTube video ≤ 3 min, no copyrighted music | Script, recording checklist and shot list in `docs/video.md` (2:58), every shot re-walked on `main` at 9eab7b0 on Oct 27 (the slide shot again after the analyzer port) | **Pending**: record Oct 28, upload public |
+| Public YouTube video ≤ 3 min, no copyrighted music | Script, recording checklist and shot list in `docs/video.md` (2:58), every shot re-walked on `main` at 9eab7b0 on Oct 27, the slide shots again at 1c2a7d1 after the slide map port (#150) | **Pending**: record Oct 28, upload public |
 | Text description + feedback on Token Factory / AI Cloud / NVIDIA tools | `docs/submission.md`: the Devpost sections in the form's order, feedback, numbers appendix, submission checklist | **Ready** (numbers pass and the day's merges, 2026-10-27); paste into Devpost on Oct 29 |
 | Third-party data used under its terms | Every source with its license and what is published: `docs/registry.md`; MSK-CHORD (CC BY-NC-ND 4.0) local only, aggregate results only, never in the app, the video or an LLM call | **Met**: `docs/registry.md`; Methods and validation › Data sources and licenses |
 | Pre-existing work disclosed | The slide workbench builds on the team's Colon Tumor Front Analyzer: its design (re-implemented Oct 19) and, since Oct 27, its slide map, search and export code adapted to breast (the files are listed; no colon-trained head, cutoff value or colon class is used); disclosure in `docs/submission.md` (Data, licenses and prior work) and `docs/registry.md` | **Met** in the text; keep it in the Devpost form |
@@ -44,11 +44,12 @@ its 18:00 gate (#144: head 91.9% held-out, a window misregistration on three sec
 Next step line (#139), cards whose Open names its destination (#142), Start here and pinned
 files (#143), a tooltip on every control (#145), the breadcrumb naming the open workbench
 (#147), workbench polish (#140, #141), search across every file with similar patients and
-cohort position as lookups (#138) and a performance pass (#146).
+cohort position as lookups (#138), a performance pass (#146) and, that night, the colon
+analyzer's slide map, search and export ported to the slide workbench (#150).
 
 | Day | Product | Submission |
 |---|---|---|
-| **Oct 27** | Last merges (above). The slide workbench's port of the colon analyzer's map runs overnight; it lands whole with CI green before the freeze or not at all | Video script re-walked on `main` at 9eab7b0 after the day's merges (done); the slide shots (5) are re-walked again once the port lands |
+| **Oct 27** | Last merges (above), the slide map port (#150) last | Video script re-walked on `main` after the day's merges, the slide shots after #150 (done) |
 | **Oct 28** | **Freeze**: protect `main` (branch protection: PRs only, CI required, no force pushes); after this only fixes to submission material, with the user's OK. Reboot the hosted app from the Streamlit dashboard, open it, check About this system (Held-out C-index 0.728, Case agent live), open one slide section and one saved note | Upload the video to YouTube as public; add its link to the README and `docs/submission.md` |
 | Oct 29 | — | Fill the Devpost form from `docs/submission.md` (its submission checklist: video URL, repo URL, app URL, team members, tags); save as draft; re-read it once on the page |
 | **Oct 30** | — | Re-check the Devpost page's rules, then **submit before 10:00 am PT** (12:00 pm Central); after submitting, open the public project page and check the links |
