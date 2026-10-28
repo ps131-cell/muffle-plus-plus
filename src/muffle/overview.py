@@ -12,10 +12,12 @@ documents, radiology, evolution).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from muffle import crosstest, evolution
 from muffle.demo import ordinal
 from muffle.report.case_tools import INFERENCE, OBSERVED
-from muffle.workbench import ctdna, documents, genomics, labs, omics, radiology, slides
+from muffle.workbench import ctdna, documents, genome, genomics, labs, omics, radiology, slides
 from muffle.workspace import QUEUE_ORDER, TRUST, PatientFile, card, finding_key
 
 WORKBENCHES = {"labs": labs, "ctdna": ctdna, "genomics": genomics, "slides": slides,
@@ -140,6 +142,52 @@ def absent(sums: dict) -> list[tuple[str, str]]:
     """What the file lacks, as (workbench, why) for an empty card beside the header's ("what
     a test cannot see is said")."""
     return [(n, s["note"]) for n, s in sums.items() if s.get("note")]
+
+
+# ------------------------------------------------------------------- the report's driver column
+
+# Ensembl VEP's consequence severity ("IMPACT"), from its table of calculated consequences
+# (ensembl.org/info/genome/variation/prediction/predicted_data.html); anything else: MODIFIER
+VEP_IMPACT = {
+    "HIGH": {"transcript_ablation", "splice_acceptor_variant", "splice_donor_variant",
+             "stop_gained", "frameshift_variant", "stop_lost", "start_lost"},
+    "MODERATE": {"inframe_insertion", "inframe_deletion", "missense_variant",
+                 "protein_altering_variant"},
+    "LOW": {"splice_region_variant", "synonymous_variant", "start_retained_variant",
+            "stop_retained_variant", "incomplete_terminal_codon_variant"}}
+# the colours of the report and of the Methods page's legend: severity, and CIViC's level
+# (A and B, as the genomics queue's strong trust; C to E, as its moderate; none gray)
+IMPACT_COLORS = {"HIGH": "red", "MODERATE": "orange", "LOW": "gray", "MODIFIER": "gray"}
+LEVEL_COLORS = {"A": "green", "B": "green", "C": "orange", "D": "orange", "E": "orange"}
+
+
+def vep_impact(effect: dict) -> str | None:
+    """A variant's consequence severity in Ensembl VEP's words (``genome.effect``'s annotation);
+    None when it was not looked up."""
+    if not effect["found"]:
+        return None
+    c = effect["annotation"]["consequence"] or ""
+    return next((k for k, terms in VEP_IMPACT.items() if c in terms), "MODIFIER")
+
+
+def drivers(pf: PatientFile, i: int, lookup=None, log_risk: float | None = None
+            ) -> tuple[list[dict], dict]:
+    """The observed variants as of version ``i`` (``genomics.variants``), each once (a variant
+    found again by a later test, QA R3-16), and their read counts where this build's precomputed
+    genome numbers belong to the file (``genome.case_block``: as the genomics workbench reads
+    them; never another build's numbers). ``lookup``: CIViC for a TCGA file; the synthetic
+    record's items are frozen with it."""
+    upto = replace(pf, versions=pf.versions[: i + 1])  # its imported sequencing as of then too
+    block = genome.case_block(genome.load(genome.CN_JSON), upto, log_risk)
+    vaf = genome.load(genome.APP / "evolution_vaf.json") if block else None
+    reads = {r["variant"]: r for r in (((vaf or {}).get("cases") or {}).get(
+        str(genome.case_index(upto))) or {}).get("variants", [])}
+    vs = genomics.variants(upto, genomics.events_until(None, pf.versions[i].month), None,
+                           None if pf.kind == "synthetic" else lookup, reads=reads or None)
+    once: dict[str, dict] = {}
+    for v in vs:
+        once.setdefault(v["variant"], v)
+    return list(once.values()), reads
 
 
 # ------------------------------------------------------------------------------- the queue

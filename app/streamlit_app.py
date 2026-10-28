@@ -29,6 +29,7 @@ import hashlib
 import json
 import logging
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -83,7 +84,9 @@ from muffle.demo import (  # noqa: E402
 )
 from muffle.explain import modality_contributions, risk_percentile  # noqa: E402
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
-from muffle.report import civic  # noqa: E402
+from muffle.report import budget, civic  # noqa: E402
+from muffle.workbench import genome  # noqa: E402
+from muffle.workbench import genomics as genomics_rules  # noqa: E402
 from muffle.report.evidence_chain import note_chain  # noqa: E402
 from muffle.workbench.radiology import load_index  # noqa: E402
 from muffle.report.grounding import describe  # noqa: E402
@@ -97,7 +100,7 @@ from muffle.report.nemotron import (  # noqa: E402
 )
 from muffle.workbench.documents import case_documents  # noqa: E402
 from muffle.workbench.grammar import WORKBENCHES as WORKBENCH_NAMES  # noqa: E402
-from muffle.workbench.grammar import chip, esc  # noqa: E402
+from muffle.workbench.grammar import COLORS, chip, esc  # noqa: E402
 
 REPO = "https://github.com/ps131-cell/muffle-plus-plus"
 LOG = logging.getLogger("muffle.app")
@@ -181,6 +184,7 @@ def badge(status: str) -> str:
 
 st.set_page_config(page_title="MuFFLe++ · breast cancer intelligence", page_icon="🧬",
                    layout="wide")
+st.html(APP / "theme.css")  # what the theme in .streamlit/config.toml can't set (docs/ux.md §8)
 DISCLAIMER = workspace.DISCLAIMER
 secrets_to_env()
 demo = load(args.ckpt, args.data, args.n_clients, args.config, args.cancer, args.notes,
@@ -245,28 +249,85 @@ for pid, records in st.session_state.imports.items():  # each import adds a repo
                                            evidence=partial(civic_items, FILES[pid]))
 
 # --- sidebar: what is running, and this session ------------------------------------------------
+def bundle_label() -> str:
+    """The risk model's release: the bundle's release name, its file, or a local checkpoint."""
+    if SOURCE == BUNDLE_URL:
+        return BUNDLE_RELEASE
+    return Path(args.bundle or args.ckpt).name
+
+
+def spend() -> tuple[float, float, int] | None:
+    """The case-note service's spend on this server's ledger, the cap it is held to and the
+    calls charged (``muffle.report.budget``); None when the ledger can't be read, and then the
+    gate refuses every call (it fails closed)."""
+    try:
+        ledger = budget.Ledger()
+        s = ledger.read()
+        return s["spent_usd"], ledger.cap, s["calls"]
+    except Exception:  # noqa: BLE001 - a corrupt ledger or cap setting: said, never a crash
+        LOG.exception("The spend ledger could not be read")
+        return None
+
+
+@st.cache_resource(show_spinner=False)
+def app_version() -> str:
+    """The commit this server runs (git short hash), else the code digest the hot-update check
+    keeps (a copy without git)."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=APP, timeout=5,
+                             capture_output=True, text=True)
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return CODE_DIGEST[:7]
+
+
+def system_status(slot):
+    """The sidebar's status strip, read-only, filled at the end of the run (after this run's
+    live note): the risk model, its release and each simulated site's held-out C-index; the case
+    notes' planner and writer, the spend on this server's ledger against the hard cap and the
+    live notes left in this session; the evidence sources; the code's version."""
+    spent = spend()
+    rows = [("Risk model", "FedAvg (FLARE)"), ("Release", bundle_label()),
+            ("Held-out C-index", f"{demo.c_index:.3f}"),
+            *((f"{site.replace('-', ' ').capitalize()}, simulated", f"{c:.3f}")
+              for site, c in demo.c_index_by_site.items()),
+            ("Case notes", "live" if LIVE else "saved only"),
+            ("Planner", model_name(DEFAULT_MODEL)), ("Writer", model_name(WRITER_MODEL)),
+            ("Spend, this server", "unreadable" if spent is None else  # \$: not math
+             f"\\${spent[0]:.2f} / \\${spent[1]:.2f}"),
+            ("Live notes left", f"{max(0, CAP - st.session_state.live_used)} of {CAP}"
+             if LIVE else "none (no key)"),
+            ("Treatment evidence", "CIViC (CC0)" if EVIDENCE else "unavailable"),
+            ("Literature search", "on" if SEARCH else "off (no key)"),
+            ("Code", app_version())]
+    with slot.container(key="system-status", gap="xsmall"):
+        st.markdown("| | |\n|:--|--:|\n" + "\n".join(f"| {k} | {v} |" for k, v in rows))
+        if spent is None:
+            st.caption("The spend ledger can't be read, so the case-note service refuses every "
+                       "live call until it can.")
+        else:
+            st.progress(min(spent[0] / spent[1], 1.0) if spent[1] else 1.0,
+                        text=f"Case-note spend: \\${spent[0]:.2f} of the \\${spent[1]:.2f} "
+                             f"cap, {spent[2]} call{'' if spent[2] == 1 else 's'}")
+        if LIVE:
+            notes_left = max(0, CAP - st.session_state.live_used)
+            st.progress(notes_left / CAP if CAP else 0,
+                        text=f"Live notes left this session: {notes_left} of {CAP}")
+
+
 with st.sidebar:
     st.markdown("### MuFFLe++")
-    st.caption("Breast cancer intelligence: an evidence-linked patient profile that updates as "
-               f"the record grows. {DISCLAIMER}")
-    with st.expander("About this system"):  # provenance: the model, the agent, the evidence
-        civic_line = ("CIViC (CC0), for clinician review" if EVIDENCE else
-                      "off (CIViC table unavailable)")
-        st.markdown(
-            f"**Model** · FedAvg across {len(demo.sites)} simulated hospitals (NVIDIA FLARE)  \n"
-            f"**Held-out C-index** · {demo.c_index:.3f}  \n"
-            f"**Case agent** · {'live' if LIVE else 'offline (no key)'}: "
-            f"{model_name(DEFAULT_MODEL)} plans, {model_name(WRITER_MODEL)} writes, on Nebius "
-            f"Token Factory  \n"
-            f"**Treatment evidence** · {civic_line}  \n"
-            f"**Literature** · {'Tavily search on' if SEARCH else 'off (no Tavily key)'}")
-        st.caption("Every model, rule and data source: the Methods and validation page. "
-                   f"[Source code]({REPO})")
+    st.caption(f"Breast cancer intelligence that updates as the record grows. {DISCLAIMER}")
+    with st.expander("About this system", expanded=True):  # the system's status, read-only
+        status_slot = st.empty()  # filled at the end of the run, after this run's live note
+        st.caption("Every model, rule and data source, and how a live note is capped: the "
+                   f"Methods and validation page. [Source code]({REPO})")
     st.markdown("**Session**")
     st.text_input("Reviewer initials", key="reviewer", max_chars=5,
                   help="Saved with each review mark. Marks and pins stay in this browser "
                        "session and go into the report export.")
-    budget_slot = st.empty()  # filled at the end, after this run's live note (if any)
     marks_slot = st.empty()   # this session's marks, filled at the end of the run
 
 
@@ -724,7 +785,8 @@ def patient_file(pf: workspace.PatientFile, header, tail):
     # page (two lines of buttons would make the header a third of a laptop screen)
     actions = st.container(horizontal=True, gap="small", vertical_alignment="center",
                            key="file-actions")
-    st.caption(f"{pf.title} · {pf.diagnosis}  \n{DISCLAIMER}")
+    # the diagnosis is on the header's identity line; the synthetic patient's notice names it
+    st.caption(DISCLAIMER if pf.kind == "synthetic" else f"{pf.title} · {DISCLAIMER}")
     if pf.kind == "synthetic":
         st.warning(pf.note, icon="🧪")
     key = f"version-{pf.id}"
@@ -893,6 +955,10 @@ def back_to(fr: dict, queue: bool):
 
 
 def report_view(pf: workspace.PatientFile, i: int):
+    """The report: the summary, the finding cards (the SOS tile first), the cockpit (the risk
+    model, the driver mutations with their CIViC evidence, what to look at next, side by side),
+    the attention queue, the cohort lookups, the record, then the caveats, the export and, for a
+    TCGA file, the tumor-board note."""
     v, case = pf.versions[i], CASES.get(pf.id)
     st.subheader(f"Report · {v.label}" + ("" if i == len(pf.versions) - 1 else
                                          " (as it was then)"))
@@ -903,70 +969,13 @@ def report_view(pf: workspace.PatientFile, i: int):
                 f"{tags(OBSERVED)}  \n{v.summary} {tags(INFERENCE) if v.risk else ''}")
     ov = overview_data(pf, i)
     overview_header(pf, i, ov)
+    cockpit(pf, i, ov, case)
     attention_queue(pf, i, ov)
     review_panel(pf)
     # cohort-search hook 2 of 2 (muffle.cohort, docs/cohort.md): "Where this patient sits" and
     # "Similar patients", under the overview cards and the queue. Keep this call when reshaping.
     safely("Where this patient sits and the similar patients", cohort_sections, pf)
-
-    left, right = st.columns(2)
-    with left:
-        st.markdown(f"**Characterization and record** {tags(OBSERVED)}")
-        st.markdown("\n".join(f"- **{k}:** {esc(val)}" for k, val in v.observed))
-    with right:
-        head, box = line_and_action()
-        head.markdown(f"**Risk** {tags(INFERENCE)} {badge(pf.model['status'])}")
-        with box:
-            review_box(workspace.finding_key(pf, "risk", v.month), f"Risk estimate, {v.label}")
-        if case is None:
-            synthetic_risk(pf, i)
-        else:
-            case_risk(case)
-
-    if case is None:
-        st.markdown(f"**What changed since the last version, and why** {tags(INFERENCE)}")
-        if v.changes:
-            st.altair_chart(charts.contributions(
-                {c["what"]: c["points"] for c in v.changes}, title="change in risk (points)",
-                fmt="+.0f"), width="stretch")
-            st.caption("One change at a time against the previous record, scored by the current "
-                       "model; changes interact, so the rest is shown.")
-        else:
-            st.caption(v.summary)
-        sites = dict(v.observed).get("Metastatic sites", "none")
-        st.markdown(f"**Areas of risk** {tags(OBSERVED)} · metastatic sites: {sites}")
-    else:
-        case_why(case)
-
-    st.markdown(f"**Mutations** {tags(OBSERVED)} **and treatment evidence for clinician "
-                f"review** {tags(HYPOTHESIS)}")
-    seq = workspace.sequencing_tests(pf, i)
-    if not seq:
-        st.caption("Not sequenced: driver mutations are unknown, not wild type.")
-    for t in seq:
-        st.markdown(f"- {t.name}" + ("" if t.month is None else f", month {t.month}")
-                    + f": {esc(t.result)}")
-    # once each: a variant found again by a later test (the example MAF's PIK3CA H1047R in
-    # SYNTHETIC-001) drew its CIViC block twice, with the same mark keys (QA R3-16)
-    variants = list(dict.fromkeys(var for t in seq for var in t.details["variants"]))
-    quiet = [var for var in variants if civic_items(pf, var) == []]
-    for var in variants:
-        if var not in quiet:
-            civic_block(pf, var, k=3)
-    if quiet:
-        st.caption("No CIViC breast cancer evidence for " + esc(", ".join(quiet)) + ".")
-
-    watch = evolution.hypothesis_set(pf, i)["items"]
-    st.markdown(f"**Evolutionary hypotheses** {tags(HYPOTHESIS)} {badge(workspace.IMPLEMENTED)}"
-                " · what to watch next, ranked, with sources and the test that would detect it: "
-                + ("; ".join(it["event"] for it in watch[:3]) if watch else "none raised")
-                + " (Evolution view)")
-    st.button("Open the Evolution view", key=f"evolution-{pf.id}-{i}",
-              icon=VIEW_ICONS["Evolution"],
-              on_click=lambda: st.session_state.update(view="Evolution"),
-              help="What to watch next, ranked, with the evidence for and against")
-    st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
-    st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
+    record(pf, i)
     disagree = ov["disagree"]
     if disagree:
         st.markdown(f"**Tests that disagree** · {len(disagree)}")
@@ -978,13 +987,6 @@ def report_view(pf: workspace.PatientFile, i: int):
                 st.markdown(f"What would settle it: {esc(d['would_settle'])}")
                 if d["basis"] and d["basis"] not in d["would_settle"]:
                     st.caption(f"Basis: {d['basis']}")
-    reducers = ov["reducers"]
-    if reducers:
-        st.markdown(f"**What would reduce uncertainty** {tags(HYPOTHESIS)} · evidence for your "
-                    "judgment, not an order")
-        st.markdown("\n".join(
-            f"- **{r['open_question']}** → {r['test']}: {r['expectation']} "
-            f"{tags(r['evidence'])}  \n  Source: {r['source']}" for r in reducers))
     with st.expander(f"Show the caveats, data sources and model versions "
                      f"({1 + len(sources(pf))})"):
         st.markdown(f"- **Model:** {pf.model['name']} ({pf.model['status']}); endpoint: "
@@ -997,6 +999,255 @@ def report_view(pf: workspace.PatientFile, i: int):
                             "review marks.")
     if case is not None:
         case_note(case)
+
+
+# --- the report's cockpit: the risk model | the driver mutations | what to look at next --------
+COCKPIT_WIDTH = 300  # px a column; the theme's grid (app/theme.css) makes them fill the row
+
+
+def cockpit(pf: workspace.PatientFile, i: int, ov: dict, case):
+    """Three columns side by side (stacked on a narrow screen): the risk model with what drives
+    it and its uncertainty; the driver mutations with their severity, allele fraction and CIViC
+    evidence ladder; what to look at next. Every finding says on hover where it comes from
+    (source, method, model and version, the evidence item) and opens its workbench, its view or
+    the evidence item."""
+    with st.container(horizontal=True, gap="medium", key="cockpit"):
+        risk, drivers, nxt = (st.container(border=True, width=COCKPIT_WIDTH, key=f"cockpit-{k}")
+                              for k in ("risk", "drivers", "next"))
+    with risk:
+        safely("The risk model", risk_column, pf, i, case)
+    with drivers:
+        safely("The driver mutations", drivers_column, pf, i, case)
+    with nxt:
+        safely("What to look at next", next_column, pf, i, ov)
+
+
+def risk_provenance(pf: workspace.PatientFile, i: int, case) -> str:
+    """Where the risk estimate comes from: its source data, method, version and validation."""
+    if case is None:
+        r = pf.versions[i].risk or {}
+        if "landmark" not in r:
+            return f"{pf.model['name']}: no estimate in this version."
+        m = TL["models"][str(r["landmark"])]
+        return (f"**Source:** the synthetic record as of {pf.versions[i].label}, written by "
+                f"hand  \n**Method:** month-{r['landmark']} {pf.model['name']}  \n"
+                f"**Validation:** held-out AUROC {r['auroc']:.2f} on MSK-CHORD ({m['n']:,} "
+                f"patients, event rate {m['event_rate']:.0%}); diagnosis only "
+                f"{r['baseline_auroc']:.2f}; calibration not checked  \n"
+                f"**Endpoint:** {pf.model['endpoint']}")
+    sites = ", ".join(f"{s} {c:.3f}" for s, c in demo.c_index_by_site.items())
+    missing = ", ".join(LAYER_NAMES.get(m, m) for m in case.missing)
+    return ("**Source:** this patient's tumor sample, TCGA-BRCA open access: "
+            + ", ".join(LAYER_NAMES.get(m, m) for m in case.layers)
+            + (f" (missing, masked: {missing})" if missing else "") + "  \n"
+            f"**Method:** {pf.model['name']}  \n**Version:** {bundle_label()}  \n"
+            f"**Validation:** held-out C-index {demo.c_index:.3f}, the mean of the simulated "
+            f"sites' ({sites}); it ranks patients, its absolute risks are only roughly "
+            f"calibrated  \n**Endpoint:** {pf.model['endpoint']}")
+
+
+def risk_column(pf: workspace.PatientFile, i: int, case):
+    """The risk model: the estimate and its uncertainty, then why: each data layer's effect (a
+    TCGA file) or what changed since the last version (the synthetic patient)."""
+    v = pf.versions[i]
+    head, box = line_and_action()
+    head.markdown(f"**Risk model** {tags(INFERENCE)} {badge(pf.model['status'])}",
+                  help=risk_provenance(pf, i, case))
+    with box:
+        review_box(workspace.finding_key(pf, "risk", v.month), f"Risk estimate, {v.label}")
+    if case is not None:
+        case_risk(case)
+        case_why(case)
+        return
+    synthetic_risk(pf, i)
+    st.markdown(f"**What changed since the last version, and why** {tags(INFERENCE)}")
+    if v.changes:  # a signed list: red raises the risk, blue lowers it (the charts' colours)
+        st.markdown("  \n".join(
+            chip(f"{c['points']:+.0f} points", SHIFT_COLORS[(round(c["points"]) > 0)
+                                                           - (round(c["points"]) < 0)])
+            + " " + esc(c["what"]) for c in v.changes))
+        st.caption("One change at a time against the previous record, scored by the current "
+                   "model; changes interact, so the rest is shown.")
+    else:
+        st.caption(v.summary)
+
+
+SHIFT_COLORS = {1: "red", -1: "blue", 0: "gray"}  # a change in risk: raises, lowers, none
+RUNGS = {1: "detected", 2: "interpreted", 3: "effect", 4: "therapy", 5: "resistance"}
+SHOW_ITEMS = 3  # CIViC items a variant shows on the report, as before; the rest in Genomics
+
+
+def variant_provenance(v: dict, ef: dict, effects: dict | None, n_items: int) -> str:
+    """Where a variant comes from, on hover: the test, sample and assay, the allele fraction's
+    reads, the consequence (Ensembl VEP) and its prediction (AlphaMissense), the CIViC items."""
+    d = v["detection"]
+    lines = [f"**Detected** (observed): {d['test']} · {d['sample']} · {d['when']} · "
+             f"{d['assay']}", f"**Allele fraction:** {d['allele_fraction']}"]
+    if ef["found"]:
+        a, p = ef["annotation"], ef["prediction"]
+        lines.append(f"**Consequence** (observed): {(a['consequence'] or '?').replace('_', ' ')}"
+                     f" on {a['transcript'] or 'the canonical transcript'} "
+                     f"({a['hgvsp'] or 'no protein change'}), Ensembl VEP release "
+                     f"{(effects or {}).get('ensembl_release', '?')}; severity "
+                     f"{overview.vep_impact(ef)} in Ensembl's consequence table")
+        if p["score"] is not None:
+            lines.append(f"**AlphaMissense** (model inference, not for clinical use): "
+                         f"{p['score']:.3f}, {p['class']}")
+    else:
+        lines.append(f"**Consequence:** {ef['note']}")
+    lines.append(f"**CIViC** (hypothesis): {n_items} breast cancer item"
+                 f"{'' if n_items == 1 else 's'}, {genomics_rules.CIVIC}")
+    return "  \n".join(esc(line) for line in lines)
+
+
+def seq_opens(pf: workspace.PatientFile, v: dict) -> tuple:
+    """Where a variant's "Open" lands: the sequencing test that found it, in Tests."""
+    t = next((t for t in pf.tests if t.workbench == "mutations" and t.name == v["test"]
+              and t.month == v["month"]), None)
+    return () if t is None else ("Tests", t.kind, t.month, t.name)
+
+
+def drivers_column(pf: workspace.PatientFile, i: int, case):
+    """The driver mutations: each variant in monospace with its consequence severity, allele
+    fraction and strongest CIViC level, its five-rung evidence ladder (detected, interpreted,
+    predicted effect, therapy, resistance; each rung on hover), its CIViC items with their
+    evidence item ids, and "Open", which lands on it in the genomics workbench."""
+    seq = workspace.sequencing_tests(pf, i)
+    st.markdown(f"**Driver mutations** {tags(OBSERVED)} · **CIViC** {tags(HYPOTHESIS)}",
+                help="Observed variants of this file's sequencing, with CIViC's curated breast "
+                     "cancer evidence (CC0): evidence for clinician review, never a "
+                     "recommendation. Tests: " + ("; ".join(
+                         t.name + ("" if t.month is None else f", month {t.month}")
+                         for t in seq) or "none"))
+    if not seq:
+        st.caption("Not sequenced: driver mutations are unknown, not wild type.")
+        return
+    lookup = None if pf.kind == "synthetic" else EVIDENCE
+    vs, reads = overview.drivers(pf, i, lookup, getattr(case, "log_risk", None))
+    civic_ok = pf.kind == "synthetic" or lookup is not None
+    if not vs:
+        st.caption("Sequenced: none of the panel's genes mutated (panel genes only; not proof "
+                   "of absence).")
+        return
+    effects, table = genome.load(genome.EFFECT_JSON), civic.load_table() if EVIDENCE else None
+    for n, v in enumerate(vs):
+        name, items, level = v["variant"], v["interpretation"]["items"], v["strongest_level"]
+        ef = genome.effect(name, effects)
+        impact, r = overview.vep_impact(ef), reads.get(name) or {}
+        line, act = line_and_action()
+        line.markdown(
+            f"`{name}` "
+            + (chip(f"{impact.lower()} · {ef['annotation']['consequence'].split('_')[0]}",
+                    overview.IMPACT_COLORS[impact]) + " " if impact else "")
+            + (chip(f"CIViC {level}", overview.LEVEL_COLORS.get(level)) if level else
+               chip("no CIViC item" if civic_ok else "CIViC not loaded"))
+            + "  \n" + (f"VAF `{r['alt'] / r['depth']:.0%}` · {r['alt']}/{r['depth']} reads"
+                        if r.get("depth") else esc(v["detection"]["allele_fraction"]))
+            + " · " + ("the TCGA sample" if v["month"] is None else f"month {v['month']}"),
+            help=variant_provenance(v, ef, effects, len(items)))
+        if opens := seq_opens(pf, v):
+            act.button("Open", key=f"cockpit-variant-{pf.id}-{i}-{n}", on_click=open_evidence,
+                       args=(pf, i, opens, {"variant": name}, name, {"card": name}),
+                       help=f"Opens {name} in the genomics workbench's Spot panel")
+        rungs = genomics_rules.ladder(v, genomics_rules.variant_resistance(v, table), ef)
+        st.markdown(" ".join(chip(f"{x['rung']} {RUNGS[x['rung']]}",
+                                  None if x["status"] == "none" else COLORS[x["evidence"]])
+                             for x in rungs),
+                    help="  \n".join(f"**{x['rung']} {x['label']}** ({x['evidence']}): "
+                                     + esc(shorten("; ".join(x["lines"]), 220))
+                                     + f" · *would strengthen it:* {esc(x['strengthen'])}"
+                                     for x in rungs))
+        for e in items[:SHOW_ITEMS]:
+            text, box = line_and_action()
+            eid = e["url"].rstrip("/").rsplit("/", 1)[-1]
+            text.markdown(
+                f"{chip(e['evidence_level'], overview.LEVEL_COLORS.get(e['evidence_level']))} "
+                f"{esc(e['therapies'].replace(',', ', '))} · {str(e['significance']).lower()} "
+                f"· [{e['citation']}]({e['url']}) `EID{eid}`",
+                help=esc(f"CIViC evidence item EID{eid}: level {e['evidence_level']} "
+                         f"({e['level_meaning']}), {e.get('direction') or '?'} · "
+                         f"{e['molecular_profile']} · matches {e.get('match', 'this variant')} "
+                         f"· {e['disease']} · CC0, civicdb.org; for clinician review, never a "
+                         "recommendation"))
+            with box:
+                review_box(workspace.finding_key(pf, "civic", name, e["url"]),
+                           f"{name}: CIViC level {e['evidence_level']}, "
+                           f"{e['therapies'].replace(',', ', ')} ({e['citation']})")
+        if len(items) > SHOW_ITEMS:
+            st.caption(f"{len(items) - SHOW_ITEMS} more CIViC items in the genomics workbench.")
+    if not civic_ok:
+        st.caption("CIViC's table could not be loaded here: the evidence is unknown, not "
+                   "absent.")
+
+
+NEXT_ITEMS = 4  # the attention queue's items the cockpit lists; the whole queue is below it
+
+
+def next_column(pf: workspace.PatientFile, i: int, ov: dict):
+    """What to look at next: the attention queue's strongest items not marked yet, each with
+    its reason on hover and "Open"; what to watch next (Evolution); what would reduce the
+    uncertainty, with its expectation and source on hover."""
+    items, reviews, pos = ov["queue"], st.session_state.reviews, f"queue-{pf.id}-{i}"
+    left = [x for x in items if x["key"] not in reviews]
+    st.markdown(f"**What to look at next** · {len(left)} of {len(items)} not marked",
+                help=overview.ORDER_RULE.capitalize() + ". The whole queue, with its keys, is "
+                     "under these columns.")
+    if not left:
+        st.caption("Every item of the queue is marked." if items else
+                   "Nothing needs attention in this version.")
+    for x in left[:NEXT_ITEMS]:
+        n = items.index(x)
+        line, act = line_and_action()
+        line.markdown((f"`{x['pointer']}` " if x["pointer"] else "") + esc(shorten(x["what"], 90))
+                      + f"  \n{kind_badge(x)} :{TRUST_COLORS[x['trust']]}-badge[{x['trust']}]"
+                      + (" · **new**" if x["new"] else ""),
+                      help=esc(f"{x['source']} · {x['why']}"
+                               + (f" · threshold: {x['threshold']}" if x["threshold"] else "")))
+        if x["opens"]:
+            act.button("Open", key=f"cockpit-open-{pos}-{n}", on_click=open_item,
+                       args=(pf, i, pos, n, x, len(items)),
+                       help=f"Opens {destination(pf, x['opens'])} at this finding")
+    if len(left) > NEXT_ITEMS:
+        st.caption(f"{len(left) - NEXT_ITEMS} more in the attention queue below.")
+    watch = evolution.hypothesis_set(pf, i)["items"]
+    st.markdown(f"**Watch next** {tags(HYPOTHESIS)} {badge(workspace.IMPLEMENTED)}",
+                help="Evolutionary hypotheses, ranked by how much of each row's context this "
+                     "file shows, with sources and the test that would detect each: what to "
+                     "watch, never advice.")
+    for it in watch[:2]:
+        st.markdown(f"- {esc(it['event'])}", help=esc(f"Detect: {it['detect']} · Matters: "
+                                                       f"{it['matters']} · {it['frequency']}"))
+    if not watch:
+        st.caption("None raised in this version.")
+    st.button("Open the Evolution view", key=f"evolution-{pf.id}-{i}",
+              icon=VIEW_ICONS["Evolution"],
+              on_click=lambda: st.session_state.update(view="Evolution"),
+              help="What to watch next, ranked, with the evidence for and against")
+    reducers = ov["reducers"]
+    if reducers:
+        st.markdown(f"**What would reduce uncertainty** {tags(HYPOTHESIS)}",
+                    help="Evidence for your judgment, not an order.")
+        for r in reducers:
+            st.markdown(f"- **{esc(r['open_question'])}** → {esc(r['test'])}",
+                        help=esc(f"{r['expectation']} ({r['evidence']}) · Source: "
+                                 f"{r['source']}"))
+
+
+def record(pf: workspace.PatientFile, i: int):
+    """The record behind the report (observed): its characterization, the areas of risk, and
+    what is missing and what that limits, side by side (stacked on a narrow screen)."""
+    v = pf.versions[i]
+    with st.container(horizontal=True, gap="medium", key="record"):
+        left, right = (st.container(width=COCKPIT_WIDTH) for _ in range(2))
+    with left:
+        st.markdown(f"**Characterization and record** {tags(OBSERVED)}")
+        st.markdown("\n".join(f"- **{k}:** {esc(val)}" for k, val in v.observed))
+    with right:
+        if pf.kind == "synthetic":
+            sites = dict(v.observed).get("Metastatic sites", "none")
+            st.markdown(f"**Areas of risk** {tags(OBSERVED)} · metastatic sites: {sites}")
+        st.markdown(f"**Missing data and what it limits** {tags(OBSERVED)}")
+        st.markdown("\n".join(f"- {line}" for line in workspace.missing_data(pf, i)))
 
 
 def report_page(pf: workspace.PatientFile, i: int, ov: dict, reviews: dict) -> str:
@@ -1042,7 +1293,8 @@ def overview_header(pf: workspace.PatientFile, i: int, ov: dict):
     """One row of finding cards from the workbenches' summaries (docs/WORKBENCHES.md §2)."""
     cards = overview.header(pf, i, ov["sums"], ov["queue"], st.session_state.reviews)
     cards = cards[-1:] + cards[:-1]  # the SOS card first
-    with st.container(horizontal=True, gap="small"):  # cards of one width wrap: 3 a row at 800 px
+    # cards of one width wrap (two a row at 800 px); the theme's grid makes each row fill the page
+    with st.container(horizontal=True, gap="small", key="report-cards"):
         for c in cards:
             with st.container(border=True, width=CARD_WIDTH):
                 pointer = c.get("pointer") or next(
@@ -1097,22 +1349,25 @@ def finding_card(pf: workspace.PatientFile, i: int, c: dict, pointer: str | None
     the evidence."""
     title = (f"**:red[SOS]** · {c['open']} open" if c["what"] == "SOS" and c["open"] else
              f"**{c['what']}**")
-    st.markdown(f"{title}  \n{tags(c['evidence'])}")
+    st.markdown(f"{title} {tags(c['evidence'])}")
     sides = c["sides"] if "sides" in c else [(None, c["text"], None)]
     cut = [(k, shorten(text, CARD_TEXT // len(sides))) for k, text, _ in sides]
     st.markdown("  \n".join((f"*{k}:* " if k else "") + esc(text) for k, text in cut))
-    if any(text != full for (_, text), (_, full, _) in zip(cut, sides, strict=True)):
-        with st.popover("more", type="tertiary", help="The card's full text"):
-            st.markdown("  \n".join((f"*{k}:* " if k else "") + esc(text)
-                                     for k, text, _ in sides))
     placeholder = " " + chip("placeholder threshold") if "placeholder" in c["threshold"] \
         else ""
-    st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}")
-    with st.popover("Why?", help="The source test, the method and its version, the threshold's "
-                                 "source and the trust"):
-        st.markdown(f"**Source test:** {esc(c['source'])}  \n**Method and version:** "
-                    f"{esc(c['method'])}  \n**Threshold:** {esc(c['threshold'])}  \n"
-                    f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
+    with st.container(horizontal=True, gap="xsmall", vertical_alignment="center"):
+        st.markdown(f":{TRUST_COLORS[c['trust']]}-badge[trust: {c['trust']}]{placeholder}",
+                    width="content")
+        if any(text != full for (_, text), (_, full, _) in zip(cut, sides, strict=True)):
+            with st.popover("more", type="tertiary", help="The card's full text"):
+                st.markdown("  \n".join((f"*{k}:* " if k else "") + esc(text)
+                                         for k, text, _ in sides))
+        with st.popover("Why?", type="tertiary", help="The source test, the method and its "
+                                                      "version, the threshold's source and the "
+                                                      "trust"):
+            st.markdown(f"**Source test:** {esc(c['source'])}  \n**Method and version:** "
+                        f"{esc(c['method'])}  \n**Threshold:** {esc(c['threshold'])}  \n"
+                        f"**Trust:** {c['trust']}  \n**Evidence:** {c['evidence']}")
     if c["opens"]:
         st.button(f"Open · {destination(pf, c['opens'])}", key=f"card-{pf.id}-{i}-{c['what']}",
                   icon=":material/arrow_forward:", width="stretch", on_click=open_evidence,
@@ -1270,7 +1525,7 @@ def review_box(key: str, what: str):
     """Agree / disagree / second look and a pin for one finding, in a small popover."""
     h = hashlib.sha1(key.encode()).hexdigest()[:10]
     done = st.session_state.reviews.get(key)
-    with st.popover(f"✓ {done['mark']}" if done else "Review",
+    with st.popover(f"✓ {done['mark']}" if done else "Review", type="tertiary",
                     help="Mark this finding; marks go into the report export"):
         st.segmented_control(
             "Your mark", MARKS, key=f"mark-{h}",
@@ -1353,33 +1608,33 @@ def case_charts(index: int, source: str) -> tuple[dict, dict, dict]:
     x, mask = demo.inputs(case)
     _, contrib = modality_contributions(demo.model, x, mask, demo.offsets)
     named = {LAYER_NAMES.get(m, m): v for m, v in contrib.items()}
-    return (charts.risk_position(demo.cohort_risks, case.log_risk,
-                                 f"{ordinal(case.percentile)} percentile").to_dict(),
-            charts.contributions(named).to_dict(), named)
-
-
-CHART_WIDTH = 380  # px: the risk charts side by side at 1280 px, stacked at 800 px (QA R3-7)
+    position = charts.risk_position(demo.cohort_risks, case.log_risk,
+                                    f"{ordinal(case.percentile)} percentile").to_dict()
+    # in the report's narrow risk column: a shorter chart, its axis title in a word (the
+    # caption says which way is worse)
+    position["height"], position["layer"][0]["encoding"]["x"]["title"] = 150, "predicted log-risk"
+    return position, charts.contributions(named).to_dict(), named
 
 
 def case_why(case):
+    """Why the model ranks this patient where it does: each data layer's effect, then the
+    patient among the cohort; stacked, so each chart keeps the column's width for its axes."""
     position, drivers, named = case_charts(case.index, SOURCE)
-    with st.container(horizontal=True, gap="medium", key="case-why"):  # wraps when narrow
-        left, right = (st.container(width=CHART_WIDTH) for _ in range(2))
-    with left:
-        # not "Where this patient sits", the cohort lookup's heading above (QA R3-5)
-        st.markdown(f"**This patient's risk among all {len(demo.cohort_risks):,} patients** "
-                    f"{tags(INFERENCE)}")
-        st.vega_lite_chart(spec=position, width="stretch",
-                           alt=f"This patient's predicted risk against all "
-                               f"{len(demo.cohort_risks):,} patients: the "
-                               f"{ordinal(case.percentile)} percentile")
-    with right:
-        st.markdown(f"**What drives this patient's risk** {tags(INFERENCE)}")
-        st.vega_lite_chart(spec=drivers, width="stretch",
-                           alt="Each data layer's effect on this patient's predicted log-risk: "
-                               + ", ".join(f"{k} {v:+.2f}" for k, v in named.items()))
-        st.caption("Each layer's effect on this patient's predicted log-risk, compared with its "
-                   "effect on a typical patient in the cohort.")
+    st.markdown(f"**What drives this patient's risk** {tags(INFERENCE)}")
+    st.vega_lite_chart(spec=drivers, width="stretch",
+                       alt="Each data layer's effect on this patient's predicted log-risk: "
+                           + ", ".join(f"{k} {v:+.2f}" for k, v in named.items()))
+    st.caption("Each layer's effect on this patient's predicted log-risk, compared with its "
+               "effect on a typical patient in the cohort.")
+    # not "Where this patient sits", the cohort lookup's heading below (QA R3-5)
+    st.markdown(f"**This patient's risk among all {len(demo.cohort_risks):,} patients** "
+                f"{tags(INFERENCE)}")
+    st.vega_lite_chart(spec=position, width="stretch",
+                       alt=f"This patient's predicted risk against all "
+                           f"{len(demo.cohort_risks):,} patients: the "
+                           f"{ordinal(case.percentile)} percentile")
+    st.caption("Every patient's predicted log-risk; higher means shorter expected survival. The "
+               "line is this patient.")
 
     with st.expander(f"Try hiding a data layer ({len(case.layers)} here): what if one were "
                      "missing?"):
@@ -1401,27 +1656,6 @@ def case_why(case):
                       delta_color="inverse", width="content")
 
 
-def civic_block(pf: workspace.PatientFile, variant: str, k: int | None = None):
-    items = civic_items(pf, variant)
-    with st.container(border=True):
-        st.markdown(f"**{esc(variant)}** · CIViC treatment evidence, for clinician review "
-                    f"{tags(HYPOTHESIS)}")
-        if items is None:
-            st.caption("The CIViC table could not be loaded here.")
-        elif not items:
-            st.caption("No CIViC breast cancer evidence for this variant.")
-        for e in (items or [])[:k]:
-            text, box = line_and_action()
-            text.markdown(f"- Level **{e['evidence_level']}** ({e['level_meaning']}) · "
-                          f"{e['therapies'].replace(',', ', ')} · "
-                          f"{str(e['significance']).lower()} · matches "
-                          f"{e.get('match', 'this variant')} · [{e['citation']}]({e['url']})")
-            with box:
-                review_box(workspace.finding_key(pf, "civic", variant, e["url"]),
-                           f"{variant}: CIViC level {e['evidence_level']}, "
-                           f"{e['therapies'].replace(',', ', ')} ({e['citation']})")
-
-
 def sources(pf: workspace.PatientFile) -> list[str]:
     if pf.kind == "synthetic":
         return [pf.model["note"],
@@ -1440,19 +1674,25 @@ def case_note(case):
     st.subheader("Tumor-board note")
     saved = demo.notes.get(case.index)
     can_live = LIVE and st.session_state.live_used < CAP
-    b1 = b2 = st.container(horizontal=True, gap="small")
-    write = b1.button("Write the note with Nemotron", disabled=not can_live,
-                      help="Nemotron plans the tool calls and writes the note from this case's "
-                           "derived numbers; a grounding check verifies it" if can_live else (
-                          "Live notes are not set up on this server." if not LIVE
-                          else "This session's live notes are used up."))
-    show_saved = b2.button("Show the saved note", disabled=saved is None,
-                           help="No saved note for this case" if saved is None else
-                           "The tumor-board note saved for this case (★ in the patient list)")
-    if not can_live:
-        st.caption("Live notes are off here; ★ patients have a saved case note."
-                   if saved is None or not LIVE else
-                   "This session's live notes are used up; showing saved notes.")
+    spent = spend()
+    # the case-note service's state where a note is asked for: no button that can't work
+    st.caption(f"{model_name(DEFAULT_MODEL)} plans and {model_name(WRITER_MODEL)} writes on "
+               "Nebius Token Factory, from this case's derived numbers only · "
+               + (f"live notes left this session: {CAP - st.session_state.live_used} of {CAP}"
+                  if LIVE else "live notes are off on this server (no key)")
+               + ("" if spent is None else f" · every call is held to a hard \\${spent[1]:.2f} "
+                                           f"cap, \\${spent[0]:.2f} spent on this server")
+               + " · " + ("a saved note exists for this case." if saved else
+                          "no saved note for this case; ★ files in the list have one."))
+    row = st.container(horizontal=True, gap="small")
+    write = LIVE and row.button(
+        "Write the note with Nemotron", disabled=not can_live,
+        help="Nemotron plans the tool calls and writes the note from this case's derived "
+             "numbers; a grounding check verifies it" if can_live else
+             "This session's live notes are used up.")
+    show_saved = saved is not None and row.button(
+        "Show the saved note", help="The tumor-board note saved for this case (★ in the "
+                                    "patient list)")
 
     if write:
         with st.status("Nemotron is working on the case…", expanded=True) as status:
@@ -1766,7 +2006,8 @@ def methods():
         back_to_file()
         st.space("stretch")
         guide.help_icon("methods")
-    safely("The Methods and validation page", methods_page.render, demo, TL, results())
+    safely("The Methods and validation page", methods_page.render, demo, TL, results(),
+           service={"spent": spend(), "notes": CAP, "live": LIVE})
 
 
 # --- Feedback: the review marks as a ledger (app/feedback_page.py, muffle.feedback) ------------
@@ -1804,10 +2045,7 @@ FEEDBACK = st.Page(feedback_view, title="Feedback", icon="🗳️", url_path="fe
 nav.PAGES.update(methods=METHODS, feedback=FEEDBACK)  # the workbench cards link Methods
 st.navigation([PATIENTS, METHODS, FEEDBACK]).run()
 
-if LIVE:
-    notes_left = max(0, CAP - st.session_state.live_used)
-    budget_slot.progress(notes_left / CAP if CAP else 0,
-                         text=f"Live notes left this session: {notes_left} of {CAP}")
+system_status(status_slot)
 session_marks(marks_slot)
 
 # scipy (the slide maths, the omics immune picture) is not needed for the first screen: it loads

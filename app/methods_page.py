@@ -21,6 +21,8 @@ from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
 from muffle import cohort, crosstest, feedback, workspace
+from muffle.overview import IMPACT_COLORS, LEVEL_COLORS
+from muffle.report import budget
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.report.nemotron import DEFAULT_MODEL, WRITER_MODEL, model_name
 from muffle.timeline import CTDNA
@@ -64,7 +66,7 @@ CONTENTS = {
                "Breast density, second opinion (MONAI, mammography)",
                "Screening score (mammoscreen, mammography)",
                "Radiology: report reading, seed and kinetics rules",
-               "Expression, methylation and protein scores", "Case note"],
+               "Expression, methylation and protein scores", "Case note", "Case note service"],
     "Rules": ["SOS alerts and their order", "Lab result rules", "ctDNA monitor rules",
               "Slide geometry, invasion and breakaway rules",
               "Genomics: detection, interpretation and evidence",
@@ -93,6 +95,27 @@ def contents() -> None:
                                      if not cards))
 
 
+def legend() -> None:
+    """How the app colours a finding: one key for the report, the workbenches and this page.
+    Colour is never the only signal: every chip carries its word."""
+    with st.container(border=True, key="methods-legend"):
+        st.markdown("**Colour code**  \n"
+                    f"Evidence: {chip(OBSERVED)} {chip(INFERENCE)} {chip(HYPOTHESIS)} · "
+                    f"module: {chip(workspace.IMPLEMENTED)} {chip(workspace.VALIDATED)} "
+                    f"{chip(workspace.PLANNED)} · a value nobody has validated: "
+                    f"{chip('placeholder')}, always orange  \n"
+                    f"Trust: {chip('trust: strong', 'green')} {chip('trust: moderate', 'orange')} "
+                    f"{chip('trust: weak', 'red')} · open alerts: {chip('SOS', 'red')}  \n"
+                    "CIViC evidence level: " + " ".join(chip(k, v) for k, v in
+                                                        LEVEL_COLORS.items())
+                    + f" {chip('no CIViC item')} (A validated … E inferential)  \n"
+                    "Variant severity, Ensembl VEP's consequence table: " + " ".join(
+                        chip(k.lower(), v) for k, v in IMPACT_COLORS.items())
+                    + "  \nRisk: in a chart, red raises it and blue lowers it; a number's change, "
+                      "red up and green down. Variants, pointers, ids and amounts are set in "
+                      "monospace.")
+
+
 def records() -> list[dict]:
     """This session's review marks as the feedback ledger (muffle.feedback)."""
     return feedback.ledger(st.session_state.get("reviews", {}))
@@ -105,7 +128,9 @@ def reviewed(heading: str) -> None:
                + ". Marks stay in this browser session; nothing is trained on them (Feedback).")
 
 
-def render(demo, tl: dict | None, res: dict | None) -> None:
+def render(demo, tl: dict | None, res: dict | None, service: dict | None = None) -> None:
+    """``service``: the case-note service as this server runs it ("spent": the ledger's (spent,
+    cap, calls) or None when unreadable, "notes": live notes per browser session, "live")."""
     st.title("Methods and validation")
     st.markdown(
         "How each result in a patient file is produced, how well it holds up, what it gets wrong "
@@ -117,6 +142,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
         f"{chip('placeholder')} is a value nobody has validated yet.")
     st.caption(workspace.DISCLAIMER)
     contents()
+    legend()
 
     st.header("Models")
     survival_card(demo, res)
@@ -131,6 +157,7 @@ def render(demo, tl: dict | None, res: dict | None) -> None:
     omics.methods_card()
     reviewed(feedback.OMICS)
     case_note_card(demo)
+    case_note_service_card(service or {})
 
     st.header("Rules")
     alert_card()
@@ -337,6 +364,43 @@ def case_note_card(demo) -> None:
 """)
 
 
+def case_note_service_card(service: dict) -> None:
+    """The case-note service as this server runs it: the hard cap on the language-model calls,
+    the spend on this server's ledger, the live notes a browser session may write, the prices
+    the gate reserves at, and how a call is refused."""
+    card("Case note service", workspace.IMPLEMENTED,
+         "a hard spending cap and a per-session limit on every live tumor-board note")
+    spent, notes = service.get("spent"), service.get("notes")
+    # a static table: its notes wrap (a dataframe cut them at 1280 px)
+    st.table(pd.DataFrame([
+        ("Hard cap", f"${budget.HARD_CAP_USD:.2f}", "in the app's code; a server setting can lower "
+         "it, never raise it"),
+        ("Cap on this server", "ledger unreadable" if spent is None else f"${spent[1]:.2f}",
+         "the lower of the hard cap and this server's setting"),
+        ("Spent on this server", "ledger unreadable" if spent is None else
+         f"${spent[0]:.2f} in {spent[2]} calls", "this server's own ledger; other machines' spend "
+         "is checked against the provider's usage console"),
+        ("Live notes per browser session", "none" if not service.get("live") else str(notes),
+         "then the saved notes only" if service.get("live") else
+         "no key on this server: the saved notes only"),
+    ], columns=["What", "Now", "Note"]).set_index("What"))
+    st.markdown(
+        "**How a call is refused.** Before every request the gate reserves its worst case: "
+        "every two characters of the prompt and tools counted as a token, plus the full output "
+        "allowance, at the model's price (" + "; ".join(
+            f"{model_name(m)} \\${p_in:.2f} in, \\${p_out:.2f} out per million tokens"
+            for m, (p_in, p_out) in budget.PRICES_PER_M.items())
+        + "; any other model at a deliberately high price). If the spend so far plus that "
+        "reservation would pass the cap, the request is never sent, and the note is written by "
+        "a template from the same tools, which says so. After a reply the reservation is "
+        "swapped for the reply's real cost; a refused request costs nothing, and after a "
+        "timeout the reservation stays charged, since the model may have run. A file lock "
+        "keeps two processes from reserving the last of the cap, and a ledger that can't be "
+        "read refuses every call.")
+    st.caption("Prices as listed by price trackers on 2026-10-18; the provider's price page "
+               "needs a login.")
+
+
 # --- rules ------------------------------------------------------------------------------------
 
 def cohort_card() -> None:
@@ -462,32 +526,28 @@ def genomics_card() -> None:
 # --- federation, sources ----------------------------------------------------------------------
 
 def federation(demo) -> None:
+    """The federated training as a status table: each simulated site's patients, deaths,
+    held-out patients and C-index, and the share of its patients with each data layer."""
     st.header("Federated training across simulated hospitals")
-    left, right = st.columns([2, 3])
-    with left:
-        dot = ["digraph { rankdir=LR; bgcolor=transparent; size=\"5,3\"; node [shape=box, "
-               "style=rounded, fontname=Helvetica, fontsize=11]; edge [fontname=Helvetica, "
-               "fontsize=9];",
-               'server [label="NVIDIA FLARE server\\nFedAvg", shape=box, style="rounded,bold"];']
-        for s in demo.sites:
-            dot.append(f'"{s.name}" [label="{s.name} (simulated)\\n{s.patients} patients\\n'
-                       f'data stays here"];')
-            dot.append(f'"{s.name}" -> server [label="weights", dir=both];')
-        st.graphviz_chart("\n".join(dot) + "}", width="content")
-    with right:
-        table = pd.DataFrame([{
-            "Hospital": s.name, "Patients": s.patients, "Deaths": s.deaths,
-            "Held out": s.heldout,
-            **{LAYER_NAMES.get(m, m): 100 * s.coverage[m] for m in demo.model.names
-               if m != "clinical"},
-        } for s in demo.sites])
-        st.dataframe(table, hide_index=True, column_config={
-            LAYER_NAMES.get(m, m): st.column_config.ProgressColumn(
-                LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
-            for m in demo.model.names if m != "clinical"})
-        st.caption("Bars: share of each hospital's patients with that data layer. The hospitals "
-                   "are simulated: TCGA tissue source sites grouped into three clients of the "
-                   "NVFlare simulator, so the data gaps are real but no real site took part.")
+    st.markdown(f"FedAvg on NVIDIA FLARE's simulator: each of {len(demo.sites)} simulated "
+                "hospitals trains on its own patients and sends only model weights to the "
+                "server, which averages them each round; no patient data leaves a site.")
+    table = pd.DataFrame([{
+        "Site (simulated)": s.name, "Patients": s.patients, "Deaths": s.deaths,
+        "Held out": s.heldout, "Held-out C-index": demo.c_index_by_site.get(s.name),
+        **{LAYER_NAMES.get(m, m): 100 * s.coverage[m] for m in demo.model.names
+           if m != "clinical"},
+    } for s in demo.sites])
+    st.dataframe(table, hide_index=True, width="stretch", column_config={
+        "Held-out C-index": st.column_config.NumberColumn(format="%.3f"),
+        **{LAYER_NAMES.get(m, m): st.column_config.ProgressColumn(
+            LAYER_NAMES.get(m, m), format="%.0f%%", min_value=0, max_value=100, width="small")
+           for m in demo.model.names if m != "clinical"}})
+    st.caption(f"Held-out C-index: each site's validation patients, never trained on; the "
+               f"files' {demo.c_index:.3f} is their mean. Bars: the share of each site's "
+               "patients with that data layer. The hospitals are simulated: TCGA tissue source "
+               "sites grouped into three clients of the NVFlare simulator, so the data gaps are "
+               "real but no real site took part.")
 
 
 SOURCES = [  # docs/registry.md: (source, used for, license or terms)
