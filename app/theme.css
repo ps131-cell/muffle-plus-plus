@@ -105,10 +105,10 @@
    headers, values in monospace without the code tint, chips as everywhere -------------------- */
 [data-testid="stTable"] table { font-size: 0.8125rem; border-collapse: collapse; width: 100%; }
 /* a long list scrolls inside its box like the grid (the header stays); a wide one wraps inside
-   its box instead of scrolling sideways or cutting a cell: sentences wrap between words, a long
-   token (a DOI, a chain of units) at its slashes and dots (_page._breakable), links wherever
-   they must. A number or a code never breaks inside: split over two lines it reads as two. The
-   page never scrolls sideways. */
+   its box instead of cutting a cell: sentences between words, a long token (a DOI, a chain of
+   units, a list of drugs) at its slashes, dots and commas (_page._breakable), links wherever
+   they must. Nothing else breaks inside a word: a number split over two lines reads as two.
+   The page never scrolls sideways. */
 [data-testid="stTable"] > div { max-height: 28rem; overflow-y: auto; overflow-x: auto; }
 /* Streamlit's Markdown container in each cell sets overflow-wrap back to normal and its chips to
    nowrap: the rules go on the container, its paragraphs and the chips themselves */
@@ -156,8 +156,8 @@
   [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
   [data-testid="stTable"] thead th { padding-left: 0.25rem; padding-right: 0.25rem; }
   [data-testid="stTable"] thead th { font-size: 0.625rem; letter-spacing: 0.01em; z-index: 2; }
-  [data-testid="stTable"]:has(thead th:nth-child(9)) thead th { font-size: 0.5625rem; }
-  [data-testid="stTable"]:has(thead th:nth-child(9)) :is(tbody td, tbody th, thead th) {
+  [data-testid="stTable"]:has(thead th:nth-child(8)) thead th { font-size: 0.5625rem; }
+  [data-testid="stTable"]:has(thead th:nth-child(8)) :is(tbody td, tbody th, thead th) {
     padding-left: 0.1875rem; padding-right: 0.1875rem;
   }
   [data-testid="stTable"] tr > :first-child {
@@ -167,8 +167,10 @@
   /* a shadow at the edge that has more to scroll to (the covers move with the content) */
   [data-testid="stTable"] > div {
     background:
-      linear-gradient(to left, #ffffff 40%, rgba(255, 255, 255, 0)) right / 1.5rem 100% no-repeat local,
-      linear-gradient(to left, rgba(14, 17, 23, 0.14), rgba(14, 17, 23, 0)) right / 0.5rem 100% no-repeat scroll;
+      linear-gradient(to left, #ffffff 40%, rgba(255, 255, 255, 0))
+        right / 1.5rem 100% no-repeat local,
+      linear-gradient(to left, rgba(14, 17, 23, 0.14), rgba(14, 17, 23, 0))
+        right / 0.5rem 100% no-repeat scroll;
   }
 }
 
