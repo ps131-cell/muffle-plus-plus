@@ -446,3 +446,24 @@ def test_the_export_keeps_variant_names_out_of_italics():
     assert r"TP53 R196\*" in page and r"RUNX1 D96Gfs\*15" in page
     assert "R196*" not in page and "Gfs*15" not in page  # every occurrence escaped
     assert "**Key drivers**" in page  # meant emphasis stays
+
+
+def test_the_report_driver_column_reads_each_variant_once_with_its_severity():
+    """The report's driver column (app: the cockpit): a variant found again by a later test is
+    listed once (QA R3-16: twice drew the same review keys), and its consequence maps to Ensembl
+    VEP's severity (HIGH, MODERATE, LOW, else MODIFIER; None when not looked up)."""
+    from muffle.imports import sequencing_test
+
+    pf = synthetic()
+    again = sequencing_test([{"variant": "PIK3CA H1047R", "allele_fraction": "not read"},
+                             {"variant": "ESR1 Y537S", "allele_fraction": "not read"}],
+                            {"format": "MAF", "sample": "plasma"}, 27, "x.maf", [], "test")
+    pf = add_version(pf, [again], 27, "Imported sequencing", "AB", "14:10")
+    vs, reads = overview.drivers(pf, len(pf.versions) - 1)
+    assert [v["variant"] for v in vs] == ["PIK3CA H1047R", "ESR1 Y537S"] and reads == {}
+    assert [v["variant"] for v in overview.drivers(pf, 0)[0]] == []  # before the sequencing
+    terms = ("frameshift_variant", "missense_variant", "synonymous_variant", "intron_variant")
+    assert [overview.vep_impact({"found": True, "annotation": {"consequence": c}})
+            for c in terms] == ["HIGH", "MODERATE", "LOW", "MODIFIER"]
+    assert overview.vep_impact({"found": False}) is None
+    assert set(overview.LEVEL_COLORS) == set("ABCDE")  # every CIViC level has its colour
