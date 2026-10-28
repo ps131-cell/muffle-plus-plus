@@ -13,6 +13,7 @@ from __future__ import annotations
 from muffle import crosstest
 from muffle.report.case_tools import INFERENCE, OBSERVED
 from muffle.timeline import CTDNA
+from muffle.version_diff import risk_delta
 from muffle.workbench import documents
 from muffle.workbench.grammar import esc
 from muffle.workspace import PatientFile, Test
@@ -68,7 +69,9 @@ def lanes(pf: PatientFile) -> dict:
     """The event chart's data: {"points", "spans", "lanes" (in use, in LANES order), "empty"
     (lanes with no entry), "axis"}. A point is a report version, a test, a treatment start or an
     SOS alert, with its ``version`` (the index a click opens), where it comes from and its
-    evidence label; tests of one version on one lane and month share a point."""
+    evidence label; tests of one version on one lane and month share a point. A version's point
+    also carries its risk ``shift`` since the version before (``muffle.version_diff.SHIFTS``),
+    that move in words (``delta``) and whether it is the ``latest``."""
     docs = {d["doc"]: d for d in documents.timeline(documents.file_documents(pf))}
     points, shared, seen = [], {}, {}
     for k, v in enumerate(pf.versions):
@@ -79,10 +82,14 @@ def lanes(pf: PatientFile) -> dict:
         tone = "imported in this session" if v.imported else "from the record"
         base = {"version": k, "version_label": v.label, "entry": v.event, "source": source,
                 "tone": tone}
+        r = risk_delta(pf, k - 1, k) if k else None
         points.append({**base, "lane": VERSIONS, "month": m, "x": m + dodge, "mark": "version",
-                       "what": v.label, "result": v.summary,
+                       "what": f"v{k + 1} · {v.label}", "result": v.summary,
                        "when": "the tumor sample" if v.month is None else f"month {m}",
-                       "evidence": OBSERVED + (f"; {INFERENCE} (risk)" if v.risk else "")})
+                       "evidence": OBSERVED + (f"; {INFERENCE} (risk)" if v.risk else ""),
+                       "shift": "none" if r is None else r["shift"],
+                       "delta": "the first version" if r is None else r["text"],
+                       "latest": k == len(pf.versions) - 1})
         for t in v.tests:
             at = (lane(t, bool(v.imported)), _m(t.month), k)
             dates = docs.get(t.details.get("document"), {}).get("dates_in_text")

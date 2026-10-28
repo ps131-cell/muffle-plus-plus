@@ -152,7 +152,7 @@ def test_a_dated_test_opens_on_its_own_value(app):
     keys = []
     for n in range(4):  # the Timeline's tests added in this version: open each until the lab's
         tl.segmented_control(key="view").set_value("Timeline").run()
-        keys = [b.key for b in tl.button if (b.key or "").startswith(f"new-{SYN}-{i}-t")]
+        keys = [b.key for b in tl.button if (b.key or "").startswith(f"dv-{SYN}-{i - 1}-{i}-t")]
         if n >= len(keys):
             break
         tl.button(key=keys[n]).click().run()
@@ -231,9 +231,11 @@ def test_the_files_action_row(app):
     assert f"**Next step:** {n} items need a look" in shown(at) and not at.exception
     at.button(key="act-import").click().run()
     assert at.segmented_control(key="view").value == "Import tests" and not at.exception
-    at.button(key="act-compare").click().run()
+    at.button(key="act-compare").click().run()  # the latest against the one before
     assert at.segmented_control(key="view").value == "Timeline"
     assert "Compare two versions" in shown(at) and not at.exception
+    last = len(at.select_slider(key=f"version-{SYN}").options) - 1
+    assert at.select_slider(key=f"diff-{SYN}-{last}-{last + 1}").value == (last - 1, last)
     at.button(key="act-queue").click().run()
     assert at.segmented_control(key="view").value == "Report" and at.session_state[queue] == 0
     at.button(key=f"reviewed-{queue}").click().run()  # the first item marked: the queue moves on
