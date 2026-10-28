@@ -366,8 +366,8 @@ def planned_infrared() -> None:
         st.markdown(f"- **{m['name']}** {chip(m['status'])}: {m['what']}. "
                     + "; ".join(m["citations"]) + ".")
     st.caption(
-        "Each model card above carries an evidence category, adapted from Bhargava 2023 ("
-        + literature.cite("bhargava2023") + "): " + "; ".join(
+        "Each model card above carries an evidence category, adapted from "
+        + literature.cite("bhargava2023") + ": " + "; ".join(
             f"{k} {v}" for k, v in literature.CATEGORIES.items())
         + "; each asks for more proof than the last. Its EASSI-H line (the review's reporting "
         "guidelines) gives the data, n, split and external validation behind it.")
