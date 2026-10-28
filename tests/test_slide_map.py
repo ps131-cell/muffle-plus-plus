@@ -245,5 +245,6 @@ def test_the_slide_page_speaks_plainly_and_its_spot_panel_wraps(idx):
     if meta["scored"].get("skipped_tiles"):  # Case 563: 10,712 tiles outside its window
         assert f"{meta['scored']['skipped_tiles']} tissue tiles outside the scored window were " \
                "not scored" in text
-    assert "Zoom to the cells" in [b.label for b in at.button]
+    if (ROOT / "app" / "static" / "slides").is_dir():  # the viewer's pyramids (not in CI)
+        assert "Zoom to the cells" in [b.label for b in at.button]
     assert not in_columns(at), in_columns(at)
