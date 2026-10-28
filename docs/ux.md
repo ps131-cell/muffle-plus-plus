@@ -195,9 +195,9 @@ bound to the address would put the icon into `?view` and break every link. An ad
   names ("finding_key", "pf", "FINDING_KINDS"), no "version index". Provenance stays: data
   source, method, model and version, in words ("precomputed offline from the open-access
   files", "Ensembl VEP, offline").
-- **The report's cards** are one width (220 px since 2026-10-27, 240 before) and wrap: three a
-  row at 800 px with the sidebar collapsed, two with it open (Streamlit keeps the sidebar open
-  at 800 px, which leaves the page about 470 px), three at 1280 px. A card shows at most about
+- **The report's cards** are one width (220 px since 2026-10-27, 240 before) and wrap: two a
+  row at 800 px with the sidebar open (Streamlit keeps the sidebar open at 800 px, which leaves
+  the page about 470 px), four at 1280 px since 2026-10-28, each row filling the page (§8). A card shows at most about
   150 characters and ends in " …"; "more" opens the full text. Since 2026-10-27 a card ends in
   a full-width **Open** naming where it lands ("Open ·
   Sequencing, month 0", "Open · Timeline"), under its **Why?**; a workbench with nothing to
@@ -222,10 +222,13 @@ bound to the address would put the icon into `?view` and break every link. An ad
 ## 5. Sidebar and Patients page
 
 - **Sidebar:** the product name and the line "Research and decision support for clinicians;
-  not a diagnosis or a prescription"; **About this system** (collapsed: the model and its
-  held-out C-index, the case agent, the treatment evidence, the literature search; these are
-  provenance and stay); **Session**: the reviewer's initials, the live notes left, and this
-  session's review marks and pins with "Download this session's marks (CSV)".
+  not a diagnosis or a prescription"; **About this system**, open, a read-only status table
+  since 2026-10-28 (§8): the risk model and its release, the held-out C-index and each
+  simulated site's, the case agent (live or saved notes only), planner and writer, the
+  case-note spend on this server's ledger against the hard cap (with a bar), the live notes
+  left this session, the treatment evidence, the literature search, the code's version;
+  **Session**: the reviewer's initials and this session's review marks and pins with
+  "Download this session's marks (CSV)".
 - **Patients page:** one line ("Your patient files. Open one to see its latest report, its
   tests in their workbenches and how the report changed over time."), search and filters as
   before, **Sort by** last update (an import of this session, then the record's latest month),
@@ -317,6 +320,54 @@ What changed:
 - **Keyboard triage**: the attention queue's buttons come in tab order (previous, next, pin,
   mark reviewed, unsure list, open), each says its key on hover (j, k, p, m, u, o), and the
   guide's Keys tab lists them.
+
+## 8. Type, density and the report's cockpit (2026-10-28)
+
+The two-pass audit behind this section is `docs/ux-audit.md`.
+
+- **Type.** IBM Plex Sans for text and IBM Plex Mono for what a reader matches character by
+  character: variants (`PIK3CA H1047R`), pointers (`L4`), evidence item ids (`EID7318`), metric
+  values, amounts and the status table's values (SIL OFL 1.1, served from `app/static/fonts`;
+  the browser's sans-serif and monospace if a file fails). A 15 px base; headings 1.75, 1.375
+  and 1.125 rem; a workbench part's heading (Overview, Details, Spot panel …) is a small
+  capital label over a hairline. Inline code is near-black on light grey: Streamlit's default
+  green read as "normal".
+- **Density.** 1.5 rem side gutters and a small gap under the toolbar (not 5 and 6 rem); 30 px
+  buttons (28 px in the file's action row) with 4 px corners; compact chips, metric tiles, tabs, expanders and alerts. The
+  file's action row is quiet (grey, no border until hover): one line and a half at 1280 px,
+  three lines at 800 px (four before). The report's cards and the Tests launcher's tiles keep
+  their 220 px minimum and fill the row (four a row at 1280 px, two at 800 px).
+- **The cockpit.** Under the summary and the cards (the SOS tile first), three columns side by
+  side at 1280 px and stacked at 800 px (`app/theme.css` grids keyed containers; without the
+  sheet they are 300 px columns that wrap):
+  - **Risk model** (model inference): the estimate and its uncertainty as metric tiles, then
+    why: each data layer's effect and the patient among the cohort (a TCGA file), or what
+    changed since the last version as signed chips, red raising the risk and blue lowering it
+    (the synthetic patient). Its heading's hover: source data, method, release, validation
+    (each simulated site's held-out C-index), endpoint. Review mark beside it.
+  - **Driver mutations · CIViC**: each observed variant once, in monospace, with its
+    consequence severity (Ensembl VEP's table: high red, moderate orange, low and modifier
+    grey), its allele fraction and reads where the build's read counts belong to the file, its
+    strongest CIViC level (A–B green, C–E orange, none grey), the five-rung evidence ladder
+    (detected, interpreted, effect, therapy, resistance; a rung is coloured by its evidence
+    label when present, grey when not; every rung's lines and what would strengthen it on
+    hover), up to three CIViC items with their level, therapies, significance, citation link
+    and evidence item id (hover: the item's level, direction, profile, match, disease), each
+    with its review mark; **Open** lands on the variant in the genomics workbench.
+  - **What to look at next**: the attention queue's four strongest unmarked items (reason and
+    threshold on hover, **Open** at each), what to watch next (Evolution; the test that would
+    detect each on hover; **Open the Evolution view**), what would reduce uncertainty
+    (expectation and source on hover). The whole queue, with its keys, follows the cockpit.
+- **The record** (observed: characterization, areas of risk, missing data and what it limits)
+  sits in two columns under the cohort lookups; the tests that disagree, the caveats, the
+  export and the tumor-board note follow as before.
+- **The case-note service** is on screen where it acts: the tumor-board note says who plans and
+  writes, the live notes left, the hard cap and this server's spend, and shows only the buttons
+  that can work (no disabled "Write" without a key, no "Show the saved note" without one);
+  Methods has a **Case note service** card (cap, spend, prices, how the gate refuses a call).
+- **Colour code**, one key on the Methods page under its contents: evidence labels, module
+  status, placeholder (always orange), trust, SOS, CIViC levels, variant severity, risk change.
+  Colour is never the only signal: every chip keeps its word.
 
 ## How it is tested
 
