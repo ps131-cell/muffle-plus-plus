@@ -76,12 +76,11 @@ from muffle.workspace import MARKS as WORKSPACE_MARKS  # noqa: E402
 from muffle.workbench.grammar import chip, count_label  # noqa: E402
 from workbenches import imports  # noqa: E402
 from workbenches._howto import how_to, instruct, pin_toggle  # noqa: E402
-from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
+from workbenches._page import Page, empty, land, line_and_action, queue_items, table  # noqa: E402
 
 BLUE, ORANGE, RED, GRAY = "#2a78d6", "#eb6834", "#e34948", "#8a8f98"
 COLORS = {WITHIN: BLUE, ABOVE: RED, BELOW: RED, RISING: ORANGE, FALLING: BLUE,
           LARGE_RISE: ORANGE, LARGE_FALL: ORANGE}  # by the first flag of a value
-GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
 PLACEHOLDER_CHIP, LITERATURE_CHIP = "placeholder threshold", "literature threshold"
 INFERENCE_CHIP, PLACEHOLDER_METHOD_CHIP = "model inference", "placeholder method"
 REFERENCE_LAB_CHIP, HYPOTHESIS_CHIP = "reference-laboratory interval", "hypothesis"
@@ -166,6 +165,7 @@ def trend(rows: list[dict], intervals: list[dict], band: dict | None, kin: dict,
     tip = [alt.Tooltip("pointer:N", title="pointer"), alt.Tooltip("month:Q", title="month"),
            alt.Tooltip("value_text:N", title="value"), alt.Tooltip("flag:N", title="flag"),
            alt.Tooltip("reference:N", title="reference"),
+           alt.Tooltip("reference_source:N", title="reference from"),
            alt.Tooltip("change_text:N", title="change from previous"),
            alt.Tooltip("nadir_text:N", title="change from nadir"),
            alt.Tooltip("rate_text:N", title="rate"),
@@ -252,7 +252,7 @@ def trend(rows: list[dict], intervals: list[dict], band: dict | None, kin: dict,
         tooltip=tip).add_params(alt.selection_point(name="pick", fields=["month"], on="click")))
     layers.append(base.mark_text(dy=-13, fontSize=10, fontWeight="bold").encode(
         text="pointer:N"))
-    return alt.layer(*layers).properties(height=300).configure_axis(**GRID)
+    return alt.layer(*layers).properties(height=300)
 
 
 def trend_alt(series: list[dict]) -> str:
@@ -327,10 +327,11 @@ def render(file: PatientFile, events: list[dict] | None = None,
         page.title(IMPLEMENTED)
         st.caption(PROVENANCE)
         with page.overview():
-            st.info("No lab results in this file: TCGA-BRCA holds one tumor sample per patient "
-                    "and no blood panels, so there is no series to trend. A lab results file "
-                    "(CSV) brought in through **Import tests** would open this workbench; the "
-                    "synthetic patient's file shows what it does with a series.", icon="🧪")
+            empty("No lab results in this file: TCGA-BRCA holds one tumor sample per patient "
+                  "and no blood panels, so there is no series to trend. A lab results file "
+                  "(CSV) brought in through **Import tests** would open this workbench; the "
+                  "synthetic patient's file shows what it does with a series.",
+                  icon=":material/science:")
         _planned(page)
         _card(page)
         with page.cannot_see(CANNOT_SEE_LABS):
@@ -440,8 +441,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
             hit = search(query, rows, intervals)
             (st.markdown if hit["understood"] else st.warning)(hit["answer"])
             if hit["rows"]:
-                st.dataframe(_table(hit["rows"], reviews, file), hide_index=True,
-                             width="stretch")
+                table(_table(hit["rows"], reviews, file))
 
     # the picture: one trend per analyte, by panel, hover for brief stats
     with page.picture("Trends", caption=(
@@ -526,26 +526,20 @@ def render(file: PatientFile, events: list[dict] | None = None,
         st.caption("A 25% rise of a tumor marker is unconfirmed until a second specimen within a "
                    "month confirms it. Each flagged rise, with the month its confirming specimen "
                    "was due by and what the next value did.")
-        if tracker:
-            st.dataframe(pd.DataFrame(tracker)[["pointer", "marker", "month", "value",
-                                                "previous", "due_by", "outcome", "detail",
-                                                "evidence", "status"]],
-                         hide_index=True, width="stretch")
-        else:
-            st.caption("No flagged rise in the results shown.")
+        table(pd.DataFrame(tracker, columns=["pointer", "marker", "month", "value", "previous",
+                                             "due_by", "outcome", "detail", "evidence",
+                                             "status"]),
+              empty="No flagged rise in the results shown.")
     with page.details("Early after a therapy change", len(windows)):
         chips(IMPLEMENTED, LITERATURE_CHIP, PLACEHOLDER_CHIP)
         source = windows[0]["source"] if windows else "see the Model and validation card"
         st.caption(f"Tumor-marker values within {FLARE_MONTHS} months of a new systemic therapy. "
                    "A transient marker surge in the first weeks of effective therapy is in the "
                    f"literature; the window length is a placeholder. Source: {source}.")
-        if windows:
-            st.dataframe(pd.DataFrame(windows)[["pointer", "marker", "month", "value",
-                                                "therapy", "started", "months_after", "note",
-                                                "window"]],
-                         hide_index=True, width="stretch")
-        else:
-            st.caption("No value falls in a caution window.")
+        table(pd.DataFrame(windows, columns=["pointer", "marker", "month", "value", "therapy",
+                                             "started", "months_after", "note", "window",
+                                             "evidence"]),
+              chips=("window",), empty="No value falls in a caution window.")
     moving = [k for k in kin.values() if "rate_per_month" in k]
     with page.details("Marker kinetics", len(moving)):
         chips(IMPLEMENTED, INFERENCE_CHIP, PLACEHOLDER_METHOD_CHIP)
@@ -618,16 +612,13 @@ def render(file: PatientFile, events: list[dict] | None = None,
         st.caption(f"{a} and {b}, each against its own limit; at every month both were "
                    f"measured, a concordant rise, a discordant one, or neither. "
                    f"{cap(cross['caveat'])}.")
-        if cross["pairs"]:
-            st.dataframe(pd.DataFrame(cross["pairs"]), hide_index=True, width="stretch")
-        else:
-            st.caption(f"{cap(cross['note'])}.")
+        table(cross["pairs"], empty=cross["note"] and f"{cap(cross['note'])}.")
     failing = sum(not c["ok"] for c in checks)
     with page.details("Quality checks", f"{failing} failing of {len(checks)}"):
         chips(IMPLEMENTED, PLACEHOLDER_CHIP)
         qc = pd.DataFrame(checks)
         qc.insert(0, "result", qc.pop("ok").map({True: "pass", False: "issue"}))
-        st.dataframe(qc, hide_index=True, width="stretch")
+        table(qc)
     _planned(page)
 
     # Spot panel: one value in full, with the review mark
@@ -673,7 +664,7 @@ def render(file: PatientFile, events: list[dict] | None = None,
         st.markdown("**Check by eye before reading anything into it:**\n"
                     + "\n".join(f"- {c}" for c in s["check_by_eye"]))
         st.caption(f"Full {r['marker']} history (this value at month {r['month']}):")
-        st.dataframe(_table(s["history"], reviews, file), hide_index=True, width="stretch")
+        table(_table(s["history"], reviews, file))
 
     card = _card(page)
     with page.cannot_see(CANNOT_SEE_LABS):
@@ -718,15 +709,13 @@ def _pick_table(df: pd.DataFrame, labels: list[str], key: str, spot_key: str) ->
         if sel:
             st.session_state[spot_key] = labels[sel[0]]
 
-    st.dataframe(df, hide_index=True, width="stretch", on_select=pick,
-                 selection_mode="single-row", key=key)
+    table(df, on_select=pick, key=key)
 
 
 def _planned(page: Page) -> None:
     with page.details("Planned panels", len(PLANNED_PANELS)):
         chips(PLANNED)
-        st.dataframe(pd.DataFrame(PLANNED_PANELS, columns=["panel", "why not yet", "status"]),
-                     hide_index=True, width="stretch")
+        table(pd.DataFrame(PLANNED_PANELS, columns=["panel", "why not yet", "status"]))
 
 
 def _card(page: Page) -> dict:
@@ -739,9 +728,9 @@ def _card(page: Page) -> dict:
         st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in card["known_failures"]))
         with st.expander(count_label("Every threshold and its source",
                                      len(card["thresholds"]))):
-            st.dataframe(pd.DataFrame(card["thresholds"]), hide_index=True, width="stretch")
-        table = reference_table()
-        with st.expander(count_label("Reference table", n_of(len(table), "analyte"))):
+            table(card["thresholds"])
+        analytes = reference_table()
+        with st.expander(count_label("Reference table", n_of(len(analytes), "analyte"))):
             chips(IMPLEMENTED, REFERENCE_LAB_CHIP)
             st.caption("The analytes this workbench knows, with their adult intervals, units "
                        "and conversions, the interval's source and why each matters here. The "
@@ -749,8 +738,7 @@ def _card(page: Page) -> dict:
                        "interval on the patient's own lab report always wins. Any other analyte "
                        "can be imported; it is flagged only against the interval its lab report "
                        "gives.")
-            st.dataframe(pd.DataFrame(table).drop(columns=["key"]), hide_index=True,
-                         width="stretch")
+            table(pd.DataFrame(analytes).drop(columns=["key"]))
     return card
 
 if __name__ == "__main__":

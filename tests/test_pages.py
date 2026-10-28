@@ -121,5 +121,5 @@ def test_the_receptor_table_has_no_empty_cells():
     """QA R3-6: HER2 by ERBB2 copy number is a rule, so it has no AUC and no cutoff; the
     Methods page's receptor table says so instead of showing "None"."""
     at = page("from workbenches import omics\nomics.methods_card()")
-    df = next(d.value for d in at.dataframe if "AUC" in d.value.columns)
+    df = next(d.value for d in at.table if "AUC" in d.value.columns)  # a static finding table
     assert not df.isna().any().any() and "— (a rule)" in set(df["Cutoff (cohort percentile)"])

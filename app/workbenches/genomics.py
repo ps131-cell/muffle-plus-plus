@@ -58,9 +58,18 @@ from muffle.workbench import genome as gx  # noqa: E402
 from muffle.workbench import genomics as wb  # noqa: E402
 from muffle.workbench import omics as om  # noqa: E402
 from muffle.workbench.grammar import chip, count_label, esc  # noqa: E402
+from muffle.overview import LEVEL_COLORS  # noqa: E402
 from muffle.workspace import finding_key  # noqa: E402
 from workbenches._howto import how_to, instruct, pin_toggle  # noqa: E402
-from workbenches._page import Page, land, line_and_action, queue_items  # noqa: E402
+from workbenches._page import (  # noqa: E402
+    Page,
+    empty,
+    land,
+    line_and_action,
+    queue_items,
+)
+from workbenches._page import strip as stat_strip  # noqa: E402 - 'strip' is the sample's line
+from workbenches._page import table as finding_table  # noqa: E402 - 'table' is CIViC's
 
 # page-specific colors; statuses and evidence types take the shared grammar's
 COLORS = {wb.FOUND: "blue", wb.NOT_FOUND: "green", wb.NOT_TESTED: "gray", "derived": "blue",
@@ -76,8 +85,7 @@ HOW_TO = ("**Variants and the tumor's genome**: one tab per view (variants, copy
           "predicted effect, pathway map); a click on a row, a gene or a pathway node opens it. "
           "**Look here**: what to check first, and why. **Spot panel**, below: one variant or "
           "gene with its evidence ladder, your mark and a pin.")
-LINK = {"CIViC": st.column_config.LinkColumn(display_text="evidence item"),
-        "Source link": st.column_config.LinkColumn(display_text="open")}
+LINK = {"CIViC": "evidence item", "Source link": "open"}  # a link column: its text
 
 
 def badge(text: str, color: str | None = None) -> str:
@@ -91,8 +99,9 @@ def _level_text(level: str | None) -> str:
 def _items_table(items: list[dict]) -> None:
     df = pd.DataFrame(items).reindex(columns=list(ITEM_COLUMNS)).fillna("")
     df["level_meaning"] = df["evidence_level"].map(lambda v: LEVELS.get(v, "unknown"))
-    st.dataframe(df.rename(columns=ITEM_COLUMNS), hide_index=True, width="stretch",
-                 column_config=LINK)
+    finding_table(df.rename(columns=ITEM_COLUMNS), chips=("Level",), links=LINK,
+                  caption="CIViC (civicdb.org, CC0): each item's level, therapies, direction and "
+                          "citation; hypothesis, for clinician review.")
 
 
 def _spot(file, v: dict, rungs: list[dict], cov: dict[str, str], strip: list, reviews: dict,
@@ -335,7 +344,10 @@ def _cn_chart(rows: list[dict], picked: str | None = None) -> alt.LayerChart:
                         else None, "pathways": ", ".join(r["pathways"]) or "none",
                         "layer": "model input" if r["in_layer"] else "not a model input",
                         "pct_text": "unknown" if r["pct"] is None else gx._pct(r["pct"]),
-                        "share_text": "" if r["share"] is None else f"{r['share']:.0%}"}
+                        "share_text": "" if r["share"] is None else f"{r['share']:.0%}",
+                        "source": "ASCAT3 gene-level copy number (GDC open access)",
+                        "evidence": "observed copies; the call is a rule with placeholder "
+                                    "cutoffs"}
                        for r in rows if r["copies"] is not None])
     chroms = df.groupby("chrom", sort=False).agg(lo=("rank", "min"), hi=("rank", "max"))
     chroms = chroms.reset_index().assign(mid=lambda d: (d["lo"] + d["hi"]) / 2,
@@ -353,7 +365,8 @@ def _cn_chart(rows: list[dict], picked: str | None = None) -> alt.LayerChart:
            alt.Tooltip("call_text:N", title="call (rule)"),
            alt.Tooltip("pct_text:N", title="cohort percentile"),
            alt.Tooltip("share_text:N", title="cohort with the same call"),
-           alt.Tooltip("layer:N", title="model"), alt.Tooltip("pathways:N")]
+           alt.Tooltip("layer:N", title="model"), alt.Tooltip("pathways:N"),
+           alt.Tooltip("source:N"), alt.Tooltip("evidence:N")]
     points = alt.Chart(df).mark_point(filled=True).encode(
         x=x, y=alt.Y("y:Q", title="copies relative to ploidy (log2)",
                      scale=alt.Scale(domain=[-2.7, 2.7])),
@@ -387,15 +400,12 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
     if r is None or r["copies"] is None:
         st.info(f"No copy number for {gene} in this file: unknown, not normal.")
     else:
-        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-        row.metric("Copies (observed)", f"{r['copies']:g}", help="ASCAT3, gene level",
-                   width="content")
-        row.metric("Call (rule)", r["call_text"], width="content", help="relative to the "
-                   f"ploidy estimate {r['ploidy']:g}; cutoffs in the method card")
-        row.metric("Cohort percentile",
-                   "—" if r["pct"] is None else gx._pct(r["pct"]).split(" ")[0],
-                   width="content",
-                   help="copies relative to ploidy, among this cohort's tumors (ties split)")
+        stat_strip(
+            ("Copies (observed)", f"{r['copies']:g}", "", "ASCAT3, gene level"),
+            ("Call (rule)", r["call_text"], "", f"relative to the ploidy estimate "
+             f"{r['ploidy']:g}; cutoffs in the method card"),
+            ("Cohort percentile", "—" if r["pct"] is None else gx._pct(r["pct"]).split(" ")[0],
+             "", "copies relative to ploidy, among this cohort's tumors (ties split)"))
         cut = {c["name"]: c for c in gx.CUTOFFS}.get(r["call_text"])
         if cut:
             st.markdown(f"Cutoff: {r['call_text']} = {cut['rule']} "
@@ -419,7 +429,7 @@ def _gene_spot(file, gene: str, g: dict, vs: list[dict], table, omics_view: dict
             "molecular_profile": "Profile", "therapies": "Therapies", "evidence_level": "Level",
             "significance": "Significance", "direction": "Direction", "citation": "Citation",
             "url": "CIViC", "matches_call": "Matches this call"})
-        st.dataframe(df, hide_index=True, width="stretch", column_config=LINK)
+        finding_table(df, chips=("Level",), links=LINK)
         if items["total"] > len(items["items"]):
             st.caption(f"{items['total']} items in all; the strongest levels first.")
     else:
@@ -512,11 +522,11 @@ def _genome_search(gv: dict, key: str) -> None:
 def _cn_view(file, g, omics_view, key) -> None:
     rows, block = g["rows"], g["block"]
     if not rows:
-        st.info("No copy number for this file: "
-                + ("the record's sequencing reported variants only." if file.kind == "synthetic"
-                   else "no precomputed copy number for this case.")
-                + " Copy number comes from exome or panel coverage, or SNP arrays (as TCGA's "
-                  "ASCAT3 calls do).")
+        empty("No copy number for this file: "
+              + ("the record's sequencing reported variants only." if file.kind == "synthetic"
+                 else "no precomputed copy number for this case.")
+              + " Copy number comes from exome or panel coverage, or SNP arrays (as TCGA's "
+                "ASCAT3 calls do).", icon=":material/genetics:")
         return
     ab = block.get("absolute")
     st.markdown(f"Ploidy estimate **{block['ploidy']:g}** {badge('method', 'gray')} (the "
@@ -585,14 +595,14 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
     if not bur.get("measured"):
         st.info(bur["note"][0].upper() + bur["note"][1:] + ".")
     else:
-        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-        row.metric("Somatic calls (observed)", bur["calls"], width="content")
-        row.metric("Protein-altering (observed)", bur["altering"], width="content")
-        row.metric(f"Per Mb (derived, ÷ {bur['exome_mb']:g})", f"{bur['rate']:.2f}",
-                   width="content")
-        row.metric("Cohort percentile",  # _pct(None) reads "percentile unknown"
-                   "—" if bur["pct"] is None else gx._pct(bur["pct"]).split(" ")[0],
-                   width="content")
+        stat_strip(
+            ("Somatic calls (observed)", bur["calls"], "", "GDC's open masked somatic file"),
+            ("Protein-altering (observed)", bur["altering"]),
+            (f"Per Mb (derived, ÷ {bur['exome_mb']:g})", f"{bur['rate']:.2f}", "",
+             "all somatic calls over the exome size of Chalmers et al. 2017"),
+            ("Cohort percentile",  # _pct(None) reads "percentile unknown"
+             "—" if bur["pct"] is None else gx._pct(bur["pct"]).split(" ")[0], "",
+             "the rate among this cohort's tumors"))
         q = (data or {}).get("burden", {}).get("rate_quantiles") or []
         if q:
             df = pd.DataFrame({"rate": q, "pct": [i * 100 / (len(q) - 1) for i in range(len(q))]})
@@ -601,9 +611,14 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
                         scale=alt.Scale(type="log"), axis=alt.Axis(format="~g")),
                 y=alt.Y("pct:Q", title="cohort percentile"))
             me = alt.Chart(pd.DataFrame({"rate": [bur["rate"]], "pct": [bur["pct"]],
-                                         "t": ["this tumor"]}))
+                                         "t": ["this tumor"],
+                                         "e": [f"derived: somatic calls ÷ {gx.EXOME_MB:g} Mb"]}))
             me = me.mark_point(size=120, filled=True, color="#2a78d6").encode(
-                x="rate:Q", y="pct:Q", tooltip=["t:N", "rate:Q", "pct:Q"])
+                x="rate:Q", y="pct:Q", tooltip=[
+                    alt.Tooltip("t:N", title="who"),
+                    alt.Tooltip("rate:Q", format=".2f", title="calls per Mb"),
+                    alt.Tooltip("pct:Q", format=".0f", title="cohort percentile"),
+                    alt.Tooltip("e:N", title="evidence")])
             hi = alt.Chart(pd.DataFrame({"pct": [gx.HIGH_PCT]})).mark_rule(
                 strokeDash=[6, 4], color="#e08a00").encode(y="pct:Q")
             st.altair_chart((line + hi + me).properties(height=220), width="stretch")
@@ -634,7 +649,7 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
                      "Purity (ABSOLUTE)": None if not a["purity"] else round(a["purity"], 2),
                      "Clonal range": "" if rng is None else f"{rng[0]:.1%}–{rng[1]:.1%}",
                      "Fit (model inference)": a["fit"]})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    finding_table(rows, mono=("Reads (alt / depth)", "95% interval", "Clonal range"))
     df = pd.DataFrame([{"variant": a["variant"], "vaf": a["vaf"], "lo": a["lo"], "hi": a["hi"],
                         "c_lo": (a["clonal_range"] or (None, None))[0],
                         "c_hi": (a["clonal_range"] or (None, None))[1]}
@@ -648,8 +663,13 @@ def _burden_view(bur, afs, data, sequenced, file) -> None:
             x2="c_hi:Q", y=y, tooltip=[alt.Tooltip("c_lo:Q", format=".1%", title="clonal from"),
                                        alt.Tooltip("c_hi:Q", format=".1%", title="clonal to")])
         err = alt.Chart(df).mark_rule(color="black").encode(x="lo:Q", x2="hi:Q", y=y)
-        pt = alt.Chart(df).mark_point(filled=True, color="black", size=60).encode(
-            x="vaf:Q", y=y, tooltip=[alt.Tooltip("vaf:Q", format=".1%")])
+        pt = alt.Chart(df.assign(e="observed: alt reads ÷ depth, 95% interval")).mark_point(
+            filled=True, color="black", size=60).encode(
+            x="vaf:Q", y=y, tooltip=[alt.Tooltip("variant:N"),
+                                     alt.Tooltip("vaf:Q", format=".1%", title="allele fraction"),
+                                     alt.Tooltip("lo:Q", format=".1%", title="95% low"),
+                                     alt.Tooltip("hi:Q", format=".1%", title="95% high"),
+                                     alt.Tooltip("e:N", title="evidence")])
         st.altair_chart((band + err + pt).properties(height=50 + 44 * len(df)), width="stretch")
         st.caption("Black: observed allele fraction with its 95% interval (observed). Shaded: the "
                    "fraction a clonal mutation would show at this purity and copy number, one "
@@ -675,7 +695,7 @@ def _effect_view(vs, effects, afs) -> None:
                      "Interpreted: CIViC (strongest)": _level_text(v["strongest_level"]),
                      "Interpreted: ClinVar": t["interpretation"],
                      "Predicted: AlphaMissense": t["prediction"]})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    finding_table(rows)
     rng = (effects or {}).get("alphamissense_class_ranges") or {}
     st.caption(
         f"Three evidence types, kept apart: detected {badge('observed')} (the call and its "
@@ -698,7 +718,8 @@ def _pathway_chart(nodes: list[dict], picked: str | None = None) -> alt.LayerCha
                         "marks": ", ".join(n["statuses"]) or n["status"],
                         "copies_text": "" if n["copies"] is None else f"{n['copies']:g}",
                         "ring": n["statuses"][1] if n["status"] == "mutated"
-                        and len(n["statuses"]) > 1 else "none"}
+                        and len(n["statuses"]) > 1 else "none",
+                        "evidence": "observed alteration; the pathway grouping is a hypothesis"}
                        for n in nodes])
     rings = ["amplification", "gain", "loss", "deep deletion", "none"]
     order = list(gx.PATHWAYS)
@@ -710,7 +731,8 @@ def _pathway_chart(nodes: list[dict], picked: str | None = None) -> alt.LayerCha
     tip = [alt.Tooltip("gene:N"), alt.Tooltip("pathway:N"), alt.Tooltip("marks:N", title="this "
                                                                         "tumor"),
            alt.Tooltip("variants:N", title="variants"), alt.Tooltip("call:N", title="copy number"),
-           alt.Tooltip("copies_text:N", title="copies")]
+           alt.Tooltip("copies_text:N", title="copies"),
+           alt.Tooltip("evidence:N", title="evidence")]
     dots = alt.Chart(df).mark_circle(size=1500, strokeWidth=4).encode(
         x=x, y=y, fill=alt.Fill("status:N", title="this tumor", scale=alt.Scale(
             domain=gx.STATUS_ORDER, range=[NODE_COLORS[s] for s in gx.STATUS_ORDER])),
@@ -742,12 +764,11 @@ def _pathway_view(file, nodes, table, reviews, key) -> None:
                "deletion, lighter for gain and loss; gray: measured, not altered; white: not "
                "measured (unknown, not normal). Click a gene to open it in the Spot panel below.")
     summary = gx.pathway_summary(nodes)
-    st.dataframe(pd.DataFrame([{"Pathway": p["pathway"], "Genes": ", ".join(p["genes"]),
-                                "Altered here": "; ".join(p["altered"]) or "none observed",
-                                "Not measured": ", ".join(p["unknown"]) or "—",
-                                "Sources": "; ".join(f"{s['cite']} (PMID {s['pmid']})"
-                                                     for s in p["sources"])}
-                               for p in summary]), hide_index=True, width="stretch")
+    finding_table([{"Pathway": p["pathway"], "Genes": ", ".join(p["genes"]),
+                    "Altered here": "; ".join(p["altered"]) or "none observed",
+                    "Not measured": ", ".join(p["unknown"]) or "—",
+                    "Sources": "; ".join(f"{s['cite']} (PMID {s['pmid']})" for s in p["sources"])}
+                   for p in summary])
     names = list(gx.PATHWAYS)
     pkey = f"{key}-pathway"
     if st.session_state.get(pkey) not in names:
@@ -761,11 +782,11 @@ def _pathway_view(file, nodes, table, reviews, key) -> None:
     st.markdown(f"**Therapy evidence for its genes** {badge('hypothesis')} · CIViC, breast "
                 "cancer, for clinician review, never a recommendation")
     if items["items"]:
-        st.dataframe(pd.DataFrame(items["items"]).rename(columns={
+        finding_table(pd.DataFrame(items["items"]).rename(columns={
             "molecular_profile": "Profile", "therapies": "Therapies",
             "evidence_level": "Level", "significance": "Significance",
             "direction": "Direction", "citation": "Citation", "url": "CIViC"}),
-            hide_index=True, width="stretch", column_config=LINK)
+            chips=("Level",), links=LINK)
         st.caption(f"{items['total']} items name a gene of this pathway; the strongest "
                    "levels first. An item for a gene is not an item for this tumor's change.")
     else:
@@ -792,7 +813,7 @@ def _over_time(lon: dict, hs: dict, key: str) -> None:
                             for x in gene_rows[r["variant"]]) or "no escape-route row names "
                                                                  "this gene"}
                        for r in lon["rows"]])
-    st.dataframe(df, hide_index=True, width="stretch")
+    finding_table(df, mono=cols)
     kinds = " · ".join(f"{s['id']}: {s['kind']}, {s['assay']}" for s in lon["samples"])
     st.caption(f"Rule: {lon['rule']}. " + " ".join(n[0].upper() + n[1:] + "." for n in
                                                     lon["notes"]) + f" Samples: {kinds}.")
@@ -804,9 +825,9 @@ def _over_time(lon: dict, hs: dict, key: str) -> None:
 def _method_card(g: dict, effects: dict) -> None:
     rows = gx.card(g["data"], effects, ((g["omics"] or {}).get("validation") or {}))
     with st.expander(count_label("Genome views: predictors, rules and cutoffs", len(rows))):
-        st.dataframe(pd.DataFrame(rows).rename(columns={
+        finding_table(pd.DataFrame(rows).rename(columns={
             "what": "What", "rule": "Rule", "source": "Source", "tag": "Tag",
-            "status": "Status"}), hide_index=True, width="stretch")
+            "status": "Status"}), chips=("Tag",), colors=TAG_COLORS)
         st.caption(f"Scores: {(g['data'] or {}).get('version', 'not computed')} "
                    "(precomputed offline from the open-access files); effects: snapshot "
                    f"{(effects or {}).get('snapshot', 'not taken')} (Ensembl VEP, offline). "
@@ -858,9 +879,9 @@ def _variant_browser(file, vs, levels, queue, ladders, coverage, reviews, key,
     if not rows:
         st.caption("No variant matches.")
         return []
-    picked = st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
-                          on_select=lambda: st.session_state.update({mode_key: "Variant"}),
-                          selection_mode="single-row", key=f"{key}-table")
+    picked = finding_table(rows, mono=("Change",), chips=("Strongest level",), key=f"{key}-table",
+                           on_select=lambda: st.session_state.update({mode_key: "Variant"}),
+                           colors={_level_text(lv): c for lv, c in LEVEL_COLORS.items()})
     sel = picked.selection.rows
     st.caption("Click a row to open the variant in the Spot panel below.")
     first = shown[sel[0]] if sel and sel[0] < len(shown) else shown[0]
@@ -906,11 +927,11 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
 
     # overview: the counts, what was observed, the look-here queue, search
     with page.overview():
-        row = st.container(horizontal=True)  # wraps on a narrow screen instead of cutting values
-        row.metric("Variants observed", len(vs), width="content")
-        row.metric("Strongest CIViC level", levels[0] if levels else "none", width="content")
-        for name in queue:
-            row.metric(name.capitalize(), len(queue[name]), width="content")
+        stat_strip(
+            ("Variants observed", len(vs), "", "sequenced mutations in this file"),
+            ("Strongest CIViC level", levels[0] if levels else "none", "",
+             "CIViC's A (validated) to E (inferential), breast cancer"),
+            *((name.capitalize(), len(queue[name]), "", QUEUE_WHY[name]) for name in queue))
         if vs:
             strongest = _level_text(levels[0] if levels else None)
             line, act = line_and_action()
@@ -923,9 +944,9 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
                 st.code(variant_list(vs), language=None)
                 st.caption("The copy icon at the box's top right copies it.")
         elif not lon["timepoints"]:
-            st.info("Not sequenced: the mutation status of every panel gene is unknown, not "
-                    "wild type. Tumor sequencing (a panel or an exome, or a VCF or MAF brought in "
-                    "through Import tests) would fill this workbench.", icon="🧬")
+            empty("Not sequenced: the mutation status of every panel gene is unknown, not wild "
+                  "type. Tumor sequencing (a panel or an exome, or a VCF or MAF brought in "
+                  "through Import tests) would fill this workbench.", icon=":material/genetics:")
         else:
             st.info("Sequenced: none of the panel's genes mutated (panel genes only; purity and "
                     "depth unknown, so this is not proof of absence).")
@@ -963,11 +984,10 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         st.markdown(f"{badge(watch['evidence'])} **{watch['use']}** · for the treatments recorded "
                     f"in this file: {', '.join(watch['treatments']) or 'none'}")
         if watch["rows"]:
-            st.dataframe(pd.DataFrame(watch["rows"]).rename(columns={
+            finding_table(pd.DataFrame(watch["rows"]).rename(columns={
                 "under": "Under", "alteration": "What to watch", "finding": "Known from",
                 "source": "Source", "url": "Source link", "level": "Evidence level",
-                "detect": "Would be detected by"}), hide_index=True, width="stretch",
-                column_config=LINK)
+                "detect": "Would be detected by"}), chips=("Evidence level",), links=LINK)
         if watch["note"]:
             st.caption(watch["note"].capitalize() + ".")
         st.caption("Sources: CIViC resistance items (civicdb.org, CC0) whose therapies include a "
@@ -979,8 +999,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
     with page.details("Panel coverage", f"{len(coverage)} genes"):
         counts = pd.Series([c["status"] for c in coverage]).value_counts()
         st.markdown(" · ".join(f"{badge(s)} {n}" for s, n in counts.items()))
-        st.dataframe(pd.DataFrame(coverage).rename(columns={"gene": "Gene", "status": "Status"}),
-                     hide_index=True, width="stretch", height=200)
+        finding_table(pd.DataFrame(coverage).rename(columns={"gene": "Gene", "status": "Status"}),
+                      colors=COLORS, height=240)
         st.caption("The 16 breast cancer driver genes of the TCGA panel. A gene that was not "
                    "tested, or whose panel is not stated, is unknown: never read it as wild "
                    "type.")
@@ -1032,9 +1052,8 @@ def render(file, events=None, evidence: dict | None = None, version: int | None 
         st.table(pd.DataFrame(rows, columns=["", "Detail"]).set_index(""))
         _method_card(g, effects)
         with st.expander(count_label("Planned, not results", len(card["planned"]))):
-            st.dataframe(pd.DataFrame(card["planned"]).rename(
-                columns={"what": "What", "note": "Note", "status": "Status"}),
-                hide_index=True, width="stretch")
+            finding_table(pd.DataFrame(card["planned"]).rename(
+                columns={"what": "What", "note": "Note", "status": "Status"}))
     with page.cannot_see(card["limits"]):
         pass
     with page.export():

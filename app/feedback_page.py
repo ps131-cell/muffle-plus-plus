@@ -19,7 +19,7 @@ import streamlit as st
 from muffle import feedback, workspace
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
 from muffle.workbench.grammar import chip, esc
-from workbenches._page import line_and_action
+from workbenches._page import empty, line_and_action, strip, table
 
 GOTO = "feedback-goto"  # set by "Open": switch to the Patients page on the next run
 KIND = {"synthetic": "synthetic (written by hand)", "TCGA-BRCA": "TCGA-BRCA public case"}
@@ -42,15 +42,15 @@ def render(files: dict, build: str, open_finding, patients) -> None:
     st.caption(workspace.DISCLAIMER)
     today()
     if not records:
-        st.info("No marks yet. Mark a finding in a patient file (**Review** next to it, or **m** "
-                "in the report's attention queue); it appears here.", icon="🗳️")
+        empty("No marks yet. Mark a finding in a patient file (**Review** next to it, or **m** "
+              "in the report's attention queue); it appears here.", icon=":material/how_to_vote:")
     else:
         bad = feedback.disagreed(records)
-        with st.container(horizontal=True):
-            st.metric("Marks", len(records), width="content")
-            st.metric("Patients", len({x["patient"] for x in records}), width="content")
-            st.metric("Reviewers", len({x["reviewer"] for x in records}), width="content")
-            st.metric("Disagreed", len(bad), width="content")
+        strip(("Marks", len(records), "", "every review mark of this browser session"),
+              ("Patients", len({x["patient"] for x in records})),
+              ("Reviewers", len({x["reviewer"] for x in records}), "",
+               "initials as typed in the sidebar"),
+              ("Disagreed", len(bad), "", "marks of disagree"))
         ledger_table(records)
         signal(records)
         queue(bad, files, open_finding)
@@ -83,20 +83,19 @@ def ledger_table(records: list[dict]) -> None:
                                       key=f"feedback-{field}", placeholder="Any",
                                       format_func=lambda v: v or "no initials")
     shown = [x for x in records if all(not v or x[k] in v for k, v in pick.items())]
-    st.dataframe(pd.DataFrame([{
+    table(pd.DataFrame([{
         "When": x["at"], "Patient": x["patient"], "Patient kind": KIND.get(x["patient_kind"],
                                                                           x["patient_kind"]),
         "Finding kind": x["kind"], "Finding": x["finding"], "Mark": x["mark"],
         "Reviewer": x["reviewer"] or "no initials", "Model or rule": x["method"],
         "Version": x["method_version"], "Evidence": x["evidence"]} for x in shown],
         columns=["When", "Patient", "Patient kind", "Finding kind", "Finding", "Mark",
-                 "Reviewer", "Model or rule", "Version", "Evidence"]),
-        hide_index=True, width="stretch", column_config={
-            "Model or rule": st.column_config.TextColumn(
-                help="Derived from the finding's kind; its card is on Methods and validation"),
-            "Evidence": st.column_config.TextColumn(
-                help="Observed, model inference or hypothesis, as the finding is labeled")})
-    st.caption(f"{len(shown)} of {len(records)} marks, newest first. SYNTHETIC-001 is a "
+                 "Reviewer", "Model or rule", "Version", "Evidence"]), grid=True,
+        empty="No mark matches these filters.",
+        mono=("Version",), column_config={"Model or rule": st.column_config.TextColumn(
+            help="Derived from the finding's kind; its card is on Methods and validation")})
+    st.caption(f"{len(shown)} of {len(records)} marks, newest first; evidence: observed, model "
+               "inference or hypothesis, as the finding is labeled. SYNTHETIC-001 is a "
                "synthetic patient written by hand; the TCGA cases are public TCGA-BRCA patients "
                "assigned to simulated hospitals.")
 
@@ -107,22 +106,25 @@ def signal(records: list[dict]) -> None:
                               default="Model or rule", key="feedback-by", required=True)
     field = "method" if by == "Model or rule" else "kind"
     groups = feedback.rates(records, field)
-    table = pd.DataFrame([{
+    rates = pd.DataFrame([{
         by: g[field], "Reviewed": g["n"], "Agree": g["agree"], "Disagree": g["disagree"],
         "Second look": g["second look"], "Reviewed only": g["reviewed"],
         "Disagreed": g["rate"], "95% interval": f"{g['low']:.0%}–{g['high']:.0%}"}
         for g in groups])
-    bars = alt.Chart(table).encode(y=alt.Y(f"{by}:N", sort=None, title=None))
-    chart = (bars.mark_bar(color="#c0392b").encode(
+    bars = alt.Chart(rates.assign(what="this session's review marks, not a validation of any "
+                                       "model")).encode(y=alt.Y(f"{by}:N", sort=None, title=None))
+    chart = (bars.mark_bar(color="#c0392b", cornerRadiusEnd=3, height=16).encode(
         x=alt.X("Disagreed:Q", scale=alt.Scale(domain=[0, 1]), axis=alt.Axis(format="%"),
                 title="share of reviewed findings marked disagree"),
-        tooltip=[by, "Reviewed", "Disagree", "Second look", "95% interval"])
+        tooltip=[by, "Reviewed", "Disagree", "Agree", "Second look", "Reviewed only",
+                 alt.Tooltip("Disagreed:Q", format=".0%", title="share disagreed"),
+                 alt.Tooltip("95% interval:N", title="95% Wilson interval"),
+                 alt.Tooltip("what:N", title="what this is")])
         + alt.Chart(pd.DataFrame([{by: g[field], "low": g["low"], "high": g["high"]}
                                   for g in groups])).mark_rule(color="#555").encode(
             y=alt.Y(f"{by}:N", sort=None), x="low:Q", x2="high:Q"))
     st.altair_chart(chart.properties(height=max(80, 28 * len(groups))), width="stretch")
-    st.dataframe(table, hide_index=True, width="stretch", column_config={
-        "Disagreed": st.column_config.NumberColumn(format="percent")})
+    table(rates, mono=("95% interval",), percent=("Disagreed",))
     st.caption(
         "Every mark counts as a reviewed finding; the share is disagree / reviewed, with its 95% "
         "Wilson interval (the gray line): a few marks say little, and the interval says how "
@@ -158,12 +160,10 @@ def _open(open_finding, pid: str, opens: tuple, focus: dict | None) -> None:
 
 def per_reviewer(records: list[dict]) -> None:
     st.subheader("Per reviewer")
-    st.dataframe(pd.DataFrame([{
-        "Reviewer": r["reviewer"], "Marks": r["n"], "Agree": r["agree"],
-        "Disagree": r["disagree"], "Second look": r["second look"],
-        "Reviewed only": r["reviewed"], "Patients": r["patients"], "First": r["first"],
-        "Last": r["last"]} for r in feedback.reviewers(records)]),
-        hide_index=True, width="stretch")
+    table([{"Reviewer": r["reviewer"], "Marks": r["n"], "Agree": r["agree"],
+            "Disagree": r["disagree"], "Second look": r["second look"],
+            "Reviewed only": r["reviewed"], "Patients": r["patients"], "First": r["first"],
+            "Last": r["last"]} for r in feedback.reviewers(records)], mono=("First", "Last"))
     st.caption("Initials as typed in the sidebar; nothing checks who typed them.")
 
 

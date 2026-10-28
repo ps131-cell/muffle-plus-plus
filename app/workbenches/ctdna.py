@@ -43,11 +43,10 @@ from muffle.workspace import (  # noqa: E402
     synthetic_file,
 )
 from workbenches._howto import how_to, instruct, pin_toggle  # noqa: E402
-from workbenches._page import Page, land, queue_items  # noqa: E402
+from workbenches._page import Page, empty, land, queue_items, table  # noqa: E402
 
 COLORS = {"PIK3CA H1047R": "#2a78d6", "ESR1 D538G": "#eb6834", "DNMT3A R882H": "#8a8f98"}
 GRAY, RED = "#8a8f98", "#e34948"
-GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
 NO_MARK = "no mark"
 PROVENANCE = ("Data: a synthetic ctDNA series written by hand for this synthetic patient "
               "(observed values in form, not measured). Method: rules, version 1, no model. "
@@ -92,15 +91,18 @@ def chart(rows: list[dict], intervals: list[dict], events: list[dict], lod: floa
     df["y"] = [r["vaf"] if r["detected"] else lod / 2 for r in rows]
     df["vaf_text"] = [_vaf(r) for r in rows]
     df["therapy_text"] = [" + ".join(r["therapy"]) or "none" for r in rows]
+    df["label"] = "observed (synthetic series)"
+    df["threshold"] = [f"{r['rule']} ({r['status']})" for r in rows]
     x = alt.X("month:Q", title="months since the first tumor sequencing",
               scale=alt.Scale(domain=[span[0] - 1, span[1] + 1]))
     y_scale = alt.Scale(type="log", domain=[lod / 4, 10])
     y = alt.Y("y:Q", title="variant allele fraction (%, log scale)", scale=y_scale)
     tip = [alt.Tooltip("pointer:N", title="pointer"), alt.Tooltip("variant:N", title="variant"),
            alt.Tooltip("month:Q", title="month"), alt.Tooltip("vaf_text:N", title="VAF"),
-           alt.Tooltip("call:N", title="call"), alt.Tooltip("rule:N", title="rule"),
+           alt.Tooltip("call:N", title="call"), alt.Tooltip("threshold:N", title="rule"),
            alt.Tooltip("origin:N", title="origin"),
-           alt.Tooltip("therapy_text:N", title="therapy at the time")]
+           alt.Tooltip("therapy_text:N", title="therapy at the time"),
+           alt.Tooltip("label:N", title="evidence")]
     layers = []
     if intervals:
         iv = (pd.DataFrame(intervals).groupby(["start", "end"])["agent"].agg(" + ".join)
@@ -149,7 +151,7 @@ def chart(rows: list[dict], intervals: list[dict], events: list[dict], lod: floa
                      alt.Tooltip("value:Q", title="value"), "flag:N"])
         out = alt.layer(out, mbase.mark_line(color=GRAY, strokeDash=[6, 3])
                         + mbase.mark_square(size=50, color=GRAY)).resolve_scale(y="independent")
-    return out.properties(height=340).configure_axis(**GRID)
+    return out.properties(height=340)
 
 
 def marker_chart(lab_rows: list[dict], span: tuple[int, int]) -> alt.Chart | None:
@@ -164,7 +166,7 @@ def marker_chart(lab_rows: list[dict], span: tuple[int, int]) -> alt.Chart | Non
         tooltip=["pointer:N", "month:Q", "value:Q", "flag:N"])
     return alt.layer(base.mark_line(color=GRAY), base.mark_circle(size=60, color=GRAY),
                      base.mark_text(dy=-10, fontSize=10).encode(text="pointer:N")).properties(
-        height=140).configure_axis(**GRID)
+        height=140)
 
 
 def _key(pf: PatientFile, variant: str, month) -> str:
@@ -202,10 +204,10 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
     if series is None:
         page.title(IMPLEMENTED)
         with page.overview():
-            st.info("No ctDNA in this file: TCGA-BRCA holds one tumor sample per patient and no "
-                    "blood samples. A plasma ctDNA panel (liquid biopsy), taken again under "
-                    "treatment, would open this monitor and follow the tumor's mutations over "
-                    "time.", icon="🩸")
+            empty("No ctDNA in this file: TCGA-BRCA holds one tumor sample per patient and no "
+                  "blood samples. A plasma ctDNA panel (liquid biopsy), taken again under "
+                  "treatment, would open this monitor and follow the tumor's mutations over "
+                  "time.", icon=":material/bloodtype:")
         _card(page, card)
         _cannot_see(page)
         with page.export(empty="Nothing to export: this file holds no ctDNA."):
@@ -226,9 +228,9 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
     if not series["samples"]:
         first = min(s["month"] for s in CTDNA["samples"])
         with page.overview():
-            st.info(f"No ctDNA sample yet as of this version: the first plasma sample of the "
-                    f"series is at month {first}. Move the report version to month {first} or "
-                    "later to see it.", icon="🩸")
+            empty(f"No ctDNA sample yet as of this version: the first plasma sample of the "
+                  f"series is at month {first}. Move the report version to month {first} or "
+                  "later to see it.", icon=":material/bloodtype:")
         _card(page, card)
         _cannot_see(page)
         with page.export(empty="Nothing to export yet: no ctDNA sample as of this version."):
@@ -329,12 +331,12 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
     # details: collapsed, each with its count
     with page.details("Calls per variant", len(vs)):
         chips(IMPLEMENTED, "placeholder threshold", "literature rule")
-        st.dataframe(pd.DataFrame([{
+        table([{
             "variant": v["variant"], "origin": v["origin"], "in the tumor picture":
             "yes" if v["in_picture"] else "no", "latest call": f"{v['latest']} (month "
                                                                f"{v['latest_month']})",
             "detected": v["detected"], "pattern": v["pattern"], "calls": "; ".join(v["calls"]),
-            "why": v["why"]} for v in vs]), hide_index=True, width="stretch")
+            "why": v["why"], "evidence": "observed (synthetic series)"} for v in vs])
         st.caption(f"Calls: rising at {wb.RISE_FACTOR:g}x the previous detected value or more, "
                    f"falling at {wb.FALL_FACTOR:g}x or less, cleared after {wb.CLEAR_SAMPLES} "
                    "consecutive samples below the limit, new when detected after samples below "
@@ -373,10 +375,7 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
             st.caption(s["what"])
     with page.details("Every look-here item", len(queue)):
         chips(IMPLEMENTED, "literature rule", "placeholder threshold")
-        if queue:
-            st.dataframe(pd.DataFrame(queue), hide_index=True, width="stretch")
-        else:
-            st.caption("Nothing to look at.")
+        table(queue, empty="Nothing to look at.")
     with page.details("Your review of the flagged findings", len(findings)):
         st.caption("Each new or rising call and each possible clonal-hematopoiesis variant; "
                    "marks carry your initials from the sidebar and go into the report export.")
@@ -406,9 +405,8 @@ def render(pf: PatientFile, version: int | None = None, test=None) -> None:
             f"- month {e['month']}, {e['kind']}: {e['text']}" for e in s["events_around"])
             or "none"))
         st.markdown("**Check by eye:**\n" + "\n".join(f"- {c}" for c in s["check_by_eye"]))
-        st.dataframe(pd.DataFrame([{"month": h["month"], "VAF": _vaf(h), "call": h["call"],
-                                    "pointer": h["pointer"]} for h in s["history"]]),
-                     hide_index=True, width="stretch")
+        table([{"month": h["month"], "VAF": _vaf(h), "call": h["call"],
+                "pointer": h["pointer"]} for h in s["history"]])
         key = next((_key(pf, f["variant"], f["month"]) for f in findings
                     if f["variant"] == r["variant"] and f["month"] == r["month"]), None)
         with st.container(horizontal=True, vertical_alignment="bottom", gap="medium"):
@@ -494,7 +492,7 @@ def _card(page: Page, card: dict) -> None:
                     f"**Outputs:** {card['outputs']}  \n**Validation:** {card['validation']}")
         st.markdown("**Known failures:**\n" + "\n".join(f"- {f}" for f in card["known_failures"]))
         with st.expander(count_label("Every threshold and its source", len(card["thresholds"]))):
-            st.dataframe(pd.DataFrame(card["thresholds"]), hide_index=True, width="stretch")
+            table(card["thresholds"])
 
 if __name__ == "__main__":
     st.set_page_config(page_title="ctDNA monitor", layout="wide")

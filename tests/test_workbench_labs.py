@@ -388,7 +388,7 @@ render(case_file(SimpleNamespace(index=1, site="site-0", percentile=50.0, group=
 """, default_timeout=60).run()
     assert not tcga.exception
     assert "No lab results in this file" in tcga.info[0].value
-    assert not tcga.dataframe[0].value.empty  # the planned panels
+    assert not tcga.table[0].value.empty  # the planned panels (a static finding table)
 
 
 # -------------------------------------------------------------- any analyte: the reference table

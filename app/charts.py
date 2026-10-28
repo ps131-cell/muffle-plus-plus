@@ -4,8 +4,15 @@
   order (the first three slots pass colorblind checks pairwise in light and dark mode)
 - diverging (polarity): raises risk = red, lowers risk = blue
 - ordinal (low / medium / high risk): one blue ramp, light to dark, plus direct labels
+- labels: observed blue, model inference violet, hypothesis orange; CIViC levels A–B green and
+  C–E orange; Ensembl VEP severity high red, moderate orange, low and modifier gray (the Methods
+  page's Colour code; the chips use the same words)
 
-Every chart has hover tooltips, and text stays in the theme's ink, never the series color.
+Every chart has hover tooltips, and text stays in the theme's ink, never the series color. The
+look is one theme for every chart of the app (``THEME``, registered and enabled when this module
+is imported; ``workbenches._page.Page`` imports it before a workbench draws): IBM Plex Sans, axis
+titles and legends at 13 px and tick labels at 12 px in the muted ink, hairline axes, no frame,
+horizontal gridlines only where the value is read off a vertical axis (docs/ux.md §8).
 """
 
 from __future__ import annotations
@@ -14,9 +21,47 @@ import altair as alt
 import numpy as np
 import pandas as pd
 
+from muffle.overview import IMPACT_COLORS, LEVEL_COLORS
+
 BLUE, ORANGE, AQUA, RED = "#2a78d6", "#eb6834", "#1baf7a", "#e34948"
+GRAY, VIOLET, GREEN = "#8a8f98", "#6250d6", "#137a33"
 RAMP = {"low": "#6da7ec", "medium": "#2a78d6", "high": "#184f95"}  # blue 300 / 450 / 600
-GRID = {"gridOpacity": 0.4, "domainOpacity": 0.4, "tickOpacity": 0.4}
+# the categorical slots in their validated order (docs/ux.md §8); a ninth series folds into "other"
+CATEGORY = [BLUE, ORANGE, AQUA, "#eda100", "#e87ba4", "#008300", VIOLET, RED]
+HEX = {"blue": BLUE, "violet": VIOLET, "orange": ORANGE, "green": GREEN, "red": RED, "gray": GRAY}
+EVIDENCE_COLORS = {"observed": BLUE, "model inference": VIOLET, "hypothesis": ORANGE}
+LEVEL_HEX = {k: HEX[v] for k, v in LEVEL_COLORS.items()}
+IMPACT_HEX = {k: HEX[v] for k, v in IMPACT_COLORS.items()}
+INK, MUTED, RULE, HAIRLINE = "#0e1117", "#4d5260", "#c3c9d2", "#e6e9ee"  # muted: 7.6:1 on white
+SANS = "IBM Plex Sans, sans-serif"
+
+
+@alt.theme.register("muffle", enable=True)
+def THEME() -> alt.theme.ThemeConfig:  # noqa: N802 - the app's one chart theme
+    axis = {"labelFont": SANS, "titleFont": SANS, "labelFontSize": 12, "titleFontSize": 13,
+            "labelColor": MUTED, "titleColor": MUTED, "titleFontWeight": 500,
+            "domainColor": RULE, "tickColor": RULE, "domainWidth": 1, "tickWidth": 1,
+            "tickSize": 4, "gridColor": HAIRLINE, "gridWidth": 1, "labelPadding": 4,
+            "titlePadding": 8}
+    legend = {"labelFont": SANS, "titleFont": SANS, "labelFontSize": 12, "titleFontSize": 12,
+              "labelColor": MUTED, "titleColor": MUTED, "titleFontWeight": 500,
+              "symbolSize": 64, "symbolStrokeWidth": 0, "rowPadding": 3, "columnPadding": 12,
+              "padding": 0, "offset": 10, "labelLimit": 320}
+    return {"config": {
+        "font": SANS,
+        "view": {"stroke": "transparent"},  # no box around the plot
+        "axis": axis,
+        "axisX": {"grid": False},  # values are read across, so only horizontal hairlines
+        "axisY": {"domain": False, "ticks": False},
+        "axisBand": {"domain": False, "ticks": False, "labelPadding": 6},
+        "legend": legend,
+        "title": {"font": SANS, "fontSize": 13, "fontWeight": 600, "color": INK,
+                  "anchor": "start", "offset": 8},
+        "header": {"labelFont": SANS, "titleFont": SANS, "labelColor": MUTED},
+        "text": {"font": SANS, "fontSize": 12, "color": INK},
+        "line": {"strokeWidth": 2, "strokeCap": "round", "strokeJoin": "round"},
+        "range": {"category": CATEGORY},
+    }}
 
 
 def risk_position(cohort_risks: np.ndarray, patient_risk: float, label: str) -> alt.Chart:
@@ -40,7 +85,7 @@ def risk_position(cohort_risks: np.ndarray, patient_risk: float, label: str) -> 
                                        dx=-6 if right_half else 6, dy=4, baseline="top",
                                        fontWeight="bold").encode(
         x="x:Q", y=alt.value(0), text="label:N")
-    return (bars + rule + text).properties(height=240).configure_axis(**GRID)
+    return (bars + rule + text).properties(height=240)
 
 
 def contributions(contrib: dict[str, float],
@@ -68,7 +113,7 @@ def contributions(contrib: dict[str, float],
                             align=alt.expr("datum.value >= 0 ? 'left' : 'right'")).encode(
         x="value:Q", text="label:N")
     zero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(opacity=0.5).encode(x="x:Q")
-    return (bars + labels + zero).properties(height=40 * len(df) + 40).configure_axis(**GRID)
+    return (bars + labels + zero).properties(height=40 * len(df) + 40)
 
 
 GROUPS = {"Federated: no patient data shared": BLUE, "Pooled: all patients in one place": ORANGE,
@@ -96,7 +141,7 @@ def results(methods: list[dict]) -> alt.Chart:
         color=color, tooltip=tip)
     dots = base.mark_circle(size=110, opacity=1).encode(x="mean:Q", color=color, tooltip=tip)
     text = base.mark_text(align="left", dx=10, dy=-10).encode(x="hi:Q", text="text:N")
-    return (err + dots + text).properties(height=44 * len(df) + 60).configure_axis(**GRID)
+    return (err + dots + text).properties(height=44 * len(df) + 60)
 
 
 def survival_by_group(km: dict[str, tuple[np.ndarray, np.ndarray, int]]) -> alt.Chart:
@@ -122,7 +167,7 @@ def survival_by_group(km: dict[str, tuple[np.ndarray, np.ndarray, int]]) -> alt.
     ends = df[df["months"] == df["months"].max()]
     labels = alt.Chart(ends).mark_text(align="left", dx=6).encode(
         x="months:Q", y="survival:Q", text="group:N")
-    return (lines + points + labels).properties(height=280).configure_axis(**GRID)
+    return (lines + points + labels).properties(height=280)
 
 
 TONES = {"from the record": BLUE, "imported in this session": ORANGE, "SOS alert": RED}
@@ -212,7 +257,7 @@ def event_lanes(data: dict, viewing: int, pair: tuple[int, int] | None = None) -
     # apart, labels overprinted
     return alt.layer(*layers, points).properties(
         height=LANE_HEIGHT * len(data["lanes"]) + 145 + LEGEND_ROW * -(-len(keys) // 2)
-    ).configure_axis(**GRID)
+    )
 
 
 OVERLAYS = ("CA 15-3", "ctDNA", "Treatments", "Imaging reads")
@@ -291,7 +336,7 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float, ctx: di
                         c.mark_square(color=ORANGE, size=40, opacity=1).encode(tooltip=tip)
                         ).resolve_scale(y="independent")
     if not len(dna):
-        return top.configure_axis(**GRID)
+        return top
     dna["detected"] = np.where(dna["vaf"].notna(), "detected", "not detected (shown at 0)")
     dna["shown"] = dna["vaf"].fillna(0.0)
     color = alt.Color("variant:N", scale=alt.Scale(domain=list(dict.fromkeys(dna["variant"])),
@@ -309,8 +354,7 @@ def risk_timeline(updates: list[dict], events: list[dict], month: float, ctx: di
                       seen.mark_point(size=40, filled=True, opacity=1).encode(tooltip=tip),
                       d.transform_filter("datum.vaf == null").mark_point(size=40, opacity=1)
                       .encode(tooltip=tip), lod).properties(height=130)
-    return alt.vconcat(top, panel).resolve_scale(x="shared", color="independent").configure_axis(
-        **GRID)
+    return alt.vconcat(top, panel).resolve_scale(x="shared", color="independent")
 
 
 def cohort_strip(values: dict[str, float], patient: str, axis: str, fmt: str = ".2f") -> alt.Chart:
@@ -326,7 +370,7 @@ def cohort_strip(values: dict[str, float], patient: str, axis: str, fmt: str = "
         color="#8a8f98", thickness=1.5, size=18).encode(x=x, tooltip=tip)
     me = alt.Chart(df[df["who"] == "this patient"]).mark_point(
         filled=True, size=140, color=BLUE, opacity=1).encode(x="value:Q", tooltip=tip)
-    return (others + me).properties(height=44).configure_axis(**GRID).configure_view(
+    return (others + me).properties(height=44).configure_view(
         strokeWidth=0)
 
 
