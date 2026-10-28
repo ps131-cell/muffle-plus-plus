@@ -165,9 +165,11 @@ make demo-tcga  # the same app on TCGA-BRCA with the FedAvg model and real gene 
   literature step), 900 tokens per planner turn, 4,096 for Ultra (its reasoning counts) and 3
   Tavily queries. If Ultra fails or is cut off, Super writes the note. Every call goes through
   a hard $25.50 spending cap (`src/muffle/report/budget.py`). Only derived numbers and gene
-  names are sent, never raw omics. The demo shows each step live, the grounding result and the
-  tool trace. Without `NEBIUS_API_KEY` the same tools run in a fixed order and a template writes
-  the note. Try one TCGA case from the terminal (after `make tcga` and `make fl-tcga`):
+  names are sent, never raw omics. With a key, the app shows each step live, the grounding
+  result and the tool trace. The hosted app keeps no key (its spend ledger would reset on every
+  reboot) and serves the nine notes the agent wrote on Token Factory ("Case agent: saved notes
+  only" in the sidebar); a local run with `NEBIUS_API_KEY` in `.env` writes live notes. Without a
+  key the same tools run in a fixed order and a template writes the note. Try one TCGA case from the terminal (after `make tcga` and `make fl-tcga`):
   `make agent-tcga PATIENT=0`.
   In the app, every note names its models and Token Factory, and the Methods page's case-note
   card shows how a note is made and checked.

@@ -162,8 +162,11 @@ tumor-board note: **Nemotron 3 Super** plans and calls our tools (what was recor
 percentile, each data layer's effect, top features, CIViC evidence for the observed drivers, a
 Tavily literature search); **Nemotron 3 Ultra** writes the note, each bullet labeled observed,
 model inference or hypothesis; a plain-code grounding check flags any number, gene or link no
-tool returned, and the evidence chain ties each sentence to its tool, field and value. Nine notes
-are saved in the hosted app; a few live notes run per session.
+tool returned, and the evidence chain ties each sentence to its tool, field and value. With a
+key, the agent makes these calls to Nebius Token Factory at run time, each charged against a
+hard $25.50 cap; a local run (README setup) writes live notes. The hosted app serves the nine
+notes those calls produced, so its sidebar reads "Case agent: saved notes only" and a judge sees
+the agent's output without spending from the cap.
 
 **Learning across hospitals (NVIDIA FLARE).** The risk model is trained across three simulated
 hospitals (TCGA-BRCA tissue source sites) without moving patient data: each site trains locally
@@ -328,8 +331,11 @@ only).
   with Nemotron 3 Super and one or two Nemotron 3 Ultra calls (the note, and a rewrite if the
   grounding check finds something), following the track's advice to use Ultra for reasoning and
   Super for fast calls. The app names the models and Token Factory on every note and in the
-  sidebar's **About this system**; nine notes are saved in the release, and a few live notes run
-  per session on the hosted app, within a hard $25.50 cap.
+  sidebar's **About this system**. With a key the agent calls Token Factory at run time, every
+  call charged against a hard $25.50 cap (`src/muffle/report/budget.py`); a local run writes live
+  notes. The hosted app keeps no key (its container's spend ledger resets on a reboot) and serves
+  the nine notes those calls produced, so judges see them without spending from the cap; the
+  calls are in the local ledger ($0.82 of the cap, 125 calls).
 - **NVIDIA FLARE:** federated training with the Recipe API (`FedAvgRecipe`, `SimEnv`) across
   three simulated hospitals; the sidebar and the Methods page show it, and the README's results
   table compares it with pooling and with one hospital alone.
