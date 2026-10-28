@@ -648,7 +648,7 @@ def mri_map(pf: PatientFile, study: dict, key0: str, found: dict | None, changes
             items: list[dict]) -> tuple:
     """The MRI scan map with its controls above (series, candidate, Whole image, window and
     level, slice) and its line and search spots under it. Returns (slice, series, level,
-    window, the picked candidate, the slice's map, the first hover trace)."""
+    window, the picked candidate, the slice's map)."""
     ss, mem = st.session_state, map_memory(key0)
     d, cands = study["display"], study["candidates"]
     ids = [c["id"] for c in cands]
@@ -688,7 +688,8 @@ def mri_map(pf: PatientFile, study: dict, key0: str, found: dict | None, changes
     i = st.slider("Go to slice", 1, d["slices"], key=f"{key0}-slice",
                   help=f"Jumps to a slice: the map then holds it and the {MAP_WINDOW} on each "
                        "side, and the Slice slider inside the map steps through them keeping "
-                       "the zoom. A jump shows the whole slice again.") - 1
+                       "the zoom. A jump keeps the view the page set (whole, or a candidate's), "
+                       "not a wheel zoom.") - 1
     pair = later_pair_folder(study, changes)
     m = slice_map(study["folder"], stamp(study), i, pair)
     picked = next((c for c in cands if c["id"] == focus), None)
@@ -699,7 +700,7 @@ def mri_map(pf: PatientFile, study: dict, key0: str, found: dict | None, changes
     o = mem.get("outline")
     shape = (m.key, pick, level, width, view_modes, tuple(o) if o else None,
              tuple(mem["zoom"] or ()), mem["zoom_rev"], key0,
-             found["query"] if matching else None, tuple(x["key"] for x in items))
+             found["query"] if found else None, tuple(x["key"] for x in items))
 
     def build():
         vol = slices(study, pick)
@@ -1589,7 +1590,7 @@ def mammo_map(pf: PatientFile, study: dict, key0: str, views: list[dict],
     view_modes = ("match",) if values is not None else tuple(rm.modes(m))
     sel = outline_index(mem, m)
     shape = (m.key, level, width, view_modes, sel, tuple(mem["zoom"] or ()), mem["zoom_rev"],
-             key0, found["query"] if values is not None else None,
+             key0, found["query"] if found else None,
              tuple((p["r"], p["c"], p["label"]) for p in markers))
 
     def build():
