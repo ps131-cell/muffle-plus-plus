@@ -20,7 +20,7 @@ from workbenches import documents, omics
 from workbenches import radiology as radiology_page
 from workbenches import evolution as evolution_page
 
-from muffle import cohort, crosstest, feedback, workspace
+from muffle import cohort, crosstest, feedback, literature, workspace
 from muffle.overview import IMPACT_COLORS, LEVEL_COLORS
 from muffle.report import budget
 from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED
@@ -49,9 +49,26 @@ def tags(text: str) -> str:
     return " ".join(chip(e) for e in (OBSERVED, INFERENCE, HYPOTHESIS) if e in text)
 
 
+# model cards -> their module in muffle.literature (an evidence category and an EASSI-H line)
+CARD_MODULES = {"Multi-omic survival model": "risk_model", "MSK-CHORD landmark models": "landmark",
+                "Breast tissue head (pathology slides)": "tissue_head",
+                "Nuclei (StarDist)": "nuclei",
+                "Slide geometry, invasion and breakaway rules": "invasion"}
+
+
 def card(title: str, status: str, what: str) -> None:
     st.subheader(title)
     st.markdown(f"{chip(status)} · {what}")
+    if title in CARD_MODULES:
+        evidence_line(CARD_MODULES[title])
+
+
+def evidence_line(module: str, label: str = "") -> None:
+    """A module's evidence category (I–IV, adapted from Bhargava 2023) and its EASSI-H line:
+    data, n, split, external validation, result (muffle.literature)."""
+    st.caption((f"**{label}** · " if label else "")
+               + f"{chip(literature.category(module)['chip'])} · EASSI-H: "
+               + literature.eassi_h(module))
 
 
 # The page's contents: every section and its cards, in page order. A new card joins it (the
@@ -66,7 +83,8 @@ CONTENTS = {
                "Breast density, second opinion (MONAI, mammography)",
                "Screening score (mammoscreen, mammography)",
                "Radiology: report reading, seed and kinetics rules",
-               "Expression, methylation and protein scores", "Case note", "Case note service"],
+               "Expression, methylation and protein scores", "Case note", "Case note service",
+               "Planned: infrared chemical imaging"],
     "Rules": ["SOS alerts and their order", "Lab result rules", "ctDNA monitor rules",
               "Slide geometry, invasion and breakaway rules",
               "Genomics: detection, interpretation and evidence",
@@ -153,11 +171,15 @@ def render(demo, tl: dict | None, res: dict | None, service: dict | None = None)
     slide_model_cards()
     reviewed(feedback.SLIDES)
     radiology_page.methods_card()
+    evidence_line("radiology", "Radiology models")
     reviewed(feedback.RADIOLOGY)
     omics.methods_card()
+    evidence_line("pam50", "PAM50 subtype")
+    evidence_line("ecm3", "ECM3 four-gene score")
     reviewed(feedback.OMICS)
     case_note_card(demo)
     case_note_service_card(service or {})
+    planned_infrared()
 
     st.header("Rules")
     alert_card()
@@ -180,6 +202,7 @@ def render(demo, tl: dict | None, res: dict | None, service: dict | None = None)
                 "model in the same local pipeline. Both readings measured on the same held-out "
                 "TCGA reports against TCGA's clinical fields:")
     documents.methods_card()
+    evidence_line("documents", "Documents rules")
     reviewed(feedback.DOCUMENTS)
     evolution_page.methods_card()
     reviewed(feedback.EVOLUTION)
@@ -328,6 +351,27 @@ def slide_model_cards() -> None:
         "lymphocyte-like nuclei by zone, tumor-contacting lymphocytes, nuclear-area variation "
         "(a proxy, never a grade). Every flag built on it says *weak until validated*.\n"
         "- **Validation:** none on breast tissue: no hand count exists yet to measure its error.")
+    evidence_line("til_second", "Second lymphocyte model (WSInfer TIL)")
+
+
+def planned_infrared() -> None:
+    """The infrared modules the Bhargava lab's work points to, planned only (no infrared data in
+    this project), with their citations, the evidence categories and the independence note."""
+    st.subheader("Planned: infrared chemical imaging")
+    st.markdown(
+        f"{chip(workspace.PLANNED)} · not built: {literature.PLANNED_REASON}. Infrared "
+        "spectroscopic imaging records the chemistry of every pixel of an unstained section; "
+        "machine learning then reads tissue, stroma and stains from it.")
+    for m in literature.planned_modules():
+        st.markdown(f"- **{m['name']}** {chip(m['status'])}: {m['what']}. "
+                    + "; ".join(m["citations"]) + ".")
+    st.caption(
+        "Each model card above carries an evidence category, adapted from Bhargava 2023 ("
+        + literature.cite("bhargava2023") + "): " + "; ".join(
+            f"{k} {v}" for k, v in literature.CATEGORIES.items())
+        + "; each asks for more proof than the last. Its EASSI-H line (the review's reporting "
+        "guidelines) gives the data, n, split and external validation behind it.")
+    st.caption(literature.INDEPENDENCE)
 
 
 def case_note_card(demo) -> None:

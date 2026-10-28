@@ -497,6 +497,38 @@ def immune_by_zone(tiles: pd.DataFrame, til_cutoff: float | None = None) -> dict
                       "inferences, not validated on breast"}
 
 
+ZONES = ("core", "front band", "peritumoral")
+ZONE_CLASSES = ("tumor", "stroma", "lymphocytes", "necrosis", "fat")  # the head's other classes
+# (normal breast, DCIS) count as "other"
+ZONE_PRECEDENT = ("tissue compartments read separately on H&E, as in Mittal et al. 2019 (Front "
+                  "Bioeng Biotechnol 7:246, doi:10.3389/fbioe.2019.00246); their clustering "
+                  "measure is not used here")
+
+
+TSR_ECM3_HYPOTHESIS = (
+    "In one 42-tumor, single-centre infrared study the collagen at tumor borders carried the "
+    "ECM3 stromal signature, and ECM3 grade III tumors fared worst (Tiwari et al. 2020, Sci Rep "
+    "10:5442, doi:10.1038/s41598-020-62403-2; AUC 0.87, not validated externally). Here only "
+    "the H&E stroma share is measured, not the collagen's chemistry; the omics workbench shows "
+    "the ECM3 genes where RNA was sequenced.")
+
+
+def tissue_by_zone(tiles: pd.DataFrame) -> dict:
+    """Each zone's class shares of its usable tiles (the head's labels): {zone: {"tiles",
+    "shares": {class: share}, "other"}}; a zone without tiles has shares None. Model inference
+    on tile labels, a description, never a cutoff."""
+    usable = tiles[tiles["qc"] == QC_OK] if "qc" in tiles else tiles
+    out = {}
+    for z in ZONES:
+        tz = usable[usable["zone"] == z]
+        n = int(len(tz))
+        shares = ({c: round(float((tz["label"] == c).mean()), 3) for c in ZONE_CLASSES}
+                  if n else None)
+        out[z] = {"tiles": n, "shares": shares,
+                  "other": round(1 - sum(shares.values()), 3) if shares else None}
+    return out
+
+
 def tumor_stroma(tiles: pd.DataFrame) -> dict:
     """Stroma share of tumor-plus-stroma tiles inside the main tumor and its front band."""
     region = tiles[(tiles["main_tumor"]) | (tiles["zone"] == "front band")]
