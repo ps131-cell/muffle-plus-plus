@@ -234,6 +234,30 @@ PYTHONPATH=src python scripts/omics_scores_2.py --data data/tcga_brca --raw data
   cytolytic activity from the 75th percentile); this page names it when it fires and adds no
   second rule.
 
+### ECM3 four-gene score [model inference, implemented; its prognosis a hypothesis]
+
+- **What:** ECM3 is one of four extracellular-matrix expression subtypes of breast cancer
+  (Triulzi et al., *PLoS One* 2013,
+  [10.1371/journal.pone.0056761](https://doi.org/10.1371/journal.pone.0056761)). Its four-gene
+  surrogate is the average expression of **COL1A2, COL5A2, SPARC and LAMA4**. The paper names
+  the collagen gene COL1A1 in its Results, Figure 2, Figure S3 and one Discussion passage, and
+  COL1A2 in its Methods (the metagene), Figure S5 and its last Discussion paragraph; its qRT-PCR
+  assays list COL1A2 (Hs00164099_m1) and no COL1A1 assay, so COL1A2 is used.
+- **How:** each gene's log2(TPM + 1) from TCGA-BRCA STAR TPM, z-scored over the model's cohort
+  (1,059 tumors), the mean over the four (`muffle.workbench.omics.ecm3_score`); per bundled case
+  the score's and each gene's cohort percentile in `app/omics_ecm3.json`
+  (`scripts/omics_ecm3.py`, derived numbers only). The release bundle's RNA features hold COL1A2
+  alone of the four, hence the offline script. **No cutoff:** the paper's classifier was fitted
+  on its own cohorts and the four-gene score was not validated outside them; the page shows the
+  file's place in the cohort, never "ECM3" or "not ECM3". A gene a file lacks is named on the
+  card; a file without RNA-seq (SYNTHETIC-001) reads "not measured".
+- **Hypothesis line:** ECM3 tumors had worse distant-metastasis-free survival only among grade
+  III tumors (HR 3.0, 95% CI 1.3–7.0; untreated node-negative patients of two public datasets);
+  Tiwari et al. 2020 (the Bhargava lab) found the ECM3 collagen signature mainly at tumor
+  borders by infrared imaging (42 tumors, one centre, AUC 0.87, not validated externally).
+  Shown as a lead, never a prognosis or a recommendation; a card on the page, never a queue
+  item.
+
 ## Placeholders
 
 - A PAM50 call whose margin to the runner-up is under 0.1 is flagged "borderline".
