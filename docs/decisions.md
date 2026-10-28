@@ -2,6 +2,34 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-28 — The Bhargava lab's stroma work applied as cited cards, a score and planned modules
+- **What:** on the user's request ("research Rohit Bhargava's research ... read and apply
+  everything you can"), four pieces on H&E and RNA, three infrared pieces as planned modules.
+  Slide workbench: tissue by zone (class shares in core, front band and peritumoral zone, model
+  inference; precedent Mittal 2019) and, beside the tumor–stroma ratio, a hypothesis line on
+  border collagen and ECM3 (Tiwari 2020), both in the export. Omics workbench: the ECM3
+  four-gene score (COL1A2, COL5A2, SPARC, LAMA4; Triulzi 2013) as a cohort percentile with no
+  cutoff, its grade III prognosis a cited hypothesis, a card and never a queue item. Methods and
+  validation: an evidence category (I–IV, adapted from Bhargava 2023) and an EASSI-H line (data,
+  n, split, external validation, result) on every model card; a "Planned: infrared chemical
+  imaging" block (stainless staining; stromal subtypes in the front band; an infrared ECM3
+  score). Citations as data in `src/muffle/literature.py`; `docs/registry.md` lists the papers.
+- **Gene list:** Triulzi 2013 names COL1A1 in its Results and figures 2 and S3 and COL1A2 in its
+  Methods metagene, Figure S5 and its last Discussion paragraph; its qRT-PCR assay list has
+  COL1A2 and no COL1A1 assay. COL1A2 is used, and `docs/omics.md` says so.
+- **Data:** the release bundle's 1,000 RNA features hold COL1A2 only, so the four genes' cohort
+  z-scores come from TCGA-BRCA STAR TPM through `scripts/omics_ecm3.py` (as the other omics
+  scores, derived numbers only) over the model's whole cohort (1,059 tumors), the reference of
+  the workbench's other percentiles, rather than the 40 bundled files.
+- **Why:** the lab's stroma work bears on the invasive-front analysis, and its evidence ladder
+  and reporting checklist match the app's rule that a placeholder never looks validated.
+- **Rejected:** training on infrared-derived labels (no public infrared data, no weights,
+  unlicensed lab code); Mittal 2019's "inertia" measure (tested for diagnosis only); any cutoff
+  on the ECM3 score (fitted on its paper's cohorts; the infrared detector on 42 tumors of one
+  centre).
+- **Credit:** cited by authors, year, journal and DOI; MuFFLe++ is independent and neither
+  reviewed nor endorsed by the laboratory or the Cancer Center at Illinois; no logos, no code.
+
 ## 2026-10-28 — Building continues past the planned Oct 28 freeze, under new gates
 - **What:** on the user's word (00:20 CDT: "keep working, keep optimizing, also keep building
   ... think like a UI/UX designer ... parallel sessions"), building goes on through Oct 28

@@ -1,0 +1,462 @@
+{
+ "version": "omics_ecm3 2026-10-28",
+ "genes": [
+  "COL1A2",
+  "COL5A2",
+  "SPARC",
+  "LAMA4"
+ ],
+ "measured": [
+  "COL1A2",
+  "COL5A2",
+  "SPARC",
+  "LAMA4"
+ ],
+ "reference": {
+  "cohort": "TCGA-BRCA primary tumors in the model's cohort (cohort.npz)",
+  "rna_tumors": 1059
+ },
+ "method": "log2(TPM + 1), each gene z-scored over the cohort, the mean over the genes",
+ "cases": {
+  "43": {
+   "log_risk": -0.385152,
+   "score": -0.7,
+   "percentile": 21.9,
+   "genes": {
+    "COL1A2": 25.6,
+    "COL5A2": 26.3,
+    "SPARC": 28.6,
+    "LAMA4": 12.3
+   }
+  },
+  "47": {
+   "log_risk": -0.626693,
+   "score": -1.906,
+   "percentile": 3.9,
+   "genes": {
+    "COL1A2": 4.8,
+    "COL5A2": 4.1,
+    "SPARC": 10.8,
+    "LAMA4": 1.0
+   }
+  },
+  "49": {
+   "log_risk": -0.684251,
+   "score": -0.014,
+   "percentile": 46.0,
+   "genes": {
+    "COL1A2": 51.2,
+    "COL5A2": 43.8,
+    "SPARC": 45.0,
+    "LAMA4": 43.0
+   }
+  },
+  "51": {
+   "log_risk": -0.59452,
+   "score": -0.821,
+   "percentile": 18.6,
+   "genes": {
+    "COL1A2": 11.7,
+    "COL5A2": 13.1,
+    "SPARC": 17.7,
+    "LAMA4": 46.2
+   }
+  },
+  "58": {
+   "log_risk": -0.747063,
+   "score": -0.045,
+   "percentile": 44.4,
+   "genes": {
+    "COL1A2": 40.2,
+    "COL5A2": 38.1,
+    "SPARC": 42.0,
+    "LAMA4": 60.5
+   }
+  },
+  "61": {
+   "log_risk": -0.708866,
+   "score": 0.496,
+   "percentile": 66.1,
+   "genes": {
+    "COL1A2": 76.0,
+    "COL5A2": 70.3,
+    "SPARC": 69.3,
+    "LAMA4": 50.9
+   }
+  },
+  "85": {
+   "log_risk": -1.043778,
+   "score": 0.254,
+   "percentile": 56.4,
+   "genes": {
+    "COL1A2": 55.8,
+    "COL5A2": 55.2,
+    "SPARC": 60.8,
+    "LAMA4": 53.1
+   }
+  },
+  "96": {
+   "log_risk": -0.339041,
+   "score": 0.486,
+   "percentile": 65.2,
+   "genes": {
+    "COL1A2": 55.1,
+    "COL5A2": 61.5,
+    "SPARC": 59.3,
+    "LAMA4": 83.7
+   }
+  },
+  "128": {
+   "log_risk": -0.696601,
+   "score": 0.358,
+   "percentile": 60.8,
+   "genes": {
+    "COL1A2": 56.1,
+    "COL5A2": 58.3,
+    "SPARC": 52.9,
+    "LAMA4": 73.2
+   }
+  },
+  "135": {
+   "log_risk": -0.547895,
+   "score": -1.274,
+   "percentile": 9.2,
+   "genes": {
+    "COL1A2": 17.8,
+    "COL5A2": 32.9,
+    "SPARC": 2.4,
+    "LAMA4": 4.8
+   }
+  },
+  "140": {
+   "log_risk": -0.630847,
+   "score": 0.993,
+   "percentile": 85.1,
+   "genes": {
+    "COL1A2": 86.5,
+    "COL5A2": 91.0,
+    "SPARC": 77.3,
+    "LAMA4": 81.3
+   }
+  },
+  "234": {
+   "log_risk": -0.576911,
+   "score": -0.032,
+   "percentile": 45.0,
+   "genes": {
+    "COL1A2": 37.5,
+    "COL5A2": 33.8,
+    "SPARC": 34.0,
+    "LAMA4": 80.2
+   }
+  },
+  "299": {
+   "log_risk": 0.075113,
+   "score": 1.228,
+   "percentile": 92.3,
+   "genes": {
+    "COL1A2": 95.2,
+    "COL5A2": 96.2,
+    "SPARC": 91.2,
+    "LAMA4": 75.0
+   }
+  },
+  "305": {
+   "log_risk": -0.487627,
+   "score": -1.377,
+   "percentile": 8.1,
+   "genes": {
+    "COL1A2": 5.1,
+    "COL5A2": 6.4,
+    "SPARC": 8.6,
+    "LAMA4": 27.0
+   }
+  },
+  "318": {
+   "log_risk": -0.34996,
+   "score": 0.569,
+   "percentile": 70.0,
+   "genes": {
+    "COL1A2": 64.8,
+    "COL5A2": 65.7,
+    "SPARC": 71.7,
+    "LAMA4": 73.5
+   }
+  },
+  "328": {
+   "log_risk": -0.452401,
+   "score": -1.743,
+   "percentile": 5.4,
+   "genes": {
+    "COL1A2": 3.5,
+    "COL5A2": 4.4,
+    "SPARC": 7.6,
+    "LAMA4": 7.5
+   }
+  },
+  "345": {
+   "log_risk": -0.310072,
+   "score": 0.544,
+   "percentile": 69.0,
+   "genes": {
+    "COL1A2": 60.1,
+    "COL5A2": 60.6,
+    "SPARC": 66.2,
+    "LAMA4": 81.8
+   }
+  },
+  "406": {
+   "log_risk": -0.556558,
+   "score": 0.828,
+   "percentile": 80.0,
+   "genes": {
+    "COL1A2": 70.7,
+    "COL5A2": 80.8,
+    "SPARC": 66.3,
+    "LAMA4": 91.8
+   }
+  },
+  "432": {
+   "log_risk": -0.760593,
+   "score": -0.529,
+   "percentile": 28.0,
+   "genes": {
+    "COL1A2": 24.6,
+    "COL5A2": 25.5,
+    "SPARC": 20.2,
+    "LAMA4": 42.9
+   }
+  },
+  "444": {
+   "log_risk": -0.7185,
+   "score": 0.637,
+   "percentile": 73.0,
+   "genes": {
+    "COL1A2": 76.3,
+    "COL5A2": 71.3,
+    "SPARC": 81.1,
+    "LAMA4": 57.3
+   }
+  },
+  "469": {
+   "log_risk": -0.567336,
+   "score": -1.211,
+   "percentile": 10.5,
+   "genes": {
+    "COL1A2": 15.8,
+    "COL5A2": 14.7,
+    "SPARC": 12.9,
+    "LAMA4": 5.3
+   }
+  },
+  "485": {
+   "log_risk": -0.735772,
+   "score": -1.012,
+   "percentile": 14.1,
+   "genes": {
+    "COL1A2": 16.6,
+    "COL5A2": 18.9,
+    "SPARC": 16.5,
+    "LAMA4": 9.2
+   }
+  },
+  "537": {
+   "log_risk": -0.644072,
+   "score": 0.335,
+   "percentile": 59.9,
+   "genes": {
+    "COL1A2": 47.7,
+    "COL5A2": 48.9,
+    "SPARC": 67.1,
+    "LAMA4": 71.8
+   }
+  },
+  "545": {
+   "log_risk": -0.23046,
+   "score": 0.152,
+   "percentile": 52.9,
+   "genes": {
+    "COL1A2": 59.5,
+    "COL5A2": 49.5,
+    "SPARC": 53.2,
+    "LAMA4": 46.3
+   }
+  },
+  "563": {
+   "log_risk": -0.859562,
+   "score": -0.616,
+   "percentile": 24.9,
+   "genes": {
+    "COL1A2": 25.0,
+    "COL5A2": 24.0,
+    "SPARC": 19.0,
+    "LAMA4": 33.5
+   }
+  },
+  "564": {
+   "log_risk": -0.748294,
+   "score": 1.087,
+   "percentile": 88.1,
+   "genes": {
+    "COL1A2": 93.6,
+    "COL5A2": 88.1,
+    "SPARC": 91.0,
+    "LAMA4": 72.2
+   }
+  },
+  "601": {
+   "log_risk": -0.094638,
+   "score": 0.226,
+   "percentile": 55.2,
+   "genes": {
+    "COL1A2": 55.2,
+    "COL5A2": 61.0,
+    "SPARC": 49.3,
+    "LAMA4": 55.8
+   }
+  },
+  "611": {
+   "log_risk": -0.51356,
+   "score": 1.01,
+   "percentile": 85.8,
+   "genes": {
+    "COL1A2": 93.4,
+    "COL5A2": 90.7,
+    "SPARC": 81.6,
+    "LAMA4": 70.3
+   }
+  },
+  "681": {
+   "log_risk": -0.7824,
+   "score": 0.439,
+   "percentile": 63.3,
+   "genes": {
+    "COL1A2": 66.7,
+    "COL5A2": 68.5,
+    "SPARC": 66.9,
+    "LAMA4": 53.8
+   }
+  },
+  "715": {
+   "log_risk": -0.620782,
+   "score": -2.269,
+   "percentile": 1.2,
+   "genes": {
+    "COL1A2": 1.0,
+    "COL5A2": 1.3,
+    "SPARC": 2.0,
+    "LAMA4": 5.7
+   }
+  },
+  "730": {
+   "log_risk": -0.536498,
+   "score": -0.895,
+   "percentile": 17.0,
+   "genes": {
+    "COL1A2": 13.5,
+    "COL5A2": 20.7,
+    "SPARC": 12.5,
+    "LAMA4": 30.6
+   }
+  },
+  "741": {
+   "log_risk": -0.808123,
+   "score": 0.984,
+   "percentile": 84.8,
+   "genes": {
+    "COL1A2": 86.9,
+    "COL5A2": 85.3,
+    "SPARC": 87.5,
+    "LAMA4": 74.0
+   }
+  },
+  "754": {
+   "log_risk": -0.425798,
+   "score": 1.182,
+   "percentile": 91.1,
+   "genes": {
+    "COL1A2": 92.2,
+    "COL5A2": 87.1,
+    "SPARC": 92.2,
+    "LAMA4": 87.9
+   }
+  },
+  "864": {
+   "log_risk": -0.614896,
+   "score": 0.333,
+   "percentile": 59.8,
+   "genes": {
+    "COL1A2": 48.3,
+    "COL5A2": 63.3,
+    "SPARC": 53.9,
+    "LAMA4": 70.2
+   }
+  },
+  "901": {
+   "log_risk": -0.77035,
+   "score": -0.588,
+   "percentile": 25.6,
+   "genes": {
+    "COL1A2": 28.0,
+    "COL5A2": 28.8,
+    "SPARC": 23.7,
+    "LAMA4": 24.2
+   }
+  },
+  "926": {
+   "log_risk": -0.818975,
+   "score": 1.054,
+   "percentile": 86.9,
+   "genes": {
+    "COL1A2": 87.6,
+    "COL5A2": 83.9,
+    "SPARC": 87.1,
+    "LAMA4": 86.1
+   }
+  },
+  "927": {
+   "log_risk": -0.966987,
+   "score": -0.133,
+   "percentile": 41.6,
+   "genes": {
+    "COL1A2": 38.8,
+    "COL5A2": 41.6,
+    "SPARC": 52.1,
+    "LAMA4": 33.8
+   }
+  },
+  "937": {
+   "log_risk": -0.894323,
+   "score": -0.212,
+   "percentile": 38.8,
+   "genes": {
+    "COL1A2": 35.7,
+    "COL5A2": 35.1,
+    "SPARC": 46.9,
+    "LAMA4": 38.4
+   }
+  },
+  "1023": {
+   "log_risk": -0.666378,
+   "score": 0.331,
+   "percentile": 59.6,
+   "genes": {
+    "COL1A2": 54.6,
+    "COL5A2": 58.2,
+    "SPARC": 62.1,
+    "LAMA4": 61.1
+   }
+  },
+  "1043": {
+   "log_risk": -0.360389,
+   "score": 0.569,
+   "percentile": 70.1,
+   "genes": {
+    "COL1A2": 49.1,
+    "COL5A2": 58.5,
+    "SPARC": 64.6,
+    "LAMA4": 92.8
+   }
+  }
+ }
+}

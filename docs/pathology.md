@@ -501,3 +501,21 @@ the scan (80–125 kB JPEG), seven views of 10–30 kB in all, the hover layers.
 - Vessels, DCIS and normal breast as classes (more labeled tiles); blood, folds and stain
   variation in quality control.
 - Margins only where the specimen type allows; comparison across time needs a second specimen.
+
+## 12. Tissue by zone and the stroma hypothesis (2026-10-28)
+
+- **Tissue by zone** [model inference]: each zone's share of usable tiles by the head's class
+  (invasive carcinoma, stroma, lymphocytes, necrosis or debris, fat; other = normal breast or
+  in-situ carcinoma), in the core, the front band and the peritumoral zone
+  (`muffle.workbench.invasion.tissue_by_zone`). A description of the section with no cutoff;
+  precedent for reading compartments separately on H&E: Mittal et al. 2019 (*Front Bioeng
+  Biotechnol* 7:246, [10.3389/fbioe.2019.00246](https://doi.org/10.3389/fbioe.2019.00246)),
+  whose clustering ("inertia") measure is not used.
+- **Beside the tumor–stroma ratio** [hypothesis]: in one 42-tumor, single-centre infrared study
+  the collagen at tumor borders carried the ECM3 stromal signature and ECM3 grade III tumors
+  fared worst (Tiwari et al. 2020, *Sci Rep* 10:5442,
+  [10.1038/s41598-020-62403-2](https://doi.org/10.1038/s41598-020-62403-2); AUC 0.87, not
+  validated externally). Here only the H&E stroma share is measured, not the collagen's
+  chemistry; the omics workbench shows the ECM3 genes where RNA was sequenced (`docs/omics.md`).
+- Both are in the slide report export. Infrared stromal subtypes and an infrared ECM3 score are
+  planned only (no infrared data in this project; Methods and validation).

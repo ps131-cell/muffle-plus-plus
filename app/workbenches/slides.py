@@ -38,7 +38,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from muffle.report.case_tools import INFERENCE, OBSERVED  # noqa: E402
+from muffle.report.case_tools import HYPOTHESIS, INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench import invasion as inv  # noqa: E402
 from muffle.workbench.slides import (  # noqa: E402
     CUTOFFS,
@@ -1031,6 +1031,24 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                    width="content",
                    help="median coefficient of variation of non-lymphocyte nuclear area per "
                         "counted tile: a proxy only, never a grade")
+        st.caption(f"{chip(HYPOTHESIS)} {inv.TSR_ECM3_HYPOTHESIS}")
+
+    zones = inv.tissue_by_zone(res["tiles"])
+    with page.details("Tissue by zone", f"{sum(v['tiles'] for v in zones.values()):,} tiles in "
+                      "three zones"):
+        chips(INFERENCE)
+        st.dataframe(pd.DataFrame([{"zone": z, "tiles": v["tiles"], **{
+            LABELS[c]: None if v["shares"] is None else 100 * v["shares"][c]
+            for c in inv.ZONE_CLASSES}, "other": None if v["other"] is None
+            else 100 * v["other"]} for z, v in zones.items()]), hide_index=True,
+            width="stretch", column_config={
+                c: st.column_config.NumberColumn(c, format="%.0f%%")
+                for c in [*(LABELS[k] for k in inv.ZONE_CLASSES), "other"]})
+        st.caption("Each zone's share of usable tiles by the head's class: the core (inside the "
+                   "main tumor), the front band and the peritumoral zone (the International "
+                   "TILs Working Group's zones, as in Stromal lymphocytes by zone). Other = "
+                   "normal breast or in-situ carcinoma. A description of this section, no "
+                   f"cutoff; {inv.ZONE_PRECEDENT}.")
 
     with page.details("Satellite islands", len(res["islands"])):
         if res["islands"]:

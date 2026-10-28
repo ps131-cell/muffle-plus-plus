@@ -131,6 +131,25 @@ and no intellectual-property or exclusivity terms; the Nebius × NVIDIA rules al
 work that is significantly updated during the submission period, and require the submission to
 be the entrant's own work. The Devpost text discloses the reuse (`docs/submission.md`).
 
+## Literature applied (cited, no code reused)
+
+Published work applied as cited cards, a score and planned modules (`docs/decisions.md`,
+2026-10-28; `src/muffle/literature.py` holds each citation, its finding, evidence category and
+caveat). Ideas and published numbers are cited; no text, figure, data or code of these papers or
+of the Chemical Imaging and Structures Laboratory is copied (the lab's public repositories are
+infrared-only and carry no license). MuFFLe++ is independent of the laboratory and of the Cancer
+Center at Illinois, which have neither reviewed nor endorsed it.
+
+| Paper | Used for | Article access / license | What the app shows |
+|---|---|---|---|
+| Triulzi et al., *PLoS One* 2013;8:e56761, [10.1371/journal.pone.0056761](https://doi.org/10.1371/journal.pone.0056761), PMID 23441215 | the ECM3 four-gene surrogate (COL1A2, COL5A2, SPARC, LAMA4) and its grade III prognosis (HR 3.0, 95% CI 1.3–7.0) | open access (PLoS, CC BY) | per bundled case the score's and each gene's cohort percentile, computed from TCGA-BRCA STAR TPM by `scripts/omics_ecm3.py` into `app/omics_ecm3.json` (derived numbers only); the prognosis as a hypothesis |
+| Tiwari et al., *Sci Rep* 2020;10:5442, [10.1038/s41598-020-62403-2](https://doi.org/10.1038/s41598-020-62403-2), PMID 32214177 (Bhargava lab) | the border-collagen hypothesis beside the tumor–stroma ratio; a planned infrared ECM3 score | open access (Scientific Reports, CC BY 4.0) | a cited hypothesis line on the slide workbench and in its export |
+| Mittal et al., *Front Bioeng Biotechnol* 2019;7:246, [10.3389/fbioe.2019.00246](https://doi.org/10.3389/fbioe.2019.00246), PMID 31681737 | precedent for reading tissue compartments separately on H&E (tissue by zone); its clustering measure is not used | open access (Frontiers, CC BY 4.0) | the citation under the slide workbench's tissue-by-zone table |
+| Mittal et al., *PNAS* 2018;115:E5651, [10.1073/pnas.1719551115](https://doi.org/10.1073/pnas.1719551115), PMID 29866827 | a planned module: stromal subtypes in the front band | free full text (PMC) | a planned entry on Methods and validation |
+| Lin et al., *Mach Learn Appl* 2024;16:100549, [10.1016/j.mlwa.2024.100549](https://doi.org/10.1016/j.mlwa.2024.100549), PMID 39036499 | the same planned module (reactive stroma from infrared bands) | free full text (PMC) | a planned entry |
+| Mayerich et al., *Technology* 2015;3:27, [10.1142/S2339547815200010](https://doi.org/10.1142/S2339547815200010), PMID 26029735; Schnell et al., *PNAS* 2020;117:3388, [10.1073/pnas.1912400117](https://doi.org/10.1073/pnas.1912400117), PMID 32015103 | a planned module: stainless H&E and immunohistochemistry from unstained sections | free full text (PMC) | a planned entry |
+| Bhargava, *Annu Rev Anal Chem* 2023;16:205, [10.1146/annurev-anchem-101422-090956](https://doi.org/10.1146/annurev-anchem-101422-090956), PMID 37068745 | the four evidence categories (I identifying cells and tissue … IV prognosis or prediction) and the EASSI-H reporting line, adapted to every model card | free full text (PMC) | a category chip and an EASSI-H line (data, n, split, external validation, result) per model card on Methods and validation |
+
 ## Software
 
 NVIDIA FLARE ≥ 2.8 (Apache-2.0) · PyTorch (BSD-3-Clause) · scikit-learn (BSD-3-Clause) ·

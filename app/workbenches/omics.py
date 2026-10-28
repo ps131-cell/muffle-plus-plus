@@ -227,6 +227,8 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
             st.info("No expression, methylation or protein data in this file. RNA-seq, a "
                     "methylation array or a protein array (RPPA) of the tumor would open this "
                     "workbench; the TCGA cases carry them.", icon="🧫")
+        with page.details("Stroma: the ECM3 score", "not measured"):
+            ecm3_section(pf)
         with page.card():
             method_card(None)
         with page.cannot_see([CANNOT]):
@@ -388,6 +390,10 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
             immune_section(cs, data, pic, wb.slide_immune(pf, cs, version))
         else:
             st.caption(f"Needs RNA expression ({MISSING['rna']}).")
+    e3 = wb.ecm3(pf)
+    with page.details("Stroma: the ECM3 score", f"{ordinal(e3['percentile'])} percentile"
+                      if e3["measured"] else "not measured"):
+        ecm3_section(pf)
     with page.details("Data layers", f"{len(case.layers)} of {len(wb.LAYERS)} measured"):
         order = ([layer] if layer in wb.LAYERS else []) + [m for m in wb.LAYERS if m != layer]
         for tab, m in zip(st.tabs([wb.LAYERS[m]["name"] for m in order]), order, strict=True):
@@ -439,6 +445,8 @@ def render(pf, version: int | None = None, layer: str | None = None, case=None,
                 "scores": (data or {}).get("version"), "model": pf.model["name"],
                 "contribution_vs_typical_patient": contrib, "references": wb.REFERENCES,
                 "scores_round2": (data or {}).get("version2"),
+                "ecm3": {k: e3[k] for k in ("measured", "percentile", "genes", "missing",
+                                             "evidence")},
                 "placeholders": [f"PAM50 borderline margin < {wb.LOW_MARGIN}",
                                  "ERBB2 amplified at >= 2x ploidy (ASCAT calls)",
                                  *(f"{what}: {value}" for what, value in wb.PLACEHOLDERS)]}
@@ -677,6 +685,38 @@ def methylation_section(cs: dict, data: dict) -> None:
 
 def _share(x) -> str:
     return "not scored" if x is None else f"{x:.0%}"
+
+
+def ecm3_section(pf) -> None:
+    """The ECM3 four-gene score (Triulzi et al. 2013) as this file's place in the cohort, with
+    no cutoff (model inference), and its prognosis as a cited hypothesis; a card, never a queue
+    item. A file without RNA-seq says "not measured"."""
+    e3, data = wb.ecm3(pf), wb.ecm3_data()
+    st.caption(f"{tag(INFERENCE)} {chip(wb.IMPLEMENTED)} {chip('no cutoff')} · the prognosis "
+               f"{chip(HYPOTHESIS)}")
+    if e3["measured"]:
+        place = ordinal(e3["percentile"])
+        st.metric("ECM3 score, cohort percentile", place, width="content",
+                  help="Mean of the four genes' cohort z-scores (log2 TPM + 1), placed among "
+                       f"{data['reference']['rna_tumors']:,} TCGA-BRCA tumors. No high or low: "
+                       "the paper's classifier was fitted on its own cohorts.")
+        st.dataframe(pd.DataFrame([{"Gene": g, "Cohort percentile": e3["genes"].get(g),
+                                    "Measured": "yes" if g in e3["genes"] else "no"}
+                                   for g in wb.ECM3_GENES]), hide_index=True, width=420)
+        if e3["missing"]:
+            st.warning("Not measured in this file: " + ", ".join(e3["missing"])
+                       + "; the score averages the genes measured.")
+    else:
+        st.markdown(f"**ECM3 score**: {e3['text']}.")
+    st.markdown(f"{chip(HYPOTHESIS)} {e3['hypothesis']}")
+    st.caption(
+        "ECM3 is one of four extracellular-matrix expression subtypes of breast cancer; its "
+        "four-gene surrogate is the average expression of " + ", ".join(wb.ECM3_GENES) + " ("
+        + wb.ECM3_SOURCE + "). The paper names the collagen gene COL1A1 in its Results and "
+        "COL1A2 in its Methods and qRT-PCR assays; the measured one, COL1A2, is used. The "
+        "four-gene score was not validated outside the paper's cohorts, and bulk RNA mixes "
+        "tumor and stroma. " + (f"Computed offline from TCGA-BRCA STAR TPM, "
+                                f"{data.get('version', '?')}." if data else ""))
 
 
 def immune_section(cs: dict, data: dict, pic: dict | None, secs: list[dict]) -> None:

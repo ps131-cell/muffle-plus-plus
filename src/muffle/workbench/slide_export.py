@@ -16,7 +16,7 @@ from datetime import date
 
 from PIL import Image, ImageDraw, ImageFont
 
-from muffle.workbench import tile_map
+from muffle.workbench import invasion, tile_map
 from muffle.workbench.slides import CUTOFFS, LABELS, PLACEHOLDER
 
 FOOTER = ("Model inferences on the patient's own section, not reviewed by a pathologist. "
@@ -141,6 +141,14 @@ def report_markdown(patient: str, slide: str, meta: dict, res: dict, *, marks: d
         {"finding": "Excluded by quality control",
          "value": ", ".join(f"{v} {k}" for k, v in s["excluded"].items()) or "none",
          "evidence": "rules (placeholder cutoffs; one calibrated)"}])
+    zones = invasion.tissue_by_zone(res["tiles"])
+    lines += ["", "## Tissue by zone (model inference)", "",
+              f"Class shares of the usable tiles per zone; {invasion.ZONE_PRECEDENT}.", ""]
+    lines += _table([{"zone": z, "tiles": v["tiles"], **{
+        LABELS[c]: "—" if v["shares"] is None else f"{v['shares'][c]:.0%}"
+        for c in invasion.ZONE_CLASSES}, "other": "—" if v["other"] is None
+        else f"{v['other']:.0%}"} for z, v in zones.items()])
+    lines += ["", f"**Stroma and ECM3 (hypothesis).** {invasion.TSR_ECM3_HYPOTHESIS}"]
     if bud_count is not None:
         lines += ["", f"Your bud count in the counting field: {bud_count}."]
     reviewed = sum(1 for q in res["queue"] if marks.get((q["row"], q["col"])))
