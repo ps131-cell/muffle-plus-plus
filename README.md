@@ -31,8 +31,10 @@ hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
   versions, Export this report, Your marks, Pin this file, Methods and validation, How to read
   this); finding cards from every workbench with **Why?** and an **Open** that names where it
   lands; one attention queue (alerts, tests that disagree, every workbench's look-here items)
-  with keyboard triage, review marks and a **Next step** line; risk with its model and
-  uncertainty; mutations with CIViC evidence for clinician review; **Where this patient sits**
+  with keyboard triage, review marks and a **Next step** line; a cockpit of three columns (the
+  risk model with its uncertainty, the driver mutations with their CIViC evidence ladder for
+  clinician review, what to look at next), each finding's source, method and version on hover;
+  **Where this patient sits**
   (percentiles among the 40 TCGA files) and **Similar patients** (the five nearest TCGA files on
   eight recorded and derived fields), both lookups over what the files hold, not a model
   ([`docs/cohort.md`](docs/cohort.md)); a one-page export. **Tests** opens on a launcher: a tile
@@ -43,23 +45,31 @@ hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 - **Case note:** Nemotron 3 Super plans and calls our tools, Nemotron 3 Ultra writes, a
   plain-code grounding check verifies every number, gene and link (TCGA files).
 - **Timeline** ([`docs/timeline.md`](docs/timeline.md)): every test, treatment, alert and report
-  version on one month axis, a lane per kind; **time travel**: click any point to open the file
-  as it stood at that version; what each version brought; any two versions compared.
+  version on one month axis, a lane per kind, each version marked by its risk shift; **time
+  travel**: click any point or a row of the versions table to open the file as it stood at that
+  version; **compare two versions**: the risk delta against the five models' spread, then the
+  findings, tests, attention items and note sentences that changed (a difference between two
+  snapshots, not a forecast).
 - **Feedback** ([`docs/feedback.md`](docs/feedback.md)): every review mark as a ledger record
   with the model or rule behind its finding, disagreement rates per model or rule with a 95%
   interval, the disagreed findings as a queue, export and import. Marks stay in the browser
   session; nothing is trained on them.
 - **Import tests:** lab CSVs, reports (text, PDF), VCF / MAF, imaging reports, slide images,
   DICOM headers, notes; public or synthetic data only.
-- **Methods and validation:** a card per model and rule, federated training, data sources,
-  every known failure and every placeholder.
+- **Methods and validation:** a card per model and rule with its evidence category and an
+  EASSI-H reporting line, federated training, data sources, every known failure and every
+  placeholder, and planned modules (infrared chemical imaging) marked planned and cited.
+- **Look:** a clinical light theme (IBM Plex Sans and Mono, compact controls, AA colours; colour
+  is never the only signal); the sidebar's **About this system** shows the release, each
+  simulated site's held-out C-index, the models, the case-note spend against the cap and the
+  code's version.
 
 | Workbench | What it does | Status |
 |---|---|---|
-| Pathology ([`docs/pathology.md`](docs/pathology.md)) | a slide map on the patient's own section (5 cases, 8 sections): seven views, search inside the slide, a section report, and a pan-and-zoom viewer to single nuclei one click away; tissue map from a BCSS-trained head on GigaPath-Flash (tiles unlike its training tissue not scored); invasive front and direction of invasion; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (91.9%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
-| Expression, methylation, protein ([`docs/omics.md`](docs/omics.md)) | PAM50, Hallmark and RPPA pathway scores, promoter methylation, immune and stromal picture, receptor consistency | PAM50 experimentally validated against TCGA's published calls (94.7% of 950 tumors, κ 0.92; the ER-balanced centering was chosen after seeing the first result, 72.5%, so not an independent test); receptor levels against recorded IHC: ER AUC 0.958, PR 0.926, HER2 0.811 (RNA), cutoffs calibrated in-sample; the rest implemented, methylation cutoffs placeholders |
+| Pathology ([`docs/pathology.md`](docs/pathology.md)) | a slide map on the patient's own section (5 cases, 8 sections): seven views, search inside the slide, a section report, and a pan-and-zoom viewer to single nuclei one click away; tissue map from a BCSS-trained head on GigaPath-Flash (tiles unlike its training tissue not scored); invasive front and direction of invasion; tissue by zone; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (91.9%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
+| Expression, methylation, protein ([`docs/omics.md`](docs/omics.md)) | PAM50, Hallmark and RPPA pathway scores, promoter methylation, immune and stromal picture, the ECM3 four-gene stroma score (a cohort percentile, no cutoff; Triulzi 2013), receptor consistency | PAM50 experimentally validated against TCGA's published calls (94.7% of 950 tumors, κ 0.92; the ER-balanced centering was chosen after seeing the first result, 72.5%, so not an independent test); receptor levels against recorded IHC: ER AUC 0.958, PR 0.926, HER2 0.811 (RNA), cutoffs calibrated in-sample; the rest implemented, methylation cutoffs placeholders |
 | Genomics ([`docs/genomics.md`](docs/genomics.md)) | variants with detection, interpretation and predicted effect apart (VEP, ClinVar, AlphaMissense); CIViC ladder; copy-number landscape with ABSOLUTE purity and ploidy; burden; pathway map; variants over time | implemented; copy-number cutoffs placeholders |
-| Radiology ([`docs/radiology.md`](docs/radiology.md)) | report reading; DCE-MRI viewers in three planes with MedSAM contours and kinetics (5 TCIA cases); mammoscreen and MONAI density; change over time on a labeled public example pair | implemented; not validated on breast imaging here; kinetic cutoffs placeholders |
+| Radiology ([`docs/radiology.md`](docs/radiology.md)) | report reading; a scan map on the study's own image for 5 TCIA cases (lesion, kinetics, enhancement, change and density layers, a slice slider, search, click to the Spot panel) with MedSAM contours and kinetics; mammoscreen and MONAI density; change over time on a labeled public example pair | implemented; not validated on breast imaging here; kinetic cutoffs placeholders |
 | Clinical documents ([`docs/documents.md`](docs/documents.md)) | breast pathology facts by rules, each at its source sentence; an open oncology named-entity model's reading beside the rules (model inference); conflicts side by side; scanned PDFs read to text in the local pipeline | implemented; rules measured on 481 held-out TCGA reports (precision 81–98% on 9 of 10 fields, recall 6–82%); the model mostly marks where a field is named, not its result (recall 0–11%), so it stays a second opinion |
 | Labs ([`docs/labs.md`](docs/labs.md)) | any analyte with reference intervals from the Mayo Clinic Laboratories catalog (the lab report's own interval wins), CTCAE grades, kinetics, EGTM rise confirmation | implemented, rules only, not validated on a cohort |
 | ctDNA monitor ([`docs/ctdna.md`](docs/ctdna.md)) | allele fractions over time, the ESR1 rule, clonal hematopoiesis flag | implemented on a **synthetic** series only |
@@ -208,7 +218,7 @@ No patient-level data is stored in this repository. Simulated hospitals, the syn
 and its synthetic ctDNA series are labeled as such everywhere.
 
 ## Status and roadmap
-Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 28):
+Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 29, 10:00 CDT):
 - [x] TCGA-BRCA multi-omic survival model with missing-layer masks; federated training with
       NVIDIA FLARE across simulated hospitals; baselines, leave-one-hospital-out, calibration
 - [x] Nemotron case agent on Token Factory with tools, CIViC evidence, Tavily literature, a
@@ -238,6 +248,9 @@ Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 28):
 - [x] Performance pass ([`docs/qa.md`](docs/qa.md)): each workbench's summary and queue computed
       once per file and version; a report shown again costs under 0.6 ms instead of 45–267 ms,
       the 114-screen walk runs 5% faster, memory unchanged (about 700 MB after all 41 files)
+- [x] Round 14 (2026-10-28): the Timeline's version diff, the report's cockpit and a clinical
+      light theme, the radiology scan map, the Bhargava lab's stroma work as cited cards and
+      planned modules, a faster first screen
 - [ ] Video (`docs/video.md`); Devpost form (`docs/submission.md`); submit by Oct 30, 10:00 am PT
 
 Beyond the hackathon ([`docs/VISION.md`](docs/VISION.md)): review by pathologists and

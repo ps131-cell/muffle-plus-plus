@@ -5,7 +5,7 @@ for breast cancer (vision and milestone map: `docs/VISION.md`). Milestone 1 = an
 patient profile (multi-omic risk model, observed driver mutations, CIViC evidence, literature)
 that updates along a patient timeline, written up by a Nemotron case agent on Nebius Token
 Factory, plus federated training across simulated hospitals with NVIDIA FLARE. Entry for the
-Nebius × NVIDIA Global AI Hackathon — **deadline Fri Oct 30 2026, 10:00 am PT; freeze Oct 28**.
+Nebius × NVIDIA Global AI Hackathon — **deadline Fri Oct 30 2026, 10:00 am PT; freeze Oct 29 10:00 CDT**.
 Requirements + plan: `docs/HACKATHON.md`. Product spec (patient files, report timeline, a
 workbench per test type): `docs/WORKSPACE.md`. Decisions: `docs/decisions.md`. Datasets and
 models: `docs/registry.md`. Original research plan: `docs/plan/`.
@@ -29,7 +29,7 @@ another session.
 - Commit style: `<area>: <change>`; areas data/model/fl/eval/app/infra/docs.
 - Merging: squash-merge your own PR once CI is green if it stays within the agreed plan. Ask
   first for PRs that change reported numbers or the pitch, touch submission material (README,
-  Devpost text, video), make the repo public, or land after the Oct 28 freeze.
+  Devpost text, video), make the repo public, or land after the Oct 29 10:00 CDT freeze.
 - Never commit `data/`, `outputs/`, `workspaces/`, any `.csv/.npz/.pt`, or `.env`. The repo will
   be public.
 - Never print or log API keys; read them from `.env` via environment variables.
