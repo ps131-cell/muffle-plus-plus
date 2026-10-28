@@ -449,6 +449,12 @@ Hackathon's published terms set no intellectual-property or exclusivity conditio
   (Yoshihara et al. 2013); lab intervals cited from Mayo Clinic Laboratories' catalog.
 - MSK-CHORD (Jee et al., *Nature* 2024; CC BY-NC-ND 4.0): used locally for the timeline models.
   We publish code and aggregate results with attribution, and nothing else from it.
+- The stroma and ECM3 content (tissue by zone on the slide workbench, the ECM3 four-gene score on
+  the omics workbench, the evidence categories and the planned infrared modules on Methods and
+  validation) is adapted from published work of the Chemical Imaging and Structures Laboratory
+  (R. Bhargava, University of Illinois Urbana-Champaign) and of Triulzi et al. 2013, with
+  citations; MuFFLe++ is independent and neither reviewed nor endorsed by the laboratory or the
+  Cancer Center at Illinois.
 - **What is synthetic or simulated:** SYNTHETIC-001 (written by hand; not a real person, not taken
   from any dataset), its ctDNA series, its 12-month risks (scored by the local MSK-CHORD models),
   and the three hospitals (TCGA tissue source sites grouped into NVFlare simulator clients; no
