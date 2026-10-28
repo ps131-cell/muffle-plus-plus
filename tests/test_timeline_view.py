@@ -153,3 +153,17 @@ def test_a_tcga_file_sits_at_its_sample_with_its_documents_dates_and_grows_with_
     assert grown["lanes"][-1] == tv.IMPORTED
     assert [p["month"] for p in grown["points"] if p["mark"] == "version"] == [0, 3]
     assert tv.changes(pf, 0)["summary"].startswith("Model estimate")
+
+
+def test_the_lane_charts_month_axis_title_is_two_lines():
+    """QA R3-9: on one line it was cut at 800 px ("…diagnosis at mont")."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "app"))
+    import charts
+
+    spec = charts.event_lanes(tv.lanes(synthetic()), 15).to_dict()
+    titles = [lay["encoding"]["x"].get("title") for lay in spec["layer"]
+              if "x" in lay.get("encoding", {}) and "title" in lay["encoding"]["x"]]
+    assert titles[0] == ["months from the first tumor sequencing",
+                         "(month 0; diagnosis at month -40)"]

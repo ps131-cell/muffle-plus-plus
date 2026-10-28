@@ -1356,9 +1356,13 @@ def case_charts(index: int, source: str) -> tuple[dict, dict, dict]:
             charts.contributions(named).to_dict(), named)
 
 
+CHART_WIDTH = 380  # px: the risk charts side by side at 1280 px, stacked at 800 px (QA R3-7)
+
+
 def case_why(case):
     position, drivers, named = case_charts(case.index, SOURCE)
-    left, right = st.columns(2)
+    with st.container(horizontal=True, gap="medium", key="case-why"):  # wraps when narrow
+        left, right = (st.container(width=CHART_WIDTH) for _ in range(2))
     with left:
         st.markdown(f"**Where this patient sits among all patients** {tags(INFERENCE)}")
         st.vega_lite_chart(spec=position, width="stretch",
@@ -1539,9 +1543,11 @@ def tests_view(pf: workspace.PatientFile, i: int):
                 icon="🧪")
         return None
     picked = st.session_state.get(f"picked-{pf.id}")  # the last test opened here or from an alert
-    t = next((t for t in shown if (t.kind, t.month, t.name) == picked), None) or next(
-        (t for w in ("labs", "mutations", "omics", "record") for t in shown if t.workbench == w),
-        shown[0])
+    t = next((t for t in shown if (t.kind, t.month, t.name) == picked), None)
+    if t is None:  # the first workbench's test, the latest of its series (its Spot panel's value)
+        t = next((t for w in ("labs", "mutations", "omics", "record") for t in shown
+                  if t.workbench == w), shown[0])
+        t = [s for s in shown if (s.kind, s.name) == (t.kind, t.name)][-1]
     launcher(pf, i, shown, t)
     all_tests(pf, i, shown, kinds)
     st.session_state["_test_shown"] = nav.test_id(t)

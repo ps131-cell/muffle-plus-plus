@@ -1045,9 +1045,10 @@ def methods_card() -> None:
         for kind, c in kinds.items():
             rows.append({"Receptor": name, "Measure": {"rna": "RNA", "protein": "RPPA",
                                                        "cn": "ERBB2 copy number"}[kind],
-                         "Tumors": c["n"], "AUC": c.get("auc"),
-                         "Cutoff (cohort percentile)": None if "cutoff_pct" not in c
-                         else round(c["cutoff_pct"]),
+                         "Tumors": c["n"],  # a copy-number call is a rule: no curve, no cutoff
+                         "AUC": "—" if c.get("auc") is None else f"{c['auc']:.3f}",
+                         "Cutoff (cohort percentile)": "— (a rule)" if "cutoff_pct" not in c
+                         else str(round(c["cutoff_pct"])),
                          "Sensitivity": c["sensitivity"], "Specificity": c["specificity"]})
     st.markdown("**Receptor levels against recorded status** (IHC; HER2 per ASCO/CAP with ISH)")
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")

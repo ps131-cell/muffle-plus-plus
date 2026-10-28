@@ -583,7 +583,9 @@ def spot(pf: PatientFile, study: dict, c: dict, changes: dict | None = None) -> 
     chips(IMPLEMENTED, INFERENCE, "literature, placeholder until calibrated")
     k, d, seed = c["kinetics"], study["display"], c["seed"]
     plane = c.get("ld_plane", "axial")
-    a, b = st.columns([3, 2])
+    # the words, then the curve and the mark: in a 2-of-5 column the curve's axis and the mark's
+    # options were cut at 800 px (QA R3-10)
+    a, b = st.container(), st.container()
     with a:
         st.markdown(
             f"**Size** (model inference, from MedSAM's contour): longest diameter "
@@ -629,8 +631,9 @@ def spot(pf: PatientFile, study: dict, c: dict, changes: dict | None = None) -> 
             f"{m.get('seconds_per_slice', '?')} CPU seconds per slice here ({m.get('threads')} "
             f"threads; {m.get('uptime', '')}).")
     with b:
-        st.altair_chart(kinetics_chart(c), width="stretch")
-        st.caption(f"Phase times: {study['phases'][1]['time_source']}.")
+        with st.container(width=VIEW_PX):
+            st.altair_chart(kinetics_chart(c), width="stretch")
+            st.caption(f"Phase times: {study['phases'][1]['time_source']}.")
         key = finding_key(pf, "imaging", study["barcode"], study["study"]["date"], c["id"])
         review(key, f"{study['barcode']} {study['study']['date']} {c['id']}: "
                     f"{c['longest_diameter_mm']:g} mm, {k.get('delayed')} (model inference)")
@@ -1174,8 +1177,9 @@ def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[
             cannot: list[tuple]) -> None:
     q = st.text_input("Search this test in plain words",
                       key=f"rad-search-{pf.id}-{study['barcode'] if study else 'reports'}",
-                      placeholder="washout · largest · C2 · mutation" if study else
-                                  "liver · progression · month 12 · lesion size")
+                      placeholder="liver · progression · month 12 · lesion size" if not study
+                      else "washout · largest · C2 · mutation" if cands else  # a mammogram:
+                      "mutation · lymph node · change over time")  # no lesion candidates
     if q:
         hit = rad.search(q, reads, cands, cannot)
         (st.markdown if hit["understood"] else st.warning)(hit["answer"])

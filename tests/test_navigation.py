@@ -30,9 +30,9 @@ def test_breadcrumbs_and_the_patient_header(app):
     # the sticky header: the patient, the open SOS count, the views
     assert f"**{SYN}**" in shown(at) and ":red-badge[SOS: 7 open]" in shown(at)
     at.segmented_control(key="view").set_value("Tests").run()
-    at.session_state[f"picked-{SYN}"] = ("Lab", 24, "CA 15-3")
-    at.run()
+    # no test picked yet: the latest of the series, the value its Spot panel opens on (QA R3-1)
     assert "Tests › Labs › **CA 15-3, month 24**" in texts(at) and not at.exception
+    assert at.selectbox(key=f"{SYN}_spot").value.startswith("L7 · month 24")
     at.segmented_control(key="view").set_value("Timeline").run()
     assert "Timeline" in texts(at)
     at.button(key="crumb-patients").click().run()  # back to the list

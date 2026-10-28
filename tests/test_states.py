@@ -214,6 +214,41 @@ def test_buttons_keep_their_labels_whole(app):
     assert not in_columns(at), in_columns(at)
 
 
+def charts_in_columns(at) -> list[str]:
+    """The charts whose nearest row is a set of fixed columns giving them half the width or
+    less: at 800 px with the sidebar open that is about 230 px, too narrow for an axis title."""
+    out: list[str] = []
+
+    def walk(node, inside: bool) -> None:
+        kind = getattr(node, "type", None) or ""
+        if inside and "vega" in kind:
+            out.append(kind)
+        children = [node.children[k] for k in sorted(getattr(node, "children", {}) or {})]
+        cols = [c for c in children if getattr(c, "type", None) == "column"]
+        if kind == "flex_container" and node.proto.flex_container.direction == 2:
+            if not cols:
+                inside = False
+            total = sum(c.weight for c in cols)
+            for c in cols:
+                walk(c, c.weight / total <= 0.5)
+            children = [c for c in children if c not in cols]
+        for child in children:
+            walk(child, inside)
+
+    walk(at._tree, False)
+    return out
+
+
+def test_the_reports_charts_keep_room_for_their_axes(app):
+    """QA R3-7: a TCGA file's risk histogram and layer contributions sat in two fixed columns,
+    so at 800 px the histogram's plot was about 30 px wide and both axis titles were cut; they
+    now share a row that wraps, a fixed width each."""
+    at = app.new().run()
+    for pid in (app.case, SYN):
+        at.selectbox(key="patient").select(pid).run()
+        assert not at.exception and not charts_in_columns(at), (pid, charts_in_columns(at))
+
+
 def test_the_theme_passes_wcag_aa_contrast():
     """Badge text on Streamlit 1.66's light badge tints (measured in headless Chrome by the QA
     walk, docs/qa.md round 2), white on the primary color and captions (the text color at 60%
