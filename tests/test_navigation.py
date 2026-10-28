@@ -125,6 +125,11 @@ def test_a_deep_link_reopens_the_screen_with_the_pointer(app):
                              "pointer": "Z9", "version": "999"})
     odd.run()
     assert not odd.exception and "Blood and lab workbench" in shown(odd)
+    # the first version is 0, and the app writes ?version=0 for it: a link reopens it (R3-17)
+    first = app.new()
+    first.query_params.update({"patient": SYN, "view": "Report", "version": "0"})
+    first.run()
+    assert not first.exception and first.select_slider(key=f"version-{SYN}").value == 0
 
 
 def test_a_dated_test_opens_on_its_own_value(app):

@@ -836,7 +836,7 @@ def apply_link(pf: workspace.PatientFile, link: dict, last: int) -> tuple | None
     comes with ?view, bound to its control). Returns the test, if the file has it."""
     ss = st.session_state
     version = link.get("version") or ""
-    if version.isdigit() and 0 < int(version) <= last:
+    if version.isdigit() and int(version) <= last:  # 0 too: the first version (QA R3-17)
         ss[f"version-{pf.id}"] = int(version)
     elif link.get("version") is None and last:
         ss[f"version-{pf.id}"] = last
