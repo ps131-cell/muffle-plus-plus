@@ -105,6 +105,14 @@ CHIPS = {"evidence", "status", "label", "labels", "evidence label"}  # columns o
 GRID_ROWS, GRID_COLUMNS = 25, 12  # a longer or wider list is a grid: it scrolls and sorts
 MD_LEAD = re.compile(r"^(\s*)([#>+*-]|\d+[.)])(?=\s|$)")  # a cell that would open a list
 NO_DATA = {"", "nan", "NaT", "<NA>"}  # a missing value: an empty cell
+LONG = re.compile(r"\S{22,}")  # a token too long for a column: a DOI, a chain of units
+
+
+def _breakable(text: str) -> str:
+    """A long token may break after / . : _ = ; or - (a zero-width space there), so a DOI does not
+    push its column wider than the table's box; links are left whole."""
+    return LONG.sub(lambda m: m.group(0) if "http" in m.group(0) or "](" in m.group(0)
+                    else re.sub(r"(?<=[/.:_=;-])", "​", m.group(0)), text)
 
 
 def _chip_color(text: str, colors: dict | None = None) -> str | None:
@@ -155,7 +163,7 @@ def _cell(v, mono: bool, chips: bool, link: str | None = None,
     if mono:
         tick = "``" if "`" in text else "`"
         return f"{tick}{text}{tick}"
-    return MD_LEAD.sub(r"\1\\\2", esc(text).replace("$", "\\$").replace("~", "\\~"))
+    return _breakable(MD_LEAD.sub(r"\1\\\2", esc(text).replace("$", "\\$").replace("~", "\\~")))
 
 
 def table(data, *, mono=(), chips=(), caption: str | None = None, empty: str | None = None,

@@ -106,8 +106,9 @@
 [data-testid="stTable"] table { font-size: 0.8125rem; border-collapse: collapse; width: 100%; }
 /* a long list scrolls inside its box like the grid (the header stays); a wide one wraps inside
    its box instead of scrolling sideways or cutting a cell: sentences wrap between words, a long
-   token (a regular expression, a variant) wherever it must, and at 800 px any word as a last
-   resort (the column fits the box). The page never scrolls sideways. */
+   token (a DOI, a chain of units) at its slashes and dots (_page._breakable), code and links
+   wherever they must, and in a narrow box any word as a last resort. The page never scrolls
+   sideways. */
 [data-testid="stTable"] > div { max-height: 28rem; overflow-y: auto; overflow-x: auto; }
 /* Streamlit's Markdown container in each cell sets overflow-wrap back to normal and its chips to
    nowrap: the rules go on the container, its paragraphs and the chips themselves */
@@ -116,18 +117,9 @@
 [data-testid="stTable"] [data-testid="stMarkdownContainer"] p {
   white-space: normal; overflow-wrap: break-word; word-break: normal;
 }
-[data-testid="stTable"] td code { overflow-wrap: anywhere; }
+[data-testid="stTable"] td code, [data-testid="stTable"] td a { overflow-wrap: anywhere; }
 [data-testid="stTable"] [data-testid="stMarkdownContainer"] .stMarkdownBadge {
   white-space: normal !important; overflow-wrap: inherit;
-}
-@media (max-width: 1023px) {
-  [data-testid="stTable"] table { font-size: 0.75rem; }
-  [data-testid="stTable"] td, [data-testid="stTable"] th,
-  [data-testid="stTable"] [data-testid="stMarkdownContainer"],
-  [data-testid="stTable"] [data-testid="stMarkdownContainer"] p { overflow-wrap: anywhere; }
-  [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
-  [data-testid="stTable"] thead th { padding-left: 0.3125rem; padding-right: 0.3125rem; }
-  [data-testid="stTable"] thead th { letter-spacing: 0.02em; }
 }
 [data-testid="stTable"] thead th {
   position: sticky; top: 0; z-index: 1; background-color: #ffffff;
@@ -145,6 +137,25 @@
 }
 [data-testid="stTable"] [data-testid="stMarkdownContainer"] code {
   background: none; padding: 0; font-size: 0.95em; color: #1b1f27;
+}
+/* nine columns or more: denser type and padding, so the longest words still sit side by side at
+   1280 px (the 19-analyte reference table needed 948 px of whole words in a 922 px box) */
+[data-testid="stTable"]:has(thead th:nth-child(9)) table { font-size: 0.75rem; }
+[data-testid="stTable"]:has(thead th:nth-child(9)) :is(tbody td, tbody th, thead th) {
+  padding-left: 0.3125rem; padding-right: 0.3125rem;
+}
+/* a narrow box (the 800 px page, or a half-width column at 1280 px): the same, and any word may
+   break as a last resort, so the table never grows past its box. After the rules above, which
+   it overrides. */
+[data-testid="stTable"] { container-type: inline-size; }
+@container (max-width: 40rem) {
+  [data-testid="stTable"] table { font-size: 0.75rem; }
+  [data-testid="stTable"] td, [data-testid="stTable"] th,
+  [data-testid="stTable"] [data-testid="stMarkdownContainer"],
+  [data-testid="stTable"] [data-testid="stMarkdownContainer"] p { overflow-wrap: anywhere; }
+  [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
+  [data-testid="stTable"] thead th { padding-left: 0.3125rem; padding-right: 0.3125rem; }
+  [data-testid="stTable"] thead th { letter-spacing: 0.02em; }
 }
 
 /* --- number strips (workbenches._page.strip): label over a monospace value, hairline apart -- */
