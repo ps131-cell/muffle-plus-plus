@@ -96,7 +96,9 @@ def test_search_ranks_files_by_matching_findings_then_closeness_then_evidence():
     order = [p["patient"] for p in found["patients"]]
     assert order[0] == "B" and "C" not in order  # two matching findings first
     assert order.index("E") < order.index("A")  # then the words closer together
-    assert found["patients"][0]["findings"][0]["text"].startswith("disagree: HER2")  # closest
+    # within a file, the finding named by the words first, then the closest
+    assert [f["what"] for f in found["patients"][0]["findings"]] == [
+        "HER2, IHC vs RNA: disagree", "Receptors"]
     # the evidence filter keeps only the findings of the labels asked for
     assert [p["patient"] for p in cohort.search(index, "HER2 disagree", [HYPOTHESIS])[
         "patients"]] == ["D"]
@@ -104,6 +106,27 @@ def test_search_ranks_files_by_matching_findings_then_closeness_then_evidence():
     tie = [entry("H", "x", "basal", HYPOTHESIS), entry("I", "x", "basal", INFERENCE),
            entry("O", "x", "basal", OBSERVED)]
     assert [p["patient"] for p in cohort.search(tie, "basal")["patients"]] == ["O", "I", "H"]
+
+
+def test_a_finding_named_by_the_words_opens_first_and_the_files_keep_their_order():
+    # QA R3-13: "bone" opened SYNTHETIC-001's imaging card at the liver lesion, the card on
+    # bone and liver lesions being the closest match; the finding named "bone" is what was meant
+    index = [entry("S", "Imaging lesions", "bone lesion T9; liver lesion segment 6"),
+             entry("S", "Progression on imaging: Imaging: new bone lesions, read as progression",
+                   "Progression on imaging: new bone lesions"),
+             entry("S", "New metastatic site: bone", "New metastatic site: bone: biopsy pending"),
+             entry("T", "Imaging lesions", "bone scan clear")]
+    found = cohort.search(index, "bone")["patients"]
+    # the shortest name first among the named ones (the one about the words)
+    assert [f["what"] for f in found[0]["findings"]] == [
+        "New metastatic site: bone",
+        "Progression on imaging: Imaging: new bone lesions, read as progression",
+        "Imaging lesions"]
+    # the files' order is the closest finding's, as before
+    assert [p["patient"] for p in found] == ["S", "T"]
+    # a word only in the text names nothing: the closest stays first
+    found = cohort.search(index, "liver")["patients"]
+    assert found[0]["findings"][0]["what"] == "Imaging lesions"
 
 
 def test_search_across_findings_only_when_no_finding_holds_every_word():

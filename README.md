@@ -21,15 +21,25 @@ login). It holds 40 held-out TCGA-BRCA patients, each assigned to one of three *
 hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 
 ## What is in the app
-- **Patients:** search by patient, gene, subtype, stage or workbench; filters by subtype, gene,
-  stage, open alerts and what the file holds; a four-step walk-through on the first visit and a
-  "?" guide on every screen.
-- **Patient file:** finding cards from every workbench with **Why?** and **Open**; one attention
-  queue (alerts, tests that disagree, every workbench's look-here items) with keyboard triage and
-  review marks; risk with its model and uncertainty; mutations with CIViC evidence for clinician
-  review; a one-page export. Breadcrumbs and a sticky patient header; the address
-  (`?patient`, `?view`, `?test`, `?pointer`, `?version`) reopens the same screen and finding
-  ([`docs/ux.md`](docs/ux.md)).
+- **Patients:** a **Start here** card (the longitudinal example SYNTHETIC-001, and Case 299 with
+  its own slide and sequencing); pinned and recently opened files; search by patient, gene,
+  subtype, stage or workbench; filters by subtype, gene, stage, open alerts and what the file
+  holds; **Search every file**, a plain-words search across every file's findings (cards,
+  attention items, variants, documented facts, hypotheses) that opens the finding; a four-step
+  walk-through on the first visit and a "?" guide on every screen.
+- **Patient file:** an action row on every view (Attention queue, Import a test, Compare
+  versions, Export this report, Your marks, Pin this file, Methods and validation, How to read
+  this); finding cards from every workbench with **Why?** and an **Open** that names where it
+  lands; one attention queue (alerts, tests that disagree, every workbench's look-here items)
+  with keyboard triage, review marks and a **Next step** line; risk with its model and
+  uncertainty; mutations with CIViC evidence for clinician review; **Where this patient sits**
+  (percentiles among the 40 TCGA files) and **Similar patients** (the five nearest TCGA files on
+  eight recorded and derived fields), both lookups over what the files hold, not a model
+  ([`docs/cohort.md`](docs/cohort.md)); a one-page export. **Tests** opens on a launcher: a tile
+  per test with what it holds and its look-here count, a dated series as one tile with a pill
+  per month. Breadcrumbs name the open workbench ("Tests › Labs › CA 15-3, month 11") under a
+  sticky patient header; the address (`?patient`, `?view`, `?test`, `?pointer`, `?version`)
+  reopens the same screen and finding ([`docs/ux.md`](docs/ux.md)).
 - **Case note:** Nemotron 3 Super plans and calls our tools, Nemotron 3 Ultra writes, a
   plain-code grounding check verifies every number, gene and link (TCGA files).
 - **Timeline** ([`docs/timeline.md`](docs/timeline.md)): every test, treatment, alert and report
@@ -46,7 +56,7 @@ hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 
 | Workbench | What it does | Status |
 |---|---|---|
-| Pathology ([`docs/pathology.md`](docs/pathology.md)) | the patient's own section in a pan-and-zoom viewer (5 cases, 8 sections); tissue map from a BCSS-trained head on GigaPath-Flash (tiles unlike its training tissue not scored); invasive front and direction of invasion; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (91.9%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
+| Pathology ([`docs/pathology.md`](docs/pathology.md)) | a slide map on the patient's own section (5 cases, 8 sections): seven views, search inside the slide, a section report, and a pan-and-zoom viewer to single nuclei one click away; tissue map from a BCSS-trained head on GigaPath-Flash (tiles unlike its training tissue not scored); invasive front and direction of invasion; StarDist nuclei, breakaway candidates, TILs by zone; a WSInfer second opinion on lymphocytes | implemented; head measured on held-out slides (91.9%); not reviewed by a pathologist; carried-over cutoffs are placeholders |
 | Expression, methylation, protein ([`docs/omics.md`](docs/omics.md)) | PAM50, Hallmark and RPPA pathway scores, promoter methylation, immune and stromal picture, receptor consistency | PAM50 experimentally validated against TCGA's published calls (94.7% of 950 tumors, κ 0.92; the ER-balanced centering was chosen after seeing the first result, 72.5%, so not an independent test); receptor levels against recorded IHC: ER AUC 0.958, PR 0.926, HER2 0.811 (RNA), cutoffs calibrated in-sample; the rest implemented, methylation cutoffs placeholders |
 | Genomics ([`docs/genomics.md`](docs/genomics.md)) | variants with detection, interpretation and predicted effect apart (VEP, ClinVar, AlphaMissense); CIViC ladder; copy-number landscape with ABSOLUTE purity and ploidy; burden; pathway map; variants over time | implemented; copy-number cutoffs placeholders |
 | Radiology ([`docs/radiology.md`](docs/radiology.md)) | report reading; DCE-MRI viewers in three planes with MedSAM contours and kinetics (5 TCIA cases); mammoscreen and MONAI density; change over time on a labeled public example pair | implemented; not validated on breast imaging here; kinetic cutoffs placeholders |
@@ -217,8 +227,17 @@ Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 28):
 - [x] Encoder comparison on held-out BCSS slides ([`docs/encoders.md`](docs/encoders.md)):
       GigaPath-Flash 0.919 against QuiltNet-B-32 0.877; the eight sections re-scored with it
       (2026-10-27, [`docs/pathology.md`](docs/pathology.md) §9)
-- [x] QA round 2 in headless Chrome: 334 screens, 29 findings, the minor ones left listed
-      ([`docs/qa.md`](docs/qa.md))
+- [x] QA round 2 in headless Chrome: 334 screens, 29 findings; the last minor ones fixed on
+      2026-10-27 ([`docs/qa.md`](docs/qa.md))
+- [x] Every function one click away (2026-10-27): the Tests launcher, the file's action row and
+      Next step line, cards whose Open names its destination, Start here and pinned files, a
+      tooltip on every control, the breadcrumb naming the open workbench, a how-to line on
+      every workbench
+- [x] Search across every file, similar patients and cohort position, as lookups
+      ([`docs/cohort.md`](docs/cohort.md))
+- [x] Performance pass ([`docs/qa.md`](docs/qa.md)): each workbench's summary and queue computed
+      once per file and version; a report shown again costs under 0.6 ms instead of 45–267 ms,
+      the 114-screen walk runs 5% faster, memory unchanged (about 700 MB after all 41 files)
 - [ ] Video (`docs/video.md`); Devpost form (`docs/submission.md`); submit by Oct 30, 10:00 am PT
 
 Beyond the hackathon ([`docs/VISION.md`](docs/VISION.md)): review by pathologists and

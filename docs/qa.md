@@ -361,11 +361,11 @@ rebased on the slide port (#150) and checked the ported slide page.
 | R3-19 | minor | Radiology cards (MedSAM, the screening score) | The reproducibility note showed the raw shell line "22:43:52 up 59 min, 1 user, load average: …" | the load average only | fixed; test. The slide page has the same (R3-4) |
 | R3-5 | low | Every TCGA report | Two headings "Where this patient sits": among the 40 TCGA files (the cohort lookup) and among all patients (the risk histogram) | rename the histogram's | fixed: "This patient's risk among all 1,064 patients"; test |
 | R3-18 | low | Methods and validation | No card for the cohort lookups (Search every file, Similar patients, Where this patient sits); their placeholders were in the table already (a canvas table, which text tools can't read) | a card: lookups over the files' findings, not models; what they read; the placeholder weights; what is never compared | fixed; the app test checks the card and Similar patients' weights in the placeholder table |
-| R3-13 | minor | Patients, search "bone" | The first result opens SYNTHETIC-001's imaging report at the **liver** lesion: its best finding is the "Imaging lesions" card (bone and liver), and a card opens at its own target; "New metastatic site: bone" is in the "+5" | within a file, rank first the findings whose name holds the words (`cohort.search`'s sort key) | open: it changes every query's first finding; for the cohort owner |
-| R3-8 | low | Every file at 800 px | The action row wraps to four rows of two buttons (about 180 px) under the header, before any content | fold Pin, Methods and How to read this into one "More" menu at narrow widths, or accept | open, for the shell's owner |
+| R3-13 | minor | Patients, search "bone" | The first result opens SYNTHETIC-001's imaging report at the **liver** lesion: its best finding is the "Imaging lesions" card (bone and liver), and a card opens at its own target; "New metastatic site: bone" is in the "+5" | within a file, rank first the findings whose name holds the words (`cohort.search`'s sort key) | fixed (#152): within a file the findings named by the words come first (the shortest name first), then the closest; the files' order is unchanged. On the release bundle "bone" now opens SYNTHETIC-001's imaging report of month -1 at the bone site ("New metastatic site: bone"); test |
+| R3-8 | low | Every file at 800 px | The action row wraps to four rows of two buttons (about 180 px) under the header, before any content | fold Pin, Methods and How to read this into one "More" menu at narrow widths, or accept | open, for ui-cockpit (the shell) |
 | R3-3 | low | Slide workbench, first open per server | 12–32 s (Case 563 31.9 s at load 4): the section's tiles download once per server | – | accepted (R2-26's download, said on screen) |
-| R3-4 | minor | Slide workbench (Cases 563 and 730; after #150 Cases 299, 730 and 926) | Machine talk: "…outside the scored window were skipped (the budget for this PC's CPU)", "this PC", "load average" | plain words ("not scored", the load as in R3-19) | open: the slide page's owner (`app/workbenches/slides.py`) |
-| R3-11 | low | Slide workbench at 800 px | Before #150 a 109 px chart; after #150 the map draws 468 px wide with no sideways scroll (the 151 px seen on Oct 27 is gone), but the "Zoom to the cells" label is cut | let the label wrap | open: the slide page's owner |
+| R3-4 | minor | Slide workbench (Cases 563 and 730; after #150 Cases 299, 730 and 926) | Machine talk: "…outside the scored window were skipped (the budget for this PC's CPU)", "this PC", "load average" | plain words ("not scored", the load as in R3-19) | open, for the slide page's owner (`app/workbenches/slides.py`; no session on it on Oct 28) |
+| R3-11 | low | Slide workbench at 800 px | Before #150 a 109 px chart; after #150 the map draws 468 px wide with no sideways scroll (the 151 px seen on Oct 27 is gone), but the "Zoom to the cells" label is cut | let the label wrap | open, for the slide page's owner (as R3-4) |
 | R3-20 | – | Methods and validation, Feedback opened by address | Two console 404s: Streamlit's client asks `/methods/_stcore/health` and `/host-config` before the root ones | – | not a bug (Streamlit) |
 | R3-21 | – | Every screen | No exception and no error box on 246 screens; no cut text, element past the edge or sideways scroll in the page's own elements at either width (inside charts: R3-7, R3-9, R3-10); every finding carries its label; the synthetic patient and the simulated hospitals are labeled; no hackathon, sponsor or demo wording in 2.3 MB of rendered text | – | checked |
 | R3-22 | – | Deep links | 23 addresses with an unknown patient, view, test, month, pointer or version, a test of another file, a page with junk parameters: each opens the file (or the list) as usual, with no error; `?view=tests` (lower case) opens the report | – | checked |
@@ -375,3 +375,81 @@ rebased on the slide port (#150) and checked the ported slide page.
 
 The hosted app (the keep-awake job checks it), a 375 px phone, browsers other than Chromium,
 a screen reader, and dark mode (the app is light-only).
+
+## Cold-start pass (2026-10-28)
+
+How long a new server process takes to draw its first screens on main after the Oct 27 PRs
+(plotly for the slide map, #150), what was cut, and the numbers before (main at 67647db) and
+after (branch `app/cold-start`), with every screen unchanged.
+
+### How it was measured
+
+- **Cold runs** (AppTest, WSL, Python 3.14, a venv with only `app/requirements.txt`, as the
+  hosted app installs it, so no `rfc3987-syntax`): one new process per run, from interpreter
+  start to the drawn patient list, then SYNTHETIC-001's report, Case 299's report, its Tests
+  view and its first slide page, with RSS after each. A 3 s pause after the list stands for a
+  reader looking at it before the first click. Main and the branch ran alternately.
+- **Two set-ups.** *Cached*: the release bundle and CIViC's table already on disk, as on this PC
+  or a warm container. *Fresh container*: an empty temporary folder and no CIViC cache, the
+  network on, as the hosted app starts after it sleeps (Streamlit Community Cloud's disk resets
+  on restart): the bundle (852 kB, 0.9–1.0 s from GitHub here) and CIViC's table (4.2 MB,
+  1.4–1.8 s from civicdb.org here) are downloaded first.
+- **Load**: the three sibling sessions shared the 8 cores, load average 0.3–8.8 over the
+  measurements (each row gives its range). Per-run times swing by a second or more at load 3 and
+  above, so each row is a median and its range. The fresh-container gain is larger than that
+  spread; for the cached start a per-import timing in a fresh process (below) is the reliable
+  number.
+- **Identity**: the 114-screen AppTest walk of the performance pass (`perf_walk.py`, every
+  element of every screen dumped: text, tables, chart specs, images, downloads) on main and on
+  the branch: **114 screens identical** (the same snapshot hash, 9a5736188750). The test suite
+  passes, with five new tests (`tests/test_cold_start.py`).
+- **Where the time went** (`python -X importtime`, cProfile of the first run on main, load ~3):
+  torch 4.4 s, pandas 1.4 s, Streamlit 1.3 s (it imports plotly itself), Altair 0.84 s (through
+  `charts` and the workbench page modules), CIViC's table 0.2–0.3 s to parse, the bundle and
+  the 41 files 0.4 s; scipy (1.8 s) already loaded in the background after the first screen,
+  but the first TCGA report imported it anyway: `muffle.workbench.invasion`, read for its
+  cutoffs, imported scipy at the top.
+
+### What changed
+
+| Change | Where |
+|---|---|
+| The chart and workbench page modules (`charts`, `timeline_page`, the labs, genomics, omics and Evolution pages) and Altair load on first use, not before the patient list, which draws no chart. Altair then loads in the background once the first screen is drawn, with scipy | `muffle.lazy` (a module loaded on first attribute read, looked up in `sys.modules` each time, so the hot-update guard's purge still works); the app's import block and last lines |
+| In the hosted set-up (no bundle given, no checkpoint), the release bundle and CIViC's table are downloaded in background threads started before torch imports, instead of one after the other before the list. The loaders wait for a download started that way; if it fails they fetch the file themselves as before | `muffle.prefetch`; `fetch_bundle`, `civic.load_table`; the app's import block |
+| The slide maths imports scipy when it runs, not when the report reads its cutoffs | `muffle.workbench.invasion` |
+
+### Before and after
+
+| | Main (67647db) | Branch |
+|---|---|---|
+| **Fresh container: process start to the drawn list** (three runs each, load 1.6–2.5) | median 10.87 s (8.71–11.34) | median 7.21 s (6.93–8.67) |
+| Cached: process start to the drawn list, main alone at a quiet moment (three runs, load 0.3–0.6) | median 5.02 s (4.72–6.32) | not run at that load |
+| Cached: process start to the drawn list (three runs each, load 2.5–3.4) | median 5.38 s (5.29–8.22) | median 6.16 s (5.12–6.96) |
+| The same, five more runs each (load 1.8–7.2, rising) | median 9.68 s (7.72–10.08) | median 8.23 s (6.17–10.75) |
+| Off the first screen's path: the page modules and Altair, timed alone in a fresh process (five runs, load 8.4–8.8) | 0.82 s (0.74–1.03), 27.6 MB | none |
+| RSS when the list is drawn | 520 MB | 493 MB |
+| RSS 3 s later (the background loads done) | 549 MB | 549 MB |
+| SYNTHETIC-001's report, first open | 0.53 s (0.50–0.86) | 0.59 s (0.51–0.68) |
+| Case 299's report, first open | 1.13 s (1.06–1.16), 578 MB | 1.00 s (0.90–1.23), 578 MB |
+| Case 299's first slide page | 1.88 s (1.71–2.13), 624 MB | 2.02 s (1.99–2.53), 621 MB |
+| The 114-screen walk: RSS after the start / after ten files | 534 / 793 MB | 506 / 793 MB |
+
+So a hosted cold start draws the patient list about 3.5 s sooner: the two downloads now overlap
+torch's import. With the files already on disk the gain is the 0.8 s and 28 MB of imports no
+longer on the list's path; at this load the cached runs overlap too much to show it on their
+own. The reports and the slide page take what they took (Altair loads in the background while
+the list is read), and memory ends where it was.
+
+### Left alone, and why
+
+- **torch before the list.** The bundle is a torch file (`torch.load`, weights only) and the
+  TCGA reports run the model; loading the list without torch means a second bundle format.
+- **plotly.** Streamlit 1.66 imports it itself (`import streamlit` loads it), so the slide map
+  adds nothing to the cold start.
+- **Memory after ten files: 793 MB on both.** The same walk measured 548–583 MB on Oct 27, in
+  another venv (Python 3.12 then, 3.14 and pandas 3.1 now), so not all of the rise is the app;
+  the GigaPath slide maps, the plotly map and the MRI pages came since. As in the performance
+  pass it is the pages' drawing memory, and it is above the 600 MB aimed for on a 1 GB host: for
+  the slide and radiology pages' owners, and worth one walk in the hosted app's own versions.
+- **The slide page's first open** (1.7–2.5 s here, more the first time a server downloads a
+  section's tiles, R3-3) is its section analysis: page code, not loading.

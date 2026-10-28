@@ -241,8 +241,11 @@ def _pattern(term: str) -> re.Pattern:
 def search(index: list[dict], query: str, labels=()) -> dict:
     """Patients with findings matching ``query`` (``terms``), each term case-insensitive at a
     word start. A patient matches when one of its findings holds every term; ranked by how many
-    of its findings do, then by how close the terms sit in the best one, then by evidence
-    (observed, then model inference, then hypothesis). When no finding of any file holds every
+    of its findings do, then by how close the terms sit in the closest one, then by evidence
+    (observed, then model inference, then hypothesis). Within a patient, findings whose name holds
+    the terms come first, the shortest name first among equals ("bone" opens "New metastatic
+    site: bone", not a card on bone and liver lesions), then the same order. When no finding of
+    any file holds every
     term, files whose findings hold them between them are returned instead ("across": True).
     ``labels`` keeps only findings of those evidence labels. Returns {"terms", "across",
     "patients": [{"patient", "findings": [entry + "span"]}]}."""
@@ -260,7 +263,8 @@ def search(index: list[dict], query: str, labels=()) -> dict:
         found = [h for h in hits if h]
         if found:
             span = max(h.end() for h in found) - min(h.start() for h in found)
-            by.setdefault(e["patient"], []).append((len(found), span, e))
+            named = all(p.search(e["what"]) for p, h in zip(pats, hits, strict=True) if h)
+            by.setdefault(e["patient"], []).append((len(found), span, e, named))
     full = {pid: [h for h in hs if h[0] == len(ts)] for pid, hs in by.items()}
     full = {pid: hs for pid, hs in full.items() if hs}
     across = not full
@@ -270,10 +274,12 @@ def search(index: list[dict], query: str, labels=()) -> dict:
                        for p in pats)}
     out = []
     for pid, hs in full.items():
-        hs = sorted(hs, key=lambda h: (-h[0], h[1], rank[h[2]["label"]]))
-        out.append({"patient": pid, "findings": [{**h[2], "span": h[1]} for h in hs]})
-    out.sort(key=lambda r: (-len(r["findings"]), r["findings"][0]["span"],
-                            rank[r["findings"][0]["label"]]))
+        best = min((-h[0], h[1], rank[h[2]["label"]]) for h in hs)  # the patient's rank
+        hs = sorted(hs, key=lambda h: (-h[0], not h[3], h[1], rank[h[2]["label"]],
+                                       len(h[2]["what"]) if h[3] else 0))
+        out.append(({"patient": pid, "findings": [{**h[2], "span": h[1]} for h in hs]}, best))
+    out.sort(key=lambda r: (-len(r[0]["findings"]), r[1][1], r[1][2]))
+    out = [r for r, _ in out]
     return {"terms": ts, "across": across, "patients": out}
 
 

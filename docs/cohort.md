@@ -39,8 +39,10 @@ docs/ux.md §3). Files an import of this session changed are read again (once pe
 - When no finding of any file holds every word, files whose findings hold them between them are
   listed instead, and the result says so (`TP53 desert`).
 - Ranking: files with more matching findings first, then the closer the words sit in the best
-  one, then by evidence (observed, model inference, hypothesis). The evidence pills keep only
-  findings of the labels chosen.
+  one, then by evidence (observed, model inference, hypothesis). Within a file, findings whose
+  name holds the words come first, the shortest name first among equals (`bone` opens "New
+  metastatic site: bone", not the imaging card on bone and liver lesions), then the same order. The evidence pills keep only findings of
+  the labels chosen.
 - Examples on the release bundle: `HER2 disagree` lists the five files whose HER2 IHC and ERBB2
   RNA disagree; `breakaway` the scored slide sections; `basal` the Basal-like calls first and,
   lower, files where only a hypothesis names basal-like tumors; `stage III PIK3CA` the stage III
