@@ -260,6 +260,8 @@ slide_viewer._component = _record
     at.session_state[f"{k}-pic"] = "Slide viewer"  # the viewer, not the map
     at.run()
     assert not at.exception, at.exception
+    # set from outside (as "Zoom to the cells" does): no duplicate-value warning on the page
+    assert not any("default value" in w.value for w in at.warning)
     pick = at.selectbox(key=f"{k}-pick")
     tiles = [o.split("· ")[-1] for o in pick.options]
     assert pick.value == pick.options[0] and pick.options[0].startswith("T1 ")

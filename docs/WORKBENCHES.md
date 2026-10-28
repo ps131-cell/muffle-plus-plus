@@ -271,7 +271,8 @@ Built in two rounds (2026-10-19, 2026-10-20/21; method and numbers in
 Built in three rounds (2026-10-19, 2026-10-20, 2026-10-21; `pathology.md`) on the patient's own
 TCGA diagnostic sections for five cases, scored offline; the colon analyzer's pipeline (tissue mask →
 224 px tiles at 0.5 µm/px → embeddings → tissue classes → smoothed maps → front, zones,
-measurements, flags, risk map, certainty) carries over, re-implemented; its tissue heads do not
+measurements, flags, risk map, certainty) carries over, re-implemented, and since 2026-10-27 its
+slide map, search and export code is adapted here (`pathology.md` §10); its tissue heads do not
 (colon-trained): a five-class BCSS head validated on 3 held-out slides stands in. Tags below:
 **now** = built; **model** = needs a model or validation that does not exist yet.
 

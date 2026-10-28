@@ -877,8 +877,11 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     with page.picture("Slide map", caption=MAP_CAPTION):
         shown = PICTURES[0]
         if not why_not:
+            # seeded, not a default=: "Zoom to the cells" sets it from a callback, and a widget
+            # with a default whose state is set that way prints Streamlit's duplicate warning
+            st.session_state.setdefault(f"{k}-pic", PICTURES[0])
             shown = st.segmented_control(
-                "Picture", PICTURES, key=f"{k}-pic", default=PICTURES[0], required=True,
+                "Picture", PICTURES, key=f"{k}-pic", required=True,
                 label_visibility="collapsed",
                 help="Map: the whole section with the analysis on top. Slide viewer: the "
                      "section's own pyramid, from the whole section down to single nuclei "
