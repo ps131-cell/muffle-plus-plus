@@ -4,6 +4,7 @@ on a changed finding, "Compare versions" after time travel, and the version tabl
 
 import pytest
 
+from muffle import version_diff as vd
 from tests.appfixture import shown
 
 pytestmark = pytest.mark.filterwarnings("error")  # a warning from a page fails the test
@@ -45,6 +46,31 @@ def test_the_version_diff_compares_opens_and_follows_time_travel(app):
     assert at.select_slider(key=f"diff-{SYN}-11-{last + 1}").value == (10, 11)
     assert "▲ risk up 51 points" in shown(at) and "the month-12 model takes over" in shown(at)
     assert not at.exception
+
+
+def test_the_report_header_says_what_the_version_changed_and_methods_keys_the_shifts(app):
+    """QA R4: the report's header carries version_diff.version_delta_line (planned in #154, never
+    shown), labeled a model inference; the first version and a one-version file show none; the
+    Methods page's colour code keys the Timeline's shift marks."""
+    at = app.new().run()
+    at.selectbox(key="patient").select(SYN).run()
+    text = shown(at)
+    assert "Since the previous version (month 19): 12-month risk +14 points" in text
+    assert "Compare versions opens the whole difference on the Timeline" in text
+    line = next(m for m in at.markdown if "Since the previous version" in m.value)
+    assert "-badge[model inference]" in line.value
+    at.session_state[f"version-{SYN}"] = 0
+    at.run()
+    assert "Since the previous version" not in shown(at) and not at.exception
+    at.selectbox(key="patient").select(app.case).run()
+    assert "Since the previous version" not in shown(at) and not at.exception
+    pages = {i.get("url_pathname"): h for h, i in at._registered_pages.items()}
+    at._page_hash = pages["methods"]
+    at.run()
+    legend = next(m.value for m in at.markdown if "Colour code" in m.value)
+    for color, sign, words in vd.SHIFTS.values():
+        assert f":{color}-badge[{sign} {words}]" in legend
+    assert "not a trend" in legend and not at.exception
 
 
 def test_a_tcga_file_has_nothing_to_compare_until_an_import(app):
