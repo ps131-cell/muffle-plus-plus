@@ -243,8 +243,9 @@ def search(index: list[dict], query: str, labels=()) -> dict:
     word start. A patient matches when one of its findings holds every term; ranked by how many
     of its findings do, then by how close the terms sit in the closest one, then by evidence
     (observed, then model inference, then hypothesis). Within a patient, findings whose name holds
-    the terms come first ("bone" opens "New metastatic site: bone" before a card on bone and
-    liver lesions), then the same order. When no finding of any file holds every
+    the terms come first, the shortest name first among equals ("bone" opens "New metastatic
+    site: bone", not a card on bone and liver lesions), then the same order. When no finding of
+    any file holds every
     term, files whose findings hold them between them are returned instead ("across": True).
     ``labels`` keeps only findings of those evidence labels. Returns {"terms", "across",
     "patients": [{"patient", "findings": [entry + "span"]}]}."""
@@ -274,7 +275,8 @@ def search(index: list[dict], query: str, labels=()) -> dict:
     out = []
     for pid, hs in full.items():
         best = min((-h[0], h[1], rank[h[2]["label"]]) for h in hs)  # the patient's rank
-        hs = sorted(hs, key=lambda h: (-h[0], not h[3], h[1], rank[h[2]["label"]]))
+        hs = sorted(hs, key=lambda h: (-h[0], not h[3], h[1], rank[h[2]["label"]],
+                                       len(h[2]["what"]) if h[3] else 0))
         out.append(({"patient": pid, "findings": [{**h[2], "span": h[1]} for h in hs]}, best))
     out.sort(key=lambda r: (-len(r[0]["findings"]), r[1][1], r[1][2]))
     out = [r for r, _ in out]

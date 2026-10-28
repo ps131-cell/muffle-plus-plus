@@ -112,11 +112,16 @@ def test_a_finding_named_by_the_words_opens_first_and_the_files_keep_their_order
     # QA R3-13: "bone" opened SYNTHETIC-001's imaging card at the liver lesion, the card on
     # bone and liver lesions being the closest match; the finding named "bone" is what was meant
     index = [entry("S", "Imaging lesions", "bone lesion T9; liver lesion segment 6"),
+             entry("S", "Progression on imaging: Imaging: new bone lesions, read as progression",
+                   "Progression on imaging: new bone lesions"),
              entry("S", "New metastatic site: bone", "New metastatic site: bone: biopsy pending"),
              entry("T", "Imaging lesions", "bone scan clear")]
     found = cohort.search(index, "bone")["patients"]
-    assert [f["what"] for f in found[0]["findings"]] == ["New metastatic site: bone",
-                                                         "Imaging lesions"]
+    # the shortest name first among the named ones (the one about the words)
+    assert [f["what"] for f in found[0]["findings"]] == [
+        "New metastatic site: bone",
+        "Progression on imaging: Imaging: new bone lesions, read as progression",
+        "Imaging lesions"]
     # the files' order is the closest finding's, as before
     assert [p["patient"] for p in found] == ["S", "T"]
     # a word only in the text names nothing: the closest stays first
