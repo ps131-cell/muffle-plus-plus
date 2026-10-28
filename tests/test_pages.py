@@ -101,16 +101,20 @@ with p.overview():
 
 def test_the_imaging_search_suggests_what_the_page_can_answer():
     """QA R3-2: a mammogram page has no lesion candidates, so its search box doesn't suggest
-    the MRI's "washout · largest · C2"; reports alone suggest reads and sites."""
+    the MRI's candidates and curves; reports alone suggest reads and sites. A study page
+    searches inside its scan map (docs/radiology.md §8)."""
     at = page("""
 from workbenches import radiology
 from muffle.workbench import radiology as rad
-for study, cands in ((None, []), ({"barcode": "mg"}, []), ({"barcode": "mr"}, [{"id": "C1"}])):
-    radiology._search(SYN, study, [], cands, rad.CANNOT_SEE)
+radiology._search(SYN, [], rad.REPORT_CANNOT_SEE)
+import streamlit as st
+for study in ({"modality": "MG"}, {"modality": "MR"}):
+    st.text_input(study["modality"], placeholder=radiology.search_placeholder(study))
 """)
     assert [t.placeholder for t in at.text_input] == [
-        "liver · progression · month 12 · lesion size", "mutation · lymph node · change over time",
-        "washout · largest · C2 · mutation"]
+        "liver · progression · month 12 · lesion size",
+        "dense · calcification · lymph node · mass",
+        "enhancing lesion · washout · spiculated · C2 · receptor status"]
 
 
 def test_the_receptor_table_has_no_empty_cells():

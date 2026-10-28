@@ -8,13 +8,17 @@ The workspace pages call ``render(pf, version=None, test=None)`` with a
 skeleton (``workbenches._page``: overview with the look-here queue and search, the picture,
 counted details, the Spot panel, the card, what the test cannot see, export). Two pages in one:
 
-* **Image viewer**, for a file whose imaging tests carry a TCIA barcode (a TCGA patient with a
-  processed public study, ``radiology_results/``): series and slice, window and level, the model's
-  contours, boxes and measurements as overlays with hover stats per region, a Spot panel per
+* **Scan map**, for a file whose imaging tests carry a TCIA barcode (a TCGA patient with a
+  processed public study, ``radiology_results/``): the slice underneath with see-through layers
+  (``muffle.workbench.radiology_map``: Lesion, Kinetics, Enhancement, Change; the slide map's
+  in-chart views and opacity slider), series, slice, window and level, pointers for the
+  look-here queue, a fixed-size hover box per square and a click that opens the square in the
+  Spot panel (its crop, curve, why, how sure, what to check, the mark), a Spot panel per
   candidate lesion (size, volume, the kinetics curve, how its box was chosen, the model and its
-  published validation), prior comparison where two study dates exist, what the images cannot
-  show, the model and validation card, search, review marks and exports. Mammograms: the four
-  views with a dense-pixel share (placeholder rule).
+  published validation), search inside the scan with Q1… spots, prior comparison where two
+  study dates exist, what the images cannot show, the model and validation card, review marks
+  and exports (the map picture, the study report in Markdown). Mammograms: one view at a time
+  on the same map with the Density view.
 * **Report-driven page**, for a file whose imaging is report text only (SYNTHETIC-001): each read
   as the report words it, the lesion vocabulary, a lesion table that tracks every named site
   across the reads ("no measurements recorded"), lead and lag against CA 15-3, the reports'
@@ -28,11 +32,11 @@ observed. Nothing here is a diagnosis or a recommendation.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import io
 import json
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -50,6 +54,9 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 from muffle.report.case_tools import INFERENCE, OBSERVED  # noqa: E402
 from muffle.workbench import radiology as rad  # noqa: E402
+from muffle.workbench import radiology_export as rx  # noqa: E402
+from muffle.workbench import radiology_map as rm  # noqa: E402
+from muffle.workbench import radiology_search as rs  # noqa: E402
 from muffle.workbench.grammar import chip  # noqa: E402
 from muffle.workspace import IMPLEMENTED, MARKS, PatientFile, finding_key  # noqa: E402
 from workbenches._page import Page, land, queue_items  # noqa: E402
@@ -131,37 +138,10 @@ def window(img: np.ndarray, level: int, width: int) -> np.ndarray:
     return (np.clip((img.astype(float) - lo) / max(width, 1), 0, 1) * 255).astype(np.uint8)
 
 
-def uri(img: Image.Image) -> str:
-    buf = io.BytesIO()
-    img.save(buf, "PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-
-
-def overlay(img: np.ndarray, cands: list[dict], i: int, mask: bool, view: tuple) -> Image.Image:
-    """The view (x0, y0, width, height in shown pixels, and the drawing scale) of the slice,
-    enlarged, with each candidate's contour filled and outlined when ``mask`` is on."""
-    x0, y0, vw, vh, k = view
-    base = Image.fromarray(img[y0:y0 + vh, x0:x0 + vw]).resize(
-        (int(vw * k), int(vh * k)), Image.BILINEAR).convert("RGBA")
-    layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(layer)
-    for c in cands if mask else []:
-        s = c["per_slice"].get(str(i))
-        if not s:
-            continue
-        col = COLORS.get(c["id"], (255, 255, 0))
-        for poly in s["contours"]:
-            pts = [((x - x0) * k, (y - y0) * k) for x, y in poly]
-            if len(pts) > 2:
-                draw.polygon(pts, fill=(*col, 90))
-                draw.line(pts + [pts[0]], fill=(*col, 255), width=2)
-    return Image.alpha_composite(base, layer).convert("RGB")
-
-
 def view_of(study: dict, c: dict | None, i: int, zoom: bool) -> tuple:
     """The whole shown slice at ``ZOOM`` (narrower when that would pass ``VIEW_PX``), or a
     square around candidate ``c`` (its box on this slice, else on its longest-diameter slice)
-    drawn four times larger. The image and its outlines share one scale, so they stay aligned."""
+    drawn four times larger (the cine's frame)."""
     d = study["display"]
     w, h = d["cols"], d["rows"]
     k = min(ZOOM, VIEW_PX / w)
@@ -173,57 +153,6 @@ def view_of(study: dict, c: dict | None, i: int, zoom: bool) -> tuple:
     x0 = int(min(max(cx - side / 2, 0), w - side))
     y0 = int(min(max(cy - side / 2, 0), h - side))
     return x0, y0, side, side, w * k / side  # the same drawn width as the whole slice
-
-
-def viewer_chart(img: Image.Image, cands: list[dict], i: int, show_box: bool, show_ld: bool,
-                 view: tuple) -> alt.Chart:
-    """The view as an image mark, with a hover rectangle per candidate (its stats) and the
-    longest-diameter line on this slice."""
-    x0, y0, vw, vh, k = view
-    x = alt.X("x:Q", scale=alt.Scale(domain=[x0, x0 + vw], nice=False), axis=None)
-    y = alt.Y("y:Q", scale=alt.Scale(domain=[y0, y0 + vh], nice=False, reverse=True), axis=None)
-    layers = [alt.Chart(pd.DataFrame([{"x": x0, "y": y0, "url": uri(img)}])).mark_image(
-        width=vw * k, height=vh * k, align="left", baseline="top", tooltip=None).encode(
-        x=x, y=y, url="url:N")]
-    boxes, lines = [], []
-    for c in cands:
-        s = c["per_slice"].get(str(i))
-        if not s:
-            continue
-        kin = c["kinetics"]
-        boxes.append({"x": s["box"][0], "y": s["box"][1], "x2": s["box"][2], "y2": s["box"][3],
-                      "candidate": c["id"], "side": c["side"] or "",
-                      "this slice": f"longest diameter {s['ld_mm']:g} mm, area "
-                                    f"{s['area_mm2']:g} mm²"
-                                    + (" · contour unsure here" if s["unsure"] else ""),
-                      "lesion": f"{c['longest_diameter_mm']:g} mm longest, {c['volume_ml']:g} mL "
-                                f"({c['volume_range_ml'][0]:g}–{c['volume_range_ml'][1]:g})",
-                      "kinetics": f"{kin.get('initial', '?')} initial "
-                                  f"({kin.get('initial_pct', '?')}%), {kin.get('delayed', '?')} "
-                                  f"delayed ({kin.get('delayed_pct', '?')}%)",
-                      "evidence": INFERENCE, "color": HEX.get(c["id"], "#ffff00")})
-        if show_ld and len(s["ld_line"]) == 2:
-            (x0, y0), (x1, y1) = s["ld_line"]
-            lines.append({"x": x0, "y": y0, "x2": x1, "y2": y1, "candidate": c["id"],
-                          "longest diameter": f"{s['ld_mm']:g} mm on this slice (between pixel "
-                                              "centres; ± one pixel)"})
-    tip = ["candidate:N", "side:N", "this slice:N", "lesion:N", "kinetics:N", "evidence:N"]
-    if boxes:
-        df = pd.DataFrame(boxes)
-        layers.append(alt.Chart(df).mark_rect(
-            fillOpacity=0.01, fill="white", strokeWidth=1.5 if show_box else 0,
-            strokeOpacity=1 if show_box else 0, strokeDash=[4, 3], clip=True).encode(
-            x=x, y=y, x2="x2:Q", y2="y2:Q", stroke=alt.Stroke("color:N", scale=None),
-            tooltip=tip))
-    if lines:
-        layers.append(alt.Chart(pd.DataFrame(lines)).mark_rule(
-            color="#ffff66", strokeWidth=2, clip=True).encode(
-            x=x, y=y, x2="x2:Q", y2="y2:Q", tooltip=["candidate:N", "longest diameter:N"]))
-    # autosize "pad", no padding: the plot is exactly the image, so the boxes and the measure
-    # line sit on the contours (Streamlit's default "fit" shrank the plot under the image)
-    return alt.layer(*layers).properties(width=vw * k, height=vh * k, padding=0,
-                                        autosize=alt.AutoSizeParams(type="pad")).configure_view(
-        strokeWidth=0)
 
 
 def load(uptime: str | None) -> str:
@@ -389,6 +318,432 @@ def cine(study: dict, c: dict | None, i: int, level: int, width: int) -> bytes:
     return buf.getvalue()
 
 
+# --- the scan map (muffle.workbench.radiology_map: the slide map's approach, for a scan) ---------
+MAP_CAPTION = ("The study's own images with the models' results on top. Switch views, fade the "
+               "colour layer and step through the nearby slices with the controls inside the map "
+               "(the zoom stays), scroll to zoom, drag to move, hover a square for its numbers "
+               "and click one for its full story in the Spot panel below. Every colour is a "
+               "model inference or a rule on one.")
+MAP_CAPTION_MG = ("The study's own mammogram, one view at a time, with the models' results on top. "
+                  "Fade the colour layer with the slider inside the map (the zoom stays), scroll "
+                  "to zoom, drag to move, hover a square for its numbers and click one for its "
+                  "full story in the Spot panel below. Every colour is a model inference or a "
+                  "rule on one.")
+MAX_MARKERS = 8
+MAP_WINDOW = 7  # slices on each side of the chosen one that the map carries (about 0.9 MB)
+SEARCH_COLOR = "#2468c0"
+
+
+def map_memory(key0: str) -> dict:
+    """What a study's map remembers between clicks."""
+    store = st.session_state.setdefault("rad_map_memory", {})
+    return store.setdefault(key0, {"zoom": None, "zoom_rev": 0, "outline": None,
+                                   "last_click": None, "search": None, "match_on": True,
+                                   "spot": None, "cand_seen": None, "pending": {}})
+
+
+def stamp(study: dict) -> str:
+    """The study's files' version, for the shared caches."""
+    p = Path(study["folder"]) / "study.json"
+    return str(p.stat().st_mtime_ns) if p.exists() else "0"
+
+
+@st.cache_resource(show_spinner=False, max_entries=8)
+def geometry(folder: str, stamp_: str) -> tuple[np.ndarray, dict]:
+    """An MRI study's skin surface per slice and column (``rad.skin_rows``) and its nipples
+    (``rm.nipples``), from the pre-contrast copy, decoded once here and not kept."""
+    study = rad.load_study(folder)
+    d = study["display"]
+    pre = np.asarray(Image.open(Path(folder) / "pre.jpg").convert("L")).reshape(
+        d["slices"], d["rows"], d["cols"])
+    skin = rad.skin_rows(pre).astype(np.int16)
+    return skin, rm.nipples(skin, d)
+
+
+def later_pair_folder(study: dict, changes: dict | None) -> str | None:
+    """The folder of the pair this study is the later date of (its map gets the Change view)."""
+    if changes and Path(changes["later"]["folder"]).name == Path(study["folder"]).name:
+        return str(Path(study["folder"]).parent)
+    return None
+
+
+def _change_layer(pair_folder: str, i: int) -> dict:
+    """The later study's slice ``i`` of a pair (``rm.change_layer``): its contours against the
+    earlier ones moved by the rigid alignment, and the unreliable blocks."""
+    pair, earlier, later = rad.load_pair(pair_folder)
+    ch = rad.pair_change(pair, earlier, later)
+    d = later["display"]
+    now = {c["id"]: rm.fill_polygons(c["per_slice"][str(i)]["contours"], d["rows"], d["cols"])
+           for c in later["candidates"] if str(i) in c["per_slice"]}
+    before = {cid: rad.aligned_view(m.astype(np.uint8) * 255, earlier["display"], d,
+                                    ch["registration"], "axial", i) > 127
+              for cid, m in masks(earlier).items()}
+    return rm.change_layer(later, earlier, ch, i, now, before)
+
+
+@st.cache_resource(show_spinner=False, max_entries=12)
+def change_slice(pair_folder: str, i: int) -> dict:
+    """``_change_layer``, shared and read-only."""
+    return _change_layer(pair_folder, i)
+
+
+@st.cache_resource(show_spinner=False, max_entries=2)
+def change_volume(pair_folder: str) -> dict[int, np.ndarray]:
+    """Every slice's change classes of a pair (for the search), the slices that hold one."""
+    _, _, later = rad.load_pair(pair_folder)
+    out = {}
+    for i in range(later["display"]["slices"]):
+        classes = _change_layer(pair_folder, i)["classes"]
+        if classes.any():
+            out[i] = classes
+    return out
+
+
+@st.cache_resource(show_spinner=False, max_entries=16)  # a window and one more
+def slice_map(folder: str, stamp_: str, i: int, pair_folder: str | None) -> rm.ScanMap:
+    """One MRI slice's map data (shared, read-only; never changed in place)."""
+    study = rad.load_study(folder)
+    skin, nips = geometry(folder, stamp_)
+    change = change_slice(pair_folder, i) if pair_folder else None
+    return rm.mri_slice(study, i, slices(study, "sub"), skin, nips, change, stamp_)
+
+
+@st.cache_resource(show_spinner=False, max_entries=8)
+def view_map(folder: str, stamp_: str, view_key: str) -> rm.ScanMap:
+    """One mammography view's map data (shared, read-only)."""
+    study = rad.load_study(folder)
+    position, v = next((n, v) for n, v in enumerate(study["views"]) if v["key"] == view_key)
+    return rm.mammo_view(study, v, _mammo(str(Path(folder) / v["image"])), position, stamp_)
+
+
+_figures: dict = {}
+_fig_lock = threading.Lock()
+
+
+def figure_once(shape: tuple, build):
+    """The map's figure for one state of the map (study, slice or view, series, window,
+    views, search, outline, zoom, pointers): a click elsewhere on the page reruns it without
+    rebuilding the figure. A few figures only."""
+    with _fig_lock:
+        if shape not in _figures:
+            if len(_figures) >= 3:
+                _figures.pop(next(iter(_figures)))
+            _figures[shape] = build()
+        return _figures[shape]
+
+
+def reset_view(key0: str) -> None:
+    """The whole image, nothing outlined."""
+    mem = map_memory(key0)
+    mem["zoom"], mem["outline"] = None, None
+    mem["zoom_rev"] += 1
+
+
+def focus_square(key0: str, display: dict, at, row: float, col: float, square: int) -> None:
+    """Zoom the map around a square (top-left pixel row, col) on slice or view ``at``, outline
+    it and open it in the Spot panel."""
+    mem = map_memory(key0)
+    mem["zoom"] = rm.zoom_box_for(display["rows"], display["cols"], display["pixel_mm"],
+                                  row + square / 2, col + square / 2)
+    mem["zoom_rev"] += 1
+    mem["outline"] = (at, int(row), int(col))
+    mem["spot"] = {"kind": "square", "at": at, "row": int(row), "col": int(col)}
+
+
+def focus_candidate(key0: str, study: dict, cid: str, set_slice: bool = True) -> None:
+    """The candidate's slice (its longest diameter's), the map zoomed around its box there and
+    its story in the Spot panel. Only before the slice slider is drawn (a callback, or the top
+    of the map)."""
+    c = next((c for c in study["candidates"] if c["id"] == cid), None)
+    if c is None:
+        return
+    mem = map_memory(key0)
+    j = rm.ld_index(study, c)
+    if set_slice:
+        st.session_state[f"{key0}-slice"] = j + 1
+    s = c["per_slice"].get(str(j))
+    d = study["display"]
+    if s:
+        box = s["box"]
+        mem["zoom"] = rm.zoom_box_for(d["rows"], d["cols"], d["pixel_mm"],
+                                      (box[1] + box[3]) / 2 + 0.5, (box[0] + box[2]) / 2 + 0.5)
+        mem["zoom_rev"] += 1
+        st.session_state[f"{key0}-row"] = int((box[1] + box[3]) / 2) + 1
+        st.session_state[f"{key0}-col"] = int((box[0] + box[2]) / 2) + 1
+    mem["outline"] = None
+    mem["spot"] = {"kind": "cand", "id": cid}
+    mem["cand_seen"] = cid
+
+
+def search_placeholder(study: dict | None) -> str:
+    """What the search box suggests: what this page can answer (QA R3-2)."""
+    if study is None:
+        return "liver · progression · month 12 · lesion size"
+    return ("enhancing lesion · washout · spiculated · C2 · receptor status"
+            if study["modality"] == "MR" else "dense · calcification · lymph node · mass")
+
+
+def scan_search(pf: PatientFile, study: dict, key0: str, changes: dict | None) -> dict | None:
+    """The search box inside the scan: known words, the answer under it; the map colours the
+    matches and Q1… mark the best spots."""
+    st.text_input("Search this scan in plain words", key=f"{key0}-search",
+                  placeholder=search_placeholder(study),
+                  help="Known words: a candidate (enhancing lesion, C2, largest), a curve "
+                       "(washout, plateau, persistent, fast), the margin (spiculated), the chest "
+                       "wall, unsure, change, dense. What a map cannot see (calcifications at "
+                       "this size, lymph nodes, histology, receptor status, grade) gets an honest "
+                       "answer naming the test that can. The map colours every match; Q1… mark "
+                       "the best spots.")
+    found = run_scan_search(key0, study, changes)
+    search_answer(found)
+    return found
+
+
+def run_scan_search(key0: str, study: dict, changes: dict | None) -> dict | None:
+    """The search box's query, matched once per change; the map shows the whole image again."""
+    mem = map_memory(key0)
+    query = (st.session_state.get(f"{key0}-search") or "").strip()
+    if query != (mem.get("search") or {}).get("query", ""):
+        if not query:
+            mem["search"] = None
+        elif study["modality"] == "MR":
+            pair = later_pair_folder(study, changes)
+            mem["search"] = rs.search(
+                study, query, sub=slices(study, "sub"),
+                skin=geometry(study["folder"], stamp(study))[0],
+                change=change_volume(pair) if pair and "change" in rs.understand(query) else None)
+        else:
+            mem["search"] = rs.search(study, query, views={
+                v["key"]: view_map(study["folder"], stamp(study), v["key"])
+                for v in study["views"]})
+        mem["match_on"] = True
+        mem["zoom"], mem["outline"] = None, None
+        mem["zoom_rev"] += 1
+    return mem.get("search")
+
+
+def search_answer(found: dict | None) -> None:
+    """What the search matched, under the search box."""
+    if not found:
+        return
+    used = ", ".join(found.get("used") or []) or "nothing"
+    text = f"“{found['query']}” · matched {used}" + (
+        f" · {found['message'].strip()}" if found.get("message") else "")
+    (st.caption if found.get("understood") else st.warning)(
+        text + (f" The map colours every square that matches {rs.MIN_SCORE:.0%} or more "
+                "(model inference); Q1… mark the best spots, each with its slice or view."
+                if found.get("volume") is not None else ""))
+
+
+def clear_search(key0: str) -> None:
+    st.session_state[f"{key0}-search"] = ""
+    mem = map_memory(key0)
+    mem["search"], mem["zoom"], mem["outline"] = None, None, None
+    mem["zoom_rev"] += 1
+
+
+def go_spot(key0: str, study: dict, s: dict) -> None:
+    """A search spot's button (a callback): its slice or view, zoomed, in the Spot panel."""
+    if "slice" in s:
+        st.session_state[f"{key0}-slice"] = s["slice"] + 1
+        at, display = s["slice"], study["display"]
+    else:
+        st.session_state[f"{key0}-view"] = s["view"]
+        at = s["view"]
+        m = view_map(study["folder"], stamp(study), s["view"])
+        display = {"rows": m.rows, "cols": m.cols, "pixel_mm": m.pixel_mm}
+    sq = rm.square_px(display["pixel_mm"])
+    focus_square(key0, display, at, s["r"] * sq, s["c"] * sq, sq)
+
+
+def search_spots(key0: str, study: dict, found: dict) -> None:
+    """One strip under the map: the best spots (a click zooms there), the match colouring switch
+    and Clear."""
+    mem = map_memory(key0)
+    with st.container(horizontal=True, vertical_alignment="center", gap="small"):
+        for s in found["spots"]:
+            where = f"slice {s['slice'] + 1}" if "slice" in s else s["view"]
+            st.button(f"{s['label']} · {where}" + (f" · {s['cand']}" if s.get("cand") else "")
+                      + f" · {s['score']:.0%}", key=f"{key0}-q-{s['label']}", type="tertiary",
+                      on_click=go_spot, args=(key0, study, s),
+                      help="Zooms the map to this spot (its slice or view) and opens it in the "
+                           "Spot panel")
+        if found.get("volume") is not None:
+            on = st.toggle("Colour by match", value=mem.get("match_on", True),
+                           key=f"{key0}-match", help="Off: the usual views come back, the spots "
+                                                     "stay")
+            if on != mem.get("match_on", True):
+                mem["match_on"] = on
+                st.rerun()
+        st.button("Clear the search", key=f"{key0}-clear", icon=":material/close:",
+                  on_click=clear_search, args=(key0,), help="Empties the search box")
+
+
+def map_markers(study: dict, m: rm.ScanMap, found: dict | None, items: list[dict]) -> list[dict]:
+    """The pointers on the map: the search's spots on this slice or view while a search is on,
+    else the candidates (the look-here queue's pointers), each with its look-here reasons."""
+    if found and found.get("spots"):
+        return [{"r": s["r"] * m.square + m.square / 2, "c": s["c"] * m.square + m.square / 2,
+                 "label": s["label"], "color": SEARCH_COLOR, "id": None,
+                 "hover": f"{s['label']}: match {s['score']:.0%}"}
+                for s in found["spots"] if s.get("slice", s.get("view")) == where_key(m)]
+    if m.kind != "MR":
+        return []
+    why = {}
+    for x in items:
+        if x["pointer"]:
+            why.setdefault(x["pointer"], []).append(x["what"].split("): ", 1)[-1])
+    return rm.candidate_pointers(study, m.index, why)
+
+
+def handle_map_click(event, key0: str, m: rm.ScanMap, first_hover: int, study: dict) -> None:
+    """A click on the map: a square opens in the Spot panel (drawn later in this run); a
+    candidate's pointer opens that candidate, on its own slice (one more run for the slider)."""
+    mem = map_memory(key0)
+    try:
+        points = event["selection"]["points"]
+    except (TypeError, KeyError):
+        return
+    if not points:
+        return
+    p = points[0]
+    sig = (p.get("curve_number"), p.get("point_index"), p.get("x"), p.get("y"),
+           str(p.get("customdata")))
+    if sig == mem["last_click"]:  # a selection persists across reruns: act on a new one only
+        return
+    mem["last_click"] = sig
+    hit = rm.clicked(p.get("customdata"), p.get("x"), p.get("y"))
+    if hit is None:
+        return
+    if hit[0] == "square":  # its own slice: any slice of the map's window, not only this one
+        mem["spot"] = {"kind": "square", "at": hit[1] if m.kind == "MR" else m.where,
+                       "row": hit[2], "col": hit[3]}
+        return
+    if any(c["id"] == hit[1] for c in study.get("candidates", [])):
+        mem["pending"] = {"cand": hit[1]}  # applied above the map, before its widgets
+        st.rerun()
+
+
+def where_key(m: rm.ScanMap):
+    """How the map's memory names this slice (its index) or view (its key)."""
+    return m.index if m.kind == "MR" else m.where
+
+
+def outline_index(mem: dict, m: rm.ScanMap) -> int | None:
+    """The outlined square on this slice or view, if any."""
+    o = mem.get("outline")
+    if not o or o[0] != where_key(m):
+        return None
+    return rm.square_at(m, o[1], o[2])
+
+
+def map_line(m: rm.ScanMap, where: str) -> None:
+    """Under the map: what a square is, what the map holds, what a click does."""
+    st.caption(f"One square ≈ {m.square * m.pixel_mm:.1f} mm ({m.square} shown pixels of "
+               f"{m.pixel_mm:g} mm) · {where} · click a square for its full story in the Spot "
+               "panel below.")
+
+
+def mri_map(pf: PatientFile, study: dict, key0: str, found: dict | None, changes: dict | None,
+            items: list[dict]) -> tuple:
+    """The MRI scan map with its controls above (series, candidate, Whole image, window and
+    level, slice) and its line and search spots under it. Returns (slice, series, level,
+    window, the picked candidate, the slice's map)."""
+    ss, mem = st.session_state, map_memory(key0)
+    d, cands = study["display"], study["candidates"]
+    ids = [c["id"] for c in cands]
+    pend, mem["pending"] = mem.get("pending") or {}, {}  # asked for by a click in the last run
+    if pend.get("cand") in ids:  # a pointer: its candidate, slice, zoom and story
+        ss[f"{key0}-cand"] = pend["cand"]
+        focus_candidate(key0, study, pend["cand"])
+    if cands and ss.get(f"{key0}-cand") not in ids:
+        ss[f"{key0}-cand"] = ids[0]
+    cur = ss.get(f"{key0}-cand")
+    if mem["cand_seen"] is None:
+        mem["cand_seen"] = cur
+    elif cur != mem["cand_seen"]:  # landed from the look-here queue or the report's "Open"
+        focus_candidate(key0, study, cur)
+    if f"{key0}-slice" not in ss:
+        first = next((c for c in cands if c["id"] == cur), None)
+        ss[f"{key0}-slice"] = (rm.ld_index(study, first) if first else d["slices"] // 2) + 1
+    keys = series_keys(study)
+    row = st.container(horizontal=True, vertical_alignment="bottom", gap="small")
+    pick = row.selectbox("Series", keys, index=keys.index("early"), key=f"{key0}-phase",
+                         format_func=lambda k: series_label(study, k), width=300,
+                         help="The image under the colour layer: any shipped phase or the "
+                              "subtraction") or "early"
+    focus = row.segmented_control("Candidate", ids, key=f"{key0}-cand", on_change=_jump,
+                                  args=(study, key0),
+                                  help="Goes to the candidate's longest-diameter slice, zooms "
+                                       "there and opens its story in the Spot panel") \
+        if cands else None
+    row.button("Whole image", key=f"{key0}-fit", icon=":material/fit_screen:",
+               on_click=reset_view, args=(key0,),
+               help="Shows the whole slice again and clears the outline")
+    with row.popover("Window and level", icon=":material/contrast:",
+                     help="Brightness and contrast of the image under the colours"):
+        level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
+        width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
+        st.caption("Window and level act on the shipped 8-bit copy: " + d["window"] + ".")
+    i = st.slider("Go to slice", 1, d["slices"], key=f"{key0}-slice",
+                  help=f"Jumps to a slice: the map then holds it and the {MAP_WINDOW} on each "
+                       "side, and the Slice slider inside the map steps through them keeping "
+                       "the zoom. A jump keeps the view the page set (whole, or a candidate's), "
+                       "not a wheel zoom.") - 1
+    pair = later_pair_folder(study, changes)
+    m = slice_map(study["folder"], stamp(study), i, pair)
+    picked = next((c for c in cands if c["id"] == focus), None)
+    matching = bool(found and found.get("volume") is not None and mem.get("match_on"))
+    view_modes = ("match",) if matching else tuple(rm.modes(m))
+    lo = max(0, min(i - MAP_WINDOW, d["slices"] - 2 * MAP_WINDOW - 1))
+    shown = list(range(lo, min(d["slices"], lo + 2 * MAP_WINDOW + 1)))
+    o = mem.get("outline")
+    shape = (m.key, pick, level, width, view_modes, tuple(o) if o else None,
+             tuple(mem["zoom"] or ()), mem["zoom_rev"], key0,
+             found["query"] if found else None, tuple(x["key"] for x in items))
+
+    def build():
+        vol = slices(study, pick)
+        frames = []
+        for k in shown:  # the slice and its neighbours: the slider inside the map walks them
+            mk = m if k == i else slice_map(study["folder"], stamp(study), k, pair)
+            values = rs.values_for(found, mk) if matching else None
+            frames.append(rm.frame_of(
+                mk, rm.scan_jpeg(window(vol[k], level, width)),
+                {md: rm.overlay_png(mk, md, values) for md in view_modes},
+                map_markers(study, mk, found, items)[:MAX_MARKERS], outline_index(mem, mk)))
+        legends = {md: rm.legend_items(m, md, study) for md in view_modes}
+        return rm.figure(frames, legends, active_frame=shown.index(i), study=study,
+                         opacity=rm.MATCH_OPACITY if matching else rm.OPACITY,
+                         zoom=mem["zoom"], uirevision=f"{key0}-{mem['zoom_rev']}",
+                         height=rm.height_for(m), total=d["slices"])
+    fig, first = figure_once(shape, build)
+    event = st.plotly_chart(fig, key=f"{key0}-map", on_select="rerun", selection_mode="points",
+                            width="stretch", config={"displayModeBar": False, "scrollZoom": True,
+                                                     "doubleClick": "reset"})
+    handle_map_click(event, key0, m, first, study)
+    here = [c["id"] for c in cands if str(i) in c["per_slice"]]
+    map_line(m, f"the map holds slices {shown[0] + 1}–{shown[-1] + 1} around slice {i + 1} "
+                f"(position {d['z_mm'][i]:g} mm; on it: {', '.join(here) or 'no candidate'}); "
+                "its Slice slider walks them and keeps the zoom, Go to slice jumps further")
+    st.caption(f"{series_label(study, pick)}; slice {i + 1} of {d['slices']} (every "
+               f"{d['slice_step']} of {d['native_slices']} native slices); {d['pixel_mm']:g} mm "
+               f"per shown pixel (native {d['native_pixel_mm'][0]:g} mm, slices "
+               f"{d['slice_mm']:g} mm apart). {d['orientation'].capitalize()}. "
+               + (f"Acquired {acq['plane']}: {acq['slices']} slices {acq['slice_mm']:g} mm "
+                  f"apart, {acq['pixel_mm'][0]:g} mm pixels; the axial view is resampled from "
+                  "them. " if (acq := d.get("acquisition", {})).get("plane", "axial") != "axial"
+                  else "") + d.get("crop", "") + ". The dashed line is the seed rule's search "
+               "limit (the intermammary cleft plus a margin, a placeholder): lesions behind it "
+               "are never proposed. Kinetics are measured inside the contours only (the "
+               "contour mean on the original data): the shipped 8-bit copies clip the brightest "
+               "early-phase pixels, so no per-pixel curve map is drawn. Re-segmenting needs the "
+               "local pipeline; the hosted app runs no model.")
+    if found and found.get("spots"):
+        search_spots(key0, study, found)
+    return i, pick, level, width, picked, m
+
+
 # --- the image viewer -----------------------------------------------------------------------------
 def studies_of(pf: PatientFile) -> list[tuple]:
     return [(t, rad.load_study(rad.study_folder(t))) for t in pf.tests
@@ -420,7 +775,7 @@ def look_items(pf: PatientFile, version: int | None, prefix: str) -> list[dict]:
 
 
 def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
-    d, cands = study["display"], study["candidates"]
+    cands = study["candidates"]
     rep = study.get("report", {})
     key0 = f"rad-{pf.id}-{study['barcode']}"
     st.markdown(f"**{study['kind']} · {study['study']['date']}**")
@@ -443,65 +798,18 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
                f"{c1['kinetics'].get('delayed')} delayed enhancement (curve type "
                f"{c1['kinetics'].get('curve_type')})." if c1 else "No candidate was proposed."))
     changes = pair_for(pf, study)
+    items = look_items(pf, page.version, f"{study['barcode']}|")
     with page.overview():
         st.markdown(obs + "  \n" + inf)
         st.caption("The candidates are where the subtraction is brightest, not a reading of the "
                    "study: compare them with the structured report and the images.")
-        page.look_here(look_items(pf, page.version, f"{study['barcode']}|"),
-                       land=lambda focus: land(pf, page.version, focus))
-        _search(pf, study, [], cands, rad.CANNOT_SEE)
+        page.look_here(items, land=lambda focus: land(pf, page.version, focus))
+        found = scan_search(pf, study, key0, changes)
 
-    # the picture: the viewer
-    with page.picture("Viewer"):
-        chips(IMPLEMENTED, INFERENCE)
-        pick = st.segmented_control("Series", series_keys(study),
-                                    format_func=lambda k: series_label(study, k), default="sub",
-                                    key=f"{key0}-phase") or "sub"
-        if cands and st.session_state.get(f"{key0}-cand") not in [c["id"] for c in cands]:
-            st.session_state[f"{key0}-cand"] = cands[0]["id"]  # a landed pointer keeps its own
-        focus = st.segmented_control("Candidate", [c["id"] for c in cands], key=f"{key0}-cand",
-                                     on_change=_jump, args=(study, key0)) if cands else None
-        picked = next((c for c in cands if c["id"] == focus), None)
-        if f"{key0}-slice" not in st.session_state:
-            st.session_state[f"{key0}-slice"] = _ld_index(study, picked) + 1 if picked else \
-                d["slices"] // 2 + 1
-        # the image keeps its drawn size; the controls sit beside it where they fit, else under
-        # it (fixed columns let a 460 px image cover the controls at 1280 px with the sidebar)
-        row = st.container(horizontal=True, gap="small")
-        left, right = row.container(width="content"), row.container(width=260)
-        with right:
-            i = st.slider("Slice", 1, d["slices"], key=f"{key0}-slice") - 1
-            st.caption(f"Slice {i + 1} of {d['slices']} (every {d['slice_step']} of "
-                       f"{d['native_slices']} native slices), position {d['z_mm'][i]:g} mm; "
-                       f"{d['pixel_mm']:g} mm per shown pixel (native "
-                       f"{d['native_pixel_mm'][0]:g} mm, slices {d['slice_mm']:g} mm apart). "
-                       f"{d['orientation'].capitalize()}."
-                       + (f" Acquired {acq['plane']}: {acq['slices']} slices "
-                          f"{acq['slice_mm']:g} mm apart, {acq['pixel_mm'][0]:g} mm pixels; the "
-                          "axial view is resampled from them."
-                          if (acq := d.get("acquisition", {})).get("plane", "axial") != "axial"
-                          else ""))
-            level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
-            width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
-            t1 = t2 = t3 = t4 = st.container(horizontal=True, gap="small")  # labels whole
-            show_mask = t1.toggle("Mask", True, key=f"{key0}-mask")
-            show_box = t2.toggle("Box", True, key=f"{key0}-box")
-            show_ld = t3.toggle("Measure", True, key=f"{key0}-ld")
-            zoom = t4.toggle("Zoom", False, key=f"{key0}-zoom",
-                             help="A square around the chosen candidate, four times larger")
-            st.caption("Window and level act on the shipped 8-bit copy: " + d["window"] + ". "
-                       + d.get("crop", "") + ". Hover a box for its region's stats. "
-                       "Re-segmenting with a moved box needs the local pipeline; the hosted app "
-                       "runs no model.")
-            here = [c["id"] for c in cands if str(i) in c["per_slice"]]
-            st.markdown("**On this slice:** " + (", ".join(here) if here else "no candidate"))
-        with left:
-            img = window(slices(study, pick)[i], level, width)
-            view = view_of(study, picked, i, zoom)
-            st.altair_chart(viewer_chart(overlay(img, cands, i, show_mask, view), cands, i,
-                                         show_box, show_ld, view), width="content",
-                            alt=f"{series_label(study, pick)}, slice {i + 1} of {d['slices']}"
-                                + (f", candidates {', '.join(here)} outlined" if here else ""))
+    # the picture: the scan map
+    with page.picture("Scan map", caption=MAP_CAPTION):
+        chips(IMPLEMENTED, INFERENCE, "literature, placeholder until calibrated")
+        i, pick, level, width, picked, m = mri_map(pf, study, key0, found, changes, items)
 
     # details: collapsed, each with its count
     with page.details("Three planes", "axial, coronal, sagittal"):
@@ -515,10 +823,10 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
                      alt=f"Every phase of the study at slice {i + 1}, in order")
             st.caption("Every shipped phase at the same slice, in order (" + "; ".join(
                 p["label"] for p in study["phases"]) + f"); "
-                f"{study['phases'][1]['time_source']}. The same window and level as the viewer; "
+                f"{study['phases'][1]['time_source']}. The same window and level as the map; "
                 "the contour is the early phase's.")
         else:
-            st.caption("Opens the phases one after another at the viewer's slice.")
+            st.caption("Opens the phases one after another at the map's slice.")
     table = lesion_rows(study)
     with page.details("Candidates", len(cands)):
         chips(IMPLEMENTED, INFERENCE, "placeholder")
@@ -527,48 +835,179 @@ def mri_page(page: Page, pf: PatientFile, study: dict) -> None:
                    f"{seed['groups']} seed groups, {seed['proposed']} kept after the size and "
                    "shape rules; the top three are shown. The breast region: "
                    + study["region"]["rule"] + f" (posterior limit at row "
-                   f"{study['region']['limit_row_display']:g} of the shown slice). Lesions "
-                   "behind it, at the chest wall or in the axilla, are not proposed.")
+                   f"{study['region']['limit_row_display']:g} of the shown slice, the map's "
+                   "dashed line). Lesions behind it, at the chest wall or in the axilla, are not "
+                   "proposed.")
     since_last(page, pf, study, changes)
 
-    # Spot panel: the chosen candidate in full
-    with page.spot("The full story of one candidate: its size, volume, kinetics curve, how its "
-                   "box was chosen and the model; pick it with Candidate in the viewer."):
-        if picked:
-            spot(pf, study, picked, changes)
-        else:
-            st.caption("No candidate was proposed in this study: nothing to open.")
+    # Spot panel: the clicked square, or the chosen candidate, in full
+    with page.spot("The full story of one square or one candidate: click a square in the map, "
+                   "or pick a candidate with Candidate above the map or Spot in the look-here "
+                   "queue."):
+        mri_spot(pf, study, key0, m, picked, changes)
 
     model_card(page, study)
     _cannot_see(page, rad.CANNOT_SEE)
     ch = changes["change"] if changes else None
+    img = window(slices(study, pick)[i], level, width)
+
+    def more(row) -> None:
+        report_button(row, pf, study, key0, items, obs + "\n\n" + inf, changes)
+        map_png_button(row, key0, study, m, img, map_markers(study, m, None, items),
+                       title=f"{study['barcode']} · {study['study']['date']} · {m.where}",
+                       subtitle=f"{series_label(study, pick)} · MedSAM contours, seed rule and "
+                                "kinetics: model inferences")
     _export(page, pf, study, table, {"change": {k: ch[k] for k in (
         "rows", "sum", "protocol", "registration", "what_changed", "dates", "label")}} if ch else
-        None, change_rows(ch) if ch else None)
+        None, change_rows(ch) if ch else None, more=more)
 
 
-def _ld_index(study: dict, c: dict) -> int:
-    """The shown slice closest to the candidate's longest-diameter slice (an axial
-    acquisition), else the shown slice where its contour is largest."""
-    step = study["display"]["slice_step"]
-    shown = [int(k) for k in c["per_slice"]]
-    if not shown:
-        return study["display"]["slices"] // 2
-    if c.get("ld_plane", "axial") != "axial":
-        return max(shown, key=lambda k: c["per_slice"][str(k)]["area_mm2"])
-    return min(shown, key=lambda k: abs(k * step - (c["ld_slice"] or 0)))
+_ld_index = rm.ld_index  # the slice a candidate opens on (the cine, the three planes, the change)
 
 
 def _jump(study: dict, key0: str) -> None:
-    c = next((c for c in study["candidates"] if c["id"] == st.session_state.get(f"{key0}-cand")),
-             None)
-    if c:  # all three planes go to the candidate: its slice, and its box's centre
-        i = _ld_index(study, c)
-        st.session_state[f"{key0}-slice"] = i + 1
-        box = c["per_slice"].get(str(i), {}).get("box")
-        if box:
-            st.session_state[f"{key0}-row"] = int((box[1] + box[3]) / 2) + 1
-            st.session_state[f"{key0}-col"] = int((box[0] + box[2]) / 2) + 1
+    """The Candidate control (a callback): the candidate's slice, the map zoomed there, its
+    story in the Spot panel, and the three planes through its box's centre."""
+    cid = st.session_state.get(f"{key0}-cand")
+    if cid:
+        focus_candidate(key0, study, cid)
+
+
+def mri_spot(pf: PatientFile, study: dict, key0: str, m: rm.ScanMap, picked: dict | None,
+             changes: dict | None) -> None:
+    """The Spot panel of an MRI study: the clicked square (and, inside a contour, its
+    candidate's story), else the chosen candidate."""
+    sp = map_memory(key0).get("spot") or {}
+    by_id = {c["id"]: c for c in study["candidates"]}
+    if sp.get("kind") == "square":
+        sm = m if sp["at"] == m.index else slice_map(
+            study["folder"], stamp(study), int(sp["at"]), later_pair_folder(study, changes))
+        j = rm.square_at(sm, sp["row"], sp["col"])
+        if j is not None:
+            square_panel(pf, study, sm, j)
+            if sm.cand[j] in by_id:
+                st.markdown(f"##### Its candidate: {sm.cand[j]}")
+                spot(pf, study, by_id[sm.cand[j]], changes)
+            return
+    c = by_id.get(sp.get("id")) if sp.get("kind") == "cand" else picked
+    if c is not None:
+        spot(pf, study, c, changes)
+    else:
+        st.caption("No candidate was proposed in this study: click a square in the map to open "
+                   "it here.")
+
+
+def square_panel(pf: PatientFile, study: dict, m: rm.ScanMap, j: int) -> None:
+    """One square of the map in full: the crops at the copy's own resolution, where it is, why
+    it has its colour, how sure, what to check by eye, its curve on the copy and the mark."""
+    story = rm.square_story(m, j, study)
+    n = story["numbers"]
+    r0, c0 = int(m.sq_r[j] * m.square), int(m.sq_c[j] * m.square)  # its top-left pixel
+    name = rm.square_name(m, j)  # its centre, as the hover box names it
+    st.markdown(f"**Square {name}** · {m.where} · {story['region']}")
+    chips(IMPLEMENTED, INFERENCE)
+    radius = max(4, int(round(12 / m.pixel_mm)))
+    pics = st.container(horizontal=True, gap="small")
+    if m.kind == "MR":
+        for key, what in (("pre", "pre-contrast"), ("early", "early post-contrast"),
+                          ("sub", "subtraction")):
+            pics.image(rm.crop(slices(study, key)[m.index], r0, c0, m.square, radius),
+                       caption=what, width=150,
+                       alt=f"The {what} copy around square {name}, the square outlined")
+    else:
+        v = m.info["view"]
+        pics.image(rm.crop(_mammo(str(Path(study["folder"]) / v["image"])), r0, c0, m.square,
+                           radius, scale=4), caption=f"{v['key']}, the square outlined",
+                   width=200, alt=f"The {v['key']} view around square {name}")
+    st.caption(f"The shipped copy at its own resolution ({m.pixel_mm:g} mm per pixel, enlarged "
+               f"without smoothing), {radius * m.pixel_mm:.0f} mm around the square; the "
+               "diagnostic originals stay at TCIA.")
+    if m.kind == "MR":
+        lim = n["limit"]
+        where = (f"{rm.side_name(c0 + m.square / 2, m.cols)} · "
+                 + (f"about {n['nipple']} mm from the nipple (3D, approximate: the breast's "
+                    "most anterior skin point) · " if n["nipple"] >= 0 else "")
+                 + (f"{n['skin']} mm from the nearest skin (in-plane) · " if n["skin"] >= 0
+                    else "")
+                 + (f"{lim} mm in front of the search limit" if lim >= 0 else
+                    f"{-lim} mm behind the search limit")
+                 + f" · subtraction {n['sub']}% of the study's brightest (its 99.9th "
+                   "percentile in the breast region)")
+    else:
+        where = ((f"about {n['nipple']} mm from the nipple along the view · "
+                  if n["nipple"] >= 0 else "") + f"{n['chest']} mm from the chest-wall edge · "
+                 f"{n['dense']}% of its breast pixels dense (placeholder rule)")
+    st.markdown(f"**Where** · {where}. Geometry on the shipped copy.")
+    st.markdown("**Why this colour:** " + "; ".join(story["why"]) + ".")
+    st.markdown("**How sure:** " + "; ".join(story["how"]) + ".")
+    st.markdown("**What to check by eye:** " + "; ".join(story["check"]) + ".")
+    if m.kind == "MR" and "inside" not in story["region"]:
+        keys = [k for k in series_keys(study) if k != "sub"]
+        vols = [slices(study, k) for k in keys]
+        vals = rm.square_curve(vols, m.index, r0, c0, m.square)
+        clipped = rm.clipped_share(vols, m.index, r0, c0, m.square)
+        df = pd.DataFrame({"phase": [series_label(study, k).split(": ")[-1] for k in keys],
+                           "brightness on the 8-bit copy": vals})
+        with st.container(width=VIEW_PX):
+            st.altair_chart(alt.Chart(df).mark_line(point=True, color="#5C5F6A").encode(
+                x=alt.X("phase:N", sort=list(df["phase"]), title=None,
+                        axis=alt.Axis(labelAngle=-35)),
+                y=alt.Y("brightness on the 8-bit copy:Q", title="brightness (0–255)",
+                        scale=alt.Scale(domain=[0, 255])),
+                tooltip=["phase:N", alt.Tooltip("brightness on the 8-bit copy:Q", format=".0f")])
+                .properties(height=200), width="stretch")
+        st.caption("The square's mean brightness on each phase's copy: the curve's shape only, "
+                   "not a percentage (every phase shares one window whose lower end is not "
+                   f"stored); {clipped:.0%} of its pixels reach 250 on some phase (clipped "
+                   "there). Measured kinetics exist inside the contours only.")
+    if story["candidate"] in {c["id"] for c in study.get("candidates", [])}:
+        st.caption(f"Your mark for this place goes with {story['candidate']}: in its story "
+                   "below.")
+        return
+    at = m.where.split(" of ")[0]
+    review(finding_key(pf, "imaging", study["barcode"], study["study"]["date"], f"{at} {name}"),
+           f"{study['barcode']} {study['study']['date']} {at}, square {name}: "
+           f"{story['region'].lower()} (model inference)")
+
+
+def report_button(row, pf: PatientFile, study: dict, key0: str, items: list[dict],
+                  overview: str, changes: dict | None) -> None:
+    """The study's report in Markdown, built when clicked (``rx.report_markdown``)."""
+    prefix = f"{pf.id}|imaging|{study['barcode']}|"
+    marks = {k: v for k, v in st.session_state.get("reviews", {}).items() if k.startswith(prefix)}
+    looked = {x["key"] for x in items}
+    squares = [v for k, v in marks.items() if k not in looked and " r" in k.rsplit("|", 1)[-1]]
+    mr = study["modality"] == "MR"
+    failures = [f for f in rad.KNOWN_FAILURES if ("ammograph" in f) != mr]
+    name = f"{pf.id}_{study['barcode']}_{study['study']['date']}_report.md".replace(" ", "_")
+    row.download_button(
+        "Download the study report (Markdown)",
+        lambda: rx.report_markdown(pf.id, study, look=items, marks=marks, overview=overview,
+                                   change=changes["change"] if changes else None,
+                                   square_marks=squares, known_failures=failures),
+        file_name=name, mime="text/markdown", key=f"{key0}-md", on_click="ignore",
+        icon=":material/description:",
+        help="The study's report, built when you click: what was imaged, the measurements with "
+             "their evidence labels, the look-here pointers with your marks, the change over "
+             "time, every cutoff and its source, the known failures")
+
+
+def map_png_button(row, key0: str, study: dict, m: rm.ScanMap, img: np.ndarray,
+                   markers: list[dict], title: str, subtitle: str) -> None:
+    """The map picture of one view at the shown slice or view, made when clicked."""
+    views = rm.modes(m)
+    with row.popover("Download the map (PNG)", icon=":material/image:",
+                     help="A labelled picture of the map in one view at this slice or view, for "
+                          "a report or a tumor board"):
+        mode = st.selectbox("View", views, format_func=rm.MODES.get, key=f"{key0}-pngview")
+        st.download_button(
+            "Download the map (PNG)",
+            lambda: rx.map_png(img, m, mode, 0.55, study=study if m.kind == "MR" else None,
+                               markers=markers, title=title, subtitle=subtitle,
+                               legend=rm.legend_items(m, mode, study)),
+            file_name=f"{key0.replace(' ', '_')}_{m.where.split(' of ')[0].replace(' ', '')}_"
+                      f"{mode}_map.png", mime="image/png", key=f"{key0}-png",
+            on_click="ignore", width="stretch")
 
 
 def lesion_rows(study: dict) -> list[dict]:
@@ -727,6 +1166,8 @@ def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -
                    + "; ".join(ch["protocol"]) + ".")
     reg = ch["registration"]
     st.markdown(f"**What changed** (model inference): {ch['what_changed']}")
+    if not marks:  # the example pair: its later study on the map, the Change view first
+        pair_map(changes, key0)
     n_bad = sum(not b["reliable"] for b in ch["blocks"])
     st.caption(f"Method: {reg['method']}. Normalised mutual information {reg['nmi_start']:g} at "
                f"the start, {reg['nmi_after']:g} aligned; {reg['evaluations']} evaluations, "
@@ -810,6 +1251,44 @@ def change_view(pf: PatientFile, changes: dict, key0: str, marks: bool = True) -
     row = next(r for r in rows if r["lesion"] == pick)
     review(finding_key(pf, "imaging", barcode, span, pick),
            f"{barcode} {span} {pick}: {row['status']} (model inference)")
+
+
+def pair_map(changes: dict, key0: str) -> None:
+    """A pair's later study on the scan map, opened on the Change view around its first
+    candidate: its contours against the earlier ones moved by the rigid alignment, where the
+    alignment is unreliable tinted; the Slice slider inside walks the slices around. Hover only:
+    the pair is not this file's, so no Spot panel and no mark."""
+    later = changes["later"]
+    d = later["display"]
+    folder, stamp_ = later["folder"], stamp(later)
+    pair = str(Path(folder).parent)
+    first = later["candidates"][0] if later["candidates"] else None
+    i = rm.ld_index(later, first) if first else d["slices"] // 2
+    lo = max(0, min(i - MAP_WINDOW, d["slices"] - 2 * MAP_WINDOW - 1))
+    shown = list(range(lo, min(d["slices"], lo + 2 * MAP_WINDOW + 1)))
+
+    def build():
+        vol = slices(later, "early")
+        frames = []
+        for k in shown:
+            mk = slice_map(folder, stamp_, k, pair)
+            frames.append(rm.frame_of(mk, rm.scan_jpeg(vol[k]),
+                                      {md: rm.overlay_png(mk, md) for md in rm.modes(mk)},
+                                      rm.candidate_pointers(later, k)))
+        m = frames[shown.index(i)]["m"]
+        return rm.figure(frames, {md: rm.legend_items(m, md, later) for md in rm.modes(m)},
+                         active_frame=shown.index(i), study=later, active="change",
+                         uirevision=f"{key0}-pair", height=rm.height_for(m),
+                         total=d["slices"])
+    fig, _ = figure_once(("pair", folder, stamp_, i), build)
+    st.plotly_chart(fig, key=f"{key0}-pairmap", width="stretch",
+                    config={"displayModeBar": False, "scrollZoom": True, "doubleClick": "reset"})
+    st.caption(f"The later study ({later['study']['date']}) on the scan map, slices "
+               f"{shown[0] + 1}–{shown[-1] + 1}: the Change view colours both dates' model "
+               "contours after the rigid alignment (larger now, smaller now, on one date only: "
+               "not new, not gone) and tints where the alignment is unreliable. A comparison of "
+               "two dates, not a forecast. Hover for the numbers; this pair is another patient's "
+               "public data, so it opens no Spot panel and takes no mark.")
 
 
 def change_rows(ch: dict) -> list[dict]:
@@ -1082,71 +1561,122 @@ def _cc_mlo(imgs: dict, views: list[dict], sides: list[str], key0: str, level: i
                "registration of the two views.")
 
 
+def mammo_map(pf: PatientFile, study: dict, key0: str, views: list[dict],
+              found: dict | None) -> tuple:
+    """The mammography map: one view at a time (View, Whole image, window and level above it),
+    the Density view, its line and the search spots under it. Returns (view key, level,
+    window, the view's map)."""
+    ss, mem = st.session_state, map_memory(key0)
+    keys = [v["key"] for v in views]
+    if ss.get(f"{key0}-view") not in keys:
+        ss[f"{key0}-view"] = keys[0]
+    row = st.container(horizontal=True, vertical_alignment="bottom", gap="small")
+    vk = row.segmented_control("View", keys, key=f"{key0}-view", required=True,
+                               help="Right and left, CC and MLO: one view under the map at a "
+                                    "time; the four side by side are in Details") or keys[0]
+    row.button("Whole image", key=f"{key0}-fit", icon=":material/fit_screen:",
+               on_click=reset_view, args=(key0,),
+               help="Shows the whole view again and clears the outline")
+    with row.popover("Window and level", icon=":material/contrast:",
+                     help="Brightness and contrast of the image under the colours"):
+        level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
+        width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
+        st.caption("Window and level act on the shipped 8-bit copy.")
+    m = view_map(study["folder"], stamp(study), vk)
+    v = m.info["view"]
+    img = window(_mammo(str(Path(study["folder"]) / v["image"])), level, width)
+    values = rs.values_for(found, m) if found and mem.get("match_on") else None
+    markers = map_markers(study, m, found, [])[:MAX_MARKERS]
+    view_modes = ("match",) if values is not None else tuple(rm.modes(m))
+    sel = outline_index(mem, m)
+    shape = (m.key, level, width, view_modes, sel, tuple(mem["zoom"] or ()), mem["zoom_rev"],
+             key0, found["query"] if found else None,
+             tuple((p["r"], p["c"], p["label"]) for p in markers))
+
+    def build():
+        overlays = {md: rm.overlay_png(m, md, values) for md in view_modes}
+        legends = {md: rm.legend_items(m, md, study) for md in overlays}
+        return rm.figure([rm.frame_of(m, rm.scan_jpeg(img), overlays, markers, sel)], legends,
+                         opacity=rm.MATCH_OPACITY if values is not None else rm.OPACITY,
+                         zoom=mem["zoom"], uirevision=f"{key0}-{mem['zoom_rev']}",
+                         height=rm.height_for(m))
+    fig, first = figure_once(shape, build)
+    event = st.plotly_chart(fig, key=f"{key0}-map", on_select="rerun", selection_mode="points",
+                            width="stretch", config={"displayModeBar": False, "scrollZoom": True,
+                                                     "doubleClick": "reset"})
+    handle_map_click(event, key0, m, first, study)
+    map_line(m, f"{v['key']} ({'right' if v['laterality'] == 'R' else 'left'} breast, "
+                f"{v['view']} view)")
+    st.caption(f"Shown at {v['pixel_mm']:g} mm per pixel, downsampled from the "
+               f"{v['native_pixel_mm'][0]:g} mm original: microcalcifications are not visible at "
+               f"this size. Density view: the dense pixels (an Otsu threshold inside the breast on "
+               f"the shipped copy: {m.info['dense_share']:.0%} here, "
+               f"{v['dense']['dense_fraction']:.0%} on the original; a placeholder rule, not a "
+               "BI-RADS density category), coloured by MONAI's density class for this view "
+               f"({view_density(study, v)}). " + NO_DETECTOR)
+    if found and found.get("spots"):
+        search_spots(key0, study, found)
+    return vk, level, width, m
+
+
+def mammo_spot(pf: PatientFile, study: dict, key0: str, m: rm.ScanMap) -> None:
+    """The Spot panel of a mammography study: the clicked square, else the shown view with its
+    dense-pixel share, density opinions and the view's mark."""
+    sp = map_memory(key0).get("spot") or {}
+    if sp.get("kind") == "square":
+        sm = m if sp["at"] == m.where else view_map(study["folder"], stamp(study), sp["at"])
+        j = rm.square_at(sm, sp["row"], sp["col"])
+        if j is not None:
+            square_panel(pf, study, sm, j)
+            return
+    v = m.info["view"]
+    st.markdown(f"**{v['key']}** · dense-pixel share {v['dense']['dense_fraction']:.0%} "
+                "(placeholder rule; on MLO views the pectoral muscle counts as dense) · MONAI "
+                f"density {view_density(study, v)} · screening score {breast_score(study, v)}")
+    review(finding_key(pf, "imaging", study["barcode"], study["study"]["date"], v["key"]),
+           f"{study['barcode']} {v['key']}: dense-pixel share "
+           f"{v['dense']['dense_fraction']:.0%} (placeholder rule)")
+    st.caption("Click a square in the map to open it here.")
+
+
 def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
     rep = study.get("report", {})
     key0 = f"rad-{pf.id}-{study['barcode']}"
     st.markdown(f"**{study['kind']} · {study['study']['date']}**")
     st.caption(provenance(study))
+    items = look_items(pf, page.version, f"{study['barcode']}|")
+    overview = (
+        f"**Observed** (the study's structured report): {rep.get('procedure', '')}; BI-RADS "
+        f"{rep.get('birads', 'not stated')}; pathology {rep.get('pathology', 'not stated')}; "
+        f"{receptors(rep)}.  \n"
+        f"**Model inference** (placeholder rule): dense-pixel share "
+        f"{study['dense_cc_mean']:.0%} on the CC views; a pixel share above an Otsu "
+        "threshold inside the breast, not a BI-RADS density category and not validated.  \n"
+        + screening_text(study["screening_score"]) + "  \n"
+        + monai_text(study.get("density_monai", {}), study["screening_score"])
+        + " " + NO_DETECTOR)
     with page.overview():
-        st.markdown(
-            f"**Observed** (the study's structured report): {rep.get('procedure', '')}; BI-RADS "
-            f"{rep.get('birads', 'not stated')}; pathology {rep.get('pathology', 'not stated')}; "
-            f"{receptors(rep)}.  \n"
-            f"**Model inference** (placeholder rule): dense-pixel share "
-            f"{study['dense_cc_mean']:.0%} on the CC views; a pixel share above an Otsu "
-            "threshold inside the breast, not a BI-RADS density category and not validated.  \n"
-            + screening_text(study["screening_score"]) + "  \n"
-            + monai_text(study.get("density_monai", {}), study["screening_score"])
-            + " " + NO_DETECTOR)
-        page.look_here(look_items(pf, page.version, f"{study['barcode']}|"),
-                       empty="Nothing flagged: no lesion detector runs on the mammograms here.")
-        _search(pf, study, [], [], rad.CANNOT_SEE)
+        st.markdown(overview)
+        page.look_here(items, empty="Nothing flagged: no lesion detector runs on the mammograms "
+                                    "here.")
+        found = scan_search(pf, study, key0, None)
     order = {"R-CC": 0, "L-CC": 1, "R-MLO": 2, "L-MLO": 3}
     views = sorted(study["views"], key=lambda v: order.get(v["key"], 9))
-    with page.picture("Mammograms", caption="Shown at 0.46 mm per pixel, downsampled from the "
-                      "0.07 mm original: microcalcifications are not visible at this size. Hover "
-                      "a view for its dense-pixel share, screening score and density."):
-        level = st.slider("Level", 0, 255, 128, key=f"{key0}-level")
-        width = st.slider("Window", 1, 255, 255, key=f"{key0}-width")
-        for row in (views[:2], views[2:]):
-            line = st.container(horizontal=True, gap="medium")  # left and right; wraps when narrow
-            for v in row:
-                col = line.container(width="content")
-                img = np.asarray(Image.open(Path(study["folder"]) / v["image"]).convert("L"))
-                h, w = img.shape
-                dense = v["dense"]
-                chart = alt.layer(
-                    alt.Chart(pd.DataFrame([{"x": 0, "y": 0, "url": uri(Image.fromarray(
-                        window(img, level, width)))}])).mark_image(
-                        width=w * 0.75, height=h * 0.75, align="left", baseline="top",
-                        tooltip=None).encode(
-                        x=alt.X("x:Q", scale=alt.Scale(domain=[0, w], nice=False), axis=None),
-                        y=alt.Y("y:Q", scale=alt.Scale(domain=[0, h], nice=False,
-                                                       reverse=True), axis=None),
-                        url="url:N"),
-                    alt.Chart(pd.DataFrame([{
-                        "x": 0, "y": 0, "x2": w, "y2": h, "view": v["key"],
-                        "dense-pixel share": f"{dense['dense_fraction']:.0%} (placeholder rule)",
-                        "screening score": breast_score(study, v),
-                        "MONAI density": view_density(study, v),
-                        "pixel": f"{v['pixel_mm']:g} mm shown, native "
-                                 f"{v['native_pixel_mm'][0]:g} mm"}])).mark_rect(
-                        fillOpacity=0.01, fill="white").encode(
-                        x="x:Q", y="y:Q", x2="x2:Q", y2="y2:Q",
-                        tooltip=["view:N", "dense-pixel share:N", "screening score:N",
-                                 "MONAI density:N", "pixel:N"])
-                ).properties(width=w * 0.75, height=h * 0.75).configure_view(strokeWidth=0)
-                with col:
-                    st.altair_chart(chart, width="content",
-                                    alt=f"The {v['laterality']} {v['view']} mammogram")
-                    st.caption(f"{v['laterality']} {v['view']} · dense-pixel share "
-                               f"{dense['dense_fraction']:.0%} (placeholder rule; on MLO views "
-                               "the pectoral muscle counts as dense)")
-                    review(finding_key(pf, "imaging", study["barcode"],
-                                       study["study"]["date"], v["key"]),
-                           f"{study['barcode']} {v['key']}: dense-pixel share "
-                           f"{dense['dense_fraction']:.0%} (placeholder rule)")
+    with page.picture("Scan map", caption=MAP_CAPTION_MG):
+        chips(IMPLEMENTED, INFERENCE, "placeholder")
+        vk, level, width, m = mammo_map(pf, study, key0, views, found)
+    with page.details("The four views side by side", len(views)):
+        line = st.container(horizontal=True, gap="small")  # left and right; wraps when narrow
+        for v in views:
+            line.image(window(_mammo(str(Path(study["folder"]) / v["image"])), level, width),
+                       caption=f"{v['key']} · dense-pixel share "
+                               f"{v['dense']['dense_fraction']:.0%} (placeholder rule)",
+                       width=170, alt=f"The {v['laterality']} {v['view']} mammogram")
+        st.caption("The same window and level as the map; pick a view in the map to work on it. "
+                   "On MLO views the pectoral muscle counts as dense.")
     asym = mammo_geometry(page, pf, study, views, key0, level, width)
+    with page.spot("The full story of one square or one view: click a square in the map."):
+        mammo_spot(pf, study, key0, m)
     with page.card():
         score = study["screening_score"]
         if score.get("status") == "implemented":
@@ -1176,33 +1706,37 @@ def mammo_page(page: Page, pf: PatientFile, study: dict) -> None:
                    "breast), not a model: nothing to validate it against here.")
         _cutoffs()
     _cannot_see(page, rad.CANNOT_SEE)
+    v = m.info["view"]
+    img = window(_mammo(str(Path(study["folder"]) / v["image"])), level, width)
+
+    def more(row) -> None:
+        report_button(row, pf, study, key0, items, overview.replace("  \n", "\n\n"), None)
+        map_png_button(row, key0, study, m, img, [],
+                       title=f"{study['barcode']} · {study['study']['date']} · {vk}",
+                       subtitle="Dense pixels (placeholder rule) and MONAI's density class: "
+                                "model inferences")
     _export(page, pf, study, [{"view": v["key"], "dense-pixel share": v["dense"]["dense_fraction"],
                                "dense rule": "placeholder", "screening score (breast)":
                                breast_score(study, v), "MONAI density (view)":
                                view_density(study, v), "evidence": INFERENCE} for v in views],
-            {"left_right": asym, "lesion_detector": NO_DETECTOR})
+            {"left_right": asym, "lesion_detector": NO_DETECTOR}, more=more)
 
 
-def _search(pf: PatientFile, study: dict | None, reads: list[dict], cands: list[dict],
-            cannot: list[tuple]) -> None:
-    q = st.text_input("Search this test in plain words",
-                      key=f"rad-search-{pf.id}-{study['barcode'] if study else 'reports'}",
-                      placeholder="liver · progression · month 12 · lesion size" if not study
-                      else "washout · largest · C2 · mutation" if cands else  # a mammogram:
-                      "mutation · lymph node · change over time")  # no lesion candidates
+def _search(pf: PatientFile, reads: list[dict], cannot: list[tuple]) -> None:
+    """The report page's search: reads, sites and months in the reports' words (a study page
+    searches inside its scan instead, ``scan_search``)."""
+    q = st.text_input("Search this test in plain words", key=f"rad-search-{pf.id}-reports",
+                      placeholder=search_placeholder(None))
     if q:
-        hit = rad.search(q, reads, cands, cannot)
+        hit = rad.search(q, reads, [], cannot)
         (st.markdown if hit["understood"] else st.warning)(hit["answer"])
-        if hit["lesions"]:
-            st.dataframe(pd.DataFrame([r for r in lesion_rows(study)
-                                       if r["candidate"] in {c["id"] for c in hit["lesions"]}]),
-                         hide_index=True, width="stretch")
         if hit["reads"]:
             st.dataframe(pd.DataFrame(read_rows(hit["reads"])), hide_index=True, width="stretch")
 
 
 def _export(page: Page, pf: PatientFile, study: dict | None, table: list[dict],
-            extra: dict | None = None, change: list[dict] | None = None):
+            extra: dict | None = None, change: list[dict] | None = None, more=None):
+    """The page's downloads; ``more(row)`` adds the study's report and the map picture."""
     with page.export():
         marks = {k: v for k, v in st.session_state.get("reviews", {}).items()
                  if k.startswith(f"{pf.id}|imaging|")}
@@ -1216,6 +1750,8 @@ def _export(page: Page, pf: PatientFile, study: dict | None, table: list[dict],
         name = (f"{pf.id}_{study['barcode']}_{study['study']['date']}" if study else
                 f"{pf.id}_imaging_reports").replace(" ", "_")
         e = st.container(horizontal=True, gap="small")  # labels whole, wraps
+        if more is not None:
+            more(e)
         e.download_button("Download the study (JSON)" if study else "Download the reads (JSON)",
                           json.dumps(body, indent=1, default=str),
                           file_name=f"{name}.json", mime="application/json",
@@ -1313,7 +1849,7 @@ def report_page(page: Page, pf: PatientFile, version: int | None) -> None:
                "this record, not a validated lead time)." if rise else ""))
         page.look_here(look_items(pf, page.version, "report|"),
                        land=lambda focus: land(pf, page.version, focus))
-        _search(pf, None, reads, [], rad.REPORT_CANNOT_SEE)
+        _search(pf, reads, rad.REPORT_CANNOT_SEE)
 
     with page.picture("Imaging reports", caption="Each read in the report's own words, newest "
                       "first; the one opened from the tests table or an alert is open."):

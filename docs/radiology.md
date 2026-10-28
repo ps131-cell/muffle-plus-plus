@@ -4,9 +4,10 @@ The radiology workbench (`app/workbenches/radiology.py`, logic in
 `src/muffle/workbench/radiology.py`, offline pipeline `scripts/radiology_pipeline.py`) has two
 pages, chosen by what a patient file holds. Design: [`WORKBENCHES.md`](WORKBENCHES.md) §6.
 Written 2026-10-20; round 2 (change over time on a public example pair, three planes and a cine,
-five bundled cases, mammography geometry) 2026-10-21, §§3–5. Nothing here is a diagnosis; every
-candidate, contour and measurement is a **model inference**, and the cutoffs below say where they
-come from.
+five bundled cases, mammography geometry) 2026-10-21, §§3–5; round 3 (the scan map: layers,
+hover, click, search and export on the study's own images) 2026-10-28, §8. Nothing here is a
+diagnosis; every candidate, contour and measurement is a **model inference**, and the cutoffs
+below say where they come from.
 
 ## 1. Imaging reports as text (SYNTHETIC-001)
 
@@ -137,6 +138,8 @@ Re-segmenting with a moved box needs this pipeline; the hosted app runs no model
 | Near the chest wall (look-here flag) | 5 mm from the limit | placeholder |
 | Box padding, mask threshold | 15%, 0.5 | design (the latter from the authors' code) |
 | Dense pixels (mammography) | Otsu inside the breast | placeholder; a pixel share, not a BI-RADS density category |
+| Margin band (the map's Lesion view) | 3 mm outside the contour | placeholder |
+| Map square | about 4.5 mm (4 shown pixels at 1.13 mm, 3 at 1.3 mm, 10 on a mammogram) | design: about the smallest candidate the seed rule keeps (30 mm³, a 4 mm sphere) |
 
 For context the page quotes Kuhl et al. 1999 (266 lesions): type III curves in 57% of cancers
 and 6% of benign lesions, type I in 9% and 83%. Evidence about curve types, not a diagnosis.
@@ -404,3 +407,127 @@ Needs `pydicom`, `scikit-image`, `transformers`, `timm` and CPU `torch` (not in 
 requirements; `timm` from PyPI pulls a CUDA `torchvision`, so reinstall the CPU build of the
 matching version); the DICOM files and the pair's full-resolution volumes (`--keep`) stay outside
 the repo (`~/muffle-radiology/dicom`, `~/muffle-radiology2`).
+
+## 8. The scan map (round 3)
+
+Every study opens on a **scan map**: the study's own image underneath (an MRI phase at one slice,
+or one mammography view) and see-through colour layers on top, the slide workbench's map
+(`src/muffle/workbench/tile_map.py`, adapted from the team's Colon Tumor Front Analyzer) built for
+a scan (`src/muffle/workbench/radiology_map.py`, search in `radiology_search.py`, exports in
+`radiology_export.py`; they import the slide map's colours, sizes and helpers). As there, the view
+buttons and the opacity slider live inside the chart, so they act in the browser without a rerun
+and keep the zoom. It replaces the Altair viewer and its Mask, Box, Measure and Zoom switches;
+the four mammograms side by side stay in Details.
+
+**Views** (buttons inside the map; every colour is a model inference or a rule on one):
+
+| View | What is coloured | Evidence and source |
+|---|---|---|
+| Lesion | each candidate's MedSAM contour filled in its colour, a lighter margin band up to 3 mm outside it, the seed box (dashed) and the longest diameter on the slice (yellow); a dotted outline where the contour is unsure | model inference; band width a placeholder |
+| Kinetics | each contour filled by its delayed curve type: persistent (type I, blue), plateau (II, amber), washout (III, red) | the pipeline's contour mean on the original data; cutoffs ±10% and 50/100% wash-in: literature, placeholder until calibrated |
+| Enhancement | the subtraction copy as a heat layer in three display bins (25–50%, 50–75%, 75–100% of the study's brightest, its 99.9th percentile in the breast region) | the shipped copy; display bins, not cutoffs |
+| Change | on the later study of a pair: both dates' contours (purple), the later contour only (larger now, paired), the aligned earlier contour only (smaller now, paired), a contour proposed on one date only, and the alignment's unreliable blocks (red tint) | model contours after a rigid alignment: a comparison of two dates, not a forecast; a contour on one date only is "later date only" / "earlier date only", never new or gone (§3) |
+| Density (mammograms) | the dense pixels (Otsu inside the breast on the shipped copy) and the breast tinted in MONAI's class colour for the view, the outline and the nipple | dense pixels: placeholder rule (27–34% per view on the copy against 26–32% on the originals); MONAI's class: model inference, one per view, not a BI-RADS assessment |
+| Search | the squares that match a search, darker the stronger, from 15% | model inference or a rule on one |
+
+The dashed line on every MRI view is the seed rule's search limit (the intermammary cleft plus
+10 mm, a placeholder): lesions behind it are never proposed.
+
+**Why kinetics are not drawn per pixel.** The shipped copies are 8-bit with one window shared by
+every phase, and the window's lower end is not stored; the brightest 0.2% of the early phase are
+clipped at 255, which is where a lesion is. Recovering the window from the pipeline's own contour
+means fits only roughly (a linear fit over the 12–15 phase means per study, R² 0.95–0.996), and
+up to 55% of a contour's early-phase pixels are clipped (case 563 C1). A per-pixel curve map from
+the copies would look like a finding and be noise, so the Kinetics view colours whole contours
+by the measured curve, and a square outside the contours shows its brightness per phase on the
+copy as a shape only, with its clipped share.
+
+**Slices.** Streamlit gives a chart a new identity whenever its figure changes, which drops the
+browser's zoom; so the map carries the chosen slice and the 7 on each side as plotly frames, and
+the **Slice** slider inside the map steps through them in the browser with the zoom kept (the
+view buttons and the opacity slider still apply). **Go to slice** above the map jumps further; the
+rebuilt map shows the last view the page set (the whole slice, or a candidate's or a spot's zoom),
+not a zoom made with the wheel. The Candidate control, a pointer on another slice and a search spot
+jump and zoom on their target. One window weighs 1.0–1.2 MB (15 slices: the image as a JPEG,
+the overlays as one-pixel-per-pixel PNGs, the hover numbers as int16 typed arrays, one hover
+template per kind of square); it is built in about 1–2 s the first time and kept for reruns.
+
+**Hover.** A fixed-size box per square of about 4.5 mm (every box has the same lines; a
+fixed-width rule keeps its width): what the square is (inside a contour, its margin band, breast
+tissue, behind the search limit), the candidate's size, wash-in and curve, the subtraction's
+brightness, the distance to the nipple (3D, approximate: the breast's most anterior skin point on
+the copy), to the nearest skin in the slice, to the search limit, and the square's place; mammogram
+squares: the dense-pixel share, MONAI's and mammoscreen's density, mammoscreen's score for the
+breast, the distance to the nipple and to the chest-wall edge. "Model inference" on every box.
+
+**Click.** A click opens the square in the Spot panel, on whichever slice of the window it was
+clicked: the pre-contrast, early and subtraction copies around it at the copy's own resolution
+(enlarged without smoothing), where it is, why it has its colour, how sure (for a contour: unsure
+or not on that slice, the distance of the delayed change from the nearest cutoff, the one-pixel
+volume range), what to check by eye (the margin in the band, the internal enhancement, the curve
+on the original series), the brightness curve on the copy outside contours, and a review mark;
+inside a contour the candidate's full story follows (its mark is the candidate's). A pointer
+opens its candidate.
+
+**Pointers.** The look-here queue's candidates (C1–C3) are drawn at their box on the slice in
+their own colour, and on other slices in grey with the slice they are on ("C3 · slice 45"); their
+hover box carries the look-here reasons. A search replaces them with its spots Q1…Q5.
+
+**Search inside the scan.** Known words only: a candidate (lesion, mass, enhancing lesion, C2,
+largest), a curve (washout, plateau, persistent, fast, type III), the margin band (spiculated,
+margin: the map cannot judge a shape, it marks where to look), the chest wall (tissue within
+5 mm in front of the search limit), unsure contours, change (on a pair; one date says so), dense
+(mammograms). Scores are per square across the whole study, so each spot names its slice or view;
+the map colours the matches on the slice shown, and Colour by match and Clear sit under it. What a
+map cannot see gets an honest answer with the test that can: calcifications (not visible at the
+shipped 0.46 mm, nor on MRI), lymph nodes (the seed rule never looks in the axilla), histology,
+receptor status, grade, mutations, distant metastases, whether an area is cancer, a BI-RADS
+assessment.
+
+**Export.** The map picture of a view at the shown slice or view (PNG: the image with the layer,
+the contours and pointers, a title, the colour key and a footer that no BI-RADS assessment or
+diagnosis is made), and the study report in Markdown: what was imaged (observed), the overview,
+the measurements or density opinions with their evidence labels, the look-here pointers with the
+reviewer's marks and square marks, the change over time, every cutoff with its source, the known
+failures. The JSON and CSV downloads stay.
+
+**Labels.** The contour and every class are model inferences; the kinetics cutoffs are literature
+values used as placeholders; the margin band is a placeholder and the square size a design
+choice; the dense-pixel rule is a placeholder; the example pair is public example data of
+another patient and says so; the only BI-RADS category shown is the study's own structured report
+(BI-RADS 6, observed) and the map makes no assessment.
+
+| Feature (the slide map's, PR #150) | Radiology map | Status |
+|---|---|---|
+| The image underneath, see-through layers | MRI phase or mammogram; Lesion, Kinetics, Enhancement, Change, Density | implemented |
+| Opacity slider and view buttons inside the chart | the same, plus the Slice slider (frames) | implemented |
+| Fixed-size hover box | per 4.5 mm square, with distances | implemented |
+| Click opens the Spot panel | the square on any slice of the window, its candidate | implemented |
+| Pointers | C1–C3 on and off the slice; Q1…Q5 while searching | implemented |
+| Zoom, drag, Whole section | scroll, drag, Whole image; kept across views and window slices | implemented |
+| Legend with sources | per view, cutoffs tagged | implemented |
+| Class highlight | not needed: three candidates, each in its own colour | not built |
+| Search inside the image, Q1…Q5, colour by match, clear | the same, across slices and views | implemented |
+| Map picture (PNG) per view | at the shown slice or view | implemented |
+| Report (Markdown) | the study report | implemented |
+| Slide viewer one click away | not applicable (the copy is the map's image; the originals stay at TCIA) | not built |
+
+**Memory and speed.** Fresh servers, one headless walk of every imaging file's radiology page
+(cases 563, 937, 564, 537, 926 and SYNTHETIC-001's reports) after a slide page, so plotly is loaded
+on both sides as in use: main (1c07626) 435 MB at the first screen and 613 MB after the walk, this
+branch 436 and 616 MB. An MRI page took 4.3–5.4 s against 3.1–4.3 s with the Altair viewer (the
+window's first build); a window's figure is kept for reruns (three kept) and its slices' map data
+in a shared cache of 16. Each slice map stores its hover wordings once (an int16 index per square):
+storing them per square had cost about 50 MB over the same walk.
+
+**Where the Change view shows.** On the later study of a file that holds two dates (no bundled
+file does; the public example pair opened as a file on the workbench's standalone page), and in
+every MRI page's "Change over time on a public example pair" section, where the example's later
+study opens on the map in the Change view above the side-by-side panes, labeled another
+patient's public data, with hover only (no Spot panel, no mark).
+
+**Not built, and limits.** Coronal and sagittal stay in Three planes (the map is axial). The
+square's curve outside the contours is the copy's brightness, not a measurement. Pairs of
+mammogram dates and lesion candidates on mammograms do not exist here (§5). A jump with Go to
+slice, the Candidate control, a pointer on another slice or a search spot rebuilds the map and
+shows its target's own zoom, not the one the reader had.
