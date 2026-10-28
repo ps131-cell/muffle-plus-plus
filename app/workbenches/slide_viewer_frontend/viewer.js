@@ -22,11 +22,12 @@ const TOGGLES = [["front", "front line", true], ["arcs", "arcs and direction", t
   ["breakaway", "breakaway and counting field", true], ["islands", "islands", true],
   ["regions", "risk regions", false], ["pointers", "pointers", true], ["nuclei", "nuclei", true],
   ["window", "scored window", true]];
-const ZONE_COLORS = {"core": "#8e1b1b", "front band": "#f39c12", "peritumoral": "#f9e79f"};
-const QC_COLORS = {"glass": "#74b9ff", "pen ink": "#6c5ce7", "blur": "#d63031",
-                   "unlike training tissue": "#e17055"};
-const RISK_COLORS = [null, "#fde9c9", "#f5b041", "#c0392b"];
-const IMMUNE = [["20 or more per tile", "#1b4f72"], ["5–19", "#5dade2"], ["under 5", "#d6eaf8"]];
+// the slide map's colours (muffle.workbench.tile_map), so the map and the viewer read the same
+const ZONE_COLORS = {"core": "#8C0000", "front band": "#FF734D", "peritumoral": "#FFD9B3"};
+const QC_COLORS = {"glass": "#74B9FF", "pen ink": "#6C3483", "blur": "#16A085",
+                   "unlike training tissue": "#E67E22"};
+const RISK_COLORS = [null, "#FCBBA1", "#EF3B2C", "#A50F15"];
+const IMMUNE = [["20 or more per tile", "#08306B"], ["5–19", "#4292C6"], ["under 5", "#C6DBEF"]];
 const TIL = [["not lymphocytes", "#d6eaf8"], ["lymphocytes", "#1b4f72"],
              ["lymphocytes, the head disagrees", "#e67e22"],
              ["not lymphocytes, the head disagrees", "#c0392b"]];

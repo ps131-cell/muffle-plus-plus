@@ -9,6 +9,7 @@ pandas>=2.1
 pyyaml>=6.0
 streamlit==1.66.0
 altair>=5.4
+plotly==7.1.0          # the slide map (in-chart view buttons, opacity slider, hover, clicks)
 openai>=1.40
 tavily-python>=0.5
 python-dotenv>=1.0

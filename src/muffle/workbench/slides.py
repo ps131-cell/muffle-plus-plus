@@ -36,8 +36,10 @@ BCSS_TO_CLASS = {1: "tumor", 2: "stroma", 3: "lymphocytes", 10: "lymphocytes", 1
 LABELS = {"tumor": "Invasive carcinoma", "stroma": "Stroma", "lymphocytes": "Lymphocytes",
           "necrosis": "Necrosis or debris", "fat": "Fat", "normal_breast": "Normal breast",
           "dcis": "In-situ carcinoma (DCIS)"}
-COLORS = {"tumor": "#c0392b", "stroma": "#f1c27d", "lymphocytes": "#2e86de", "necrosis": "#2d2d2d",
-          "fat": "#fff4b8", "normal_breast": "#7fc97f", "dcis": "#b452cd"}
+# One colour per class everywhere (map, viewer, exports): the team's colon analyzer's figure
+# palette (its src/viz.py) for the classes both heads share; breast's own two keep theirs
+COLORS = {"tumor": "#d62728", "stroma": "#c49c94", "lymphocytes": "#1f77b4", "necrosis": "#555555",
+          "fat": "#f2d16b", "normal_breast": "#7fc97f", "dcis": "#b452cd"}
 
 PLACEHOLDER, LITERATURE, MEASURED, DOC = "placeholder", "literature", "measured", "design"
 # name: (value, source tag, where it comes from)

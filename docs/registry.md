@@ -109,23 +109,34 @@ hosted app.
 
 ## Code reused from the team's other project
 
-The Colon Tumor Front Analyzer (the team's entry to the Ashby Prize Hackathon 2026, a private
-repository with no license file: the team holds the copyright) is the depth standard for the
-workbenches. The slide workbench re-implements its grammar (224 px tiles at 0.5 µm/px, a small
-head on frozen embeddings, 3×3 smoothing, tumor mask → front → core / front band / peritumoral
-zones, an "unsure here" cutoff, glass / ink / blur texture rules with cutoffs tagged by source)
-in this repository's own code; no file, model weight or colon-trained head is copied. The cutoffs
-it carried over are tagged **placeholder** because they were set on colon slides. Rules check
-(2026-10-19): the Ashby pages publish eligibility, dates and judging criteria and no
-intellectual-property or exclusivity terms; the Devpost rules require the submission to be the
-entrant's own work and allow open-source components the entrant may use. The Devpost text must
-disclose the reuse (CLAUDE.md).
+The Colon Tumor Front Analyzer (the team's entry to the Ashby Prize Hackathon 2026; its
+repository is public since 2026-10-20, with no license file: the team holds the copyright) is the
+depth standard for the workbenches. The slide workbench re-implemented its grammar (224 px tiles
+at 0.5 µm/px, a small head on frozen embeddings, 3×3 smoothing, tumor mask → front → core / front
+band / peritumoral zones, an "unsure here" cutoff, glass / ink / blur texture rules with cutoffs
+tagged by source) on 2026-10-19. On 2026-10-27 its slide map and app functions were ported, the
+code copied and adapted to breast (each file names its source in its first line):
+
+| MuFFLe++ file | Adapted from the analyzer's |
+|---|---|
+| `src/muffle/workbench/tile_map.py` | `app/tile_map.py` (scan, see-through views, hover box, clicks, pointers, key, zoom) |
+| `src/muffle/workbench/slide_search.py` | `app/search.py` (known-words search within a slide) |
+| `src/muffle/workbench/slide_export.py` | `app/export.py` (map picture; its PDF report as Markdown) |
+| `app/workbenches/slides.py` (map area, click, search strip, Spot panel's why and how sure) | `app/page_slide.py`, `app/report.py`, the class highlight of `app/view_slide.py` |
+
+No model weight, colon-trained head, cutoff value set on colon or colon class is used; the
+cutoffs carried over in the 2026-10-19 grammar stay tagged **placeholder**. Rules check
+(2026-10-19, again 2026-10-27): the Ashby pages publish eligibility, dates and judging criteria
+and no intellectual-property or exclusivity terms; the Nebius × NVIDIA rules allow pre-existing
+work that is significantly updated during the submission period, and require the submission to
+be the entrant's own work. The Devpost text discloses the reuse (`docs/submission.md`).
 
 ## Software
 
 NVIDIA FLARE ≥ 2.8 (Apache-2.0) · PyTorch (BSD-3-Clause) · scikit-learn (BSD-3-Clause) ·
 scikit-survival (GPL-3.0; metrics only, not redistributed) · pandas, NumPy (BSD-3-Clause) ·
-Streamlit (Apache-2.0) · Altair (BSD-3-Clause) · openai-python (Apache-2.0) · tavily-python (MIT) ·
+Streamlit (Apache-2.0) · Altair (BSD-3-Clause) · plotly 7.1.0 (MIT; the slide map) ·
+openai-python (Apache-2.0) · tavily-python (MIT) ·
 SciPy (BSD-3-Clause; also the radiology workbench's rigid alignment, local check and reslicing,
 offline and in the app; SimpleITK was considered and not needed) · pypdf (BSD-3-Clause; text layer of an imported PDF) · pydicom (MIT;
 header of an imported DICOM file, pixels not read; and the radiology pipeline) · Pillow

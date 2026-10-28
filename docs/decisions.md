@@ -2,6 +2,26 @@
 
 Newest at the top. One entry per decision: date, what, why.
 
+## 2026-10-27 — The slide map and functions ported from the team's colon analyzer
+- **What:** the user asked for the analyzer's map and functions ported rather than rebuilt (the
+  slide workbench's tile map was "really really ugly"; "no need to redevelop, if it has already
+  been coded"). The Altair tile grid is gone; the page's first picture is the analyzer's plotly
+  map (the section's scan with a see-through layer, seven views, opacity slider, hover box,
+  click to the Spot panel, zoom, pointers), with its search within a slide, map picture and
+  report export, the Spot panel's "where it sits / why / how sure", the class highlight and
+  notes, copied and adapted to breast (`docs/pathology.md` §10 lists every feature and what it
+  became). The OpenSeadragon viewer stays one click away and downloads a pyramid only when
+  opened. plotly 7.1.0 is a new dependency.
+- **Why:** the analyzer is the team's own code and the depth standard; the port fixes the old
+  map's 151 px sideways scroll at 800 px too.
+- **Kept out:** the analyzer's colon-trained heads, cutoff values and colon classes; its colon
+  analysis (depth hint, mucin, outer edge, nodes, phrase flags); its LLM summary; its PDF
+  (Markdown instead, like the file's export).
+- **Disclosure:** `docs/submission.md` now lists the adapted files instead of "no file is
+  reused"; mirrored in `docs/HACKATHON.md` and `docs/registry.md`. Both hackathons' rules were
+  checked again: Nebius × NVIDIA allows pre-existing work significantly updated during the
+  period and disclosed; the analyzer is the team's own code.
+
 ## 2026-10-27 — Slide maps from GigaPath-Flash; a misregistration on three sections fixed
 - **What:** the eight sections and the example region are re-scored with GigaPath-Flash
   (`prov-gigapath/prov-gigapath-flash`, Apache-2.0, gated click-through, run offline) under the

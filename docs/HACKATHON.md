@@ -23,7 +23,7 @@ Re-check the Devpost page before submitting — rules can be updated.
 | Public YouTube video ≤ 3 min, no copyrighted music | Script, recording checklist and shot list in `docs/video.md` (2:58), every shot re-checked on Oct 27 | **Pending**: record Oct 27–28, upload public |
 | Text description + feedback on Token Factory / AI Cloud / NVIDIA tools | `docs/submission.md`: the Devpost sections in the form's order, feedback, numbers appendix, submission checklist | **Ready** (numbers pass 2026-10-27); paste into Devpost on Oct 29 |
 | Third-party data used under its terms | Every source with its license and what is published: `docs/registry.md`; MSK-CHORD (CC BY-NC-ND 4.0) local only, aggregate results only, never in the app, the video or an LLM call | **Met**: `docs/registry.md`; Methods and validation › Data sources and licenses |
-| Pre-existing work disclosed | The slide workbench follows the team's colon tumor-front analyzer's design; disclosure in `docs/submission.md` (Data, licenses and prior work) and `docs/registry.md` | **Met** in the text; keep it in the Devpost form |
+| Pre-existing work disclosed | The slide workbench builds on the team's Colon Tumor Front Analyzer: its design (re-implemented Oct 19) and, since Oct 27, its slide map, search and export code adapted to breast (the files are listed; no colon-trained head, cutoff value or colon class is used); disclosure in `docs/submission.md` (Data, licenses and prior work) and `docs/registry.md` | **Met** in the text; keep it in the Devpost form |
 
 Bonus: **Best Use of Tavily** ($3k) — the report's literature lookup uses Tavily.
 Credits: event code on the Devpost page (Token Factory) + Nebius Builders Program.

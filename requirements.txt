@@ -12,5 +12,6 @@ openai>=1.40           # Nebius Token Factory is OpenAI-compatible (Nemotron)
 python-dotenv>=1.0     # loads NEBIUS_API_KEY etc. from .env
 tavily-python>=0.5     # optional literature search for the report
 streamlit>=1.66        # the app (query-param binding, badges)
+plotly==7.1.0          # the slide map (in-chart view buttons, opacity slider, hover, clicks)
 pypdf>=4.0             # Import tests: a PDF report's text layer
 pydicom>=2.4           # Import tests: a DICOM file's header (pixels not read)

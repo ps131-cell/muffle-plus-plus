@@ -92,6 +92,22 @@ def ensure(slide: str) -> str:
     return why
 
 
+def unavailable(slide: str) -> str:
+    """'' when the section's viewer can open here (its pyramid unpacked, or fetched on first
+    use), else the reason it can't; never downloads (the page offers the viewer with it)."""
+    m = manifest()
+    if slide not in m["slides"]:
+        return "no tile pyramid has been built for this section"
+    root, _ = served()
+    if (root / slide / f"{slide}.dzi").exists():
+        return ""
+    base = os.getenv("MUFFLE_SLIDE_TILES") or f"{RELEASES}/{m['release']}"
+    if base.strip().lower() in OFF:
+        return "tile downloads are switched off on this server"
+    when, why = _failed.get(slide, (0.0, ""))
+    return why if why and time.time() - when < RETRY_S else ""
+
+
 RETRY_S = 600  # a failed download is tried again after 10 minutes
 _failed: dict[str, tuple[float, str]] = {}  # slide -> (when, why) of its last failed download
 
