@@ -818,8 +818,8 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     st.caption(
         f"Source: {meta.get('source', '')} · slide {slide} · scored: {sc.get('mode', '?')}, "
         f"{sc.get('scored_tiles', '?')} of {sc.get('tissue_tiles_total', '?')} tissue tiles of "
-        f"{TILE_UM:.0f} µm ({SCORED_WHY.get(sc.get('why', ''), sc.get('why', ''))}) · encoder {meta.get('encoder', {}).get('name')} "
-        f"· head: {meta.get('head', {}).get('kind')} · nuclei: {nuc.get('model') or 'not run'} on "
+        f"{TILE_UM:.0f} µm ({SCORED_WHY.get(sc.get('why', ''), sc.get('why', ''))}) · encoder "
+        f"{meta.get('encoder', {}).get('name')} · head: {meta.get('head', {}).get('kind')} · nuclei: {nuc.get('model') or 'not run'} on "
         f"{nuc.get('tiles', 0)} tiles · method version {meta.get('method_version', '0.2')} · "
         f"status: {meta.get('status', 'implemented')}.")
     for note in meta.get("known_failures", []):  # a reviewer's note on this section's map
