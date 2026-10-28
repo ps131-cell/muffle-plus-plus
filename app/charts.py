@@ -328,3 +328,31 @@ def cohort_strip(values: dict[str, float], patient: str, axis: str, fmt: str = "
         filled=True, size=140, color=BLUE, opacity=1).encode(x="value:Q", tooltip=tip)
     return (others + me).properties(height=44).configure_axis(**GRID).configure_view(
         strokeWidth=0)
+
+
+def risk_bands(counts: dict[str, int], shown: dict[str, int] | None = None) -> alt.Chart:
+    """The patient list's cohort strip: how many TCGA files sit in each risk group (cohort
+    tertiles, model inference), low to high in the ordinal ramp, each bar labeled with its
+    count; ``shown``, the files of each group the list's filters keep, as a darker overlay."""
+    order = [g for g in ("low", "medium", "high") if g in counts]
+    df = pd.DataFrame({"group": order, "files": [int(counts[g]) for g in order],
+                       "shown": [int((shown or counts).get(g, 0)) for g in order]})
+    x = alt.X("group:N", sort=order, title=None,
+              axis=alt.Axis(labelAngle=0, labelFontSize=11, ticks=False, domainOpacity=0.4))
+    y = alt.Y("files:Q", title=None, axis=None, scale=alt.Scale(domainMax=max(df["files"]) * 1.3))
+    tip = [alt.Tooltip("group:N", title="risk group"), alt.Tooltip("files:Q", title="files"),
+           alt.Tooltip("shown:Q", title="in the list now")]
+    base = alt.Chart(df).encode(x=x, tooltip=tip)
+    bars = base.mark_bar(cornerRadiusTopLeft=2, cornerRadiusTopRight=2, opacity=0.35).encode(
+        y=y, color=alt.Color("group:N", scale=alt.Scale(domain=order,
+                                                      range=[RAMP[g] for g in order]),
+                             legend=None))
+    kept = base.mark_bar(cornerRadiusTopLeft=2, cornerRadiusTopRight=2).encode(
+        y=alt.Y("shown:Q", title=None, axis=None), color=alt.Color("group:N", legend=None))
+    labels = base.mark_text(dy=-6, baseline="bottom", fontSize=11).encode(
+        y="files:Q", text=alt.Text("files:Q"))
+    # the count labels sit above the bars: padding inside the chart's own box keeps them there
+    return (bars + kept + labels).properties(
+        height=52, padding={"top": 14, "bottom": 0, "left": 2, "right": 2},
+        autosize=alt.AutoSizeParams(type="fit-x", contains="padding")).configure_view(
+        strokeWidth=0)

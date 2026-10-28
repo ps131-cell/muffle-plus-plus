@@ -15,16 +15,29 @@ SYN = "SYNTHETIC-001"
 
 
 def test_sorting_the_list():
-    rows = [{"id": "a", "alerts": ["x"], "updated": None, "imported": False, "percentile": 40.0},
+    rows = [{"id": "a", "alerts": ["x"], "updated": None, "imported": False, "percentile": 40.0,
+             "stage": "II", "versions": 1},
             {"id": "b", "alerts": ["y", "z"], "updated": 24, "imported": False,
-             "percentile": None},
-            {"id": "c", "alerts": [], "updated": None, "imported": True, "percentile": 90.0},
-            {"id": "d", "alerts": ["w"], "updated": 3, "imported": False, "percentile": 70.0}]
-    ids = lambda by, reviews=None: [r["id"] for r in overview.sort_rows(rows, by, reviews)]  # noqa: E731
+             "percentile": None, "stage": "not recorded", "versions": 16},
+            {"id": "c", "alerts": [], "updated": None, "imported": True, "percentile": 90.0,
+             "stage": "IV", "versions": 2},
+            {"id": "d", "alerts": ["w"], "updated": 3, "imported": False, "percentile": 70.0,
+             "stage": "I", "versions": 1}]
+
+    def ids(by, reviews=None, reverse=False):
+        return [r["id"] for r in overview.sort_rows(rows, by, reviews, reverse)]
+
     assert ids("Last update") == ["c", "b", "d", "a"]  # an import first, then the latest month
     assert ids("Risk") == ["c", "d", "a", "b"]  # no cohort percentile: last
     assert ids("Open SOS") == ["b", "a", "d", "c"]
     assert ids("Open SOS", {"y": {}, "z": {}}) == ["a", "d", "b", "c"]  # marked: no longer open
+    assert ids("Stage") == ["c", "a", "d", "b"]  # IV first; not recorded last
+    assert ids("Versions") == ["b", "c", "a", "d"] and ids("ID") == ["a", "b", "c", "d"]
+    # reversed: the other way round, the rows without a value still last
+    assert ids("Risk", reverse=True) == ["a", "d", "c", "b"]
+    assert ids("Stage", reverse=True) == ["d", "a", "c", "b"]
+    assert ids("Last update", reverse=True) == ["d", "b", "c", "a"]
+    assert ids("ID", reverse=True) == ["d", "c", "b", "a"]
 
 
 def test_a_part_that_fails_says_so_without_a_traceback(app, monkeypatch):

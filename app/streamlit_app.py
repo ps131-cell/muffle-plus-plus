@@ -446,11 +446,13 @@ def patients_page():
                         st.button(p, key=f"{prefix}-{p}", on_click=open_file, args=(p,),
                                   help=f"Open {p} on its latest report")
         nav.sync(None, None, None, None)  # no file open: no test, pointer or version
+        remember_seen(None)
         # cohort-search hook 1 of 2 (muffle.cohort, docs/cohort.md): "Search every file", above
         # the patient list and apart from its search. Keep this call when reshaping the page.
         safely("The search across every file", cohort_search)
         safely("The patient list", patient_list)
     else:
+        remember_seen(pid)
         first.button("Patients", type="tertiary", key="crumb-patients", on_click=to_list,
                      help="Back to the patient list")
         screen = patient_file(FILES[pid], header, tail)
@@ -459,27 +461,36 @@ def patients_page():
 
 
 def open_selected():
-    """Row click in the patient list: open that file (with a fresh list for next time)."""
-    rows = st.session_state[f"list-{st.session_state.list_n}"].selection.rows
+    """A click in the patient list, on a row's box or any of its cells: open that file (with a
+    fresh list for next time)."""
+    sel = st.session_state[f"list-{st.session_state.list_n}"].selection
+    rows = sel.rows or [cell[0] for cell in sel.cells]  # a cell click selects no row in 1.66
     if rows:
-        st.session_state.patient = st.session_state.list_ids[rows[0]]
+        open_file(st.session_state.list_ids[rows[0]])
         st.session_state.list_n += 1
 
 
 @st.cache_data(show_spinner=False)
 def bundle_rows(source: str, code: str) -> dict[str, dict]:
-    """The list's search and filter fields of the files the bundle (``source``) and the repo's
-    data hold, once per bundle and code version; a file an import changed is read live."""
+    """The list's rows (``overview.list_row``) of the files the bundle (``source``) and the
+    repo's data hold, once per bundle and code version; a file an import changed is read live."""
     return {pid: overview.list_row(pf) for pid, pf in BUNDLE_FILES.items()}
 
 
-def risk_text(pf: workspace.PatientFile, case) -> str:
-    """The list's risk column: the cohort percentile of a TCGA file, the synthetic patient's
-    latest 12-month risk (another measure, said so)."""
-    if case is not None:
-        return f"{ordinal(case.percentile)} percentile ({case.group})"
-    r = next((v.risk for v in reversed(pf.versions) if v.risk and "value" in v.risk), None)
-    return f"12-month {r['value']:.0%}" if r else "not estimated"
+def row_of(pid: str) -> dict:
+    pf = FILES[pid]
+    return (bundle_rows(SOURCE, CODE_DIGEST)[pid] if pf is BUNDLE_FILES.get(pid)
+            else overview.list_row(pf))
+
+
+def remember_seen(pid: str | None):
+    """"Changed since you last opened" (this browser session only): when a file opens (from the
+    list, a link, a search, a button), what it holds then, its versions and open SOS alerts;
+    once per opening, not on each rerun inside it, so an import made there shows on the list."""
+    ss = st.session_state
+    if pid is not None and ss.get("_open_file") != pid:
+        ss.setdefault("list_seen", {})[pid] = overview.seen(row_of(pid), ss.reviews)
+    ss["_open_file"] = pid
 
 
 def sos_badge(n: int) -> str:
@@ -487,84 +498,287 @@ def sos_badge(n: int) -> str:
     return f"🔴 {n} open" if n else "none"
 
 
-def patient_list():
-    base, reviews, rows = bundle_rows(SOURCE, CODE_DIGEST), st.session_state.reviews, []
+# The list's controls (session keys) and their part of the list's state, which the address keeps
+# (``overview.list_address``): a filtered list can be shared, and survives opening a file
+LIST_KEYS = {"list-search": "query", "list-sos": "open_sos", "list-pinned": "pinned",
+             "list-band": "bands", "list-holds": "holds", "list-subtype": "subtypes",
+             "list-gene": "genes", "list-stage": "stages", "list-sort": "sort",
+             "list-reverse": "reverse"}
+BAND_LABELS = {"high": "High", "medium": "Medium", "low": "Low", "12-month": "12-month risk"}
+STAGES = ("I", "II", "III", "IV", "not recorded")
+LIST_CSS = """<style>
+.st-key-cohort-strip {
+  display: grid !important; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: 0.5rem !important; align-items: stretch;
+}
+.st-key-cohort-strip > * {
+  width: auto !important; max-width: none !important; min-width: 0 !important;
+}
+.st-key-cohort-strip [data-testid="stMarkdownContainer"] p {
+  font-size: 0.8125rem; margin-bottom: 0.125rem;
+}
+.st-key-cohort-strip [data-testid="stMetricValue"] { font-size: 1.5rem; line-height: 1.2; }
+.st-key-list-count [data-testid="stMarkdownContainer"] p { font-size: 0.875rem; }
+</style>"""  # page-local, style only: the list's cohort strip as a grid of small cards
+
+
+def list_rows() -> list[dict]:
+    """Every file's list row, with what the session and the bundle add: where it comes from
+    (a simulated hospital or synthetic) and its saved case note."""
+    base, out = bundle_rows(SOURCE, CODE_DIGEST), []
     for pid, pf in FILES.items():
         case = CASES.get(pid)
-        rows.append({**(base[pid] if pf is BUNDLE_FILES.get(pid) else overview.list_row(pf)),
-                     "diagnosis": pf.diagnosis, "latest": pf.latest.label,
-                     "kind": "Synthetic (written by hand)" if case is None
-                             else f"TCGA-BRCA · simulated {case.site}",
-                     "note": "★" if case and case.index in demo.notes else "",
-                     "percentile": None if case is None else case.percentile,
-                     "risk": risk_text(pf, case), "updated": pf.latest.month,
-                     "imported": bool(pf.versions[-1].imported)})
+        out.append({**(base[pid] if pf is BUNDLE_FILES.get(pid) else overview.list_row(pf)),
+                    "diagnosis": pf.diagnosis, "site": None if case is None else case.site,
+                    "kind": "Synthetic (written by hand)" if case is None
+                            else f"TCGA-BRCA · simulated {case.site}",
+                    "note": "★" if case and case.index in demo.notes else ""})
+    return out
+
+
+def list_controls(rows: list[dict]) -> dict:
+    """The list's controls start from the address when they aren't on the page yet (a shared
+    link; back from a file): values it does not know are dropped. Returns the filters' options."""
+    ss = st.session_state
+    options = {"subtypes": sorted({r["subtype"] for r in rows}),
+               "genes": sorted({g for r in rows for g in r["genes"]}),
+               "stages": [s for s in STAGES if any(r["stage"] == s for r in rows)]}
+    state = overview.from_address(st.query_params.to_dict(), options)
+    for key, part in LIST_KEYS.items():
+        if key not in ss:
+            ss[key] = state[part]
+    return options
+
+
+def write_list_address():
+    """The address carries the list's state (only what differs from the defaults)."""
+    q, ss = st.query_params, st.session_state
+    want = overview.list_address({part: ss.get(key) for key, part in LIST_KEYS.items()})
+    for name in overview.LIST_ADDRESS.values():
+        if name in want:
+            if q.get(name) != want[name]:
+                q[name] = want[name]
+        elif name in q:
+            del q[name]
+
+
+def clear_filters():
+    ss = st.session_state
+    for key, part in LIST_KEYS.items():
+        if part not in ("sort", "reverse"):
+            ss[key] = overview.LIST_DEFAULTS[part]
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def band_spec(counts: tuple, shown: tuple) -> dict:
+    """The strip's risk-group histogram, built once per count (Altair loads on first use)."""
+    return charts.risk_bands(dict(counts), dict(shown)).to_dict()
+
+
+def cohort_strip(rows: list[dict], reviews: dict):
+    """Above the list: the files and those with open SOS alerts, the TCGA files' risk groups
+    (filled once the list is drawn: the chart library loads after the first screen), the
+    simulated hospitals and the release. Returns the histogram's slot."""
+    tcga = sum(r["band"] in ("low", "medium", "high") for r in rows)
+    still = [overview.open_alerts(r, reviews) for r in rows]
+    sites = Counter(r["site"] for r in rows if r["site"])
+    with st.container(horizontal=True, gap="small", key="cohort-strip"):
+        with st.container(border=True, gap="xsmall"):
+            st.metric("Patient files", len(rows), width="content",
+                      help="Every file on this server: the public TCGA-BRCA cases the risk model "
+                           "never trained on, and the synthetic patient")
+            st.markdown(f"{tcga} TCGA-BRCA · {len(rows) - tcga} synthetic  \n"
+                        f"**{sum(n > 0 for n in still)}** with open SOS alerts "
+                        f"({sum(still)} not marked)")
+        with st.container(border=True, gap="xsmall"):
+            st.markdown(f"**Risk group**, TCGA files  \n{chip(INFERENCE)}",
+                        help="Cohort tertiles of predicted overall-survival risk, one federated "
+                             "model. Pale: every TCGA file; dark: those the list shows now. "
+                             "SYNTHETIC-001's 12-month risk comes from other models.")
+            slot = st.empty()
+        with st.container(border=True, gap="xsmall"):
+            st.markdown("**Hospitals, simulated** " + chip("simulated"),
+                        help="The TCGA cases are split into three simulated hospitals (groups of "
+                             "TCGA tissue source sites) that trained the risk model together "
+                             "without sharing patients; each one's held-out C-index")
+            st.markdown("  \n".join(
+                f"{s.replace('-', ' ').capitalize()} · {sites.get(s, 0)} files · C-index "
+                f"`{c:.3f}`" for s, c in demo.c_index_by_site.items()))
+        with st.container(border=True, gap="xsmall"):
+            st.markdown("**Release**", help="The risk model's release this server runs")
+            st.markdown(f"`{bundle_label()}`  \nFedAvg (FLARE), held-out C-index "
+                        f"`{demo.c_index:.3f}`")
+    return slot
+
+
+def patient_list():
+    """The worklist: a cohort strip, filters that compose (kept in the address), a sort on any
+    column, and one dense row per file; a row click opens the file."""
+    ss, rows = st.session_state, list_rows()
+    reviews, pinned = ss.reviews, [p for p in ss.get("pinned_files", []) if p in FILES]
+    options = list_controls(rows)
+    st.html(LIST_CSS)
     st.markdown("**Your patient files.** Open one to see its latest report, its tests in their "
                 "workbenches and how the report changed over time.")
+    slot = cohort_strip(rows, reviews)
     q, sos = line_and_action()
     query = q.text_input("Search", key="list-search", label_visibility="collapsed",
                          placeholder="Find by ID, diagnosis, gene (PIK3CA), subtype (luminal), "
                                      "stage (III) or workbench (slides)",
                          help="Every word must match the file's ID, diagnosis, PAM50 subtype, "
-                              "stage, mutated genes or the workbenches that hold its data")
+                              "receptors, stage, risk group, mutated genes or the workbenches "
+                              "that hold its data")
     open_sos = sos.toggle("Open SOS alerts only", key="list-sos",
                           help="Files with an alert no reviewer has marked yet.")
-    f = st.columns([2, 2, 1])
-    subtypes = f[0].multiselect("PAM50 subtype", sorted({r["subtype"] for r in rows}),
-                                key="list-subtype", placeholder="Any subtype",
-                                help="Model inference from bulk RNA; 'not called' without RNA")
-    genes = f[1].multiselect("Mutated gene", sorted({g for r in rows for g in r["genes"]}),
-                             key="list-gene", placeholder="Any gene",
-                             help="Files with an observed driver mutation in any of these genes")
-    stages = f[2].multiselect("Stage", [s for s in ("I", "II", "III", "IV", "not recorded")
-                                        if any(r["stage"] == s for r in rows)],
-                              key="list-stage", placeholder="Any",
-                              help="The recorded stage; 'not recorded' when the record has none")
-    with st.container(horizontal=True, gap="large"):  # wraps on a narrow screen, never cuts
-        holds = st.pills("Has", ["Slides", "Imaging", "Documents"], selection_mode="multi",
-                         key="list-holds",
-                         help="Files that hold their own data for each one chosen")
-        by = st.segmented_control("Sort by", overview.SORTS, default=overview.SORTS[0],
-                                  required=True, key="list-sort",
+    # one row that wraps on a narrow screen: each part is narrower than the list at 800 px
+    with st.container(horizontal=True, gap="medium", vertical_alignment="bottom"):
+        bands = st.pills("Risk", overview.BANDS, selection_mode="multi", key="list-band",
+                         format_func=BAND_LABELS.get,
+                         help="Model inference. TCGA files: risk group, the cohort tertile; "
+                              "12-month risk: the synthetic patient's, another model")
+        letter = {overview.NAMES[k]: v for k, v in overview.LETTERS.items()}
+        holds = st.pills("Tests present", list(letter), selection_mode="multi",
+                         key="list-holds", format_func=letter.get,
+                         help="Files that hold their own data for each letter chosen: "
+                              + ", ".join(f"{v} {overview.LETTER_WORDS[v]}"
+                                          for v in overview.LETTERS.values()))
+        more = sum(bool(ss.get(k)) for k in ("list-subtype", "list-gene", "list-stage"))
+        only_pinned = st.toggle("Pinned only", key="list-pinned", width="content",
+                                help="Files pinned in this browser session (Pin this file, on "
+                                     "the file)")
+        with st.popover(f"Subtype, gene, stage{f' ({more})' if more else ''}",
+                        help="Filter by PAM50 subtype, mutated gene or recorded stage"):
+            subtypes = st.multiselect("PAM50 subtype", options["subtypes"], key="list-subtype",
+                                      placeholder="Any subtype",
+                                      help="Model inference from bulk RNA; 'not called' without "
+                                           "RNA")
+            genes = st.multiselect("Mutated gene", options["genes"], key="list-gene",
+                                   placeholder="Any gene",
+                                   help="Files with an observed driver mutation in any of these "
+                                        "genes")
+            stages = st.multiselect("Stage", options["stages"], key="list-stage",
+                                    placeholder="Any",
+                                    help="The recorded stage; 'not recorded' when the record has "
+                                         "none")
+    shown = overview.filter_rows(rows, query, subtypes, genes, stages, open_sos, holds or (),
+                                 reviews, bands or (), pinned if only_pinned else None)
+    with st.container(horizontal=True, gap="medium", vertical_alignment="center",
+                      key="list-count"):
+        by = st.segmented_control("Sort by", overview.SORTS, required=True, key="list-sort",
                                   help="Last update: an import of this session, then the "
                                        "record's latest month. Risk: the cohort percentile of the "
                                        "TCGA files (the synthetic patient's 12-month risk is "
                                        "another measure, listed after them). Open SOS: alerts no "
-                                       "reviewer has marked.")
-    shown = overview.sort_rows(overview.filter_rows(rows, query, subtypes, genes, stages,
-                                                    open_sos, holds or (), reviews), by, reviews)
+                                       "reviewer has marked. Stage: the highest first. Versions: "
+                                       "the most first.")
+        reverse = st.toggle("Reverse", key="list-reverse", width="content",
+                            help="The other way round; files without a value stay last")
+        st.space("stretch")
+        st.markdown(f"**{len(shown)} of {len(rows)} files**", width="content")
+        filtered = any(ss.get(k) != overview.LIST_DEFAULTS[p] for k, p in LIST_KEYS.items()
+                       if p not in ("sort", "reverse"))
+        st.button("Clear filters", key="list-clear", on_click=clear_filters, disabled=not filtered,
+                  type="tertiary", help="Show every file again (the sort stays)")
+    shown = overview.sort_rows(shown, by, reviews, reverse)
+    seen = ss.get("list_seen", {})
+    changed = {r["id"]: overview.changed_since(r, seen.get(r["id"]), reviews) for r in shown}
     table = pd.DataFrame([{
         "Patient": r["id"], "Open SOS": sos_badge(overview.open_alerts(r, reviews)),
-        "Kind": r["kind"], "Diagnosis": r["diagnosis"],
-        "Risk": r["risk"], "Subtype (PAM50)": r["subtype"], "Mutated genes": r["genes"],
-        "Workbenches with data": r["holds"], "Latest report": r["latest"],
-        "Saved note": r["note"]}
-        for r in shown], columns=["Patient", "Open SOS", "Kind", "Diagnosis", "Risk",
-                                  "Subtype (PAM50)", "Mutated genes", "Workbenches with data",
-                                  "Latest report", "Saved note"])
-    st.session_state.list_ids = table["Patient"].tolist()
-    st.dataframe(table, hide_index=True, on_select=open_selected, selection_mode="single-row",
-                 key=f"list-{st.session_state.list_n}", width="stretch", column_config={
-                     "Patient": st.column_config.TextColumn(pinned=True),
-                     "Open SOS": st.column_config.TextColumn(
-                         help="SOS alerts no reviewer has marked yet, in this session"),
-                     "Risk": st.column_config.TextColumn(
-                         help="Model inference. TCGA files: the cohort percentile of overall "
-                              "survival risk (group by tertile); the synthetic patient: the "
-                              "latest 12-month risk of progression or death, another model"),
-                     "Mutated genes": st.column_config.ListColumn(
-                         help="Observed driver mutations; an empty cell is not sequenced or "
-                              "none found (the file says which)"),
-                     "Workbenches with data": st.column_config.ListColumn(
-                         help="The workbenches that hold this patient's own data"),
-                     "Subtype (PAM50)": st.column_config.TextColumn(
-                         help="Model inference from bulk RNA (Methods and validation); 'not "
-                              "called' without RNA")})
+        "Risk": r["risk"], "Tests": overview.letters(r),
+        "Last update": ("● " if changed[r["id"]] else "")
+                       + ("baseline" if r["updated"] is None else f"month {r['updated']}"),
+        "Spread": r["spread"], "Versions": r["versions"], "Stage": r["stage"],
+        "Subtype · receptors": " · ".join(x for x in (r["subtype"], r["receptors"]) if x),
+        "Review": overview.review_state(r, reviews),
+        "Since you last opened": changed[r["id"]], "Pinned": "📌" if r["id"] in pinned else "",
+        "Kind": r["kind"], "Mutated genes": r["genes"],
+        "Tests on file": overview.tests_named(r), "Diagnosis": r["diagnosis"],
+        "Saved note": r["note"]} for r in shown], columns=LIST_COLUMNS)
+    ss.list_ids = table["Patient"].tolist()
+    st.dataframe(table, hide_index=True, on_select=open_selected,
+                 selection_mode=["single-row", "single-cell"],
+                 key=f"list-{ss.list_n}", width="stretch", column_config=LIST_CONFIG,
+                 height=LIST_ROW * (1 + max(1, min(len(table), LIST_SHOWN))) + 3)
+    marked = [f"**{pid}** {what}" for pid, what in changed.items() if what]
     st.caption(
-        f"{len(shown)} of {len(rows)} files. Click a row to open the file. SYNTHETIC-001 is a "
-        "synthetic patient, written by hand. The TCGA cases are public TCGA-BRCA patients the "
-        "risk model never trained on, each assigned to one of the simulated hospitals; TCGA holds "
-        "one tumor sample per patient, so their files have one version. ★ = a saved case note.")
+        (f"● Changed since you last opened it: {'; '.join(marked)}.  \n" if marked else "")
+        + "Click a row to open its file. **Tests:** L labs · C ctDNA · G genomics · O omics "
+        "(expression) · P pathology slides · R radiology (imaging) · D documents; · none. "
+        "**Risk** and **Spread**: model inference. ● the file changed since you last opened it "
+        "in this session. SYNTHETIC-001 is a synthetic patient, written by hand. The TCGA cases "
+        "are public TCGA-BRCA patients the risk model never trained on, each assigned to one of "
+        "the simulated hospitals; TCGA holds one tumor sample per patient, so their files have "
+        "one version. ★ = a saved case note.")
+    write_list_address()
+    counts = Counter(r["band"] for r in rows if r["band"] in ("low", "medium", "high"))
+    if counts:  # after the table: the chart library loads once the list is on screen
+        kept = Counter(r["band"] for r in shown if r["band"] in counts)
+        slot.vega_lite_chart(spec=band_spec(tuple(sorted(counts.items())),
+                                            tuple(sorted(kept.items()))), width="stretch",
+                             alt="TCGA files by risk group: " + ", ".join(
+                                 f"{g} {counts[g]} ({kept.get(g, 0)} in the list now)"
+                                 for g in ("low", "medium", "high") if g in counts))
+
+
+LIST_COLUMNS = ["Patient", "Open SOS", "Risk", "Tests", "Last update", "Spread", "Versions",
+                "Stage", "Subtype · receptors", "Review", "Since you last opened", "Pinned",
+                "Kind", "Mutated genes", "Tests on file", "Diagnosis", "Saved note"]
+LIST_ROW, LIST_SHOWN = 35, 15  # px a row (and the header); rows shown before the table scrolls
+# the first five fit the table's 489 px at 800 px wide (sidebar open) beside the row's checkbox
+LIST_CONFIG = {
+    "Patient": st.column_config.TextColumn(
+        pinned=True, width=112, help="The file's ID: a TCGA-BRCA case, or SYNTHETIC-001, a "
+                                     "synthetic patient written by hand"),
+    "Open SOS": st.column_config.TextColumn(
+        width=74, help="Open attention: SOS alerts no reviewer has marked yet, in this session "
+                       "(the whole attention queue is on the file's report)"),
+    "Risk": st.column_config.TextColumn(
+        width=102, help="Model inference. TCGA files: the risk group (cohort tertile) and "
+                       "percentile of overall-survival risk, from one federated model. "
+                       "SYNTHETIC-001: its latest 12-month risk of progression or death, the "
+                       "mean of 5 models (another model and measure). The models' spread is in "
+                       "the Spread column."),
+    "Tests": st.column_config.TextColumn(
+        width=80, help="The tests this file holds: L labs · C ctDNA · G genomics · O omics "
+                       "(expression) · P pathology slides · R radiology (imaging) · D documents; "
+                       "· none. Their names are in Tests on file."),
+    "Last update": st.column_config.TextColumn(
+        width=84, help="The latest report version: its month (after the first tumor "
+                       "sequencing); a TCGA file has one sample, its baseline. ● the file "
+                       "changed since you last opened it in this session (Since you last "
+                       "opened says what)."),
+    "Spread": st.column_config.TextColumn(
+        width=144, help="Model inference: how far the models disagree. SYNTHETIC-001: the range "
+                        "of its 5 models' 12-month risk. TCGA files: one federated model, so "
+                        "there is no spread to show."),
+    "Versions": st.column_config.NumberColumn(
+        width=72, help="Report versions: each new test or event adds one; earlier ones are kept "
+                       "(the file's Timeline)"),
+    "Stage": st.column_config.TextColumn(width=96, help="The recorded stage (observed)"),
+    "Subtype · receptors": st.column_config.TextColumn(
+        width=200, help="PAM50 subtype: model inference from bulk RNA ('not called' without "
+                        "RNA). Receptors: recorded (observed), from TCGA's clinical data (IHC "
+                        "and ISH) or the synthetic record's diagnosis; ? not recorded, eq "
+                        "equivocal"),
+    "Review": st.column_config.TextColumn(
+        width=150, help="This session's review: the file's SOS alerts marked so far (done when "
+                        "all are), and your marks on any of its findings"),
+    "Since you last opened": st.column_config.TextColumn(
+        width=240, help="What the file gained since you last opened it in this browser session: "
+                        "report versions (an import) and open SOS alerts. Empty for a file not "
+                        "opened yet or unchanged."),
+    "Pinned": st.column_config.TextColumn(
+        width=64, help="Pinned for this browser session (Pin this file, on the file)"),
+    "Kind": st.column_config.TextColumn(
+        width=200, help="Public TCGA-BRCA data, each case assigned to one of three simulated "
+                        "hospitals; or a synthetic patient, written by hand"),
+    "Mutated genes": st.column_config.ListColumn(
+        help="Observed driver mutations; an empty cell is not sequenced or none found (the "
+             "file says which)"),
+    "Tests on file": st.column_config.ListColumn(
+        help="The tests behind each letter of Tests, by name (a few, then how many more)"),
+    "Saved note": st.column_config.TextColumn(width=72, help="★ a saved case note"),
+}
 
 
 # --- Across the files: one search, similar patients, where a patient sits (muffle.cohort) -------

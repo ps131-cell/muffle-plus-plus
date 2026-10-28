@@ -37,6 +37,40 @@ and `docs/video.md`. What stays in the app, in product language:
   four-step walk-through the first time the page opens ([`ux.md`](ux.md) §3, §5).
 - Built 2026-10-27: a "Start here" card on a first visit (SYNTHETIC-001, Case 299), pinned
   files above the recently opened ones, a search box that names what it finds.
+- Built 2026-10-28, the list as a clinician worklist (`patient_list` in `app/streamlit_app.py`,
+  the rows and their logic in `muffle.overview`). Start here, the tour and Search every file
+  stay above it.
+  - **Cohort strip:** the files (TCGA-BRCA and synthetic) and how many have open SOS alerts; a
+    small histogram of the TCGA files' risk groups (model inference; pale for every file, dark
+    for those the filters keep); the three hospitals, each labeled simulated, with their files
+    and held-out C-index; the release the server runs.
+  - **One row per file:** Patient (pinned) · Open SOS ("🔴 7 open", alerts no reviewer has
+    marked) · Risk (model inference: a TCGA file's risk group and percentile from one federated
+    model; SYNTHETIC-001's 12-month risk, another model) · Tests as letters, `·` where absent (L
+    labs, C ctDNA, G genomics, O omics, P pathology slides, R radiology, D documents) · Last
+    update (the latest version's month, `●` when the file changed since you last opened it) ·
+    Spread (the 5 models' range; "one model" for a TCGA file) · Versions · Stage · Subtype and
+    recorded receptors · Review (alerts marked so far, your marks) · Since you last opened ·
+    Pinned · Kind (TCGA-BRCA and its simulated hospital, or synthetic) · Mutated genes · Tests
+    on file (the names behind the letters) · Diagnosis · Saved note. The first five fit at 800 px
+    without a sideways scroll; each header says on hover what it shows and its evidence label.
+  - **Filters that compose:** the search box, Open SOS alerts only, Risk (high, medium, low,
+    12-month), Tests present (letters), Pinned only, Subtype, gene and stage; "12 of 41 files"
+    and Clear filters beside the sort.
+  - **Sort by any column:** last update, risk, open SOS, stage, ID (Case 47 before Case 299),
+    versions, each in its natural direction, Reverse to flip it; files without the value stay
+    last either way.
+  - **The address keeps the list:** `?q=pik3ca&sos=1&band=high,medium&tests=P,R&gene=PIK3CA&
+    sort=risk&rev=1` (only what differs from the defaults; unknown values dropped), so a filtered
+    list can be shared and is still there after opening a file.
+  - **Changed since you last opened** (this browser session only): opening a file remembers its
+    versions and open SOS alerts; back on the list, a file that gained either carries `●` and
+    says what ("+1 version (month 27 · imported by AB at 14:03); +1 open alert"). A file never
+    opened shows nothing. Per-cell tooltips are not possible in Streamlit's table (no Styler
+    tooltips in 1.66), so what changed and the tests' names are written in their columns and
+    under the table.
+  - **Opening:** a click on a row (or its box) opens the file on its report (`open_file`);
+    `?patient=` links work as before.
 
 ### 2. Patient file: the latest report first
 The front page of a file is always the newest version of the report:
