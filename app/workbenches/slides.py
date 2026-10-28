@@ -582,6 +582,7 @@ def tile_story(t, classes: list[str], meta: dict, data: tile_map.MapData | None)
 
 
 SPOT_PICTURES = 260  # px: the Spot panel's crop and neighbourhood pictures
+SPOT_WORDS = 600  # px: beside the pictures at 1280 px, under them at 800 px (QA R3-11)
 
 
 def zoom_to_cells(k: str, slide: str, r: int, c: int) -> None:
@@ -603,7 +604,7 @@ def spot_panel(pf: PatientFile, slide: str, result: dict, df: pd.DataFrame, res:
     # a third-width column that cut the label and let the pictures cover the words (QA R3-11)
     with st.container(horizontal=True, gap="medium", key=f"{k}-spot-row"):
         left = st.container(width=SPOT_PICTURES)
-        right = st.container(width="stretch")
+        right = st.container(width=SPOT_WORDS)
     i = int(data.index_grid[r, c]) if data is not None else -1
     with left:
         img = crop_image(result, r, c)
