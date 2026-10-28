@@ -41,6 +41,12 @@ APP = Path(__file__).parent
 if str(APP.parent / "src") not in sys.path:  # hosted: the repo isn't pip-installed
     sys.path.insert(0, str(APP.parent / "src"))
 
+from muffle import allocator  # noqa: E402
+
+# before torch and the pages allocate: glibc gives large freed blocks back to the system and
+# every session shares two heaps (docs/qa.md, "Memory pass"); a no-op off Linux
+allocator.tune()
+
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
@@ -73,12 +79,14 @@ from muffle.hotreload import purge_modules, source_digest  # noqa: E402
 # on charts.risk_timeline, ImportError on muffle.demo.evidence_lookup). When the sources differ
 # from what this process last ran, drop those modules and the caches their old code built.
 CODE_DIGEST = source_digest([APP, APP.parent / "src" / "muffle"])
-if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:  # every module of app/ and src/muffle
-    purge_modules((*(p.stem for p in APP.glob("*.py") if p.stem != "streamlit_app"),
-                   "muffle", "workbenches"))
-    st.cache_resource.clear()
-    st.cache_data.clear()
-    sys._muffle_code_digest = CODE_DIGEST
+# one session purges: readers who open a fresh server together wait here, then find it done
+with sys.__dict__.setdefault("_muffle_code_lock", threading.Lock()):
+    if getattr(sys, "_muffle_code_digest", None) != CODE_DIGEST:  # app/ and src/muffle modules
+        purge_modules((*(p.stem for p in APP.glob("*.py") if p.stem != "streamlit_app"),
+                       "muffle", "workbenches"))
+        st.cache_resource.clear()
+        st.cache_data.clear()
+        sys._muffle_code_digest = CODE_DIGEST
 
 # The chart and workbench page modules (and Altair with them) load on first use: the patient
 # list draws no chart. The app's last lines load Altair in the background once it is drawn.

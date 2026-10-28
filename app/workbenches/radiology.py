@@ -35,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
 import sys
 import threading
 from datetime import datetime
@@ -181,16 +182,22 @@ def kinetics_chart(c: dict) -> alt.Chart:
     return (rules + line).properties(height=220)
 
 
-@st.cache_resource(show_spinner=False, max_entries=16)  # 3-4.5 MB each (see _strip)
+@st.cache_resource(show_spinner=False, max_entries=16)
 def _mask(folder: str, cid: str, shape: tuple) -> np.ndarray:
+    """A candidate's mask packed eight voxels to a byte: 0.4-0.6 MB kept instead of the bool
+    volume's 3-4.5 MB (docs/qa.md, "Memory pass")."""
     study = rad.load_study(folder)
-    return rad.candidate_mask(next(c for c in study["candidates"] if c["id"] == cid), shape)
+    return np.packbits(rad.candidate_mask(next(c for c in study["candidates"]
+                                               if c["id"] == cid), shape), axis=None)
 
 
 def masks(study: dict) -> dict[str, np.ndarray]:
-    """Each candidate's contour as a mask on the shipped grid, for the views other than axial."""
+    """Each candidate's contour as a mask on the shipped grid, for the views other than axial
+    (unpacked for this run: a few ms each)."""
     d = study["display"]
-    return {c["id"]: _mask(study["folder"], c["id"], (d["slices"], d["rows"], d["cols"]))
+    shape = (d["slices"], d["rows"], d["cols"])
+    return {c["id"]: np.unpackbits(_mask(study["folder"], c["id"], shape),
+                                   count=math.prod(shape)).reshape(shape).view(bool)
             for c in study["candidates"]}
 
 

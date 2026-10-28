@@ -263,7 +263,9 @@ def mri_slice(study: dict, i: int, sub: np.ndarray, skin: np.ndarray, nips: dict
                         np.round(np.nan_to_num(d_skin, nan=-1)),
                         np.round(np.nan_to_num(d_nip, nan=-1)),
                         sq_r * sq, sq_c * sq, np.round(inside * 100)], 1)
-    pix = {"cand": cand, "band": band, "edge": edge, "sub": sub[i]}
+    # the slice's own copy: a view would keep the whole subtraction volume (3-5 MB) alive in the
+    # app's slice cache after its image cache let it go
+    pix = {"cand": cand, "band": band, "edge": edge, "sub": sub[i].copy()}
     if change is not None:
         pix["change"] = change["classes"]
         pix["unreliable"] = change["unreliable"]

@@ -56,3 +56,25 @@ def test_purge_modules_drops_only_the_named_prefixes():
     finally:
         for name in names:
             sys.modules.pop(name, None)
+
+
+def test_purge_modules_survives_an_import_in_another_session():
+    """Readers who open a fresh server together: one run purges while another imports. The
+    prefix below imports a module each time it is read, as that other thread would; reading the
+    live sys.modules raised "dictionary changed size during iteration"."""
+    added = []
+
+    class Importing(str):
+        def __add__(self, other):
+            name = f"zzlate{len(added)}"
+            sys.modules[name] = types.ModuleType(name)
+            added.append(name)
+            return str.__add__(self, other)
+
+    sys.modules["zzgone"] = types.ModuleType("zzgone")
+    try:
+        assert purge_modules((Importing("zzgone"),)) == ["zzgone"]
+        assert added and all(name in sys.modules for name in added)
+    finally:
+        for name in ("zzgone", *added):
+            sys.modules.pop(name, None)
