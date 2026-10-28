@@ -583,6 +583,7 @@ def tile_story(t, classes: list[str], meta: dict, data: tile_map.MapData | None)
 
 # the pipeline's reason for the scored area, in plain words on the page (QA R3-4)
 SCORED_WHY = {"the whole slide fits the budget": "the whole slide was small enough to score"}
+RISK_CARD = 220  # px: the risk map's cards, two a row beside its table or under it
 SPOT_PICTURES = 260  # px: the Spot panel's crop and neighbourhood pictures
 SPOT_WORDS = 520  # px: beside the pictures at 1280 px (as wide as the old 2/3 column), under
 # them at 800 px (QA R3-11)
@@ -1047,7 +1048,11 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     cards = res["risk"]["cards"]
     with page.details("Risk map: points within 1 mm", f"{len(cards)} at level 2 or more"):
         chips("placeholder cutoffs")
-        r1, r2 = st.columns([1, 2])
+        # rows that wrap, never fixed columns: three card columns in two thirds of the page cut
+        # "Open R1 in the Spot panel" at 800 px (as the Spot panel's label, QA R3-11)
+        with st.container(horizontal=True, gap="medium"):
+            r1 = st.container(width=SPOT_PICTURES)
+            r2 = st.container(width=SPOT_WORDS)
         with r1:
             st.dataframe(pd.DataFrame(res["risk"]["table"]), hide_index=True, width="stretch")
             st.caption(f"Level 2 at {CUTOFFS_INV['risk_level_2'][0]} points, level 3 at "
@@ -1055,13 +1060,15 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
                        "outcome model. The map's Risk view colours the levels.")
         with r2:
             if cards:
-                cols = st.columns(min(len(cards), 3))
-                for i, c in enumerate(cards[:6]):
-                    with cols[i % len(cols)]:
-                        st.markdown(f"**{c['card']} · level {c['level']}** ({c['points']} "
-                                    f"points, {c['mm2']} mm²)  \n" + ", ".join(c["features"]))
-                        st.button(f"Open {c['card']} in the Spot panel", key=f"{k}-card-{i}",
-                                  on_click=go_to, args=(k, slide, f"r{c['row']}c{c['col']}"))
+                with st.container(horizontal=True, gap="small"):  # cards of one width wrap
+                    for i, c in enumerate(cards[:6]):
+                        with st.container(width=RISK_CARD):
+                            st.markdown(f"**{c['card']} · level {c['level']}** ({c['points']} "
+                                        f"points, {c['mm2']} mm²)  \n"
+                                        + ", ".join(c["features"]))
+                            st.button(f"Open {c['card']} in the Spot panel", key=f"{k}-card-{i}",
+                                      on_click=go_to, width="stretch",
+                                      args=(k, slide, f"r{c['row']}c{c['col']}"))
             else:
                 st.caption("No region reaches level 2.")
 
