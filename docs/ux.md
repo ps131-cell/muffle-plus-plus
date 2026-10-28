@@ -413,10 +413,18 @@ Spot panels, search and exports are untouched.
   colours; `colors=` a page's own), links as their text (`links=`), shares as percents
   (`percent=`, shown as the grid's "percent" preset shows them), and the table's one-line
   provenance under it (`caption=`). A list of at most 25 rows and 12 columns is a static table
-  whose cells wrap: sentences between words, a long token (a regular expression, a variant)
-  wherever it must, and at 800 px any word as a last resort, so the table always fits its box:
-  no cell is cut and nothing scrolls sideways (a long list scrolls down inside a 28 rem box,
-  its header held). A longer or wider one, one that sorts (`grid=True`) or one whose row click
+  whose cells wrap: sentences between words, a long token (a DOI, a chain of units) at its
+  slashes, dots, colons and commas, links wherever they must, and a field name shows with
+  spaces (`due_by` as "due by"). No word breaks inside except by hyphenation: a number,
+  pointer, id or variant (the monospace cells) stays on one line, since split over two lines
+  it reads as two, and a hyphen between digits never ends a line ("CA 15-3", a range, a date). A table of nine columns or more takes denser type and padding at any width;
+  in a narrow box (the 800 px page, a half-width column at 1280 px: a container query on the
+  table) headers are a size smaller (two at eight columns or more) and long words hyphenate.
+  No cell is cut and the page never scrolls sideways; a table whose whole words cannot fit a
+  narrow box scrolls inside its own box, its first column held and a shadow on the edge that
+  has more (none at 1280 px; at 800 px, where the open sidebar leaves 457 px, 24 of the 180
+  table views walked on 2026-10-28). A long list scrolls down inside a 28 rem box, its header
+  held. A longer or wider one, one that sorts (`grid=True`) or one whose row click
   opens the Spot panel (`on_select=`) is Streamlit's grid with 30 px rows, its chips as
   coloured pills and its links as link columns; the grid shows one line a row, so its long
   cells are cut and their full text is in the Spot panel the row opens. An empty list says why

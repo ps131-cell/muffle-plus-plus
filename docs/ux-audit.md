@@ -168,11 +168,33 @@ The reports (Case 299 4,781 / 7,764, SYNTHETIC-001 4,100 / 6,119) and the Timeli
 
 - **Cut cells.** A list with more than 8 columns had fallen back to the grid, which draws one line
   a row: the labs page's Rise confirmation and caution windows cut their sentences and clipped
-  their last column at 1280 px. A static table now takes up to 12 columns and always fits its
-  box: its cells wrap (sentences between words, code spans anywhere, any word at 800 px as a last
-  resort), the 4.5 rem column minimum is gone and nothing scrolls sideways. Every static table on
-  twelve pages was walked with every section and tab open, at 1280 and 800 px (the list is in
-  the PR). Shares now show as the grid's "percent" preset did.
+  their last column at 1280 px. A static table now takes up to 12 columns and wraps in its
+  box: sentences between words, DOIs and lists of drugs at their slashes, dots and commas,
+  links where they must, field names with spaces, long words hyphenated in a narrow box; the
+  4.5 rem column minimum is gone. No word breaks inside otherwise: a first version let any
+  word break in a narrow box, and the screenshots (not the walk's measurements) showed a
+  squeezed column print 213 tiles as "21" over "3", a push of 0.233 over three lines and arc
+  A1 as "A" over "1"; letting only prose or only header labels break still split ids and short
+  labels, because auto table layout shares the spare width by each column's longest line and
+  starves the short ones; even a hyphen ended a line inside "CA 15-3" (now joined to its
+  digits). So a table whose whole words cannot fit a narrow box scrolls inside
+  its own box, its first column held and a shadow on the edge that has more; headers there are
+  a size smaller (two, with 3 px padding, at eight columns or more), which brought the labs
+  page's Rise confirmation and Early after a therapy change inside 457 px at 800 px. Traps on
+  the way: Streamlit's Markdown container in each cell resets `overflow-wrap` and its chips are
+  `nowrap`, so the rules sit on them, not on `td`; a table in
+  a half-width column at 1280 px is narrow without the page being so, so the narrow rules are a
+  container query on the table; and a table's minimum width is the sum of its columns' longest
+  words (the 19-analyte reference table: 948 px in a 922 px box at 1280 px), so a table of nine
+  columns or more takes denser type and padding at any width. Every static table was walked
+  with every section and tab open, at 1280 and 800 px: twelve pages, then every patient's
+  workbenches (one test each, eight files) and Evolution views, 361 table views (the list is in
+  the PR), including the Sequencing › Resistance watchlist that qa-4 found 112 px too wide on
+  main. None cuts a cell or reaches past the main column. At 1280 px all 181 fit their box; at
+  800 px, where the open sidebar leaves a 457 px column, 24 of 180 scroll inside their box by
+  7–217 px (the slides page's half-width lymphocytes table, the labs reference table, the MRI
+  candidates, the CIViC and variant tables) and the page never does. Shares now show as the
+  grid's "percent" preset did.
 - **The slide and radiology pages** take the tables, strips, empty cards and chips around their
   maps (which are untouched): slides 12 metric tiles → 3 strips and 13 grids → finding tables
   (the Spot panel's class scores keep their bars in a grid, the confusion matrix its row labels);
@@ -180,12 +202,10 @@ The reports (Case 299 4,781 / 7,764, SYNTHETIC-001 4,100 / 6,119) and the Timeli
 
 | Screen | 1280 px | 800 px |
 |---|---|---|
-| Case 299 · slides (main 543c135 → branch) | 6,110 → SLA1 | 8,643 → SLA8 |
-| Case 563 · radiology | 5,249 → RAA1 | 6,867 → RAA8 |
-| SYNTHETIC-001 · labs | 5,928 → LAA1 | 7,897 → LAA8 |
+| Case 299 · slides (main 543c135 → branch) | 6,110 → 6,081 | 8,643 → 8,665 |
+| Case 563 · radiology | 5,249 → 5,294 | 6,867 → 7,021 |
+| SYNTHETIC-001 · labs | 5,928 → 5,928 | 7,897 → 7,897 |
 
 Where a page grew, it is a static table showing text the grid had cut; a first try that put a
 13-column lab history in `st.table` wrapped its rows four lines deep, hence the column limit.
-No exception, error box, cut text or sideways scroll of the page on any of them; at 800 px a
-wide static table (the documents' validation, eight columns) scrolls sideways inside its own
-box, as the grid does.
+No exception, error box, cut text or sideways scroll of the page on any of them.
