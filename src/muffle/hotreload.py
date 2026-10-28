@@ -52,8 +52,12 @@ def source_digest(roots: Iterable[Path], patterns: tuple[str, ...] = ("*.py", "*
 
 def purge_modules(prefixes: tuple[str, ...]) -> list[str]:
     """Remove the modules named by ``prefixes``, and their submodules, from ``sys.modules`` so
-    the next import re-executes them from disk. Returns the names removed."""
-    names = [m for m in sys.modules if any(m == p or m.startswith(p + ".") for p in prefixes)]
+    the next import re-executes them from disk. Returns the names removed. Another session's
+    run may be importing meanwhile (readers who open a fresh server together), so it reads a
+    copy of ``sys.modules``: iterating the live dict raised "dictionary changed size during
+    iteration" there (docs/qa.md, "Memory pass")."""
+    names = [m for m in list(sys.modules)
+             if any(m == p or m.startswith(p + ".") for p in prefixes)]
     for m in names:
-        del sys.modules[m]
+        sys.modules.pop(m, None)
     return names

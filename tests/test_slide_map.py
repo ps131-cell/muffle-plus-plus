@@ -117,6 +117,27 @@ def test_the_figure_has_the_views_slider_pointers_and_the_slides_shape(s299):
         assert shown == [1 + labels.index(b.label)]
 
 
+def test_a_kept_figure_draws_exactly_as_the_built_one(s299):
+    """The pages keep a map's figure as its plain dict (memory pass): st.plotly_chart must send
+    the browser the same spec, byte for byte, and the kept dict must not be copied per rerun."""
+    import plotly.io as pio
+    import plotly.tools
+
+    meta, res, data, thumb = s299
+    modes = tile_map.modes(data, res)
+    fig, _ = tile_map.figure(data, tile_map.scan_jpeg(thumb, data),
+                             {m: tile_map.overlay_png(data, m) for m in modes},
+                             {m: tile_map.legend_items(data, m, res) for m in modes}, res=res)
+    kept = tile_map.frozen(fig)
+
+    def sent(f):  # what st.plotly_chart (Streamlit 1.66) puts in the element
+        return pio.to_json(plotly.tools.return_figure_from_figure_or_data(f, True),
+                           validate=False)
+
+    assert sent(kept) == sent(fig)
+    assert kept.to_dict() is kept.to_dict()
+
+
 def test_search_maps_words_to_classes_zones_flags_and_pointers(s299):
     _, res, data, _ = s299
     assert slide_search.understand("lymphocytes at the border") == (["lymphocytes"], [],

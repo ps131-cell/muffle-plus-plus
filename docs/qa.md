@@ -454,6 +454,141 @@ the list is read), and memory ends where it was.
 - **The slide page's first open** (1.7–2.5 s here, more the first time a server downloads a
   section's tiles, R3-3) is its section analysis: page code, not loading.
 
+## Memory pass (2026-10-28)
+
+What holds the server's memory after a reader's walk and when several readers come at once,
+what was cut, and the numbers before (main at 243c131) and after (branch `app/perf-memory` on
+the same commit; rebased afterwards onto #162, which it does not touch), with every screen
+unchanged. Streamlit Community Cloud's limits page ("Manage your app", figures as of February
+2024): memory **690 MB minimum**, 2.7 GB maximum, CPU 0.078–2 cores; an app over its limits "may
+slow down from throttling or become nonfunctional". So 690 MB is the budget, not 1 GB.
+
+### How it was measured
+
+- **The ten-file walk** of the performance pass (AppTest, WSL, Python 3.14 and a venv with only
+  `app/requirements.txt`, as the hosted app installs it; the release bundle, offline): the list,
+  SYNTHETIC-001 and Case 299 in every view and every workbench, eight more files the same way.
+  RSS at the end, then what holds it: glibc's own accounting (`mallinfo2`: in use, free but kept,
+  mmapped; `malloc_stats` per arena), `/proc/self/smaps_rollup` (library code against anonymous
+  memory), pymalloc's arenas (`sys._debugmallocstats`), every Streamlit cache entry by entry, the
+  app's module-level stores, session state; then each holder dropped in turn and what RSS came
+  back. The identity walk (`perf_walk.py`, 114 screens) does the same walk but keeps every
+  screen's element dump in the same process, so its RSS is higher; it is the walk the cold-start
+  pass reported as "793 MB".
+- **Readers on a real server** (`streamlit run`, the same venv, slide tiles off): headless
+  Chromium, one context per reader, so one Streamlit session each. A reader opens files with the
+  patient picker in its own session: SYNTHETIC-001, Case 299 and Case 563, each file's Tests view
+  and every test's "Open" in the launcher, the slide map's search ("lymphocytes at the border")
+  and back, the MRI map ten slices on, then Timeline, Evolution and Report. One reader walks the
+  three files; three readers walk them at once in rotated order (always on different files),
+  their first loads 15 s apart; the server's RSS sampled every 0.5 s, the sessions still open at
+  the end. **Growth per extra reader = (RSS with three − RSS with one) / 2.** A fresh server for
+  each run.
+- **Load**: the other round-15 sessions' tests and walks shared the 8 cores (load average 6–26),
+  so times are not compared here, only memory and the cold start.
+
+### What held the memory (main)
+
+The ten-file walk on main: 405–413 MB after the list, **673–701 MB** at the end (three walks).
+
+| Part | After the list | After the walk | What it is |
+|---|---|---|---|
+| Library code (file-backed) | 124 MB | 153 MB | Altair and its schema (about 32 MB in a fresh process), scipy (25 MB), PIL's plugins (6 MB) load during the walk |
+| glibc heap in use | 114 MB | 230 MB | the app's caches, arrays, images, pickles |
+| glibc heap **free but kept** | 16 MB | **83–111 MB** | freed memory glibc does not return; `malloc_trim` gave back 1–3 MB |
+| pymalloc (Python objects) | 122 MB | 215–217 MB | the libraries above, AppTest's own element tree (a walk artefact, 38% of a sample of the new dicts and lists), the kept map figures (28%) |
+
+The caches, dropped one by one after the walk (RSS given back): the slide workbench's `scored()`
+29 MB (a section's pickle is 5–8 MB in `st.cache_data`, unpickled again on every rerun),
+`section_map` 20 MB (map data and the scan), the MRI phases `_strip` 15 MB, the MRI masks
+`_mask` 6 MB resident (22 MB of bool volumes, mostly untouched zero pages), the kept map figures
+5 MB of Python objects, everything else under 3 MB each: about 75 MB in all. The rest of the rise
+is libraries and the allocator.
+
+Why glibc keeps freed memory: a block of 128 KiB or more (an image, a figure's JSON, a pickle, a
+numpy temporary of the slide or MRI pages) is mmapped and returned when freed, but each such free
+raises the mmap threshold to that block's size (up to 32 MiB). After the first map page, later
+blocks of that size come from the heap and leave holes between live blocks. glibc also gives
+threads that allocate at the same time their own heaps (up to eight per core), each keeping its
+own free space, and Streamlit runs every rerun of every session in a thread (nine arenas after
+one reader's walk).
+
+### What changed
+
+| Change | Where | Saved |
+|---|---|---|
+| glibc's malloc set once, before torch and the pages allocate: a fixed mmap threshold of 128 KiB (glibc's own starting value) and two arenas shared by every thread. Settings given to the process (`MALLOC_MMAP_THRESHOLD_`, `MALLOC_ARENA_MAX`) win; nothing happens off glibc | `muffle.allocator.tune()`, the app's first lines | free-but-kept heap 83–111 → 32 MB; most of the per-reader growth |
+| The slide workbench's scored section (its tiles, analysis and tile table) kept once per process as a compressed pickle (zlib level 1: 7.7 → 1.0 MB for a 9,000-tile section); each call still gets its own copy, as from `st.cache_data` (40–80 ms a rerun) | `scored()` / `_scored_packed()` in `app/workbenches/slides.py` | 29 → 3 MB in the walk; up to 8 sections |
+| The MRI masks kept packed eight voxels to a byte (`np.packbits`), unpacked for the run that needs them (a few ms) | `_mask()` / `masks()` in `app/workbenches/radiology.py` | 22 → 2.7 MB allocated, 6.4 → 0.7 MB resident; up to 16 masks |
+| A built map figure (slide, MRI, mammogram, the example pair) kept as plotly's plain dict behind a figure `st.plotly_chart` draws byte for byte the same (`tests/test_slide_map.py`), instead of plotly's objects (about a dozen per trace); a rerun no longer deep-copies it | `tile_map.frozen`; `figure_once` in both pages | 4.8 → 2.4 MB of Python objects, and a copy per rerun |
+| An MRI slice's map data holds its own subtraction slice: a view kept the whole volume (3–5 MB) alive in the slice cache after the image cache let it go | `radiology_map.mri_slice` | the image cache's bound holds |
+| The hot-update guard purges only when the code changed since this process last ran (a fresh process imported this very code), one session at a time, over a copy of `sys.modules` | `app/streamlit_app.py`, `muffle.hotreload.purge_modules` | a crash, below |
+
+### A crash when readers open a fresh server together (fixed)
+
+Three readers whose first screens load at the same moment on a fresh server, as when several
+judges open the hosted app just after it wakes. On main, one of them got an error page in 2 of 4
+tries. Either `RuntimeError: dictionary changed size during iteration` (the guard read
+`sys.modules` while another session imported) or `KeyError: 'guide'` (one session's purge dropped
+a module another session was importing). Every first run purged, because a fresh process had no
+digest yet. On the branch: 0 error pages in 9 tries. `tests/test_hotreload.py` holds the
+iteration case.
+
+### Before and after
+
+| | Main (243c131) | Branch |
+|---|---|---|
+| **The ten-file walk: RSS at the end** (no element dumps) | 673–701 MB (three walks) | **612 MB** |
+| The identity walk (114 screens, dumps kept in the process): RSS at the end | 708–712 MB | 649–654 MB |
+| glibc heap free but kept, after the walk | 83–111 MB | 32 MB |
+| glibc arenas after the walk | 9–10 | 2 |
+| **One reader on a real server** (3 files, every test): RSS at the end / peak | 589 / 649 MB | **550 / 584 MB** |
+| Three readers at once: RSS at the end / peak | 655 / 693 MB | 559 / 629 MB |
+| **Growth per extra reader**: at the end / at the peak | 33 / 22 MB | **4.7 / 23 MB** |
+| Three first loads at the same moment on a fresh server: tries with an error page | 2 of 4 | 0 of 9 |
+| **Fresh container: process start to the drawn list** (five runs each, alternating, load 7.4–10; main at 610a463 and the rebased branch, both with #162) | median 7.61 s (5.58–9.35) | **median 5.99 s** (5.94–7.02) |
+| RSS when the list is drawn (the same runs) | 422 MB | 420 MB |
+| Identity: every element of the 114 screens | hash 45fabf4f3b1c | **identical** (45fabf4f3b1c, 0 differ) |
+| Tests | | 556 passed |
+
+At the load these ran under, a reader's clicks sometimes landed before a page was ready: main's
+three-reader run had one reader open 5 of its 17 tests (neither map), the branch's run one
+reader 11 (both maps), so the branch's three-reader figure carries more work than main's. The
+peaks are single samples of a moment when several sessions build a map at once; the per-reader
+peak growth stays well under the 60 MB aimed for on both, the end-of-walk growth drops from 33
+to under 5 MB.
+
+The cold start of the cold-start pass holds. A fresh process no longer purges and re-imports
+the app's modules on its first run, which may be what makes the branch's median about 1.6 s
+shorter. One finding for the Patients page's owner: in the same fresh-container runs a few
+minutes apart, 243c131 drew the list in 2.6–3.2 s (scipy not yet loaded) and 610a463 (#162, the
+worklist) in 5.6–9.4 s, with scipy and Altair's `jsonschema` loaded before the list.
+
+### Hosted settings checked (`.streamlit/config.toml`)
+
+- `server.maxUploadSize` (200 MB by default): an upload is held in its session's memory, so a
+  200 MB file would take most of the 690 MB. The import adapters read text, a PDF's text layer, a
+  VCF or a DICOM header, and the example files are kilobytes. Left at the default: lowering it
+  changes the limit the Import screens show ("Limit 200MB per file"). The user's call (one line,
+  `maxUploadSize = 50`).
+- `runner.fastReruns` (on by default): a click stops the run it supersedes, which also frees that
+  run's working memory sooner. Kept.
+- `server.maxMessageSize` (200 MB) only caps a message; the largest here is an MRI map window
+  (1.0–1.2 MB). Lowering it saves nothing. Kept.
+- `server.enableWebsocketCompression` (off): compression costs memory per connection (deflate
+  state) to save bandwidth. Kept off.
+
+### Left alone, and why
+
+- **The libraries.** torch (about 200 MB at start), Altair and its schema, scipy, plotly: needed
+  by the pages that use them, and loaded only when used since the cold-start pass.
+- **The slide scans and MRI phases** (`section_map` 15 MB, `_strip` 15 MB after the walk):
+  decoded once and shared by every session; decoding per rerun would cost 20–50 ms a picture.
+  Bounded at 8 and 16 entries.
+- **The eager downloads** (the slide page's tile CSV and findings JSON, the radiology JSON and
+  CSV): under 2 MB a session while shown. Making them deferred would change the elements the
+  identity check compares.
+
 ## Round 4 (2026-10-28): after the Round 14 PRs
 
 Round 14 changed what every screen looks like and added working parts: the IBM Plex theme and

@@ -22,6 +22,7 @@ a model; plotly is imported only to draw.
 from __future__ import annotations
 
 import base64
+import functools
 import io
 import math
 import threading
@@ -753,6 +754,31 @@ def figure(data: MapData, scan: bytes, overlays: dict, legends: dict, opacity: f
         hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#9AA1AA", align="left",
                         font=dict(family=THEME["mono"], size=12, color=THEME["text"])))
     return fig, first_hover
+
+
+@functools.cache
+def _spec_class():
+    from plotly.basedatatypes import BaseFigure
+
+    class Spec(BaseFigure):
+        """A built figure kept as plotly's plain dict: st.plotly_chart asks a figure for its
+        dict (``to_dict``), and this one hands over the dict it holds, unchanged and uncopied."""
+
+        def __init__(self, spec: dict):  # not BaseFigure's: that builds the objects avoided here
+            object.__setattr__(self, "_spec", spec)
+
+        def to_dict(self) -> dict:
+            return self._spec
+
+    return Spec
+
+
+def frozen(fig):
+    """``fig`` for keeping between reruns and sessions: its plain dict (a few dicts a trace
+    instead of plotly's objects, about a dozen a trace) behind a figure st.plotly_chart draws
+    exactly as ``fig``, without the deep copy ``Figure.to_dict`` makes on every rerun. Read-only:
+    every session draws the same one (docs/qa.md, "Memory pass")."""
+    return _spec_class()(fig.to_dict())
 
 
 def full_ranges(data: MapData):
