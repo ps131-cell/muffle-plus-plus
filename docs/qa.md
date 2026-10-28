@@ -647,3 +647,29 @@ a re-walk follows them, and a last walk follows the Oct 29 freeze.
 
 A 375 px phone, browsers other than Chromium, a screen reader and dark mode (the app is
 light-only).
+
+## First screen after the worklist (2026-10-28)
+
+PR #162 drew the Patients page's risk-group histogram with Altair, so the list's first run in a
+fresh process imported Altair and jsonschema and ran Altair's schema check; the memory pass
+measured the fresh start → list at 5.6–9.4 s on 610a463 against 2.6–3.2 s on 243c131. The
+chart is now a plain Vega-Lite dict in the app's theme (`app/chart_theme.py`, which `charts`
+re-uses), key for key what Altair wrote (`tests/test_cold_start.py` compares them), so nothing
+on the screen changes and the list imports no chart library. `who.py` on main: scipy is not
+loaded by the list or the first report (the background thread off); Altair and jsonschema
+came only through the strip.
+
+| Fresh container (`cold3.py --fresh --list-only`, 5 runs each, alternating, load 1.7–2.1) | main 543c135 | branch |
+|:--|--:|--:|
+| Start → list, median (range) | 2.67 s (2.46–3.15) | 2.41 s (2.23–2.71) |
+| RSS at the list | 420 MB | 395 MB |
+| jsonschema loaded at the list | 5 of 5 | 0 of 5 |
+
+`cold3.py` also lists Altair at the list on both sides: the app's last lines preload it in the
+background once the first run ends. `who.py`, with that thread off, finds Altair first imported by
+the first report on the branch (`timeline_page` → `charts`), as before #162. At this low load the
+gain is 0.26 s and 25 MB; the memory pass's 5.6–9.4 s on 610a463 came from runs made while the
+other round 15 sessions were working, where the import and the schema check compete for the CPU.
+
+Also fixed: a list that keeps no TCGA file showed every file's dark bar (an empty selection read
+as "all"); it shows none now.
