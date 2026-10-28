@@ -47,6 +47,9 @@ PAM50_ALIASES = {"CDCA1": "NUF2", "KNTC2": "NDC80", "ORC6L": "ORC6"}
 PROLIFERATION = ("BIRC5", "CCNB1", "CDC20", "NUF2", "CEP55", "NDC80", "MKI67", "PTTG1", "RRM2",
                  "TYMS", "UBE2C")
 CYTOLYTIC = ("GZMA", "PRF1")  # Rooney et al. 2015: immune cytolytic activity
+# Triulzi et al. 2013's four-gene ECM3 surrogate (scripts/omics_ecm3.py says why COL1A2, not
+# COL1A1: the paper names both; its qRT-PCR assays and its metagene used COL1A2)
+ECM3_GENES = ("COL1A2", "COL5A2", "SPARC", "LAMA4")
 # receptor -> (gene, RPPA antibody in the TCGA protein file)
 RECEPTORS = {"ER": ("ESR1", "ERALPHA"), "PR": ("PGR", "PR"), "HER2": ("ERBB2", "HER2")}
 ANTIBODY_NAMES = {"ERALPHA": "ER-alpha", "PR": "PR", "HER2": "HER2"}
@@ -690,6 +693,59 @@ def case_scores(pf) -> dict | None:
     if cs is None or log_risk is None or abs(cs["log_risk"] - log_risk) > 1e-3:
         return None
     return cs
+
+
+ECM3_SCORES = SCORES.with_name("omics_ecm3.json")
+ECM3_SOURCE = ("Triulzi T et al. Neoplastic and stromal cells contribute to an extracellular "
+               "matrix gene expression profile defining a breast cancer subtype likely to "
+               "progress. PLoS One 2013;8:e56761. doi:10.1371/journal.pone.0056761")
+ECM3_HYPOTHESIS = (
+    "In Triulzi et al. 2013 (PLoS One), ECM3 tumors had worse distant-metastasis-free survival "
+    "only among grade III tumors (HR 3.0, 95% CI 1.3–7.0; untreated node-negative patients of "
+    "two public datasets), not in grades I–II; Tiwari et al. 2020 (Sci Rep, the Bhargava lab) "
+    "found the ECM3 collagen signature mainly at tumor borders by infrared imaging (42 tumors, "
+    "one centre, AUC 0.87, not validated externally). A lead for this patient's stroma, not a "
+    "prognosis, and never a recommendation.")
+
+
+def ecm3_score(z: pd.DataFrame) -> pd.Series:
+    """The ECM3 surrogate per tumor: the mean of ``ECM3_GENES``' cohort z-scores (``z``: tumors x
+    genes, each gene z-scored over the cohort), over the genes measured; NaN with none."""
+    return z[[g for g in ECM3_GENES if g in z.columns]].mean(axis=1)
+
+
+@lru_cache(maxsize=2)
+def ecm3_data(path: Path = ECM3_SCORES) -> dict:
+    """``app/omics_ecm3.json`` (scripts/omics_ecm3.py), read once; {} when absent."""
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def ecm3(pf) -> dict:
+    """The ECM3 card's content for one file: {"measured", "percentile", "genes" (gene ->
+    cohort percentile), "missing", "text", "evidence", "hypothesis"}. Not a TCGA file, or no RNA
+    in it: "not measured", said so (the synthetic patient has no RNA-seq). No cutoff: the score
+    is shown as this file's place in the cohort."""
+    data = ecm3_data()
+    rec = None
+    if pf.kind == "TCGA-BRCA":
+        rec = data.get("cases", {}).get(pf.id.removeprefix("Case "))
+        log_risk = (pf.versions[0].risk or {}).get("log_risk")
+        if rec is not None and (log_risk is None or abs(rec["log_risk"] - log_risk) > 1e-3):
+            rec = None  # computed for another build of the cohort (case_scores' guard)
+    if rec is None:
+        why = ("no RNA-seq in this file (synthetic patient)" if pf.kind == "synthetic" else
+               "no RNA-seq scores for this file")
+        return {"measured": False, "percentile": None, "genes": {}, "missing": [],
+                "text": f"not measured: {why}", "evidence": INFERENCE,
+                "hypothesis": ECM3_HYPOTHESIS}
+    genes = rec["genes"]
+    missing = [g for g in ECM3_GENES if g not in genes]
+    text = (f"at the {ordinal(rec['percentile'])} percentile of "
+            f"{data['reference']['rna_tumors']:,} TCGA-BRCA tumors (mean cohort z-score of "
+            + ", ".join(f"{g} {ordinal(genes[g])}" for g in ECM3_GENES if g in genes) + ")"
+            + (f"; not measured: {', '.join(missing)}" if missing else ""))
+    return {"measured": True, "percentile": rec["percentile"], "genes": genes, "missing": missing,
+            "text": text, "evidence": INFERENCE, "hypothesis": ECM3_HYPOTHESIS}
 
 
 def file_lines(pf) -> list[dict]:
