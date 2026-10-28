@@ -533,3 +533,16 @@ def test_the_mri_viewer_fits_an_800px_page_and_its_outlines_sit_on_the_slice():
             spec = page.viewer_chart(img, cands, i, True, True, view).to_dict()
             assert spec["autosize"] == {"type": "pad"} and spec["padding"] == 0
             assert (spec["width"], spec["height"]) == (vw * k, vh * k)
+
+
+def test_a_runs_load_is_shown_without_the_raw_uptime_line():
+    """QA R3-19: the MedSAM and screening cards showed the raw shell line ("22:43:52 up 59 min,
+    1 user, load average: …") as their reproducibility note."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "app"))
+    from workbenches import radiology as page
+
+    line = " 22:43:52 up 59 min,  1 user,  load average: 18.77, 18.38, 15.07"
+    assert page.load(line) == "load average 18.77, 18.38, 15.07"
+    assert page.load(None) == "load not recorded"
