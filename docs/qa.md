@@ -453,3 +453,62 @@ the list is read), and memory ends where it was.
   the slide and radiology pages' owners, and worth one walk in the hosted app's own versions.
 - **The slide page's first open** (1.7–2.5 s here, more the first time a server downloads a
   section's tiles, R3-3) is its section analysis: page code, not loading.
+
+## Round 4 (2026-10-28): after the Round 14 PRs
+
+Round 14 changed what every screen looks like and added working parts: the IBM Plex theme and
+the report's cockpit (#155), the Timeline's version diff (#154), the radiology scan map (#158),
+the Bhargava stroma cards (#159), the action row at 800 px (#157), the cold start (#153) and the
+Round 3 leftovers (#152, #156). This round walked main at dbf9d29 before the Round 15 PRs land;
+a re-walk follows them, and a last walk follows the Oct 29 freeze.
+
+### How
+
+- **The app** ran in WSL from a copy of main on the release bundle `demo-bundle-v2`, no keys,
+  one server, headless Chromium (Playwright), each address in a fresh browser session.
+- **Every file, every view:** the patient list, Methods and validation, Feedback and, for all 41
+  files, the five views and one test per workbench (381 screens at 1280 px, the same at 800
+  px). A script listed exceptions, error boxes, console errors, text cut by an ellipsis,
+  elements past the right edge, sideways scroll, overlapping text and, new this round, **WCAG
+  AA contrast** of every visible text in the main column and the sidebar (its colour, its
+  ancestors' opacity and the first solid background behind it).
+- **Clicks** (about 900 checks): the tour, Search every file and its Open, Start here, pinning,
+  the action row, a review mark through Your marks to the Feedback ledger, 23 deep links with
+  wrong or stale values, all 16 versions of SYNTHETIC-001 in Report, Tests and Timeline, every
+  launcher tile and month pill of eight files, the three example imports into SYNTHETIC-001
+  and Case 299; new: the diff viewer's slider ends (v1 → v16, both ends on one version, back),
+  its Go to buttons and the versions table's click; every Methods contents link; Similar
+  patients' Open; the tumor-board note's Show the saved note and its download; on every map
+  (the sections of SYNTHETIC-001 and Cases 299, 563, 730, 926 and 1043; the studies of Cases
+  537, 563 (2001-06-20), 564, 926 (mammography) and 937 (2000-08-24)) every in-chart view,
+  hover, a click into the Spot panel, the in-chart Slice slider at both ends and Go to slice
+  (MRI), search, a Q1 spot, Clear the search, Zoom to the cells (slides) and every download.
+- **The theme's first paint** (`docs/ux-audit.md` N8): the page polled every 30 ms from the
+  navigation, five fresh visits before and after.
+- **The hosted app** through its own path (`/~/+/?embed=true&…`): About this system, all 41
+  files' reports, five deep links and Methods.
+
+### Findings
+
+| # | Severity | Screen | What was seen | Owner | What to do | Status |
+|---|---|---|---|---|---|---|
+| R4-1 | major | Almost every screen: the sidebar, every workbench's how-to line, the report's provenance lines | Text in a caption is drawn at 60% opacity (Streamlit's caption style), so the links and label chips inside captions fall below AA: "Source code" 2.9:1, the workbenches' jump links (Spot panel, Export, Model and validation card, What this test cannot see) 3.0:1, the chips "observed", "implemented", "derived" and "model inference" 2.9:1, "hypothesis" and "placeholder" 2.4:1, "literature" 2.5:1, the gray chips 2.4:1, the queue's key hints (j, k, p, m, u, o) 4.2:1. Plain caption text passes (5.1:1, as `config.toml` says) | ui-workbenches (`app/theme.css`) | `[data-testid="stCaptionContainer"] { opacity: 1; color: var(--mf-muted); }` (#4d5260, 7.6:1 on white): captions stay quiet, their chips and links keep their own AA colours; `test_states`' caption check reads that colour | open, handed over |
+| R4-2 | major | Radiology and slide maps (every imaging study and every scored section), Export | "Download the map (PNG)" opens its popover upward at the page's foot, and the trigger's tooltip ("A labelled picture of the map…") stays over the popover's own download button while the trigger has focus: the button can't be clicked (in Chromium the tooltip takes the click for 30 s). With the tooltip hidden the PNG downloads (114 KB for an MRI slice, 826 KB for a section) | perf-memory (`app/workbenches/radiology.py` `map_png_button`, `app/workbenches/slides.py` `map_export`) | no `help=` on the popover's trigger; its sentence as a caption inside the popover | open, handed over |
+| R4-3 | minor | Every report with more than one version | The report's header never said what this version changed since the one before: `version_diff.version_delta_line` was written for it in #154 and not shown | qa-4 | the line under the summary, labeled a model inference (it holds the risk move), naming the Timeline for the whole difference; none on the first version or a one-version file | fixed: "Since the previous version (month 19): 12-month risk +14 points (46% → 60%); 3 tests added; 5 findings changed."; test |
+| R4-4 | minor | Every page, a first visit | Streamlit's default layout (75 px side gutters, 90 px top) for 1.5–4.6 s before `app/theme.css` applied (five visits: theme 1.6, 1.6, 1.5, 4.6 and 2.7 s after the first text): `st.html` is a script chunk of its own, loaded after the first text | qa-4 | the sheet in the page's first Markdown element as a `<style>`, its last rule hiding the element that carries it | fixed: in five visits the main column's first text came with the theme (no unthemed moment; the sidebar's page list still draws first, with no layout jump); the breadcrumb sits where it did; test |
+| R4-5 | minor | Timeline, Every version so far | "Click a row to open the file as of that version", but a click on a cell selected the cell and nothing happened; only the row marker (the checkbox column) time-travelled | qa-4 | a cell picks its row | fixed (single-row and single-cell selection); checked in Chromium; test |
+| R4-6 | minor | Methods and validation, On this page | Three contents links led nowhere: "Nuclei (StarDist)", "Lesion contours (MedSAM, breast MRI)", "ctDNA monitor rules". Streamlit splits a heading's words at a case change (`nuclei-star-dist`); the page's `anchor()` did not | qa-4 | split at a case change too | fixed: all 30 links land on their heading in Chromium; test against the ids Chromium gave |
+| R4-7 | low | Methods and validation, colour code | No key for the Timeline's shift marks (▲ ▼ ≈ = ·), left from #154 | qa-4 | one line in the colour code from `version_diff.SHIFTS` | fixed; test |
+| R4-8 | low | Radiology map (Cases 537, 564, 937), search "washout" | The page says "Nothing reaches 15% for this search in this study", yet the map switches to the match view: the Lesion / Kinetics / Enhancement buttons go and a "Match 15%–50% / Match over 50%" legend sits over an uncoloured map until Clear the search | perf-memory (`app/workbenches/radiology.py` `mri_map`, `matching`) | stay on the usual views when no square reaches 15% | open, handed over |
+| R4-9 | low | Slide Spot panel and tile table (every scored section) | "−560 µm from the front": a minus sign carries inside or outside | perf-memory (`app/workbenches/slides.py`, `dist`) | "560 µm inside the front" / "… outside the front" | open, handed over |
+| R4-10 | low | Sidebar, About this system | The spend is said twice: "Spend, this server $0.82 / $25.50" and under it "Case-note spend: $0.82 of the $25.50 cap, 125 calls" with a bar | – | – | accepted (the bar pictures the row and adds the call count) |
+| R4-11 | – | Every screen | No exception and no error box on 762 screens; no text cut, element past the edge or sideways scroll at either width; the overlaps the script listed are wrapped links (a CIViC citation's box over its EID) and the sticky header over scrolled content, not text drawn over text; every finding carries its label; the synthetic patient and the simulated hospitals are labeled | – | – | checked |
+| R4-12 | – | The maps | Every view, hover, click into the Spot panel, the Slice slider at both ends, Go to slice, search (an honest "nothing reaches 15%" where nothing matches), Q1, Clear the search and the Markdown, JSON and CSV downloads work on all five studies and six sections at both widths; SYNTHETIC-001's slide page is the public example region and says why it has no Zoom to the cells and no export | – | – | checked |
+| R4-13 | – | Deep links, time travel, imports, marks, the note | 23 deep links, 16 versions × 3 views, the diff viewer's ends and Go to, the three example imports, a mark through Your marks to the ledger, Compare versions from every view, Similar patients' Open, Show the saved note and its download: as expected | – | – | checked |
+| R4-14 | – | The hosted app (dbf9d29) | Awake (4 s); About this system: case agent live, code `dbf9d29` = main; the 41 reports, the two MRI deep links, the synthetic Timeline and labs pointer, Methods: 47 screens, no exception or error box | – | – | checked |
+| R4-15 | – | Speed | From the address to the end of the run in a fresh session: median 4.6 s at 1280 px under a load average of 3.6–22 (four sessions' tests share the CPU); the slowest 20.7 s at load 15.5 | – | – | accepted |
+
+### Not covered
+
+A 375 px phone, browsers other than Chromium, a screen reader and dark mode (the app is
+light-only).

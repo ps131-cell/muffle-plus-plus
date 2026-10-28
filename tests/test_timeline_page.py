@@ -49,9 +49,9 @@ def test_the_version_diff_compares_opens_and_follows_time_travel(app):
 
 
 def test_the_report_header_says_what_the_version_changed_and_methods_keys_the_shifts(app):
-    """QA R4: the report's header carries version_diff.version_delta_line (planned in #154, never
-    shown), labeled a model inference; the first version and a one-version file show none; the
-    Methods page's colour code keys the Timeline's shift marks."""
+    """QA R4-3 and R4-7: the report's header carries version_diff.version_delta_line (planned
+    in #154, never shown), labeled a model inference; the first version and a one-version file
+    show none; the Methods page's colour code keys the Timeline's shift marks."""
     at = app.new().run()
     at.selectbox(key="patient").select(SYN).run()
     text = shown(at)

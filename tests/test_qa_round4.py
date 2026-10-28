@@ -30,7 +30,7 @@ BROWSER_IDS = {
 
 
 def test_every_methods_contents_link_names_the_id_the_browser_gives(monkeypatch):
-    """R4-5: the contents' links to "Nuclei (StarDist)", "Lesion contours (MedSAM, …)" and "ctDNA
+    """R4-6: the contents' links to "Nuclei (StarDist)", "Lesion contours (MedSAM, …)" and "ctDNA
     monitor rules" led nowhere: Streamlit splits a heading's words at a case change."""
     monkeypatch.syspath_prepend(str(APP))
     import methods_page
@@ -42,7 +42,7 @@ def test_every_methods_contents_link_names_the_id_the_browser_gives(monkeypatch)
 
 
 def test_a_click_on_any_cell_of_the_versions_table_opens_that_version(monkeypatch):
-    """R4-4: "click a row to open the file as of that version", but a click on a cell selected
+    """R4-5: "click a row to open the file as of that version", but a click on a cell selected
     the cell and nothing happened; only the row marker worked. A cell now picks its row."""
     monkeypatch.syspath_prepend(str(APP))
     import timeline_page as tp
@@ -59,7 +59,7 @@ def test_a_click_on_any_cell_of_the_versions_table_opens_that_version(monkeypatc
 
 
 def test_the_theme_sheet_arrives_with_the_first_text(app):
-    """R4-3: app/theme.css rides in the page's first Markdown element (drawn with the first
+    """R4-4: app/theme.css rides in the page's first Markdown element (drawn with the first
     text), not in st.html (a script chunk of its own: 1.5–4.6 s of Streamlit's default gutters
     on a first visit), and the element that carries it hides itself."""
     at = app.new().run()

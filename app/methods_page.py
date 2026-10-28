@@ -99,7 +99,7 @@ CONTENTS = {
 def anchor(text: str) -> str:
     """The id Streamlit gives a heading: words split at a case change too ("StarDist" ->
     "star-dist", "ctDNA" -> "ct-dna", "MedSAM" -> "med-sam"), lower case, joined by hyphens,
-    other signs dropped (QA R4-5: three contents links led nowhere)."""
+    other signs dropped (QA R4-6: three contents links led nowhere)."""
     text = re.sub(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", " ", text)
     return re.sub(r"[^a-z0-9_-]+", "", "-".join(text.lower().split()))
 

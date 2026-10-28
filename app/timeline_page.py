@@ -351,7 +351,7 @@ def versions(pf, i: int) -> None:
         st.dataframe(
             table.style.apply(tint), hide_index=True, width="stretch", key=key,
             height=35 * (min(len(table), 16) + 1) + 3,  # every version of a long file in view
-            # a click on any cell picks its row too (QA R4-4: only the row marker did)
+            # a click on any cell picks its row too (QA R4-5: only the row marker did)
             on_select=partial(_row_picked, pf, key, shown),
             selection_mode=("single-row", "single-cell"),
             column_config={
