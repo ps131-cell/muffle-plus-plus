@@ -239,9 +239,14 @@ def test_the_slide_page_draws_the_map_on_three_cases(idx):
     k = f"Case {idx}|{slides[0]}"
     at.text_input(key=f"{k}-search").set_value("necrosis in the core").run()
     assert not at.exception, at.exception
-    assert "matched Necrosis or debris" in " ".join(e.value for e in at.caption)
-    spec = json.loads(at.get("plotly_chart")[0].proto.spec)  # one view: coloured by match
-    assert not spec["layout"].get("updatemenus")
+    answer = " ".join(e.value for e in at.caption)
+    assert "matched Necrosis or debris" in answer
+    spec = json.loads(at.get("plotly_chart")[0].proto.spec)
+    if "Nothing reaches 15%" in answer:  # nothing to colour: the usual views stay (as R4-8)
+        assert spec["layout"]["updatemenus"][0]["buttons"][0]["label"] == "Tissue"
+        assert "The map below colours every square" not in answer
+    else:  # one view: coloured by match
+        assert not spec["layout"].get("updatemenus")
 
 
 @pytest.mark.parametrize("idx", ["563", "299"])
