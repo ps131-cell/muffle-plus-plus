@@ -590,7 +590,11 @@ a report states (receptors are often in an earlier biopsy report not in the data
    https://cancer-intelligence-platform.streamlit.app draws the patient list.
 2. **Check About this system** (open in the sidebar): the **Code** row shows `main`'s short hash
    (the first seven characters of the latest commit on GitHub's `main`), **Held-out C-index
-   0.728** and **Case agent live**. If the hash is older, reboot again.
+   0.728**, and **Case agent: saved notes only**. If the hash is older, reboot again. The hosted
+   app keeps no Token Factory key: the spend ledger on the Streamlit container resets on every
+   reboot, so a key there would not be held to the $25.50 cap. The live case agent needs a key
+   and a persistent ledger (a local run, Testing instructions); the hosted app shows the nine
+   saved notes.
 3. **Record** the take from `docs/video.md` on the hosted app, then **upload it to YouTube as
    public**, with the title, description, tags and thumbnail in `docs/youtube.md`.
 4. **Paste the video link into README.md**: one line under **Live app**
@@ -606,7 +610,7 @@ a report states (receptors are often in an earlier biopsy report not in the data
 - [ ] **Video URL** (YouTube, public, ≤ 3:00): `______________________`; also in README.md
 - [ ] **Repository URL:** https://github.com/ps131-cell/muffle-plus-plus (public, MIT in About)
 - [ ] **Hosted app URL:** https://cancer-intelligence-platform.streamlit.app (rebooted after the
-      freeze; About this system: Held-out C-index 0.728, Case agent live)
+      freeze; About this system: Held-out C-index 0.728, Case agent: saved notes only)
 - [ ] **Team members** (Devpost accounts, each invited and accepted): `______________________`
 - [ ] **Track:** Best Apps and Agents; tick the Best Use of Tavily bonus if the form asks
 - [ ] **Tags / Built with:** Python, PyTorch, NVIDIA FLARE, NVIDIA Nemotron, Nebius Token Factory,
