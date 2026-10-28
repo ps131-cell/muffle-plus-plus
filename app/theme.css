@@ -154,8 +154,8 @@
 @container (max-width: 40rem) {
   [data-testid="stTable"] table { font-size: 0.75rem; hyphens: auto; }
   [data-testid="stTable"] tbody td, [data-testid="stTable"] tbody th,
-  [data-testid="stTable"] thead th { padding-left: 0.3125rem; padding-right: 0.3125rem; }
-  [data-testid="stTable"] thead th { font-size: 0.625rem; letter-spacing: 0.02em; z-index: 2; }
+  [data-testid="stTable"] thead th { padding-left: 0.25rem; padding-right: 0.25rem; }
+  [data-testid="stTable"] thead th { font-size: 0.625rem; letter-spacing: 0.01em; z-index: 2; }
   [data-testid="stTable"] tr > :first-child {
     position: sticky; left: 0; z-index: 1; background-color: #ffffff;
   }
