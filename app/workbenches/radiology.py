@@ -394,7 +394,7 @@ def change_volume(pair_folder: str) -> dict[int, np.ndarray]:
     return out
 
 
-@st.cache_resource(show_spinner=False, max_entries=30)  # about 0.2 MB each: two windows
+@st.cache_resource(show_spinner=False, max_entries=16)  # a window and one more
 def slice_map(folder: str, stamp_: str, i: int, pair_folder: str | None) -> rm.ScanMap:
     """One MRI slice's map data (shared, read-only; never changed in place)."""
     study = rad.load_study(folder)
@@ -421,7 +421,7 @@ def figure_once(shape: tuple, build):
     rebuilding the figure. A few figures only."""
     with _fig_lock:
         if shape not in _figures:
-            if len(_figures) >= 4:
+            if len(_figures) >= 3:
                 _figures.pop(next(iter(_figures)))
             _figures[shape] = build()
         return _figures[shape]
@@ -614,12 +614,8 @@ def handle_map_click(event, key0: str, m: rm.ScanMap, first_hover: int, study: d
         mem["spot"] = {"kind": "square", "at": hit[1] if m.kind == "MR" else m.where,
                        "row": hit[2], "col": hit[3]}
         return
-    val = hit[1]
-    c = next((c for c in study.get("candidates", []) if c["id"] == val), None)
-    if c is not None:
-        mem["pending"] = {"cand": val, **({} if str(m.index) in c["per_slice"] else
-                                          {"slice": rm.ld_index(study, c)})}
-        mem["spot"] = {"kind": "cand", "id": val}
+    if any(c["id"] == hit[1] for c in study.get("candidates", [])):
+        mem["pending"] = {"cand": hit[1]}  # applied above the map, before its widgets
         st.rerun()
 
 
@@ -652,10 +648,9 @@ def mri_map(pf: PatientFile, study: dict, key0: str, found: dict | None, changes
     d, cands = study["display"], study["candidates"]
     ids = [c["id"] for c in cands]
     pend, mem["pending"] = mem.get("pending") or {}, {}  # asked for by a click in the last run
-    if "cand" in pend:
-        ss[f"{key0}-cand"] = mem["cand_seen"] = pend["cand"]
-    if "slice" in pend:
-        ss[f"{key0}-slice"] = pend["slice"] + 1
+    if pend.get("cand") in ids:  # a pointer: its candidate, slice, zoom and story
+        ss[f"{key0}-cand"] = pend["cand"]
+        focus_candidate(key0, study, pend["cand"])
     if cands and ss.get(f"{key0}-cand") not in ids:
         ss[f"{key0}-cand"] = ids[0]
     cur = ss.get(f"{key0}-cand")
@@ -1567,9 +1562,6 @@ def mammo_map(pf: PatientFile, study: dict, key0: str, views: list[dict],
     window, the view's map)."""
     ss, mem = st.session_state, map_memory(key0)
     keys = [v["key"] for v in views]
-    pend, mem["pending"] = mem.get("pending") or {}, {}
-    if pend.get("view") in keys:
-        ss[f"{key0}-view"] = pend["view"]
     if ss.get(f"{key0}-view") not in keys:
         ss[f"{key0}-view"] = keys[0]
     row = st.container(horizontal=True, vertical_alignment="bottom", gap="small")

@@ -110,7 +110,8 @@ class ScanMap:
     square: int
     sq_r: np.ndarray          # each square's row and column, in squares
     sq_c: np.ndarray
-    texts: np.ndarray         # [n, 5] what the hover box says in words (grouped)
+    wordings: list            # what a hover box says in words, each wording once
+    word: np.ndarray          # [n] int16: each square's wording (an index into wordings)
     numbers: np.ndarray       # [n, k] the per-square numbers (-1: not measured)
     cand: np.ndarray          # the candidate a square is inside or beside ("" for none)
     pix: dict                 # per-pixel layers: "cand", "band", "sub", "change", "dense", ...
@@ -224,7 +225,8 @@ def mri_slice(study: dict, i: int, sub: np.ndarray, skin: np.ndarray, nips: dict
         if nip:
             z0, y0, x0 = nip["mm"]
             d_nip[j] = math.dist((i * dz, cy[j] * px, cx[j] * px), (z0, y0, x0))
-    texts = np.empty((n, 5), object)
+    wordings: dict = {}                    # each wording once; the squares keep an index
+    word = np.zeros(n, np.int16)
     cand_of = np.full(n, "", object)
     inside = np.zeros(n)
     for j in range(n):
@@ -251,14 +253,13 @@ def mri_slice(study: dict, i: int, sub: np.ndarray, skin: np.ndarray, nips: dict
             ("" if np.isnan(d_skin[j]) else "|skin") + ("" if np.isnan(d_nip[j]) else "|nip")
         if c is not None:
             k = c["kinetics"]
-            texts[j] = (region, f"{c['id']} {c['longest_diameter_mm']:g} mm · "
-                                f"{c['volume_ml']:g} mL",
-                        f"{k.get('initial', '?')} {k.get('initial_pct', '?')}% · contour mean",
-                        f"{k.get('delayed', '?')} {k.get('delayed_pct', 0):+g}% · type "
-                        f"{k.get('curve_type', '?')}", flags)
+            words = (region, f"{c['id']} {c['longest_diameter_mm']:g} mm · {c['volume_ml']:g} mL",
+                     f"{k.get('initial', '?')} {k.get('initial_pct', '?')}% · contour mean",
+                     f"{k.get('delayed', '?')} {k.get('delayed_pct', 0):+g}% · type "
+                     f"{k.get('curve_type', '?')}", flags)
         else:
-            texts[j] = (region, "— (no candidate here)", "— (inside contours only)", "—",
-                        flags)
+            words = (region, "— (no candidate here)", "— (inside contours only)", "—", flags)
+        word[j] = wordings.setdefault(words, len(wordings))
     numbers = np.stack([np.round(sub_sq[sq_r, sq_c]), np.round(d_limit),
                         np.round(np.nan_to_num(d_skin, nan=-1)),
                         np.round(np.nan_to_num(d_nip, nan=-1)),
@@ -270,7 +271,7 @@ def mri_slice(study: dict, i: int, sub: np.ndarray, skin: np.ndarray, nips: dict
     here = [c["id"] for c in cands if str(i) in c["per_slice"]]
     return ScanMap(key=f"{study['barcode']}-{study['study']['date']}-{stamp}-s{i}", kind="MR",
                    where=f"slice {i + 1} of {d['slices']}", index=i, rows=h, cols=w,
-                   pixel_mm=px, square=sq, sq_r=sq_r, sq_c=sq_c, texts=texts,
+                   pixel_mm=px, square=sq, sq_r=sq_r, sq_c=sq_c, wordings=list(wordings), word=word,
                    numbers=numbers.astype(np.int32), cand=cand_of, pix=pix,
                    info={"ids": ids, "here": here, "limit_row": limit, "nipples": nips,
                          "candidates": {c["id"]: c for c in cands}})
@@ -305,9 +306,7 @@ def mammo_view(study: dict, view: dict, img: np.ndarray, position: int = 0,
     m_txt = (f"{monai['density_class']} · MONAI, this view" if monai else "not run")
     s_txt = (f"{score['cancer']:.2g} · mammoscreen, breast" if score else "not run")
     d_txt = (f"{score['density_class']} · mammoscreen, breast" if score else "not run")
-    texts = np.empty((n, 5), object)
-    for j in range(n):
-        texts[j] = ("Breast tissue", m_txt, d_txt, s_txt, "nip" if nip else "")
+    wordings = [("Breast tissue", m_txt, d_txt, s_txt, "nip" if nip else "")]
     numbers = np.stack([np.round(share_dense[sq_r, sq_c] / np.maximum(share_breast[sq_r, sq_c],
                                                                       1e-9) * 100),
                         np.round(np.nan_to_num(d_nip, nan=-1)), np.round(d_chest),
@@ -315,8 +314,8 @@ def mammo_view(study: dict, view: dict, img: np.ndarray, position: int = 0,
     share = float(dense.sum() / max(breast.sum(), 1))
     return ScanMap(key=f"{study['barcode']}-{view['key']}-{stamp}", kind="MG", where=view["key"],
                    index=position, rows=h, cols=w, pixel_mm=px, square=sq, sq_r=sq_r,
-                   sq_c=sq_c, texts=texts, numbers=numbers.astype(np.int32),
-                   cand=np.full(n, "", object),
+                   sq_c=sq_c, wordings=wordings, word=np.zeros(n, np.int16),
+                   numbers=numbers.astype(np.int32), cand=np.full(n, "", object),
                    pix={"breast": breast, "dense": dense, "outline": edge},
                    info={"outline": out, "dense_share": share, "threshold": thr,
                          "monai": monai, "score": score, "view": view})
@@ -482,11 +481,8 @@ def legend_items(m: ScanMap, mode: str, study: dict | None = None) -> list[tuple
 def hover_groups(m: ScanMap) -> list[tuple[tuple, np.ndarray]]:
     """Squares grouped by everything their hover box says in words; per square only the
     numbers go to the browser. Returns [(texts, square indices)] in drawing order."""
-    keys = np.array(["\x1f".join(row) for row in m.texts]) if len(m.texts) else np.array([])
-    if not len(keys):
-        return []
-    uniq, inverse = np.unique(keys, return_inverse=True)
-    return [(tuple(k.split("\x1f")), np.flatnonzero(inverse == i)) for i, k in enumerate(uniq)]
+    out = [(words, np.flatnonzero(m.word == k)) for k, words in enumerate(m.wordings)]
+    return [(words, idx) for words, idx in out if len(idx)]
 
 
 def hover_data(m: ScanMap, idx: np.ndarray) -> np.ndarray:
@@ -961,7 +957,7 @@ def square_story(m: ScanMap, j: int, study: dict | None = None) -> dict:
     nums = dict(zip(("sub", "limit", "skin", "nipple", "row", "col", "inside")
                     if m.kind == "MR" else ("dense", "nipple", "chest", "row", "col"),
                     (int(v) for v in m.numbers[j]), strict=False))
-    region = m.texts[j][0]
+    region = m.wordings[m.word[j]][0]
     out = {"region": region, "numbers": nums, "why": [], "how": [], "check": [],
            "candidate": m.cand[j] or None}
     if m.kind == "MG":
