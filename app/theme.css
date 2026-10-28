@@ -149,7 +149,10 @@
    and long words hyphenate where the browser can. No word breaks anywhere else: letting any
    word break made a squeezed column print 213 tiles as "21" over "3" and arc A1 as "A" over
    "1". A table whose whole words still cannot fit scrolls inside its box, its first column held
-   in view; the page never scrolls sideways. After the rules above, which it overrides. */
+   in view and a shadow on the edge that has more (a white cover that moves with the content
+   over a fixed shadow); the page never scrolls sideways. After the rules above, which it
+   overrides. No comment inside the block: st.markdown dedents the sheet, and a line left blank
+   but indented once comments go would no longer match tests/test_qa_round4.py. */
 [data-testid="stTable"] { container-type: inline-size; }
 @container (max-width: 40rem) {
   [data-testid="stTable"] table { font-size: 0.75rem; hyphens: auto; }
@@ -164,7 +167,6 @@
     position: sticky; left: 0; z-index: 1; background-color: #ffffff;
   }
   [data-testid="stTable"] thead tr > :first-child { z-index: 3; }
-  /* a shadow at the edge that has more to scroll to (the covers move with the content) */
   [data-testid="stTable"] > div {
     background:
       linear-gradient(to left, #ffffff 40%, rgba(255, 255, 255, 0))
