@@ -1,7 +1,8 @@
 # QA passes over the clinician application
 
 Round 1 (2026-10-20, Streamlit's AppTest) first; round 2 (2026-10-22, every screen in headless
-Chrome, read by eye) next; the performance pass (2026-10-27) at the end.
+Chrome, read by eye) next; the performance pass (2026-10-27), keeping the hosted app awake, and
+round 3 (2026-10-27, every screen again after the Oct 27 PRs) at the end.
 
 ## Round 1 (2026-10-20)
 
@@ -311,3 +312,66 @@ two arenas saves about 45 MB, an environment variable set when the process start
   (or Actions > keep-awake > Run workflow).
 - Still open the app yourself shortly before each judging window (Oct 29, and Oct 30 before
   10:00 am PT): a scheduled run can be late, and a reboot after a merge can leave it starting.
+
+## Round 3 (2026-10-27): after the Oct 27 PRs
+
+Eleven PRs landed on Oct 27 (#135 to #147: the Tests launcher, the action row, cards that name
+their destination, Start here and pinned files, tooltips, the breadcrumb, workbench polish,
+cohort search, the performance pass, the numbers pass, the GigaPath re-score) and nobody had
+walked the whole app since. This round walked every screen again on main at 9eab7b0, then
+rebased on the slide port (#150) and checked the ported slide page.
+
+### How
+
+- **The app** ran in WSL from a copy of the branch on the release bundle `demo-bundle-v2`, no
+  keys, one server, the app's light theme.
+- **Every screen by its address**, each in a fresh browser session, headless Chromium
+  (Playwright) at 1280 and 800 px (the sidebar open): the patient list, Methods and validation,
+  Feedback, and for SYNTHETIC-001 and Cases 299, 563, 730, 926, 1043, 564 (a breast MRI not
+  walked before) and 485 (five tests, no documents): every view and every test's workbench
+  (123 screens per width). Each shot whole and read by eye in pieces; a script listed
+  exceptions, error boxes, text cut by an ellipsis, elements past the right edge, sideways
+  scroll, overlapping text, console errors and the time from the address to the end of the run.
+- **Charts drawn too narrow:** a second pass scrolled each 800 px screen and measured every
+  chart (the checks above can't see inside a canvas).
+- **Clicks** (about 580 checks): the tour, "Search every file" (TP53, PIK3CA, CA 15-3, bone,
+  HER2 disagree, ESR1 methylated, nonsense) and its Open, Start here, pinning a file, the action
+  row on SYNTHETIC-001 and Case 299 (Attention queue, Import a test, Compare versions, Export,
+  Your marks, Pin, Methods, How to read this), a review mark through Your marks to the Feedback
+  ledger and its Open, 23 deep links with wrong or stale values, all 16 report versions of
+  SYNTHETIC-001 in Report, Tests and Timeline, the Timeline's jump and back, every launcher
+  tile's Open and month pill of the eight files, and the three synthetic example files imported
+  into SYNTHETIC-001 and Case 299.
+
+### Findings
+
+| # | Severity | Screen | What was seen | What to do | Status |
+|---|---|---|---|---|---|
+| R3-16 | major | SYNTHETIC-001's report after importing the example sequencing file | "The report view could not be drawn": the example MAF holds PIK3CA H1047R, already in the record, so the report drew its CIViC block twice with the same mark keys (`StreamlitDuplicateElementKey`) | one CIViC block per variant | fixed; the app test now imports a variant the record holds |
+| R3-7 | major | Every TCGA file's report at 800 px | The risk histogram's plot was about 30 px wide with its axis title cut ("…ed log-risk (higher = shorter expected"); the layer-contributions chart lost its axis title and legend | the two charts share a row that wraps (380 px each): side by side at 1280 px, stacked at 800 px | fixed; a test fails any chart in a fixed column of half the width or less |
+| R3-15 | major | Evolution view of 27 of the 40 TCGA files | "applies if hormone-receptor-positive: not recorded in this file" beside a report showing "Recorded: ER positive, PR negative, HER2 negative" (TCGA clinical data, IHC and ISH): the view read receptor status from the diagnosis line and the documents only | read the recorded status (HR positive when ER or PR is, negative when both are; equivocal is never a status), as #99 intended ("the record's status wins") | fixed: the false "not recorded" lines are gone; 10 files drop one row their recorded status rules out (the HER2-positive-only row on HER2-negative tumors, rows that need HR-positive on HR-negative ones); SYNTHETIC-001 and Cases 299, 563, 730, 926 and 1043 keep their rows; test |
+| R3-1 | minor | Tests on SYNTHETIC-001 opened without a test in the address | The breadcrumb and the launcher said "CA 15-3, month -2" (the oldest) while the Spot panel showed month 24 | open the latest of the series, the value the Spot panel opens on | fixed; test |
+| R3-10 | minor | MRI Spot panel (Cases 563, 564) at 800 px | The kinetics curve sat in a 2-of-5 column: 179 px wide, its title cut; the mark control was cut after "reviewed" | the curve and the mark under the panel's words, the curve 460 px wide with slanted labels and a short title | fixed; test |
+| R3-14 | minor | Methods and validation, Feedback | Opened from a file, the browser's Back lands on the bare patient list: Streamlit drops the address's parameters on the way back | a "Back to <file>" link on both pages, to the screen left (its test, pointer and version) | fixed (the browser's own Back stays Streamlit's); checked in Chromium: back on "Tests › Labs › CA 15-3, month 11"; test |
+| R3-17 | minor | A link with `?version=0` | Opened the latest report, though the app writes `?version=0` for the first version (diagnosis): a copied address reopened the wrong version | accept 0 | fixed; test |
+| R3-12 | minor | Patients, "Search every file" | Two of the box's seven examples find nothing in any file ("ESR1 methylated", "washout") | examples that each find a file | fixed: "GSTP1 methylated" (5 files) and "plateau" (2); the others find 3–14 files. No test: the test bundle is not the release one |
+| R3-2 | minor | Radiology, mammography (Case 926) | The search box suggested "washout · largest · C2", MRI words; a mammogram has no lesion candidates | a hint per page | fixed: "mutation · lymph node · change over time"; test |
+| R3-6 | minor | Methods and validation, receptor table | "None" as HER2-by-copy-number's AUC and cutoff (R2-6's pattern) | it is a rule: "—" and "— (a rule)" | fixed; test |
+| R3-9 | minor | Timeline at 800 px | The month axis's title was cut ("…diagnosis at mont"); treatment names overprint where bars sit close ("palbociclib" over "alpelisib") | the title on two lines; a name per bar would need the bar's width in pixels, which the spec doesn't know | title fixed (test); the names stay (hover names each bar) |
+| R3-19 | minor | Radiology cards (MedSAM, the screening score) | The reproducibility note showed the raw shell line "22:43:52 up 59 min, 1 user, load average: …" | the load average only | fixed; test. The slide page has the same (R3-4) |
+| R3-5 | low | Every TCGA report | Two headings "Where this patient sits": among the 40 TCGA files (the cohort lookup) and among all patients (the risk histogram) | rename the histogram's | fixed: "This patient's risk among all 1,064 patients"; test |
+| R3-18 | low | Methods and validation | No card for the cohort lookups (Search every file, Similar patients, Where this patient sits); their placeholders were in the table already (a canvas table, which text tools can't read) | a card: lookups over the files' findings, not models; what they read; the placeholder weights; what is never compared | fixed; the app test checks the card and Similar patients' weights in the placeholder table |
+| R3-13 | minor | Patients, search "bone" | The first result opens SYNTHETIC-001's imaging report at the **liver** lesion: its best finding is the "Imaging lesions" card (bone and liver), and a card opens at its own target; "New metastatic site: bone" is in the "+5" | within a file, rank first the findings whose name holds the words (`cohort.search`'s sort key) | open: it changes every query's first finding; for the cohort owner |
+| R3-8 | low | Every file at 800 px | The action row wraps to four rows of two buttons (about 180 px) under the header, before any content | fold Pin, Methods and How to read this into one "More" menu at narrow widths, or accept | open, for the shell's owner |
+| R3-3 | low | Slide workbench, first open per server | 12–32 s (Case 563 31.9 s at load 4): the section's tiles download once per server | – | accepted (R2-26's download, said on screen) |
+| R3-4 | minor | Slide workbench (Cases 563 and 730; after #150 Cases 299, 730 and 926) | Machine talk: "…outside the scored window were skipped (the budget for this PC's CPU)", "this PC", "load average" | plain words ("not scored", the load as in R3-19) | open: the slide page's owner (`app/workbenches/slides.py`) |
+| R3-11 | low | Slide workbench at 800 px | Before #150 a 109 px chart; after #150 the map draws 468 px wide with no sideways scroll (the 151 px seen on Oct 27 is gone), but the "Zoom to the cells" label is cut | let the label wrap | open: the slide page's owner |
+| R3-20 | – | Methods and validation, Feedback opened by address | Two console 404s: Streamlit's client asks `/methods/_stcore/health` and `/host-config` before the root ones | – | not a bug (Streamlit) |
+| R3-21 | – | Every screen | No exception and no error box on 246 screens; no cut text, element past the edge or sideways scroll in the page's own elements at either width (inside charts: R3-7, R3-9, R3-10); every finding carries its label; the synthetic patient and the simulated hospitals are labeled; no hackathon, sponsor or demo wording in 2.3 MB of rendered text | – | checked |
+| R3-22 | – | Deep links | 23 addresses with an unknown patient, view, test, month, pointer or version, a test of another file, a page with junk parameters: each opens the file (or the list) as usual, with no error; `?view=tests` (lower case) opens the report | – | checked |
+| R3-23 | – | Speed | From the address to the end of the run in a fresh session (session start included), load average 1.6–10: median 4.8 s at 1280 px and 4.3 s at 800 px; over 5 s mostly at load above 4, the first screen after a restart (13.6 s) and the slide page's first open (R3-3) | – | accepted; clicks within a session were not timed |
+
+### Not covered
+
+The hosted app (the keep-awake job checks it), a 375 px phone, browsers other than Chromium,
+a screen reader, and dark mode (the app is light-only).
