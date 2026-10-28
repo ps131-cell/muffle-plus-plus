@@ -332,6 +332,13 @@ def test_the_page_renders_both_file_kinds_and_its_filter_works():
     sheet = (root / "app" / "theme.css").read_text(encoding="utf-8")
     assert '[data-testid="stTable"] [data-testid="stMarkdownContainer"] p' in sheet
     assert "overflow-wrap: anywhere" in sheet and "min-width: 4.5rem" not in sheet
+    # a value (a number, a pointer) never splits: "anywhere" on a squeezed cell showed 213 tiles
+    # as "21" over "3"; only the header's labels may break inside a word
+    assert '[data-testid="stTable"] td code { overflow-wrap: normal' in sheet
+    narrow = sheet.split("@container (max-width: 40rem) {")[1].split("\n}\n")[0]
+    for rule in narrow.split("}"):
+        if "overflow-wrap: anywhere" in rule:
+            assert all("thead th" in s for s in rule.split("{")[0].split(",")), rule
     assert len(results_of(at)) == 8
     at.checkbox[0].check().run()
     assert len(results_of(at)) == 7  # the month-7 value within the limit drops out
