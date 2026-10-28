@@ -581,6 +581,8 @@ def tile_story(t, classes: list[str], meta: dict, data: tile_map.MapData | None)
             "mixup": mixup(meta, top, second) if t["unsure"] or shown != top else None}
 
 
+# the pipeline's reason for the scored area, in plain words on the page (QA R3-4)
+SCORED_WHY = {"the whole slide fits the budget": "the whole slide was small enough to score"}
 SPOT_PICTURES = 260  # px: the Spot panel's crop and neighbourhood pictures
 SPOT_WORDS = 520  # px: beside the pictures at 1280 px (as wide as the old 2/3 column), under
 # them at 800 px (QA R3-11)
@@ -816,7 +818,7 @@ def render_slide(page: Page, pf: PatientFile, slide: str, version: int | None,
     st.caption(
         f"Source: {meta.get('source', '')} · slide {slide} · scored: {sc.get('mode', '?')}, "
         f"{sc.get('scored_tiles', '?')} of {sc.get('tissue_tiles_total', '?')} tissue tiles of "
-        f"{TILE_UM:.0f} µm ({sc.get('why', '')}) · encoder {meta.get('encoder', {}).get('name')} "
+        f"{TILE_UM:.0f} µm ({SCORED_WHY.get(sc.get('why', ''), sc.get('why', ''))}) · encoder {meta.get('encoder', {}).get('name')} "
         f"· head: {meta.get('head', {}).get('kind')} · nuclei: {nuc.get('model') or 'not run'} on "
         f"{nuc.get('tiles', 0)} tiles · method version {meta.get('method_version', '0.2')} · "
         f"status: {meta.get('status', 'implemented')}.")
