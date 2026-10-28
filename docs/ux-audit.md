@@ -78,7 +78,7 @@ SYNTHETIC-001's Timeline, Methods and validation. The rules that came out of it 
 | H5 | No colour code for CIViC levels or variant severity; red/blue vs red/green for risk | **Done** for levels (A–B green, C–E orange) and severity (Ensembl VEP: high red, moderate orange, low and modifier grey), on the Methods page's Colour code; risk changes in the cockpit red/blue like the charts. A metric tile's delta stays red/green (left: Streamlit's control; said in the legend) |
 | H6 | Federated training's sites and C-indexes hidden | **Done.** The sidebar lists each simulated site's held-out C-index; Methods shows one status table (patients, deaths, held out, C-index, layer coverage) instead of the graphviz drawing |
 | H7 | The tumor-board note's disabled buttons | **Done.** Only the buttons that can work; a status line says why the rest are not there |
-| H8 | The action row loud and four lines at 800 px | **Done.** Same buttons and order, smaller, grey until hover; three lines at 800 px. One line at 800 px would need shorter labels, which the tests and the video name: left |
+| H8 | The action row loud and four lines at 800 px (QA R3-8) | **Done.** Same buttons and order, smaller, grey until hover: two lines (62 px) at 1280 and at 800 px. Under 1024 px its Methods link and How to read this are hidden: the sidebar's navigation and the breadcrumb's "?" hold them |
 | H9 | Workbench part headings as loud as the title | **Done.** Small capital labels over a hairline (`_page.py`'s h4, by CSS) |
 | H10 | The Patients page: three blocks and three search fields before the list | **Left** (decided in round 11, user-reviewed: Start here, the tour and Search every file stay above the list); the compact type lifts the list by ~200 px |
 | **Nice to have** | | |
