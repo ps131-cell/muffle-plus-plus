@@ -1206,9 +1206,11 @@ def next_column(pf: workspace.PatientFile, i: int, ov: dict):
         st.caption("Every item of the queue is marked." if items else
                    "Nothing needs attention in this version.")
     for x in left[:NEXT_ITEMS]:
-        n = items.index(x)
+        n, what = items.index(x), x["what"]
+        if x["pointer"] and what.startswith(x["pointer"]):  # "`MYC` amplification", not "MYC MYC …"
+            what = what[len(x["pointer"]):].strip()
         line, act = line_and_action()
-        line.markdown((f"`{x['pointer']}` " if x["pointer"] else "") + esc(shorten(x["what"], 90))
+        line.markdown((f"`{x['pointer']}` " if x["pointer"] else "") + esc(shorten(what, 90))
                       + f"  \n{kind_badge(x)} :{TRUST_COLORS[x['trust']]}-badge[{x['trust']}]"
                       + (" · **new**" if x["new"] else ""),
                       help=esc(f"{x['source']} · {x['why']}"
@@ -1620,10 +1622,10 @@ def case_charts(index: int, source: str) -> tuple[dict, dict, dict]:
     named = {LAYER_NAMES.get(m, m): v for m, v in contrib.items()}
     position = charts.risk_position(demo.cohort_risks, case.log_risk,
                                     f"{ordinal(case.percentile)} percentile").to_dict()
-    # in the report's narrow risk column: a shorter chart, its axis title in a word (the
-    # caption says which way is worse)
+    # in the report's narrow risk column: a shorter chart, axis titles in a few words (the
+    # captions say which way is worse, and against whom)
     position["height"], position["layer"][0]["encoding"]["x"]["title"] = 150, "predicted log-risk"
-    return position, charts.contributions(named).to_dict(), named
+    return position, charts.contributions(named, title="change in log-risk").to_dict(), named
 
 
 def case_why(case):
