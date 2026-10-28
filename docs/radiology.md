@@ -445,9 +445,10 @@ copy as a shape only, with its clipped share.
 **Slices.** Streamlit gives a chart a new identity whenever its figure changes, which drops the
 browser's zoom; so the map carries the chosen slice and the 7 on each side as plotly frames, and
 the **Slice** slider inside the map steps through them in the browser with the zoom kept (the
-view buttons and the opacity slider still apply). **Go to slice** above the map jumps further and
-shows the whole slice again; so do the Candidate control, a pointer on another slice and a search
-spot, each zoomed on its target. One window weighs 1.0–1.2 MB (15 slices: the image as a JPEG,
+view buttons and the opacity slider still apply). **Go to slice** above the map jumps further; the
+rebuilt map shows the last view the page set (the whole slice, or a candidate's or a spot's zoom),
+not a zoom made with the wheel. The Candidate control, a pointer on another slice and a search spot
+jump and zoom on their target. One window weighs 1.0–1.2 MB (15 slices: the image as a JPEG,
 the overlays as one-pixel-per-pixel PNGs, the hover numbers as int16 typed arrays, one hover
 template per kind of square); it is built in about 1–2 s the first time and kept for reruns.
 
