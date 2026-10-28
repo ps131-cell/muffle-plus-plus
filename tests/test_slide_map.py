@@ -221,3 +221,30 @@ def test_the_slide_page_draws_the_map_on_three_cases(idx):
     assert "matched Necrosis or debris" in " ".join(e.value for e in at.caption)
     spec = json.loads(at.get("plotly_chart")[0].proto.spec)  # one view: coloured by match
     assert not spec["layout"].get("updatemenus")
+
+
+@pytest.mark.parametrize("idx", ["563", "299"])
+def test_the_slide_page_speaks_plainly_and_its_spot_panel_wraps(idx):
+    """QA R3-4: "skipped (the budget for this PC's CPU)", "this PC" on the slide page; plain words
+    now ("not scored", the computer that scored the sections). R3-11: the Spot panel's pictures and
+    "Zoom to the cells" sat in a third-width column (the label cut, the pictures over the words at
+    800 px); they share a row that wraps, never fixed columns."""
+    from streamlit.testing.v1 import AppTest
+
+    from tests.test_states import in_columns
+
+    if idx not in CASES:
+        pytest.skip(f"Case {idx} is not shipped")
+    at = AppTest.from_string(PAGE.format(app=str(ROOT / "app"), src=str(ROOT / "src"), idx=idx,
+                                         slides=CASES[idx]), default_timeout=240).run()
+    assert not at.exception, at.exception
+    text = " ".join(e.value for e in [*at.markdown, *at.caption, *at.warning, *at.info])
+    for machine in ("this PC", "PC's", "budget", "were skipped"):
+        assert machine not in text, machine
+    meta = json.loads((RESULTS / CASES[idx][0] / "summary.json").read_text())
+    if meta["scored"].get("skipped_tiles"):  # Case 563: 10,712 tiles outside its window
+        assert f"{meta['scored']['skipped_tiles']} tissue tiles outside the scored window were " \
+               "not scored" in text
+    if (ROOT / "app" / "static" / "slides").is_dir():  # the viewer's pyramids (not in CI)
+        assert "Zoom to the cells" in [b.label for b in at.button]
+    assert not in_columns(at), in_columns(at)

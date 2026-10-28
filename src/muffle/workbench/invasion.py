@@ -127,7 +127,7 @@ KNOWN_FAILURES = [
     "The lymphocyte-like rule is size and shape only: small stromal, endothelial and apoptotic "
     "nuclei count as lymphocytes.",
     "Where the pipeline scored a tumor-centred window rather than the whole slide, tumor "
-    "outside the window is not in the map; the summary says how much tissue was skipped.",
+    "outside the window is not in the map; the summary says how much tissue was not scored.",
     "Pen ink, folds and out-of-focus tiles are excluded by placeholder rules set on colon slides; "
     "an excluded tile inside the tumor leaves a hole in the mask (small holes are filled).",
     "The front normals come from a blurred mask: on a front thinner than two tiles the arrow "
