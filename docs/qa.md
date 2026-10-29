@@ -643,6 +643,7 @@ a re-walk follows them, and a last walk follows the Oct 29 freeze.
 | R4-14 | – | The hosted app (dbf9d29) | Awake (4 s); About this system: case agent live, code `dbf9d29` = main; the 41 reports, the two MRI deep links, the synthetic Timeline and labs pointer, Methods: 47 screens, no exception or error box | – | – | checked |
 | R4-15 | – | Speed | From the address to the end of the run in a fresh session: median 4.6 s at 1280 px under a load average of 3.6–22 (four sessions' tests share the CPU); the slowest 20.7 s at load 15.5 | – | – | accepted |
 | R4-16 | low | Mammography (Case 926), Details › CC and MLO, linked, at 800 px | The two 260 px views sat in `st.columns(2)`: each half was narrower than its picture, so the page scrolled 8 px sideways and the two captions overlapped (since #112/#120; found by the re-walk, which opens every expander) | qa-4 (radiology's owners done; on the orchestrator's word) | a horizontal container that wraps, one 260 px box per view (as R3-11) | fixed in #171: side by side at 1280 px, one under the other at 800 px, no sideways scroll; test |
+| R4-17 | low | Labs › Details › Results (SYNTHETIC-001) at 800 px, opened | The "Flagged only" checkbox sits in a fifth-width column (`st.columns([3, 1, 1])` in `app/workbenches/labs.py`), so its label is cut to an ellipsis | – | let the three controls share a row that wraps (as R3-11, R4-16) | after the freeze: found on the post-freeze walk; the checkbox works, its label shows in full at 1280 px |
 
 ### Re-walk after Round 15 (2026-10-28 evening, main 94b3e70)
 
@@ -673,6 +674,31 @@ own box is #168's design for narrow boxes and is counted apart).
   and a cell click, all 30 Methods links and the shift key, Similar patients, the saved note
   and its download, the example imports, the launcher: as expected. (The note's button draws
   when scrolled to; the action row's Methods link is hidden under 1024 px by design, R3-8.)
+
+
+### Post-freeze walk (2026-10-29, main 8c83833)
+
+The code as frozen (8c83833; #172 after it changed docs only), on a fresh local server, the
+same checks as the re-walk:
+
+- **762 screens** (41 files × 5 views + one test per workbench, 1280 and 800 px, every
+  expander opened): no exception, no error box, no element past the edge, no sideways scroll,
+  no clipped table cell (at 800 px tables scroll inside their own box where #168 lets them);
+  one label cut, R4-17. Median 3.3 s (1280 px) and 2.6 s (800 px) from the address to the end
+  of the run in a fresh session.
+- **README's reviewer path**: all eight links open the screen they name at both widths, the slide
+  and MRI maps drawn and their pointers (T1, C1, L4) shown.
+- **The maps**: 202 checks per width (every view, hover, Spot, both slice sliders, search, Q1,
+  Clear, every download including the PNG); SYNTHETIC-001's example region has no Zoom to the
+  cells and no export, as it says.
+- **Clicks**: the Timeline's compare ends, Go to and a cell click; all 30 Methods links and the
+  shift key; Similar patients; the saved note and its download; the worklist's sorts, filters,
+  shared address, junk parameters, a row click and back; the tour, search every file, Start
+  here, pins, the action row, marks to the ledger, 23 deep links, 16 versions × 3 views, the
+  example imports and the launcher: as expected (about 560 per width).
+- **The hosted app**: waits for the reboot onto 8c83833 (see the Go / No-go line).
+
+**Go / No-go (local, 8c83833): Go.** Hosted: pending the reboot.
 
 ### Not covered
 
