@@ -642,6 +642,37 @@ a re-walk follows them, and a last walk follows the Oct 29 freeze.
 | R4-13 | – | Deep links, time travel, imports, marks, the note | 23 deep links, 16 versions × 3 views, the diff viewer's ends and Go to, the three example imports, a mark through Your marks to the ledger, Compare versions from every view, Similar patients' Open, Show the saved note and its download: as expected | – | – | checked |
 | R4-14 | – | The hosted app (dbf9d29) | Awake (4 s); About this system: case agent live, code `dbf9d29` = main; the 41 reports, the two MRI deep links, the synthetic Timeline and labs pointer, Methods: 47 screens, no exception or error box | – | – | checked |
 | R4-15 | – | Speed | From the address to the end of the run in a fresh session: median 4.6 s at 1280 px under a load average of 3.6–22 (four sessions' tests share the CPU); the slowest 20.7 s at load 15.5 | – | – | accepted |
+| R4-16 | low | Mammography (Case 926), Details › CC and MLO, linked, at 800 px | The two 260 px views sat in `st.columns(2)`: each half was narrower than its picture, so the page scrolled 8 px sideways and the two captions overlapped (since #112/#120; found by the re-walk, which opens every expander) | qa-4 (radiology's owners done; on the orchestrator's word) | a horizontal container that wraps, one 260 px box per view (as R3-11) | fixed in #171: side by side at 1280 px, one under the other at 800 px, no sideways scroll; test |
+
+### Re-walk after Round 15 (2026-10-28 evening, main 94b3e70)
+
+Main after the worklist (#162, #167), the memory pass (#163), the workbench tables and theme
+(#165, #168), the map fixes (#166) and this round's #164. Same method, plus: **every collapsed
+expander opened** before the checks (the first walk never looked inside them), and a **table
+check** on every `st.table` (a cell past its box or clipped; a table that scrolls inside its
+own box is #168's design for narrow boxes and is counted apart).
+
+- **762 screens** (41 files × 5 views + one test per workbench, both widths, expanders open):
+  no exception, no error box, no text cut, no clipped table cell; at 800 px tables scroll
+  inside their own box on 18 tables (document, CIViC level, PAM50 profile, zone,
+  candidate, variant), as designed; one sideways scroll: R4-16. The R4-1 contrast failures are
+  gone; what the contrast check still lists is elements caught mid-rerun (faded) and two
+  disabled controls on the documents page ("Model spans", "Compare the two readers"; WCAG
+  exempts inactive controls).
+- **The Patients worklist** (#162, #167), at both widths: all six sorts and Reverse written to
+  the address; search, Open SOS only and Tests present narrow the list and compose; Clear
+  filters keeps the sort; a shared address reopens the same list in a fresh session and junk
+  parameters fall back; a click on a row's cell opens the file and Patients goes back; the grid
+  stays inside the page. Under load the address can trail the screen by 2–4 s after Patients.
+- **The maps** after #163 and #166: 202 checks per width pass (views, hover, Spot, both slice
+  sliders, search with Q1 and Clear, every download, the PNG export clickable now); each map's
+  picture is the round-4 one (pointers, legend shares, excluded squares); the pixels that
+  differ are text below the maps (#165, #168) and the sidebar.
+- **Clicks** (about 560 per width): the tour, search every file, Start here, pins, the action
+  row, marks to the ledger, 23 deep links, 16 versions × 3 views, the diff viewer's ends, Go to
+  and a cell click, all 30 Methods links and the shift key, Similar patients, the saved note
+  and its download, the example imports, the launcher: as expected. (The note's button draws
+  when scrolled to; the action row's Methods link is hidden under 1024 px by design, R3-8.)
 
 ### Not covered
 
