@@ -211,8 +211,9 @@ nor the output of a model trained on it, which includes SYNTHETIC-001's risk sco
   weights and 40 held-out cases' processed inputs) plus the slide tiles on a second release. The
   41 files are built once per bundle, and each workbench's summary and queue once per file and
   version (a report shown again costs under 0.6 ms instead of 45–267 ms; whole screens about 5%
-  faster; memory unchanged, about 700 MB after a walk through all 41 files). Search across the
-  files is a plain index of their findings, built on the first search.
+  faster). A memory pass held the server under the hosted app's 690 MB: a ten-file walk ends at
+  612 MB instead of 673–701 MB, and each extra reader adds about 5 MB instead of 33. Search
+  across the files is a plain index of their findings, built on the first search.
 
 **Models and their licenses.** Used in the app (open licenses, results precomputed offline):
 GigaPath-Flash (Apache-2.0), StarDist 2D_versatile_he (BSD-3-Clause), WSInfer TIL InceptionV4 (CC BY
@@ -281,8 +282,8 @@ Every dataset, model and service, with its license and what leaves the machine:
   hospital alone (0.649 ± 0.032), with the clinical-only baseline (0.702 ± 0.004) reported even
   though it wins. The app's demo model scores a held-out C-index of 0.728 (a different
   quantity: one trained model, the mean over the three hospitals' held-out patients).
-- A QA walk of 334 screens in a headless browser at two widths, with 29 findings fixed or
-  listed before the freeze.
+- Four QA rounds in a headless browser at two widths; the last walked 762 screens after the final
+  UI round, every expander opened, with no exception, error box or cut text.
 - Every claim in a case note traces to a tool call, and the app shows the chain.
 
 ## What we learned
@@ -577,6 +578,8 @@ a report states (receptors are often in an earlier biopsy report not in the data
 | Saved notes | 9, all written by Nemotron 3 Ultra after Super's tool calls, 0 grounding issues; 9,401–23,474 tokens each | release `demo-bundle-v2` | `app/saved_notes.json`; decisions 2026-10-18 |
 | Spend | about $0.01 a note at 8k–16k tokens (decisions 2026-10-18); the local ledger reads $0.82 of the $25.50 cap (125 calls, its last entry 2026-10-19; $0.48 of it recorded by hand for calls made outside this code). The hosted app's live notes count on its own ledger | Token Factory | the local ledger `~/.muffle/token_factory_spend.json`; the cap in `src/muffle/report/budget.py` |
 | QA round 2 | 334 screens (330 before the fixes) of seven files at 1280 and 800 px, light and dark, in headless Chromium; 29 findings; R2-15, R2-16, R2-18 and the MRI's overflow at 800 px fixed on 2026-10-27 (#136) | 2026-10-22 | `docs/qa.md` |
+| QA round 4, re-walk after the last UI round | 762 screens (41 files × 5 views and one test per workbench, both widths, every expander opened): no exception, no error box, no text cut, no clipped table cell; one sideways scroll (R4-16), fixed in #171 | main 94b3e70, 2026-10-28 | `docs/qa.md` (Round 4) |
+| Memory pass | the ten-file walk ends at 612 MB (was 673–701 MB); each extra reader adds 4.7 MB at the end of a walk (was 33); three first loads at once on a fresh server: 0 of 9 tries with an error page (was 2 of 4); the hosted limit is 690 MB | WSL, release bundle; every element of the 114 screens identical before and after | `docs/qa.md` (Memory pass, 2026-10-28) |
 | Performance pass | a report shown again: 0.27–0.56 ms instead of 45–267 ms (SYNTHETIC-001, Cases 299 and 926); the 114-screen AppTest walk 81.3 s → 76.9 s (5% faster, median screen 0.47 → 0.43 s); memory after all 41 files 720 → 699–710 MB | AppTest walks in WSL at load average 11–15, medians over four alternating pairs; every element of all 114 screens identical before and after | `docs/qa.md` (Performance pass, 2026-10-27) |
 
 **Across the files** (lookups, not models; `docs/cohort.md`)
