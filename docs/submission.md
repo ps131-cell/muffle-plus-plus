@@ -620,7 +620,7 @@ a report states (receptors are often in an earlier biopsy report not in the data
 7. **Submit** on Devpost before **Oct 30, 10:00 am PT** (12:00 pm Central); then open the public
    project page and check its links.
 
-- [ ] **Video URL** (YouTube, public, ≤ 3:00): `______________________`; also in README.md
+- [x] **Video URL** (YouTube, public, ≤ 3:00): https://youtu.be/dVSW95_dnis (unlisted until the submission; set public on the user's word); also in README.md
 - [ ] **Repository URL:** https://github.com/ps131-cell/muffle-plus-plus (public, MIT in About)
 - [ ] **Hosted app URL:** https://cancer-intelligence-platform.streamlit.app (rebooted after the
       freeze; About this system: Held-out C-index 0.728, Case agent: live, Live notes left: 5 of

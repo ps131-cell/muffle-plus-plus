@@ -20,6 +20,8 @@ risk model is trained across simulated hospitals with **NVIDIA FLARE**.
 login). It holds 40 held-out TCGA-BRCA patients, each assigned to one of three **simulated**
 hospitals, and SYNTHETIC-001, a **synthetic** patient written by hand.
 
+**Video (2:59):** https://youtu.be/dVSW95_dnis (the script in `docs/video.md`, read by a synthetic voice; captions in the video).
+
 ## For reviewers: a five-minute path
 If the app was asleep, the first load can take a minute (Streamlit wakes it); after that each
 link below opens its screen directly, in the order of the demo video.
