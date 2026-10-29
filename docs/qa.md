@@ -696,9 +696,17 @@ same checks as the re-walk:
   shared address, junk parameters, a row click and back; the tour, search every file, Start
   here, pins, the action row, marks to the ledger, 23 deep links, 16 versions × 3 views, the
   example imports and the launcher: as expected (about 560 per width).
-- **The hosted app**: waits for the reboot onto 8c83833 (see the Go / No-go line).
+- **The hosted app** after the user's reboot (2026-10-29, through its embed path, headless
+  Chromium): About this system reads Code `ae77294` (main; the code is 8c83833's), Held-out
+  C-index 0.728, Case agent live, Live notes left 5 of 5, spend $0.00 of that server's $3.00
+  cap (no live note was written during the walk); a fresh tab drew the Patients page in 2.7 s
+  (the app already awake after the reboot); all 41 files' reports, Methods and five deep links
+  open with no exception or error box (47 screens); Case 299's slide map (7 views) and Case
+  563's MRI map (Lesion, Kinetics, Enhancement) draw in 5–6 s, every view clicks and hover has
+  its words; README's eight reviewer links land on what they name, the maps' pointers (T1, C1)
+  and the lab pointer (L4) shown.
 
-**Go / No-go (local, 8c83833): Go.** Hosted: pending the reboot.
+**Go / No-go: Go**, locally on 8c83833 and on the hosted app at ae77294.
 
 ### Not covered
 
