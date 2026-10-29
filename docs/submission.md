@@ -162,11 +162,11 @@ tumor-board note: **Nemotron 3 Super** plans and calls our tools (what was recor
 percentile, each data layer's effect, top features, CIViC evidence for the observed drivers, a
 Tavily literature search); **Nemotron 3 Ultra** writes the note, each bullet labeled observed,
 model inference or hypothesis; a plain-code grounding check flags any number, gene or link no
-tool returned, and the evidence chain ties each sentence to its tool, field and value. With a
-key, the agent makes these calls to Nebius Token Factory at run time, each charged against a
-hard $25.50 cap; a local run (README setup) writes live notes. The hosted app serves the nine
-notes those calls produced, so its sidebar reads "Case agent: saved notes only" and a judge sees
-the agent's output without spending from the cap.
+tool returned, and the evidence chain ties each sentence to its tool, field and value. The
+hosted app runs the agent live: **Write the note with Nemotron** makes these calls to Nebius
+Token Factory and Tavily at run time, five live notes per browser session, every call charged
+against the server's spending cap before it is sent ($3.00 on the hosted app, under the code's
+hard $25.50). Nine saved notes in the release show the agent's output without a wait.
 
 **Learning across hospitals (NVIDIA FLARE).** The risk model is trained across three simulated
 hospitals (TCGA-BRCA tissue source sites) without moving patient data: each site trains locally
@@ -332,11 +332,14 @@ only).
   with Nemotron 3 Super and one or two Nemotron 3 Ultra calls (the note, and a rewrite if the
   grounding check finds something), following the track's advice to use Ultra for reasoning and
   Super for fast calls. The app names the models and Token Factory on every note and in the
-  sidebar's **About this system**. With a key the agent calls Token Factory at run time, every
-  call charged against a hard $25.50 cap (`src/muffle/report/budget.py`); a local run writes live
-  notes. The hosted app keeps no key (its container's spend ledger resets on a reboot) and serves
-  the nine notes those calls produced, so judges see them without spending from the cap; the
-  calls are in the local ledger ($0.82 of the cap, 125 calls).
+  sidebar's **About this system** ("Case agent: live", "Live notes left: 5 of 5"). The hosted
+  app calls Token Factory at run time: five live notes per browser session
+  (`DEMO_LIVE_NOTES_PER_SESSION`), every call reserved against the server's ledger first
+  (`src/muffle/report/budget.py`; the hosted cap is $3.00, set by `TOKEN_FACTORY_BUDGET_USD`
+  under the hard $25.50). That ledger lives on the Streamlit container and starts again when the
+  container restarts, so the per-session limit and the lowered cap bound the spend between
+  restarts. Nine saved notes ship in the release; the notes written during development are in
+  the local ledger ($0.82, 125 calls).
 - **NVIDIA FLARE:** federated training with the Recipe API (`FedAvgRecipe`, `SimEnv`) across
   three simulated hospitals; the sidebar and the Methods page show it, and the README's results
   table compares it with pooling and with one hospital alone.
@@ -424,7 +427,8 @@ Each item: what happened, why it mattered, and a suggestion.
   `&version=` inside a file.
 - **Case 299** (`?patient=Case%20299`): the overview cards (click **Why?**, or **Open ·** to land
   on the evidence), the attention queue (J / K to move, M to mark reviewed, O to open), the saved
-  case note (**Show the saved note**), and **Similar patients** further down. In **Tests**, the
+  case note (**Show the saved note**, or **Write the note with Nemotron** for a live one on Token
+  Factory, five per browser session), and **Similar patients** further down. In **Tests**, the
   slide tile's **Open** opens the slide map (try the view buttons, or search "lymphocytes at
   the border"; **Slide viewer** above it zooms to single cells, and its first open downloads the
   section's tiles), and the mutation panel tile's opens the genomics workbench.
@@ -599,11 +603,11 @@ a report states (receptors are often in an earlier biopsy report not in the data
    https://cancer-intelligence-platform.streamlit.app draws the patient list.
 2. **Check About this system** (open in the sidebar): the **Code** row shows `main`'s short hash
    (the first seven characters of the latest commit on GitHub's `main`), **Held-out C-index
-   0.728**, and **Case agent: saved notes only**. If the hash is older, reboot again. The hosted
-   app keeps no Token Factory key: the spend ledger on the Streamlit container resets on every
-   reboot, so a key there would not be held to the $25.50 cap. The live case agent needs a key
-   and a persistent ledger (a local run, Testing instructions); the hosted app shows the nine
-   saved notes.
+   0.728**, **Case agent: live**, **Literature search: on** and **Live notes left: 5 of 5**. If
+   the hash is older, reboot again. The hosted app holds the Token Factory and Tavily keys (in
+   the Streamlit secrets, never shown). Its spend ledger lives on the container and starts again
+   with every restart (the panel then reads "$0.00 / $3.00"); the five-notes-a-session guard and
+   the $3.00 hosted cap bound what a restart can let through.
 3. **Record** the take from `docs/video.md` on the hosted app, then **upload it to YouTube as
    public**, with the title, description, tags and thumbnail in `docs/youtube.md`.
 4. **Paste the video link into README.md**: one line under **Live app**
@@ -619,7 +623,8 @@ a report states (receptors are often in an earlier biopsy report not in the data
 - [ ] **Video URL** (YouTube, public, ≤ 3:00): `______________________`; also in README.md
 - [ ] **Repository URL:** https://github.com/ps131-cell/muffle-plus-plus (public, MIT in About)
 - [ ] **Hosted app URL:** https://cancer-intelligence-platform.streamlit.app (rebooted after the
-      freeze; About this system: Held-out C-index 0.728, Case agent: saved notes only)
+      freeze; About this system: Held-out C-index 0.728, Case agent: live, Live notes left: 5 of
+      5)
 - [ ] **Team members** (Devpost accounts, each invited and accepted): `______________________`
 - [ ] **Track:** Best Apps and Agents; tick the Best Use of Tavily bonus if the form asks
 - [ ] **Tags / Built with:** Python, PyTorch, NVIDIA FLARE, NVIDIA Nemotron, Nebius Token Factory,

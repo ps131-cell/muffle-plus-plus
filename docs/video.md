@@ -78,8 +78,8 @@ list was checked again and is unchanged):
       0.730 means a local rebuild: record the hosted app, or start a local server without local
       data, which downloads the release; with `--bundle outputs/demo_bundle.pt` the Release card
       and About this system read "demo_bundle.pt", not "demo-bundle-v2")
-      and **Case agent saved notes only** (the hosted app keeps no Token Factory key; shot 4
-      shows the saved note). Then fold
+      and **Case agent live** (with **Live notes left 5 of 5** and **Literature search on**;
+      shot 4 shows the saved note, so it spends nothing). Then fold
       it (it is long: Reviewer initials sit below it). Never show the secrets page, `.env` or a
       terminal.
 - [ ] **Sidebar:** open for shot 1 (it shows Patients, Methods and validation, Feedback), then
