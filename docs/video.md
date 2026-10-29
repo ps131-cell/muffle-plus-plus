@@ -10,8 +10,11 @@ M, O, Back to the queue, the saved note, Your marks), and the labels and numbers
 ones the screen shows. The slide rows (shot 5 and where **O** lands in shot 3) were walked again
 the same night (about 22:00) on `main` at 1c2a7d1, after the slide map was ported from the
 team's colon analyzer (#150). The whole script was walked again on Oct 28 (about 13:00) on
-`main` at dbf9d29, after round 14 (#151–#160); the last walk follows the freeze (Oct 29, 10:00
-CDT). The screen shows the clinician
+`main` at dbf9d29, after round 14 (#151–#160). **Final walk: Oct 29, about 01:00 CDT, on the
+frozen `main` at 8c83833** (after round 15: the worklist #162 and #167, the memory pass #163, the
+workbench tables and look #165 and #168, the QA fixes #164, #166 and #171): every shot's
+address and clicks again, every label and number below found on the screen as written, no
+exception or error box; the README's eight reviewer links open. The screen shows the clinician
 application as a clinician would walk it: Patients → a patient file's overview → its tests and
 workbenches → Evolution → Timeline → Methods and validation → Feedback (`docs/WORKSPACE.md`). The
 hackathon story (Nemotron on Nebius Token Factory, NVIDIA FLARE) is said in the voice-over only

@@ -47,6 +47,11 @@ Chapters
 The chapters follow `video.md`'s shot timings, grouped so that each chapter lasts at least 10 s
 (YouTube's minimum): shots 1–2, 3–4, 5, 6, 7, 8, 9, 10, 11, then 12, 12b and the end card.
 
+**If the captioned draft is uploaded instead of a new take** (`Downloads\muffle-video-drafts\`,
+2:56), its shots start up to 2 s earlier than the script's. Use its own starts, rounded down
+(from `draft-94b3e70-timing.md`; take them from the newest draft's timing table if it differs):
+0:00, 0:17, 0:45, 1:05, 1:17, 1:27, 1:44, 1:54, 2:14, 2:26, with the same chapter names.
+
 ## Tags
 
 ```

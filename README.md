@@ -278,7 +278,8 @@ Milestone 1 (submission Oct 30 2026, 10:00 am PT; freeze Oct 29, 10:00 CDT):
       ([`docs/cohort.md`](docs/cohort.md))
 - [x] Performance pass ([`docs/qa.md`](docs/qa.md)): each workbench's summary and queue computed
       once per file and version; a report shown again costs under 0.6 ms instead of 45–267 ms,
-      the 114-screen walk runs 5% faster, memory unchanged (about 700 MB after all 41 files)
+      the 114-screen walk runs 5% faster; a memory pass (2026-10-28): a ten-file walk ends at
+      612 MB instead of 673–701 MB, under the hosted app's 690 MB
 - [x] Round 14 (2026-10-28): the Timeline's version diff, the report's cockpit and a clinical
       light theme, the radiology scan map, the Bhargava lab's stroma work as cited cards and
       planned modules, a faster first screen
