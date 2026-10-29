@@ -7,3 +7,4 @@ Before = main dbf9d29, after = branch app/qa-round-4, headless Chromium 1280 px.
 - r4-4: first text of a first visit (default gutters before, the theme after)
 - r4-5: versions table, a cell click (after: time travel)
 - r4-7: Methods colour code with the shift key
+- r4-16: the mammogram's linked CC and MLO views at 800 px (before: 8 px sideways, captions overlapping) and 1280 px after
