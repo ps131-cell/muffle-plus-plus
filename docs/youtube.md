@@ -47,10 +47,23 @@ Chapters
 The chapters follow `video.md`'s shot timings, grouped so that each chapter lasts at least 10 s
 (YouTube's minimum): shots 1–2, 3–4, 5, 6, 7, 8, 9, 10, 11, then 12, 12b and the end card.
 
-**If the captioned draft is uploaded instead of a new take** (`Downloads\muffle-video-drafts\`,
-2:56), its shots start up to 2 s earlier than the script's. Use its own starts, rounded down
-(from `draft-94b3e70-timing.md`; take them from the newest draft's timing table if it differs):
-0:00, 0:17, 0:45, 1:05, 1:17, 1:27, 1:44, 1:54, 2:14, 2:26, with the same chapter names.
+**If the narrated cut is uploaded instead of a new take** (`final-8c83833.mp4` in
+`Downloads\muffle-video-drafts\`, 2:59.2, this script's words read by a synthetic voice), its
+shots start at other times than the script's. Use its own starts, rounded down (from
+`final-8c83833-timing.md`), with the same chapter names; each chapter still lasts at least 10 s:
+
+```
+0:00 Patients and search across every file
+0:18 A patient file: the overview, the queue, the case note
+0:46 The patient's own slide
+1:05 Genomics
+1:15 Expression, protein and methylation
+1:29 Breast MRI on its own images
+1:45 The pathology report
+1:59 Labs, ctDNA and evolution (synthetic patient)
+2:18 The Timeline: time travel and the version diff
+2:29 Methods and validation, feedback
+```
 
 ## Tags
 

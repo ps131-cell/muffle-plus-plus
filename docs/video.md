@@ -105,7 +105,8 @@ list was checked again and is unchanged):
 - [ ] Walk the shot list once with the URLs below, then record.
 
 ## Devpost rules for the video
-- **3:00 at most** (judges may stop there); this script runs 2:58.
+- **3:00 at most** (judges may stop there); this script runs 2:58, and the narrated cut
+  (`final-8c83833.mp4`, the script read at about 187 words a minute) runs 2:59.2.
 - Public on YouTube; link in the README and the Devpost form.
 - Shows the project working, and how Nebius Token Factory and NVIDIA Nemotron are used (shot 4).
 - Never an individual MSK-CHORD patient. The synthetic patient, the synthetic ctDNA series and
@@ -136,7 +137,10 @@ address below opened the right screen on 9eab7b0.
 | 12 | Methods and validation | `/methods` |
 | 12b | Feedback | `/feedback` |
 
-## Shot list and script (2:58; about 350 words of voice-over)
+## Shot list and script (2:58; 514 words of voice-over)
+
+514 words in 2:58 is brisk: the narrated cut reads them at 187 words a minute (164.6 s of speech)
+to stay under 3:00. A calmer 150 a minute with the same pauses would need about 100 fewer words.
 
 "On screen" names the label the viewer sees, so the words never claim more than the label.
 Labels: **observed**, **model inference**, **hypothesis**, **documented**, **synthetic**,
