@@ -1528,6 +1528,9 @@ def mammo_geometry(page: Page, pf: PatientFile, study: dict, views: list[dict], 
     return asym
 
 
+CC_MLO_WIDTH = 260  # px a linked view (and its box): two fit side by side above 800 px
+
+
 def _cc_mlo(imgs: dict, views: list[dict], sides: list[str], key0: str, level: int,
             width: int) -> None:
     if not sides:
@@ -1546,7 +1549,11 @@ def _cc_mlo(imgs: dict, views: list[dict], sides: list[str], key0: str, level: i
     depth = c2.slider("Distance behind the nipple (mm)", 0, max(10, int(reach)),
                       min(40, int(reach) // 2), key=f"{key0}-zoom-depth")
     half = 10
-    cols = st.columns(2)
+    # a row that wraps: two 260 px views side by side when they fit, one under the other at
+    # 800 px (in half-width columns they ran 8 px past the page and their captions overlapped,
+    # QA R4-16)
+    row = st.container(horizontal=True, gap="medium", key=f"{key0}-cc-mlo-row")
+    cols = [row.container(width=CC_MLO_WIDTH) for _ in ("CC", "MLO")]
     for col, v in zip(cols, ("CC", "MLO"), strict=True):
         o, img = outs[v], window(imgs[(side, v)], level, width)
         x0, x1 = rad.nipple_band(o, depth, half, px)
@@ -1560,7 +1567,7 @@ def _cc_mlo(imgs: dict, views: list[dict], sides: list[str], key0: str, level: i
             ((max(x1, x0 + 1) - x0) * 3, img.shape[0] * 3 // 2), Image.BILINEAR)
         with col:
             st.image(full, caption=f"{side}-{v}: the band {depth - half}–{depth + half} mm "
-                                   "behind the nipple (green)", width=260,
+                                   "behind the nipple (green)", width=CC_MLO_WIDTH,
                      alt=f"The {side}-{v} mammogram with a band {depth - half} to "
                          f"{depth + half} mm behind the nipple outlined")
             st.image(band, caption=f"{side}-{v}, the band enlarged", width=140,

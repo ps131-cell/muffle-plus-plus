@@ -369,6 +369,33 @@ def test_the_page_draws_the_map_for_every_file_with_imaging(idx):
     assert "**Square r" in text and "Why this colour:" in text and "What to check by eye:" in text
 
 
+def test_the_linked_cc_and_mlo_views_share_a_row_that_wraps():
+    """QA R4-16: the mammogram's "CC and MLO, linked" put two 260 px views in st.columns(2): at
+    800 px each half was narrower than its picture (8 px past the page, the captions over each
+    other). They sit in a horizontal container now, one box of CC_MLO_WIDTH each, and wrap."""
+    idx = next((i for i, v in INDEX.items() if v[0]["modality"] == "MG"), None)
+    if idx is None:
+        pytest.skip("no mammography study is shipped")
+    at = page(idx, INDEX[idx])
+    from workbenches.radiology import CC_MLO_WIDTH
+
+    found = []
+
+    def walk(node, path):
+        if getattr(node, "type", None) == "image" and "behind the nipple" in str(node.proto):
+            found.append(path)
+        for k in sorted(getattr(node, "children", {}) or {}):
+            walk(node.children[k], [*path, node])
+
+    walk(at._tree, [])
+    assert len(found) == 2, "the CC and MLO views were not drawn"
+    for path in found:
+        assert not any(getattr(n, "type", None) == "column" for n in path)
+        row, box = [n for n in path if getattr(n, "type", None) == "flex_container"][-2:]
+        assert row.proto.flex_container.direction == 2 and row.proto.flex_container.wrap
+        assert box.proto.width_config.pixel_width == CC_MLO_WIDTH == 260
+
+
 def test_an_mri_page_shows_the_example_pair_on_the_map_in_its_change_view():
     idx = next((i for i in FILES if INDEX[i][0]["modality"] == "MR"), None)
     if idx is None or not rad.example_studies():
